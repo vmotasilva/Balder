@@ -1,6 +1,10 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
-from app.models.schemas import TransactionWebhookPayload, TransactionAuditResponse
+from app.models.schemas import (
+    TransactionWebhookPayload,
+    TransactionAuditResponse,
+    AuditResult,
+)
 from app.services.ai_auditor import AIAuditorService
 from app.core.appwrite import AppwriteService, get_appwrite_service
 
@@ -32,12 +36,22 @@ async def process_transaction_webhook(
             f"Found {len(anchors)} fixed anchors for workspace '{payload.workspace_id}'."
         )
 
-        # Step 2: Run isolated AI audit rules
-        audit_result = AIAuditorService.audit_transaction(
-            workspace_id=payload.workspace_id,
-            amount=payload.amount,
+        # Step 2: Run AI audit with Google Gemini
+        audit_dict = await AIAuditorService.audit_transaction(
             description=payload.description,
-            anchors=anchors
+            amount=payload.amount,
+            date=payload.get_iso_date(),
+            anchors=anchors,
+            workspace_id=payload.workspace_id
+        )
+
+        audit_result = AuditResult(
+            matched_anchor_name=audit_dict.get("matched_anchor_name"),
+            expected_amount=audit_dict.get("expected_amount"),
+            predicted_category=audit_dict.get("predicted_category"),
+            ai_confidence_score=float(audit_dict.get("ai_confidence_score", 0.8)),
+            is_anomaly=bool(audit_dict.get("is_anomaly", False)),
+            ai_justification_suggestion=str(audit_dict.get("ai_justification_suggestion", ""))
         )
 
         # Step 3: Prepare structured Appwrite document payload

@@ -15,6 +15,10 @@ class Settings(BaseModel):
     APPWRITE_API_KEY: str = os.getenv("APPWRITE_API_KEY", "")
     APPWRITE_DATABASE_ID: str = os.getenv("APPWRITE_DATABASE_ID", "balder_db")
 
+    # Gemini AI configuration
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+
     # Collections / Tables
     COLLECTION_TRANSACTIONS: str = "transactions"
     COLLECTION_FIXED_ANCHORS: str = "fixed_anchors"
