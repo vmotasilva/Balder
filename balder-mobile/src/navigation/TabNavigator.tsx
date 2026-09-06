@@ -9,6 +9,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useAuth } from '../context/AuthContext';
 
 // Tab Navigator Type Definitions
 export type RootTabParamList = {
@@ -22,6 +23,7 @@ const Tab = createBottomTabNavigator<RootTabParamList>();
 // Placeholder Screen: Dashboard
 // -----------------------------------------------------------------------------
 function DashboardScreen() {
+  const { user, logout } = useAuth();
   const [activeContext, setActiveContext] = useState<'family' | 'business'>('family');
 
   return (
@@ -29,9 +31,20 @@ function DashboardScreen() {
       <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
       <ScrollView contentContainerStyle={styles.container}>
         {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.brandTitle}>BALDER</Text>
-          <Text style={styles.headerSubtitle}>Inteligência Financeira & Auditoria IA</Text>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={styles.brandTitle}>BALDER</Text>
+            <Text style={styles.headerSubtitle}>
+              {user?.email || (user?.name ? user.name : 'Sessão Ativa')}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={logout}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.logoutButtonText}>Sair ↪</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Chaveador de Contexto (Pessoal vs. Empresarial) */}
@@ -226,6 +239,25 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 20,
   },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  logoutButton: {
+    backgroundColor: '#1E293B',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  logoutButtonText: {
+    fontSize: 12,
+    color: '#94A3B8',
+    fontWeight: '600',
+  },
   brandTitle: {
     fontSize: 26,
     fontWeight: '800',
@@ -233,9 +265,10 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
   },
   headerSubtitle: {
-    fontSize: 14,
-    color: '#94A3B8',
+    fontSize: 13,
+    color: '#38BDF8',
     marginTop: 4,
+    fontWeight: '500',
   },
   contextSwitchCard: {
     backgroundColor: '#131D33',
