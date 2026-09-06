@@ -13,16 +13,11 @@ import {
 import { Query, Models } from 'react-native-appwrite';
 import { databases, APPWRITE_DATABASE_ID, COLLECTIONS } from '../lib/appwrite';
 import { useAuth } from '../context/AuthContext';
+import { useWorkspace, Workspace } from '../context/WorkspaceContext';
 
 // -----------------------------------------------------------------------------
 // Type Definitions
 // -----------------------------------------------------------------------------
-export interface Workspace extends Models.Document {
-  name: string;
-  type: 'family' | 'business';
-  created_at?: string;
-}
-
 export interface FixedAnchor extends Models.Document {
   workspace_id: string;
   name: string;
@@ -50,47 +45,22 @@ function formatCurrencyBRL(value: number): string {
 // -----------------------------------------------------------------------------
 export default function DashboardScreen() {
   const { user, logout } = useAuth();
+  const {
+    workspaces,
+    selectedWorkspace,
+    setSelectedWorkspace,
+    activeWorkspace,
+    isLoadingWorkspaces,
+    fetchWorkspaces,
+  } = useWorkspace();
 
   // State Management
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
-  const [selectedWorkspace, setSelectedWorkspace] = useState<string>('');
   const [anchors, setAnchors] = useState<FixedAnchor[]>([]);
-
-  const [isLoadingWorkspaces, setIsLoadingWorkspaces] = useState<boolean>(true);
   const [isLoadingAnchors, setIsLoadingAnchors] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // 1. Fetch Workspaces from Appwrite
-  const fetchWorkspaces = async () => {
-    try {
-      setErrorMessage(null);
-      const response = await databases.listDocuments<Workspace>(
-        APPWRITE_DATABASE_ID,
-        COLLECTIONS.WORKSPACES,
-        [Query.limit(20)]
-      );
-
-      const docs = response.documents;
-      setWorkspaces(docs);
-
-      if (docs.length > 0) {
-        // Padrão: prioriza o workspace do tipo 'family' ou seleciona o primeiro
-        const defaultWs = docs.find((ws) => ws.type === 'family') || docs[0];
-        setSelectedWorkspace((prev) => (prev ? prev : defaultWs.$id));
-      }
-    } catch (err: any) {
-      console.error('Erro ao buscar workspaces:', err);
-      setErrorMessage(
-        err?.message || 'Falha na conexão com o Appwrite ao carregar os workspaces.'
-      );
-    } finally {
-      setIsLoadingWorkspaces(false);
-      setIsRefreshing(false);
-    }
-  };
-
-  // 2. Fetch Fixed Anchors for the selected Workspace
+  // 1. Fetch Fixed Anchors for the selected Workspace
   const fetchAnchors = async (workspaceId: string) => {
     if (!workspaceId) return;
 
@@ -118,11 +88,6 @@ export default function DashboardScreen() {
       setIsRefreshing(false);
     }
   };
-
-  // Lifecycle: Load workspaces on mount
-  useEffect(() => {
-    fetchWorkspaces();
-  }, []);
 
   // Lifecycle: Load anchors whenever selectedWorkspace changes
   useEffect(() => {

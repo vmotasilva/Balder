@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { WorkspaceProvider } from './src/context/WorkspaceContext';
 import TabNavigator from './src/navigation/TabNavigator';
 import LoginScreen from './src/screens/LoginScreen';
 
@@ -60,7 +61,9 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <RootNavigator />
+        <WorkspaceProvider>
+          <RootNavigator />
+        </WorkspaceProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );
