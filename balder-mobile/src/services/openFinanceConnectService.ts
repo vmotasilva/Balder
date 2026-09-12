@@ -56,7 +56,7 @@ export interface ConnectSessionInitiation {
 
 /**
  * Remove qualquer fragmento HTML indesejado de strings ou URLs.
- * Garante que URLs e tokens sejam puros, sem tags <a href="..."> ou </a> residuais.
+ * Garante que URLs e tokens sejam puros, sem tags de link residuais.
  */
 export function sanitizeCleanUrl(url?: string | null): string {
   if (!url || typeof url !== 'string') return '';
