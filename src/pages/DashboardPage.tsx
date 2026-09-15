@@ -11,13 +11,15 @@ import {
   CheckCircle2,
   CreditCard,
   Home,
+  Banknote,
 } from 'lucide-react';
+import type { SimulationPresetId } from '../types';
 
 interface DashboardPageProps {
   onNavigateToMovements: () => void;
   onNavigateToGoals: () => void;
   onNavigateToCopilot: () => void;
-  onOpenSimulation: (preset: 'CARRO' | 'QUITAR_DIVIDA' | 'FINANCIAMENTO' | 'IMOVEL') => void;
+  onOpenSimulation: (preset: SimulationPresetId) => void;
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
@@ -357,6 +359,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <div className="sim-shortcut-info">
               <h4>Quitar Empréstimo</h4>
               <p>Calcular economia de juros a valor presente</p>
+            </div>
+            <span className="sim-arrow">→</span>
+          </button>
+
+          <button className="sim-shortcut-card glass-card" onClick={() => onOpenSimulation('NOVO_EMPRESTIMO')}>
+            <div className="sim-shortcut-icon">
+              <Banknote size={24} className="text-cyan" />
+            </div>
+            <div className="sim-shortcut-info">
+              <h4>Novo Empréstimo</h4>
+              <p>Simular captação, CET e impacto no fluxo</p>
             </div>
             <span className="sim-arrow">→</span>
           </button>

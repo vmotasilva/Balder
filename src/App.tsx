@@ -10,7 +10,7 @@ import { GoalsPage } from './pages/GoalsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { NewMovementModal } from './components/NewMovementModal';
 import { SimulationModal } from './components/SimulationModal';
-import type { MovementType } from './types';
+import type { MovementType, SimulationPresetId } from './types';
 import './App.css';
 
 export function AppContent() {
@@ -22,14 +22,14 @@ export function AppContent() {
   const [defaultMovementType, setDefaultMovementType] = useState<MovementType>('PAGAR');
 
   const [simulationModalOpen, setSimulationModalOpen] = useState(false);
-  const [simulationPreset, setSimulationPreset] = useState<'CARRO' | 'QUITAR_DIVIDA' | 'FINANCIAMENTO' | 'IMOVEL'>('CARRO');
+  const [simulationPreset, setSimulationPreset] = useState<SimulationPresetId>('CARRO');
 
   const handleOpenNewMovement = (type: MovementType = 'PAGAR') => {
     setDefaultMovementType(type);
     setNewMovementModalOpen(true);
   };
 
-  const handleOpenSimulation = (preset: 'CARRO' | 'QUITAR_DIVIDA' | 'FINANCIAMENTO' | 'IMOVEL' = 'CARRO') => {
+  const handleOpenSimulation = (preset: SimulationPresetId = 'CARRO') => {
     setSimulationPreset(preset);
     setSimulationModalOpen(true);
   };

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useMemo } from 'react';
-import type { Movement, CriticalEvent, Goal, SimulationScenario, BankAccount, CopilotMessage } from '../types';
+import type { Movement, CriticalEvent, Goal, SimulationScenario, BankAccount, CopilotMessage, SimulationPresetId } from '../types';
 
 interface FinancialContextType {
   // Estado
@@ -31,7 +31,7 @@ interface FinancialContextType {
   toggleMovementStatus: (id: string) => void;
   addGoal: (goal: Omit<Goal, 'id'>) => void;
   updateGoal: (id: string, updates: Partial<Goal>) => void;
-  runSimulation: (preset: 'CARRO' | 'QUITAR_DIVIDA' | 'FINANCIAMENTO' | 'IMOVEL') => SimulationScenario;
+  runSimulation: (preset: SimulationPresetId) => SimulationScenario;
   sendMessageToCopilot: (query: string) => void;
   exportToCSV: () => void;
 }
@@ -356,7 +356,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   // Motor de Simulações
-  const runSimulation = (preset: 'CARRO' | 'QUITAR_DIVIDA' | 'FINANCIAMENTO' | 'IMOVEL'): SimulationScenario => {
+  const runSimulation = (preset: SimulationPresetId): SimulationScenario => {
     switch (preset) {
       case 'CARRO':
         return {
@@ -389,6 +389,24 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           actionRecommendations: [
             'Utilizar parte do saldo disponível em conta corrente sem tocar no fundo de emergência.',
             'Redirecionar a parcela economizada (+R$ 1.458) diretamente para investimentos.',
+          ],
+        };
+
+      case 'NOVO_EMPRESTIMO':
+        return {
+          id: 'sim_novo_emprestimo',
+          title: 'Simulação: Tomada de Novo Empréstimo',
+          description: 'Captação de R$ 30.000 em 24x de R$ 1.680,00 (CET estimado: 2,1% a.m.)',
+          initialOutflow: -30000,
+          monthlyCost: 1680,
+          runwayBeforeMonths: 6.8,
+          runwayAfterMonths: 5.1,
+          verdict: 'COM_RESTRICAO',
+          explanation: 'O crédito injeta +R$ 30.000 imediatos em caixa (elevando saldo para R$ 54.800). No entanto, a nova parcela de R$ 1.680 consome 39,5% do seu fluxo livre mensal (+R$ 4.250). O custo total de juros acumulados será de R$ 10.320 em 24 meses.',
+          actionRecommendations: [
+            'Verificar se a taxa contratual (2,1% a.m.) é menor que o retorno gerado pela destinação dos recursos.',
+            'Pesquisar linhas com garantia de imóvel ou investimento para tentar reduzir os juros para menos de 1,4% a.m.',
+            'Não utilizar o recurso emprestado para cobrir despesas fixas recorrentes.',
           ],
         };
 
@@ -495,10 +513,15 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         responseText = `Análise de Viabilidade: ${sim.verdict === 'COM_RESTRICAO' ? '⚠️ Viável com Restrições' : 'Simulação Executada'}.\n\n${sim.explanation}\n\nRecomendações:\n• ${sim.actionRecommendations.join('\n• ')}`;
         actionBadge = 'DECISÃO FINANCEIRA';
         suggestedFollowUps = ['Simular quitar o empréstimo', 'Ver impacto nas minhas metas'];
+      } else if (lower.includes('novo empréstimo') || lower.includes('novo emprestimo') || lower.includes('pegar empréstimo') || lower.includes('pegar emprestimo') || lower.includes('tomar emprestimo')) {
+        const sim = runSimulation('NOVO_EMPRESTIMO');
+        responseText = `Simulação de Novo Empréstimo: ${sim.verdict === 'COM_RESTRICAO' ? '⚠️ Viável com Restrições' : 'Simulação Concluída'}.\n\n${sim.explanation}\n\nRecomendações:\n• ${sim.actionRecommendations.join('\n• ')}`;
+        actionBadge = 'SIMULAÇÃO DE CRÉDITO';
+        suggestedFollowUps = ['Simular quitar o empréstimo', 'Ver impacto no meu runway'];
       } else {
         responseText = `Entendido perfeitamente. Seus dados financeiros indicam que você tem R$ ${availableBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em saldo disponível e um fluxo líquido mensal positivo de R$ ${monthlyFreeCashflow.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}. Posso agendar uma movimentação, simular uma decisão ou auditar qualquer valor para você.`;
         actionBadge = 'ASSISTENTE OPERACIONAL';
-        suggestedFollowUps = ['Receberei R$ 8.500 dia 5.', 'Por que meu saldo projetado caiu?', 'Simular quitar empréstimo'];
+        suggestedFollowUps = ['Receberei R$ 8.500 dia 5.', 'Simular novo empréstimo', 'Por que meu saldo projetado caiu?'];
       }
 
       const assistantMessage: CopilotMessage = {

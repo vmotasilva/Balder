@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
-import { Car, CheckCircle2, AlertTriangle, XCircle, Home, CreditCard, Sparkles } from 'lucide-react';
-import type { SimulationVerdict } from '../types';
+import { Car, CheckCircle2, AlertTriangle, XCircle, Home, CreditCard, Sparkles, Banknote } from 'lucide-react';
+import type { SimulationVerdict, SimulationPresetId } from '../types';
 
 interface SimulationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialPreset?: 'CARRO' | 'QUITAR_DIVIDA' | 'FINANCIAMENTO' | 'IMOVEL';
+  initialPreset?: SimulationPresetId;
 }
 
 export const SimulationModal: React.FC<SimulationModalProps> = ({
@@ -16,7 +16,7 @@ export const SimulationModal: React.FC<SimulationModalProps> = ({
   initialPreset = 'CARRO',
 }) => {
   const { runSimulation } = useFinancial();
-  const [selectedPreset, setSelectedPreset] = useState<'CARRO' | 'QUITAR_DIVIDA' | 'FINANCIAMENTO' | 'IMOVEL'>(initialPreset);
+  const [selectedPreset, setSelectedPreset] = useState<SimulationPresetId>(initialPreset);
 
   const scenario = runSimulation(selectedPreset);
 
@@ -52,7 +52,7 @@ export const SimulationModal: React.FC<SimulationModalProps> = ({
       onClose={onClose}
       title="Simulador Rápido de Decisões"
       subtitle="Teste o impacto patrimonial e de liquidez antes de assumir compromissos"
-      maxWidth="680px"
+      maxWidth="720px"
     >
       <div className="simulation-modal-content">
         {/* Presets Selector Grid */}
@@ -71,6 +71,14 @@ export const SimulationModal: React.FC<SimulationModalProps> = ({
           >
             <CheckCircle2 size={20} />
             <span>Quitar Dívida</span>
+          </button>
+
+          <button
+            className={`sim-preset-btn ${selectedPreset === 'NOVO_EMPRESTIMO' ? 'active' : ''}`}
+            onClick={() => setSelectedPreset('NOVO_EMPRESTIMO')}
+          >
+            <Banknote size={20} />
+            <span>Novo Empréstimo</span>
           </button>
 
           <button
@@ -103,10 +111,14 @@ export const SimulationModal: React.FC<SimulationModalProps> = ({
           {/* Impact Metrics Grid */}
           <div className="scenario-metrics-grid">
             <div className="metric-box">
-              <span className="metric-box-label">Desembolso Inicial</span>
-              <span className="metric-box-value">
-                {scenario.initialOutflow > 0
-                  ? scenario.initialOutflow.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+              <span className="metric-box-label">
+                {scenario.initialOutflow < 0 ? 'Captação em Caixa' : 'Desembolso Inicial'}
+              </span>
+              <span className={`metric-box-value ${scenario.initialOutflow < 0 ? 'text-emerald' : scenario.initialOutflow > 0 ? 'text-amber' : ''}`}>
+                {scenario.initialOutflow < 0
+                  ? `+ ${Math.abs(scenario.initialOutflow).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
+                  : scenario.initialOutflow > 0
+                  ? `- ${scenario.initialOutflow.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
                   : 'R$ 0,00'}
               </span>
             </div>
