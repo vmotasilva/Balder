@@ -12,6 +12,8 @@ import {
   CreditCard,
   Home,
   Banknote,
+  Sliders,
+  ArrowRight,
 } from 'lucide-react';
 import type { SimulationPresetId } from '../types';
 
@@ -19,7 +21,7 @@ interface DashboardPageProps {
   onNavigateToMovements: () => void;
   onNavigateToGoals: () => void;
   onNavigateToCopilot: () => void;
-  onOpenSimulation: (preset: SimulationPresetId) => void;
+  onOpenSimulation: (preset?: SimulationPresetId, mode?: 'PRESETS' | 'STUDIO') => void;
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
@@ -335,9 +337,31 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         <div className="section-title-row">
           <div className="section-title-left">
             <span className="badge badge-amber">TOMADA DE DECISÃO</span>
-            <h2 className="section-heading">Simulações Rápidas</h2>
+            <h2 className="section-heading">Simulador de Cenários & Decisões</h2>
           </div>
-          <span className="section-help-text">Simule antes de comprar para proteger sua reserva e seu fluxo</span>
+          <span className="section-help-text">Simule antes de contratar para proteger sua reserva e projetar seu fluxo</span>
+        </div>
+
+        {/* Featured Advanced Studio Banner */}
+        <div
+          className="studio-promo-banner glass-card"
+          onClick={() => onOpenSimulation(undefined, 'STUDIO')}
+        >
+          <div className="studio-promo-glow"></div>
+          <div className="studio-promo-content">
+            <div className="studio-promo-badge">
+              <Sliders size={14} className="text-cyan" />
+              <span>ESTÚDIO AVANÇADO DE CRÉDITO & COMPORTAMENTO</span>
+            </div>
+            <h3 className="studio-promo-title">Simulador de Cenários Futuros</h3>
+            <p className="studio-promo-desc">
+              Simule a contratação de empréstimos e financiamentos, direcione o destino do capital (quitar dívidas caras, investir ou adquirir bens) e configure contrapartidas comportamentais com projeção de 12 meses.
+            </p>
+          </div>
+          <button type="button" className="btn btn-primary btn-sm studio-promo-action">
+            <span>Abrir Estúdio Completo</span>
+            <ArrowRight size={16} />
+          </button>
         </div>
 
         <div className="simulations-shortcuts-grid">

@@ -1,5 +1,17 @@
 import React, { createContext, useContext, useState, useMemo } from 'react';
-import type { Movement, CriticalEvent, Goal, SimulationScenario, BankAccount, CopilotMessage, SimulationPresetId } from '../types';
+import type {
+  Movement,
+  CriticalEvent,
+  Goal,
+  SimulationScenario,
+  BankAccount,
+  CopilotMessage,
+  SimulationPresetId,
+  SimulationVerdict,
+  CustomScenarioInput,
+  FutureScenarioResult,
+  MonthlyProjectionPoint,
+} from '../types';
 
 interface FinancialContextType {
   // Estado
@@ -32,6 +44,8 @@ interface FinancialContextType {
   addGoal: (goal: Omit<Goal, 'id'>) => void;
   updateGoal: (id: string, updates: Partial<Goal>) => void;
   runSimulation: (preset: SimulationPresetId) => SimulationScenario;
+  simulateCustomFutureScenario: (input: CustomScenarioInput) => FutureScenarioResult;
+  applyScenarioToBudget: (result: FutureScenarioResult) => void;
   sendMessageToCopilot: (query: string) => void;
   exportToCSV: () => void;
 }
@@ -446,6 +460,174 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
+  // Motor Avançado de Cenários Futuros (Crédito, Direcionamento e Comportamento)
+  const simulateCustomFutureScenario = (input: CustomScenarioInput): FutureScenarioResult => {
+    const i = (input.monthlyInterestRate || 0) / 100;
+    const n = Math.max(input.installmentsCount || 1, 1);
+    const pv = Math.max(input.principalAmount || 0, 0);
+
+    // Amortização Price
+    const computedMonthlyPayment = i > 0 && n > 0
+      ? (pv * i) / (1 - Math.pow(1 + i, -n))
+      : pv / n;
+
+    const totalRepayment = computedMonthlyPayment * n;
+    const totalInterestPaid = Math.max(totalRepayment - pv, 0);
+
+    // Renda estimada média do perfil
+    const estimatedMonthlyIncome = 18000;
+    const debtToIncomeRatio = Math.round((computedMonthlyPayment / estimatedMonthlyIncome) * 1000) / 10;
+
+    // Efeitos comportamentais
+    const baseVariableExpenses = 3800;
+    const variableExpensesCut = baseVariableExpenses * ((input.behavior.cutVariableExpensesPercent || 0) / 100);
+    const incomeBoost = input.behavior.expectedMonthlyIncomeBoost || 0;
+    const pausedGoalsRelief = input.behavior.pauseGoalContributions ? 2500 : 0;
+    const previousDebtRelief = input.destination === 'QUITAR_DIVIDAS_CARAS' ? 1458.51 : 0;
+
+    const netMonthlyImpact = incomeBoost + variableExpensesCut + pausedGoalsRelief + previousDebtRelief - computedMonthlyPayment;
+
+    // Runway
+    const runwayBeforeMonths = emergencyReserveMonths;
+    let runwayAfterMonths = runwayBeforeMonths;
+    if (input.destination === 'INVESTIMENTO_RESERVA') {
+      runwayAfterMonths = Math.min(Math.round((runwayBeforeMonths + (pv / 12500)) * 10) / 10, 18);
+    } else if (input.destination === 'CAPITAL_GIRO_CAIXA') {
+      runwayAfterMonths = Math.min(Math.round((runwayBeforeMonths + (pv / 16000)) * 10) / 10, 15);
+    } else {
+      const degradation = netMonthlyImpact < 0 ? Math.min(Math.abs(netMonthlyImpact) / 2500, 2.5) : 0;
+      runwayAfterMonths = Math.max(Math.round((runwayBeforeMonths - degradation) * 10) / 10, 1.5);
+    }
+
+    // Projeção mês a mês nos próximos 12 meses
+    const monthNames = ['Mês 1', 'Mês 2', 'Mês 3', 'Mês 4', 'Mês 5', 'Mês 6', 'Mês 7', 'Mês 8', 'Mês 9', 'Mês 10', 'Mês 11', 'Mês 12'];
+    let runningBaseline = availableBalance;
+    let runningSimulated = availableBalance;
+
+    if (input.destination === 'CAPITAL_GIRO_CAIXA' || input.destination === 'INVESTIMENTO_RESERVA') {
+      runningSimulated += pv;
+    }
+
+    const projection12Months: MonthlyProjectionPoint[] = [];
+
+    for (let m = 1; m <= 12; m++) {
+      runningBaseline += monthlyFreeCashflow;
+
+      const isGracePeriod = m <= (input.gracePeriodMonths || 0);
+      const effectivePayment = isGracePeriod ? (pv * i) : computedMonthlyPayment;
+
+      const monthlyDelta = incomeBoost + variableExpensesCut + pausedGoalsRelief + previousDebtRelief - effectivePayment;
+
+      let extraAmort = 0;
+      if (input.behavior.extraAmortizationMonth === m && input.behavior.extraAmortizationAmount) {
+        extraAmort = input.behavior.extraAmortizationAmount;
+      }
+
+      runningSimulated += (monthlyFreeCashflow + monthlyDelta - extraAmort);
+      const isStressed = runningSimulated < 15000 || (monthlyFreeCashflow + monthlyDelta) < 0;
+
+      projection12Months.push({
+        monthIndex: m,
+        monthLabel: monthNames[m - 1],
+        baselineBalance: Math.round(runningBaseline),
+        simulatedBalance: Math.round(runningSimulated),
+        cashflowImpact: Math.round(monthlyDelta),
+        isStressed,
+      });
+    }
+
+    let verdict: SimulationVerdict = 'RECOMENDADO';
+    let verdictReason = '';
+    const recommendations: string[] = [];
+    const minSimulated = Math.min(...projection12Months.map((p) => p.simulatedBalance));
+
+    if (minSimulated < 10000 || debtToIncomeRatio > 32 || netMonthlyImpact < -2000) {
+      verdict = 'NAO_RECOMENDADO';
+      verdictReason = `A operação coloca sua liquidez em risco alto. O comprometimento de renda (${debtToIncomeRatio}%) ou a queda de caixa reduzem perigosamente sua margem de segurança.`;
+      recommendations.push('Aumentar o prazo em parcelas para diluir o valor mensal.');
+      recommendations.push('Intensificar o corte de despesas supérfluas para pelo menos 20% antes de contratar.');
+      recommendations.push('Buscar taxa de juros com garantia inferior a 1,4% a.m.');
+    } else if (debtToIncomeRatio > 18 || netMonthlyImpact < -500 || input.destination === 'AQUISICAO_BEM') {
+      verdict = 'COM_RESTRICAO';
+      verdictReason = `Cenário viável mediante disciplina. A parcela de R$ ${Math.round(computedMonthlyPayment).toLocaleString('pt-BR')} compromete ${debtToIncomeRatio}% da renda estimada, mas suas medidas comportamentais atenuam o impacto.`;
+      recommendations.push(`Manter rigoroso o corte de ${input.behavior.cutVariableExpensesPercent}% nos gastos variáveis.`);
+      if (input.behavior.expectedMonthlyIncomeBoost > 0) {
+        recommendations.push(`Certificar-se de que a renda extra de R$ ${input.behavior.expectedMonthlyIncomeBoost.toLocaleString('pt-BR')} se concretize nos primeiros 60 dias.`);
+      }
+      recommendations.push('Aproveitar receitas sazonais (13º/bônus) para amortizar parcelas antecipadas.');
+    } else {
+      verdict = 'RECOMENDADO';
+      verdictReason = `Excelente estruturação estratégica! O direcionamento do dinheiro ${input.destination === 'QUITAR_DIVIDAS_CARAS' ? 'elimina dívidas caras' : 'fortalece seu caixa'} e as contrapartidas comportamentais mantêm seu fluxo positivo (+R$ ${Math.round(netMonthlyImpact).toLocaleString('pt-BR')}/mês).`;
+      recommendations.push('Seguir rigorosamente o cronograma de pagamentos para não incidir encargos moratórios.');
+      recommendations.push('Manter os recursos aportados em ativos com liquidez imediata (100% CDI).');
+      recommendations.push('Reavaliar o cenário trimestralmente no Balder.');
+    }
+
+    return {
+      input,
+      computedMonthlyPayment: Math.round(computedMonthlyPayment * 100) / 100,
+      totalInterestPaid: Math.round(totalInterestPaid * 100) / 100,
+      totalRepayment: Math.round(totalRepayment * 100) / 100,
+      debtToIncomeRatio,
+      netMonthlyImpact: Math.round(netMonthlyImpact * 100) / 100,
+      runwayBeforeMonths,
+      runwayAfterMonths,
+      verdict,
+      verdictReason,
+      tacticalRecommendations: recommendations,
+      projection12Months,
+    };
+  };
+
+  const applyScenarioToBudget = (result: FutureScenarioResult) => {
+    const today = new Date().toISOString().split('T')[0];
+
+    // 1. Injeção do crédito se for para caixa ou reserva
+    if (result.input.destination === 'CAPITAL_GIRO_CAIXA' || result.input.destination === 'INVESTIMENTO_RESERVA') {
+      addMovement({
+        title: `Captação: ${result.input.operationType.replace(/_/g, ' ')}`,
+        type: 'RECEBER',
+        amount: result.input.principalAmount,
+        dueDate: today,
+        bank: 'Nubank',
+        status: 'REALIZADA',
+        category: 'Empréstimos / Crédito',
+        notes: `Cenário simulado no Balder: ${result.input.installmentsCount}x de R$ ${result.computedMonthlyPayment.toFixed(2)}`,
+      });
+    }
+
+    // 2. Programação da 1ª Parcela Futura
+    const nextMonth = new Date();
+    nextMonth.setMonth(nextMonth.getMonth() + 1 + (result.input.gracePeriodMonths || 0));
+    const nextMonthStr = nextMonth.toISOString().split('T')[0];
+
+    addMovement({
+      title: `Parcela 1/${result.input.installmentsCount} - ${result.input.operationType.replace(/_/g, ' ')}`,
+      type: 'EMPRESTIMO',
+      amount: result.computedMonthlyPayment,
+      dueDate: nextMonthStr,
+      bank: 'Nubank',
+      status: 'PREVISTA',
+      category: 'Empréstimos & Financiamentos',
+      notes: `Programado via Simulador de Cenários Futuros. Taxa: ${result.input.monthlyInterestRate}% a.m.`,
+    });
+
+    if (result.input.destination === 'QUITAR_DIVIDAS_CARAS') {
+      addMovement({
+        title: `Quitação Consolidada de Passivo Anterior`,
+        type: 'PAGAR',
+        amount: result.input.principalAmount,
+        dueDate: today,
+        bank: 'Nubank',
+        status: 'REALIZADA',
+        category: 'Quitação de Dívida',
+        notes: `Liquidação viabilizada pela troca de dívida no Simulador.`,
+      });
+    }
+
+    alert(`Cenário Efetivado no Balder!\n\nForam gerados os registros correspondentes no seu fluxo de caixa:\n• Injeção de R$ ${result.input.principalAmount.toLocaleString('pt-BR')}\n• Programação da parcela de R$ ${result.computedMonthlyPayment.toLocaleString('pt-BR')}/mês a partir de ${nextMonthStr}.`);
+  };
+
   // Motor Conversacional Inteligente do Copilot
   const sendMessageToCopilot = (query: string) => {
     const trimmed = query.trim();
@@ -583,6 +765,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         addGoal,
         updateGoal,
         runSimulation,
+        simulateCustomFutureScenario,
+        applyScenarioToBudget,
         sendMessageToCopilot,
         exportToCSV,
       }}

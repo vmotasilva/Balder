@@ -23,14 +23,19 @@ export function AppContent() {
 
   const [simulationModalOpen, setSimulationModalOpen] = useState(false);
   const [simulationPreset, setSimulationPreset] = useState<SimulationPresetId>('CARRO');
+  const [simulationMode, setSimulationMode] = useState<'PRESETS' | 'STUDIO'>('PRESETS');
 
   const handleOpenNewMovement = (type: MovementType = 'PAGAR') => {
     setDefaultMovementType(type);
     setNewMovementModalOpen(true);
   };
 
-  const handleOpenSimulation = (preset: SimulationPresetId = 'CARRO') => {
+  const handleOpenSimulation = (
+    preset: SimulationPresetId = 'CARRO',
+    mode: 'PRESETS' | 'STUDIO' = 'PRESETS'
+  ) => {
     setSimulationPreset(preset);
+    setSimulationMode(mode);
     setSimulationModalOpen(true);
   };
 
@@ -84,6 +89,7 @@ export function AppContent() {
         isOpen={simulationModalOpen}
         onClose={() => setSimulationModalOpen(false)}
         initialPreset={simulationPreset}
+        initialMode={simulationMode}
       />
     </div>
   );

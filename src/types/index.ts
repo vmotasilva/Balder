@@ -52,6 +52,62 @@ export interface SimulationScenario {
   actionRecommendations: string[];
 }
 
+export type CreditOperationType = 
+  | 'EMPRESTIMO_PESSOAL' 
+  | 'EMPRESTIMO_CONSIGNADO' 
+  | 'FINANCIAMENTO_IMOVEL' 
+  | 'FINANCIAMENTO_AUTO' 
+  | 'CAPITAL_GIRO';
+
+export type FundsDestination = 
+  | 'QUITAR_DIVIDAS_CARAS' 
+  | 'INVESTIMENTO_RESERVA' 
+  | 'AQUISICAO_BEM' 
+  | 'CAPITAL_GIRO_CAIXA';
+
+export interface BehavioralAdjustment {
+  cutVariableExpensesPercent: number; // 0 to 30 (%)
+  expectedMonthlyIncomeBoost: number; // ex: R$ 800/mês
+  pauseGoalContributions: boolean;   // pausar aportes de metas
+  extraAmortizationMonth?: number;   // mês da amortização extra (ex: 12)
+  extraAmortizationAmount?: number;  // valor da amortização extra (ex: R$ 5.000)
+}
+
+export interface CustomScenarioInput {
+  operationType: CreditOperationType;
+  principalAmount: number;     // Valor captado (ex: R$ 40.000)
+  installmentsCount: number;   // Prazo em meses (ex: 36)
+  monthlyInterestRate: number; // Taxa % a.m. (ex: 1.85)
+  gracePeriodMonths: number;   // Carência em meses (ex: 2)
+  destination: FundsDestination;
+  destinationNotes?: string;
+  behavior: BehavioralAdjustment;
+}
+
+export interface MonthlyProjectionPoint {
+  monthIndex: number;
+  monthLabel: string;
+  baselineBalance: number;
+  simulatedBalance: number;
+  cashflowImpact: number;
+  isStressed: boolean;
+}
+
+export interface FutureScenarioResult {
+  input: CustomScenarioInput;
+  computedMonthlyPayment: number;
+  totalInterestPaid: number;
+  totalRepayment: number;
+  debtToIncomeRatio: number;
+  netMonthlyImpact: number;
+  runwayBeforeMonths: number;
+  runwayAfterMonths: number;
+  verdict: SimulationVerdict;
+  verdictReason: string;
+  tacticalRecommendations: string[];
+  projection12Months: MonthlyProjectionPoint[];
+}
+
 export interface CopilotMessage {
   id: string;
   role: 'user' | 'assistant';
