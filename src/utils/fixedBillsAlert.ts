@@ -6,6 +6,7 @@ export interface PendingFixedBill {
   natureColor: string;
   mappingId: string;
   mappingName: string;
+  mappingIcon?: string;
   dayOfMonth: number;
   dueDate: string; // YYYY-MM-DD
   totalAmount: number;
@@ -136,6 +137,7 @@ export function getPendingFixedBills(
           natureColor: nature.color || 'var(--color-cyan, #06b6d4)',
           mappingId: mapping.id,
           mappingName: mapping.name,
+          mappingIcon: mapping.icon,
           dayOfMonth: effectiveDueDay,
           dueDate: dueDateStr,
           totalAmount,

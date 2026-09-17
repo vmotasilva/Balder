@@ -342,6 +342,7 @@ export interface FixedExpenseMapping {
   id: string;
   name: string;                // ex: "Supermercado Base Mensal", "Feira Livre Semanal", "Açougue Quinzenal"
   natureId: string;
+  icon?: string;               // Emoji próprio do mapeamento (ex: '🥩', '🥦', '💡', '⛽', '🛒')
   applicableMonths?: number[]; // [1..12] ou vazio para todos os meses
   items: MappingItem[];
   frequency?: 'SEMANAL' | 'QUINZENAL' | 'MENSAL' | 'PONTUAL'; // Periodicidade da rotina

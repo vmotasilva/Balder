@@ -40,7 +40,8 @@ import { SalaryAdjustmentModal, type SalaryModalMode } from '../components/Salar
 import { CheckpointSetupModal } from '../components/CheckpointSetupModal';
 import { Modal } from '../components/Modal';
 import { NatureModal } from '../components/NatureModal';
-import type { SalaryContract, SalaryAdjustment } from '../types';
+import { MappingModal } from '../components/MappingModal';
+import type { SalaryContract, SalaryAdjustment, FixedExpenseMapping } from '../types';
 
 export const ProfilePage: React.FC = () => {
   const {
@@ -55,7 +56,6 @@ export const ProfilePage: React.FC = () => {
     exportToCSV,
     natures,
     deleteNature,
-    addMappingToNature,
     deleteMapping,
     addItemToMapping,
     deleteMappingItem,
@@ -145,8 +145,18 @@ export const ProfilePage: React.FC = () => {
     setIsNatureModalOpen(true);
   };
 
-  const [isNewMappingModalOpen, setIsNewMappingModalOpen] = useState(false);
-  const [newMappingName, setNewMappingName] = useState('');
+  const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
+  const [mappingToEdit, setMappingToEdit] = useState<FixedExpenseMapping | null>(null);
+
+  const handleOpenCreateMapping = () => {
+    setMappingToEdit(null);
+    setIsMappingModalOpen(true);
+  };
+
+  const handleOpenEditMapping = (mapping: FixedExpenseMapping) => {
+    setMappingToEdit(mapping);
+    setIsMappingModalOpen(true);
+  };
 
   // Dados calculados da Natureza Ativa
   const selectedNature = natures.find((n) => n.id === selectedNatureId) || natures[0];
@@ -1934,7 +1944,7 @@ export const ProfilePage: React.FC = () => {
                       </div>
                       <button
                         className="btn btn-outline btn-sm"
-                        onClick={() => setIsNewMappingModalOpen(true)}
+                        onClick={handleOpenCreateMapping}
                       >
                         <Plus size={14} />
                         <span>Novo Mapeamento</span>
@@ -1946,7 +1956,7 @@ export const ProfilePage: React.FC = () => {
                         <Layers size={32} className="text-muted" />
                         <p>Nenhum mapeamento de gastos cadastrado para esta natureza.</p>
                         <div className="flex items-center gap-3 mt-3">
-                          <button className="btn btn-primary btn-sm" onClick={() => setIsNewMappingModalOpen(true)}>
+                          <button className="btn btn-primary btn-sm" onClick={handleOpenCreateMapping}>
                             <Plus size={14} />
                             <span>Criar Primeiro Mapeamento</span>
                           </button>
@@ -1972,16 +1982,58 @@ export const ProfilePage: React.FC = () => {
                           return (
                             <div key={mapping.id} className="mapping-card glass-card mt-4">
                               <div className="mapping-card-header">
-                                <div className="mapping-header-info">
-                                  <h5>{mapping.name}</h5>
-                                  <span className="badge badge-cyan">
-                                    Total do Mapeamento: {mappingTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                  </span>
-                                  <span className="badge badge-emerald">
-                                    {mapping.items.length} {mapping.items.length === 1 ? 'item' : 'itens'}
-                                  </span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                  <div
+                                    style={{
+                                      width: '38px',
+                                      height: '38px',
+                                      borderRadius: '10px',
+                                      background: 'rgba(255,255,255,0.06)',
+                                      border: '1px solid var(--border-default)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      fontSize: '1.4rem',
+                                      cursor: 'pointer',
+                                      flexShrink: 0,
+                                      boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                                      transition: 'all 0.15s ease',
+                                    }}
+                                    onClick={() => handleOpenEditMapping(mapping)}
+                                    title="Clique para editar este mapeamento e seu emoji"
+                                  >
+                                    {mapping.icon || '📋'}
+                                  </div>
+
+                                  <div className="mapping-header-info">
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                      <h5 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>{mapping.name}</h5>
+                                      <span className="badge badge-cyan">
+                                        Total: {mappingTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 3 })}
+                                      </span>
+                                      <span className="badge badge-emerald">
+                                        {mapping.items.length} {mapping.items.length === 1 ? 'item' : 'itens'}
+                                      </span>
+                                      {mapping.dayOfMonth && (
+                                        <span className="badge badge-warning" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                          <Calendar size={11} />
+                                          Venc. dia {mapping.dayOfMonth}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="mapping-header-actions">
+                                <div className="mapping-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <button
+                                    type="button"
+                                    className="btn btn-outline btn-xs text-cyan"
+                                    title="Editar Nome, Emoji e Vencimento deste Mapeamento"
+                                    onClick={() => handleOpenEditMapping(mapping)}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+                                  >
+                                    <Edit2 size={12} />
+                                    <span>Editar Mapeamento</span>
+                                  </button>
                                   <button
                                     className="btn btn-ghost btn-xs text-rose"
                                     title="Excluir Mapeamento"
@@ -1990,9 +2042,10 @@ export const ProfilePage: React.FC = () => {
                                         deleteMapping(selectedNature.id, mapping.id);
                                       }
                                     }}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
                                   >
-                                    <Trash2 size={14} />
-                                    <span>Excluir Mapeamento</span>
+                                    <Trash2 size={13} />
+                                    <span>Excluir</span>
                                   </button>
                                 </div>
                               </div>
@@ -2324,52 +2377,16 @@ export const ProfilePage: React.FC = () => {
         }}
       />
 
-      {/* Modal de Novo Mapeamento de Gastos Fixos */}
+      {/* Modal de Criação ou Edição de Mapeamento de Gastos */}
       {selectedNature && (
-        <Modal
-          isOpen={isNewMappingModalOpen}
-          onClose={() => setIsNewMappingModalOpen(false)}
-          title="Novo Mapeamento de Gastos"
-          subtitle={`Adicionar mapeamento à natureza: ${selectedNature.name}`}
-          maxWidth="480px"
-        >
-          <div className="form-group mb-3">
-            <label>Nome do Mapeamento</label>
-            <input
-              type="text"
-              className="form-input"
-              placeholder="Ex: Feira Semanal de Bairro, Compras em Atacado, etc."
-              value={newMappingName}
-              onChange={(e) => setNewMappingName(e.target.value)}
-              autoFocus
-            />
-            <span className="text-xs text-muted mt-1 block">
-              Você poderá cadastrar múltiplos itens com quantidades, preços e multiplicadores semanais para compor o teto.
-            </span>
-          </div>
-
-          <div className="modal-footer-actions mt-4">
-            <button type="button" className="btn btn-outline" onClick={() => setIsNewMappingModalOpen(false)}>
-              Cancelar
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => {
-                if (!newMappingName.trim()) {
-                  alert('Informe o nome do mapeamento.');
-                  return;
-                }
-                addMappingToNature(selectedNature.id, newMappingName.trim());
-                setNewMappingName('');
-                setIsNewMappingModalOpen(false);
-              }}
-            >
-              <Plus size={16} />
-              <span>Criar Mapeamento</span>
-            </button>
-          </div>
-        </Modal>
+        <MappingModal
+          isOpen={isMappingModalOpen}
+          onClose={() => setIsMappingModalOpen(false)}
+          natureId={selectedNature.id}
+          natureName={selectedNature.name}
+          natureColor={selectedNature.color}
+          mappingToEdit={mappingToEdit}
+        />
       )}
 
       {/* Modal de Ferramentas Avançadas */}

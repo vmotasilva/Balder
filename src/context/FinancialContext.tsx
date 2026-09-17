@@ -132,7 +132,7 @@ interface FinancialContextType {
   addNature: (nature: Omit<ExpenseNature, 'id' | 'mappings'>) => void;
   updateNature: (id: string, updates: Partial<ExpenseNature>) => void;
   deleteNature: (id: string) => void;
-  addMappingToNature: (natureId: string, name: string, applicableMonths?: number[], dayOfMonth?: number) => string;
+  addMappingToNature: (natureId: string, name: string, applicableMonths?: number[], dayOfMonth?: number, icon?: string) => string;
   updateMapping: (natureId: string, mappingId: string, updates: Partial<FixedExpenseMapping>) => void;
   deleteMapping: (natureId: string, mappingId: string) => void;
   addItemToMapping: (natureId: string, mappingId: string, item: Omit<MappingItem, 'id' | 'totalValue'>, customId?: string) => string;
@@ -1989,13 +1989,15 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     natureId: string,
     name: string,
     applicableMonths?: number[],
-    dayOfMonth?: number
+    dayOfMonth?: number,
+    icon?: string
   ): string => {
     const newMappingId = `map_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
     const newMapping: FixedExpenseMapping = {
       id: newMappingId,
       natureId,
       name,
+      icon: icon || '📋',
       applicableMonths: applicableMonths || [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
       items: [],
       dayOfMonth: dayOfMonth ? Math.min(31, Math.max(1, dayOfMonth)) : undefined,
@@ -2301,6 +2303,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           id: `map_${timestamp}_mercado`,
           name: 'Supermercado Base Mensal (Estoque Seco & Limpeza)',
           natureId,
+          icon: '🛒',
           applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
           frequency: 'MENSAL',
           dayOfMonth: 7,
@@ -2317,6 +2320,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           id: `map_${timestamp}_feira`,
           name: 'Feira Livre & Hortifrúti (Rotina Semanal)',
           natureId,
+          icon: '🥦',
           applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
           frequency: 'SEMANAL',
           dayOfWeek: 'Sábado',
@@ -2330,6 +2334,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           id: `map_${timestamp}_proteinas`,
           name: 'Açougue & Proteínas Nobres',
           natureId,
+          icon: '🥩',
           applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
           frequency: 'QUINZENAL',
           dayOfWeek: 'Sábado',
@@ -2346,6 +2351,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           id: `map_${timestamp}_moradia`,
           name: 'Contas Fixas & Concessionárias',
           natureId,
+          icon: '💡',
           applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
           frequency: 'MENSAL',
           dayOfMonth: 10,
@@ -2362,6 +2368,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           id: `map_${timestamp}_transporte`,
           name: 'Combustível & Manutenção',
           natureId,
+          icon: '⛽',
           applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
           frequency: 'MENSAL',
           dayOfMonth: 15,
@@ -2377,6 +2384,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           id: `map_${timestamp}_base`,
           name: `Despesas Previstas de ${targetNat.name}`,
           natureId,
+          icon: targetNat.icon || '📋',
           applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
           frequency: 'MENSAL',
           dayOfMonth: 10,
