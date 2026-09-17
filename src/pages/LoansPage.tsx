@@ -31,7 +31,7 @@ export interface RowSimConfig {
 }
 
 export const LoansPage: React.FC = () => {
-  const { movements, natures, salaryContracts, addMovement, prepayInstallments, toggleMovementStatus } = useFinancial();
+  const { movements, natures, salaryContracts, addMovement, prepayInstallments, toggleMovementStatus, activeCheckpoint } = useFinancial();
 
   const [activeTab, setActiveTab] = useState<'CONTRACTED' | 'SIMULATOR'>('CONTRACTED');
   const [isSimulatorModalOpen, setIsSimulatorModalOpen] = useState(false);
@@ -91,9 +91,10 @@ export const LoansPage: React.FC = () => {
   }, [params]);
 
   // Fluxo de caixa base gerado para os 15 meses (2026-09 até 2027-11)
+  const initialBalance = activeCheckpoint ? activeCheckpoint.initialBalance : 0;
   const baseCashFlow = useMemo(() => {
-    return buildMonthlyProjectionGrid(movements, natures, 668.78, salaryContracts);
-  }, [movements, natures, salaryContracts]);
+    return buildMonthlyProjectionGrid(movements, natures, initialBalance, salaryContracts);
+  }, [movements, natures, initialBalance, salaryContracts]);
 
   // Função utilitária para calcular o valor presente e economia ao antecipar parcela k no mês m
   const calculateAdvanceDetails = (k: number, m: number, pmt: number, rate: number) => {

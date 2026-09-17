@@ -47,12 +47,14 @@ export const GlanceableCurrency: React.FC<{
 };
 
 export const MonthlyProjectionGrid: React.FC = () => {
-  const { movements, natures, salaryContracts } = useFinancial();
+  const { movements, natures, salaryContracts, activeCheckpoint } = useFinancial();
+
+  const initialBalance = activeCheckpoint ? activeCheckpoint.initialBalance : 0;
 
   // Geração determinística dos dados mês a mês
   const allRows: MonthlyGridProjectionRow[] = useMemo(() => {
-    return buildMonthlyProjectionGrid(movements, natures, 668.78, salaryContracts);
-  }, [movements, natures, salaryContracts]);
+    return buildMonthlyProjectionGrid(movements, natures, initialBalance, salaryContracts);
+  }, [movements, natures, initialBalance, salaryContracts]);
 
   // Anos disponíveis na base projetada
   const availableYears = useMemo(() => {

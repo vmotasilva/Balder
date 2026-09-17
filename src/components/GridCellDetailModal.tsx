@@ -325,7 +325,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
   onClose,
   selection,
 }) => {
-  const { movements, natures, getNatureCeiling } = useFinancial();
+  const { movements, natures, getNatureCeiling, activeCheckpoint } = useFinancial();
 
   const columnKey = selection?.columnKey;
   const columnTitle = selection?.columnTitle || '';
@@ -1109,6 +1109,26 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
           isProjected: true,
         });
       }
+    } else if (columnTitle === 'Saldo Inicial do Ciclo') {
+      const checkpointLabel = activeCheckpoint?.label || 'Ponto de Partida';
+      const initialDateFormatted = activeCheckpoint?.startDate
+        ? activeCheckpoint.startDate.split('-').reverse().join('/')
+        : formattedCompetence;
+
+      items.push({
+        id: `saldo_inicial_${monthPrefix}`,
+        category: 'Ponto de Partida',
+        bankOrOrigin: checkpointLabel,
+        title: 'Saldo Inicial do Ponto de Partida',
+        notes: activeCheckpoint
+          ? `Saldo em caixa definido no marco de acompanhamento ativo (${checkpointLabel}) com início em ${initialDateFormatted}`
+          : 'Saldo em caixa inicial configurado como marco de partida das projeções',
+        badge: 'Saldo Inicial',
+        badgeType: 'emerald',
+        amount: totalValue,
+        dateOrDue: `Início do Ciclo: ${initialDateFormatted}`,
+        isProjected: true,
+      });
     } else {
       items.push({
         id: `summary_${columnKey}_${monthPrefix}`,
@@ -1125,7 +1145,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     }
 
     return items;
-  }, [selection, movements, columnKey, row, totalValue, allNatureItems, natures, competenceLabel, formattedCompetence, columnTitle]);
+  }, [selection, movements, columnKey, row, totalValue, allNatureItems, natures, competenceLabel, formattedCompetence, columnTitle, activeCheckpoint]);
 
   // Inicialização e foco na natureza específica ao abrir o modal ou mudar de seleção
   useEffect(() => {
