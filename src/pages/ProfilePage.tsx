@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { useTheme } from '../context/ThemeContext';
 import {
@@ -12,6 +12,8 @@ import {
   Download,
   CheckCircle2,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Layers,
   Plus,
   Trash2,
@@ -115,6 +117,13 @@ export const ProfilePage: React.FC = () => {
   // Estados locais para Naturezas & Mapeamentos
   const [selectedNatureId, setSelectedNatureId] = useState<string>(natures[0]?.id || 'nat_alimentacao');
   const [justificationText, setJustificationText] = useState('');
+  const [isDiagnosticExpanded, setIsDiagnosticExpanded] = useState(false);
+  const [isOverCeilingExpanded, setIsOverCeilingExpanded] = useState(false);
+
+  useEffect(() => {
+    setIsDiagnosticExpanded(false);
+    setIsOverCeilingExpanded(false);
+  }, [selectedNatureId]);
 
   // Formulário Inline de Itens por Mapeamento
   const [newItemDesc, setNewItemDesc] = useState<Record<string, string>>({});
@@ -1612,151 +1621,236 @@ export const ProfilePage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* BLOCO INTELIGENTE 1: TETO ULTRAPASSADO -> JUSTIFICATIVA OU AJUSTE */}
+                  {/* BLOCO INTELIGENTE 1: TETO ULTRAPASSADO -> JUSTIFICATIVA OU AJUSTE (RECOLHÍVEL) */}
                   {isCeilingOver && (
                     <div className="ceiling-alert-box alert-over-ceiling glass-card animate-fade-in mt-4">
-                      <div className="ceiling-alert-header">
-                        <AlertTriangle size={24} className="text-rose" />
-                        <div>
-                          <h4 className="text-rose">Teto de Gastos Ultrapassado em {(natureSpent - natureCeiling).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</h4>
-                          <p>
+                      <div
+                        className="ceiling-alert-header cursor-pointer select-none"
+                        onClick={() => setIsOverCeilingExpanded(!isOverCeilingExpanded)}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <AlertTriangle size={22} className="text-rose flex-shrink-0" />
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <h4 className="text-rose" style={{ margin: 0 }}>
+                                Teto de Gastos Ultrapassado em{' '}
+                                {(natureSpent - natureCeiling).toLocaleString('pt-BR', {
+                                  style: 'currency',
+                                  currency: 'BRL',
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 3,
+                                })}
+                              </h4>
+                              <span className="badge badge-rose text-xs">Excedido</span>
+                            </div>
+                            {!isOverCeilingExpanded && (
+                              <p className="text-xs text-muted" style={{ margin: '3px 0 0' }}>
+                                Clique para registrar justificativa contábil ou consultar o histórico de desvios.
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-xs text-rose"
+                          style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsOverCeilingExpanded(!isOverCeilingExpanded);
+                          }}
+                        >
+                          <span>{isOverCeilingExpanded ? 'Recolher' : 'Expandir'}</span>
+                          {isOverCeilingExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </button>
+                      </div>
+
+                      {isOverCeilingExpanded && (
+                        <div className="animate-fade-in mt-3" style={{ borderTop: '1px solid rgba(244, 63, 94, 0.2)', paddingTop: '12px' }}>
+                          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.4, marginBottom: '12px' }}>
                             A despesa acumulada nesta natureza superou o teto estipulado pelos mapeamentos. Registre uma justificativa contábil para conformidade ou reajuste as quantidades/preços dos itens.
                           </p>
-                        </div>
-                      </div>
 
-                      <div className="justification-form-box mt-3">
-                        <label>Justificativa do Desvio Orçamentário:</label>
-                        <div className="justification-input-row">
-                          <input
-                            type="text"
-                            className="form-input flex-1"
-                            placeholder="Ex: Compra extraordinária para evento em casa e aumento de preços no hortifrúti..."
-                            value={justificationText}
-                            onChange={(e) => setJustificationText(e.target.value)}
-                          />
-                          <button
-                            className="btn btn-primary"
-                            onClick={() => {
-                              if (!justificationText.trim()) return;
-                              saveCeilingJustification(selectedNature.id, justificationText);
-                              setJustificationText('');
-                              alert('Justificativa contábil registrada com sucesso!');
-                            }}
-                          >
-                            <FileText size={16} />
-                            <span>Gravar Justificativa</span>
-                          </button>
-                        </div>
-
-                        {selectedNature.justificationHistory && selectedNature.justificationHistory.length > 0 && (
-                          <div className="justification-history mt-3">
-                            <span className="justification-history-title">Histórico de Justificativas Registradas:</span>
-                            <div className="justification-history-list">
-                              {selectedNature.justificationHistory.map((just) => (
-                                <div key={just.id} className="just-item">
-                                  <div className="just-item-meta">
-                                    <strong>{just.date} ({just.month})</strong>
-                                    <span className="text-rose">Excedente: +{(just.spentAmount - just.ceilingAmount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                                  </div>
-                                  <p className="just-item-reason">"{just.reason}"</p>
-                                </div>
-                              ))}
+                          <div className="justification-form-box mt-3">
+                            <label>Justificativa do Desvio Orçamentário:</label>
+                            <div className="justification-input-row">
+                              <input
+                                type="text"
+                                className="form-input flex-1"
+                                placeholder="Ex: Compra extraordinária para evento em casa e aumento de preços no hortifrúti..."
+                                value={justificationText}
+                                onChange={(e) => setJustificationText(e.target.value)}
+                              />
+                              <button
+                                className="btn btn-primary"
+                                onClick={() => {
+                                  if (!justificationText.trim()) return;
+                                  saveCeilingJustification(selectedNature.id, justificationText);
+                                  setJustificationText('');
+                                  alert('Justificativa contábil registrada com sucesso!');
+                                }}
+                              >
+                                <FileText size={16} />
+                                <span>Gravar Justificativa</span>
+                              </button>
                             </div>
+
+                            {selectedNature.justificationHistory && selectedNature.justificationHistory.length > 0 && (
+                              <div className="justification-history mt-3">
+                                <span className="justification-history-title">Histórico de Justificativas Registradas:</span>
+                                <div className="justification-history-list">
+                                  {selectedNature.justificationHistory.map((just) => (
+                                    <div key={just.id} className="just-item">
+                                      <div className="just-item-meta">
+                                        <strong>{just.date} ({just.month})</strong>
+                                        <span className="text-rose">Excedente: +{(just.spentAmount - just.ceilingAmount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 3 })}</span>
+                                      </div>
+                                      <p className="just-item-reason">"{just.reason}"</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {/* BLOCO INTELIGENTE 2: LONGE DO TETO -> DIAGNÓSTICO PRECISO DE ITENS EM FALTA */}
+                  {/* BLOCO INTELIGENTE 2: LONGE DO TETO -> DIAGNÓSTICO PRECISO DE ITENS EM FALTA (RECOLHÍVEL POR PADRÃO) */}
                   {isCeilingFar && (
                     <div className="ceiling-alert-box alert-far-ceiling glass-card animate-fade-in mt-4">
-                      <div className="ceiling-alert-header">
-                        <Info size={24} className="text-cyan" />
-                        <div>
-                          <h4 className="text-cyan">Diagnóstico Orçamentário: Por que o Teto está distante?</h4>
-                          <p>
-                            Você realizou <strong>{natureSpent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong> de um teto estipulado de <strong>{natureCeiling.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong> (restando <strong>{(natureCeiling - natureSpent).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>).
-                            O BALDER identificou os seguintes <strong>itens do mapeamento que ainda estão em falta / pendentes de compra</strong> no mês:
-                          </p>
+                      <div
+                        className="ceiling-alert-header cursor-pointer select-none"
+                        onClick={() => setIsDiagnosticExpanded(!isDiagnosticExpanded)}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px' }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <Info size={22} className="text-cyan flex-shrink-0" />
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <h4 className="text-cyan" style={{ margin: 0 }}>
+                                Diagnóstico Orçamentário: Por que o Teto está distante?
+                              </h4>
+                              <span className="badge badge-cyan text-xs">
+                                {missingItems.length} {missingItems.length === 1 ? 'item pendente' : 'itens pendentes'}
+                              </span>
+                            </div>
+                            {!isDiagnosticExpanded && (
+                              <p className="text-xs text-muted" style={{ margin: '3px 0 0' }}>
+                                Falta realizar{' '}
+                                <strong className="text-cyan">
+                                  {(natureCeiling - natureSpent).toLocaleString('pt-BR', {
+                                    style: 'currency',
+                                    currency: 'BRL',
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 3,
+                                  })}
+                                </strong>{' '}
+                                em compras planejadas. Clique para expandir detalhes e itens faltantes.
+                              </p>
+                            )}
+                          </div>
                         </div>
+
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-xs text-cyan"
+                          style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsDiagnosticExpanded(!isDiagnosticExpanded);
+                          }}
+                        >
+                          <span>{isDiagnosticExpanded ? 'Recolher' : 'Expandir'}</span>
+                          {isDiagnosticExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </button>
                       </div>
 
-                      {missingItems.length > 0 ? (
-                        <div className="missing-items-table-box mt-3">
-                          <table className="natureza-items-table">
-                            <thead>
-                              <tr>
-                                <th>Item Mapeado</th>
-                                <th>Mapeamento Origem</th>
-                                <th>Qtd × Preço × Semanas</th>
-                                <th>Valor Previsto</th>
-                                <th>Falta Realizar</th>
-                                <th>Ação Rápida</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {missingItems.map(({ item, mappingName, missingAmount }) => (
-                                <tr key={item.id} className="missing-item-row">
-                                  <td>
-                                    <strong>{item.description}</strong>
-                                  </td>
-                                  <td>
-                                    <span className="badge badge-cyan text-xs">{mappingName}</span>
-                                  </td>
-                                  <td>
-                                    {typeof item.quantity === 'number'
-                                      ? item.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 3 })
-                                      : item.quantity}{' '}
-                                    {item.unit || 'un'} ×{' '}
-                                    {item.price.toLocaleString('pt-BR', {
-                                      style: 'currency',
-                                      currency: 'BRL',
-                                      minimumFractionDigits: 2,
-                                      maximumFractionDigits: 3,
-                                    })}{' '}
-                                    × {item.multiplierWeeks} {item.multiplierWeeks > 1 ? 'semanas' : 'sem'}
-                                  </td>
-                                  <td>
-                                    {item.totalValue.toLocaleString('pt-BR', {
-                                      style: 'currency',
-                                      currency: 'BRL',
-                                      minimumFractionDigits: 2,
-                                      maximumFractionDigits: 3,
-                                    })}
-                                  </td>
-                                  <td className="text-cyan font-bold">
-                                    {missingAmount.toLocaleString('pt-BR', {
-                                      style: 'currency',
-                                      currency: 'BRL',
-                                      minimumFractionDigits: 2,
-                                      maximumFractionDigits: 3,
-                                    })}
-                                  </td>
-                                  <td>
-                                    <button
-                                      className="btn btn-outline btn-xs"
-                                      title="Marcar item como comprado/liquidado no mês"
-                                      onClick={() => {
-                                        // Achar em qual mapeamento está
-                                        const parentMap = selectedNature.mappings.find((m) => m.items.some((it) => it.id === item.id));
-                                        if (parentMap) {
-                                          toggleItemFulfilled(selectedNature.id, parentMap.id, item.id);
-                                        }
-                                      }}
-                                    >
-                                      <Check size={12} className="text-emerald" />
-                                      <span>Marcar Comprado</span>
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                      {isDiagnosticExpanded && (
+                        <div className="animate-fade-in mt-3" style={{ borderTop: '1px solid rgba(56, 189, 248, 0.15)', paddingTop: '12px' }}>
+                          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.4, marginBottom: '12px' }}>
+                            Você realizou <strong>{natureSpent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong> de um teto estipulado de <strong>{natureCeiling.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong> (restando <strong className="text-cyan">{(natureCeiling - natureSpent).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 3 })}</strong>).
+                            O BALDER identificou os seguintes <strong>itens do mapeamento que ainda estão em falta / pendentes de compra</strong> no mês:
+                          </p>
+
+                          {missingItems.length > 0 ? (
+                            <div className="missing-items-table-box mt-3">
+                              <table className="natureza-items-table">
+                                <thead>
+                                  <tr>
+                                    <th>Item Mapeado</th>
+                                    <th>Mapeamento Origem</th>
+                                    <th>Qtd × Preço × Semanas</th>
+                                    <th>Valor Previsto</th>
+                                    <th>Falta Realizar</th>
+                                    <th>Ação Rápida</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {missingItems.map(({ item, mappingName, missingAmount }) => (
+                                    <tr key={item.id} className="missing-item-row">
+                                      <td>
+                                        <strong>{item.description}</strong>
+                                      </td>
+                                      <td>
+                                        <span className="badge badge-cyan text-xs">{mappingName}</span>
+                                      </td>
+                                      <td>
+                                        {typeof item.quantity === 'number'
+                                          ? item.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 3 })
+                                          : item.quantity}{' '}
+                                        {item.unit || 'un'} ×{' '}
+                                        {item.price.toLocaleString('pt-BR', {
+                                          style: 'currency',
+                                          currency: 'BRL',
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 3,
+                                        })}{' '}
+                                        × {item.multiplierWeeks} {item.multiplierWeeks > 1 ? 'semanas' : 'sem'}
+                                      </td>
+                                      <td>
+                                        {item.totalValue.toLocaleString('pt-BR', {
+                                          style: 'currency',
+                                          currency: 'BRL',
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 3,
+                                        })}
+                                      </td>
+                                      <td className="text-cyan font-bold">
+                                        {missingAmount.toLocaleString('pt-BR', {
+                                          style: 'currency',
+                                          currency: 'BRL',
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 3,
+                                        })}
+                                      </td>
+                                      <td>
+                                        <button
+                                          className="btn btn-outline btn-xs"
+                                          title="Marcar item como comprado/liquidado no mês"
+                                          onClick={() => {
+                                            // Achar em qual mapeamento está
+                                            const parentMap = selectedNature.mappings.find((m) => m.items.some((it) => it.id === item.id));
+                                            if (parentMap) {
+                                              toggleItemFulfilled(selectedNature.id, parentMap.id, item.id);
+                                            }
+                                          }}
+                                        >
+                                          <Check size={12} className="text-emerald" />
+                                          <span>Marcar Comprado</span>
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <p className="subtab-desc mt-2">Todos os itens mapeados já foram marcados como realizados.</p>
+                          )}
                         </div>
-                      ) : (
-                        <p className="subtab-desc mt-2">Todos os itens mapeados já foram marcados como realizados.</p>
                       )}
                     </div>
                   )}
