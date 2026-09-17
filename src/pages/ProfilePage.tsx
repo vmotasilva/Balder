@@ -373,7 +373,7 @@ export const ProfilePage: React.FC = () => {
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5 pt-4 border-t border-slate-800/80">
+                  <div className={`grid grid-cols-1 sm:grid-cols-2 ${activeCheckpoint.creditCardDebt && activeCheckpoint.creditCardDebt > 0 ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4 mt-5 pt-4 border-t border-slate-800/80`}>
                     <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
                       <span className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold block mb-1">
                         Data de Início
@@ -393,6 +393,28 @@ export const ProfilePage: React.FC = () => {
                         {activeCheckpoint.initialBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </span>
                     </div>
+
+                    {activeCheckpoint.creditCardDebt && activeCheckpoint.creditCardDebt > 0 && (
+                      <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                        <span className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold block mb-1">
+                          Dívida de Cartão
+                        </span>
+                        <span className="text-sm font-bold text-rose-400 flex items-center gap-1.5 flex-wrap">
+                          <CreditCard size={15} className="text-rose-400" />
+                          {activeCheckpoint.creditCardDebt.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          {activeCheckpoint.cardInstallments && activeCheckpoint.cardInstallments > 1 && (
+                            <span className="badge badge-amber text-[10px]" style={{ padding: '1px 5px' }}>
+                              {activeCheckpoint.cardInstallments}x de {(activeCheckpoint.creditCardDebt / activeCheckpoint.cardInstallments).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            </span>
+                          )}
+                        </span>
+                        {activeCheckpoint.cardName && (
+                          <span className="text-[10.5px] text-slate-400 block mt-0.5 truncate" title={activeCheckpoint.cardName}>
+                            {activeCheckpoint.cardName} {activeCheckpoint.cardDueDate ? `(${activeCheckpoint.cardDueDate.split('-').reverse().join('/')})` : ''}
+                          </span>
+                        )}
+                      </div>
+                    )}
 
                     <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
                       <span className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold block mb-1">

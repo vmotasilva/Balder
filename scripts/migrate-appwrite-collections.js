@@ -199,6 +199,8 @@ async function runMigration() {
       { key: 'creditCardDebt', type: 'float', required: false },
       { key: 'cardDueDate', type: 'string', size: 20, required: false },
       { key: 'cardName', type: 'string', size: 100, required: false },
+      { key: 'cardInstallments', type: 'integer', required: false },
+      { key: 'cardInstallmentAmount', type: 'float', required: false },
       { key: 'isActive', type: 'boolean', required: true, default: false },
     ];
     for (const attr of checkpointAttrs) {

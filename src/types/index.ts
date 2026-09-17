@@ -418,6 +418,8 @@ export interface FinancialCheckpoint {
   creditCardDebt?: number; // Dívida / Fatura acumulada de cartão de crédito no ponto de partida (R$)
   cardDueDate?: string;    // Data de vencimento da fatura inicial (YYYY-MM-DD)
   cardName?: string;       // Nome do cartão associado à fatura
+  cardInstallments?: number; // Quantidade de meses / parcelas em que a dívida se divide (padrão: 1)
+  cardInstallmentAmount?: number; // Valor da parcela mensal correspondente (se parcelado)
   initialNetWorth?: number; // Patrimônio líquido estimado nessa data (opcional)
   label?: string;          // Rótulo livre, ex: "Início 2025", "Reset pós-crise"
   notes?: string;          // Observações sobre o marco
