@@ -46,7 +46,15 @@ interface NatureBudgetGridProps {
 }
 
 export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateToNatures }) => {
-  const { movements, natures, salaryContracts, getNatureCeiling, updateNature, activeCheckpoint } = useFinancial();
+  const {
+    movements,
+    natures,
+    salaryContracts,
+    getNatureCeiling,
+    updateNature,
+    activeCheckpoint,
+    monthlyClosings,
+  } = useFinancial();
 
   // Mês selecionado para acompanhamento (padrão: Set/2026)
   const [selectedMonthKey, setSelectedMonthKey] = useState<string>('2026-09');
@@ -54,7 +62,6 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
   const [searchTerm, setSearchTerm] = useState<string>('');
   // Filtro de status: ALL, OVER (Acima do teto), WITHIN (Dentro do teto)
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'OVER' | 'WITHIN'>('ALL');
-
   // Estado para abrir modal de edição de observação da natureza
   const [editingNatureId, setEditingNatureId] = useState<string | null>(null);
   const [editingObservationText, setEditingObservationText] = useState<string>('');
@@ -66,8 +73,14 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
 
   // Projeção financeira completa para recuperar os totais da competência selecionada
   const allRows: MonthlyGridProjectionRow[] = useMemo(() => {
-    return buildMonthlyProjectionGrid(movements, natures, initialBalance, salaryContracts);
-  }, [movements, natures, initialBalance, salaryContracts]);
+    return buildMonthlyProjectionGrid(
+      movements,
+      natures,
+      initialBalance,
+      salaryContracts,
+      monthlyClosings
+    );
+  }, [movements, natures, initialBalance, salaryContracts, monthlyClosings]);
 
   // Lista de competências disponíveis
   const availableMonths = useMemo(() => {

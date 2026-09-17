@@ -27,6 +27,7 @@ import type {
   SalaryContract,
   SalaryAdjustment,
   FinancialCheckpoint,
+  MonthlyClosing,
 } from '../types';
 import { recognizeImageOCR } from '../services/ocrService';
 import { learnReceiptItemAssociation } from '../services/receiptMemoryService';
@@ -61,6 +62,12 @@ interface FinancialContextType {
   addCheckpoint: (cp: Omit<FinancialCheckpoint, 'id' | 'createdAt' | 'isActive'>) => void;
   activateCheckpoint: (id: string) => void;
   deleteCheckpoint: (id: string) => void;
+
+  // Fechamentos Mensais de Competência
+  monthlyClosings: MonthlyClosing[];
+  closeMonth: (monthKey: string, closingBalance: number, projectedBalance: number, notes?: string) => void;
+  reopenMonth: (monthKey: string) => void;
+  getMonthlyClosing: (monthKey: string) => MonthlyClosing | undefined;
 
 
   // Métricas Calculadas
@@ -290,6 +297,72 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
       return next;
     });
+  };
+
+  // Fechamentos Mensais de Competência (Reconciliação e carryover de saldo)
+  const [monthlyClosings, setMonthlyClosings] = useState<MonthlyClosing[]>(() => {
+    try {
+      const savedUser = user ? localStorage.getItem(`balder_monthly_closings_${user.$id}`) : null;
+      if (savedUser) return JSON.parse(savedUser);
+      const savedGuest = localStorage.getItem('balder_monthly_closings_guest');
+      if (savedGuest) return JSON.parse(savedGuest);
+    } catch {}
+    return [];
+  });
+
+  // Persistência de fechamentos mensais
+  useEffect(() => {
+    if (user && !user.isGuest && monthlyClosings.length > 0) {
+      localStorage.setItem(`balder_monthly_closings_${user.$id}`, JSON.stringify(monthlyClosings));
+    }
+  }, [monthlyClosings, user]);
+
+  const closeMonth = (
+    monthKey: string,
+    closingBalance: number,
+    projectedBalance: number,
+    notes?: string
+  ) => {
+    const newClosing: MonthlyClosing = {
+      id: `closing_${monthKey}_${Date.now()}`,
+      monthKey,
+      closedAt: new Date().toISOString(),
+      closingBalance,
+      projectedBalance,
+      adjustmentAmount: Math.round((closingBalance - projectedBalance) * 100) / 100,
+      status: 'FECHADO',
+      notes,
+    };
+    setMonthlyClosings((prev) => {
+      const filtered = prev.filter((c) => c.monthKey !== monthKey);
+      const next = [...filtered, newClosing];
+      const storageKey =
+        user && !user.isGuest ? `balder_monthly_closings_${user.$id}` : 'balder_monthly_closings_guest';
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch (e) {
+        console.warn('Erro ao salvar fechamento mensal:', e);
+      }
+      return next;
+    });
+  };
+
+  const reopenMonth = (monthKey: string) => {
+    setMonthlyClosings((prev) => {
+      const next = prev.filter((c) => c.monthKey !== monthKey);
+      const storageKey =
+        user && !user.isGuest ? `balder_monthly_closings_${user.$id}` : 'balder_monthly_closings_guest';
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch (e) {
+        console.warn('Erro ao reabrir competência:', e);
+      }
+      return next;
+    });
+  };
+
+  const getMonthlyClosing = (monthKey: string): MonthlyClosing | undefined => {
+    return monthlyClosings.find((c) => c.monthKey === monthKey);
   };
 
   // Movimentações Financeiras
@@ -2395,6 +2468,10 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         addCheckpoint,
         activateCheckpoint,
         deleteCheckpoint,
+        monthlyClosings,
+        closeMonth,
+        reopenMonth,
+        getMonthlyClosing,
         totalNetWorth,
 
         availableBalance,

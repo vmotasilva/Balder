@@ -1,4 +1,4 @@
-import type { Movement, ExpenseNature, MonthlyGridProjectionRow, SalaryContract, SalaryAdjustment } from '../types';
+import type { Movement, ExpenseNature, MonthlyGridProjectionRow, SalaryContract, SalaryAdjustment, MonthlyClosing } from '../types';
 
 export interface ProjectionGridConfig {
   initialBalance?: number;
@@ -150,7 +150,8 @@ export function buildMonthlyProjectionGrid(
   movements: Movement[],
   natures: ExpenseNature[],
   initialBalance: number = 0,
-  salaryContracts?: SalaryContract[]
+  salaryContracts?: SalaryContract[],
+  monthlyClosings?: MonthlyClosing[]
 ): MonthlyGridProjectionRow[] {
   const competenceMonths = generateCompetenceMonths();
 
@@ -184,7 +185,25 @@ export function buildMonthlyProjectionGrid(
 
   competenceMonths.forEach((comp, idx) => {
     const isFirstMonth = idx === 0;
-    const initial = isFirstMonth ? initialBalance : undefined;
+    const prevMonthKey = idx > 0 ? competenceMonths[idx - 1].key : undefined;
+
+    // Determina o Saldo Inicial do mês:
+    // No 1º mês, utiliza o marco ativo (Ponto de Partida).
+    // Nos meses seguintes, se o mês anterior possui Fechamento formalizado (status: FECHADO),
+    // utiliza o closingBalance apurado; caso contrário, utiliza o runningAccumulated do mês anterior.
+    let initial = 0;
+    if (isFirstMonth) {
+      initial = initialBalance;
+    } else if (prevMonthKey) {
+      const prevClosing = monthlyClosings?.find(
+        (c) => c.monthKey === prevMonthKey && c.status === 'FECHADO'
+      );
+      if (prevClosing) {
+        initial = prevClosing.closingBalance;
+      } else {
+        initial = runningAccumulated;
+      }
+    }
 
     // ── 1. Extras / Receitas avulsas (+) ──────────────────────────────────────
     const extrasTotal = movements
@@ -268,11 +287,17 @@ export function buildMonthlyProjectionGrid(
     const totalOutflow = creditCardTotal + fixedCostDirect + variableCost + loanPayment;
     const monthNet     = Math.round((totalInflow - totalOutflow) * 100) / 100;
 
+    // Verificar se o mês atual já possui fechamento formalizado
+    const currentClosing = monthlyClosings?.find(
+      (c) => c.monthKey === comp.key && c.status === 'FECHADO'
+    );
+    const isClosed = !!currentClosing;
+
     // ── 9. Saldo Acumulado ─────────────────────────────────────────────────────
-    if (isFirstMonth) {
-      runningAccumulated = Math.round((initialBalance + monthNet) * 100) / 100;
+    if (isClosed && currentClosing) {
+      runningAccumulated = currentClosing.closingBalance;
     } else {
-      runningAccumulated = Math.round((runningAccumulated + monthNet) * 100) / 100;
+      runningAccumulated = Math.round((initial + monthNet) * 100) / 100;
     }
 
     rows.push({
@@ -296,6 +321,10 @@ export function buildMonthlyProjectionGrid(
       monthNet,
       accumulatedBalance: runningAccumulated,
       isDeficit: monthNet < 0,
+      isClosed,
+      closingDetails: currentClosing,
+      previousMonthKey: prevMonthKey,
+      isFirstMonth,
     });
   });
 

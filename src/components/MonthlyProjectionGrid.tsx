@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { useFinancial } from '../context/FinancialContext';
-import { Download, Info } from 'lucide-react';
+import { Download, Info, Lock, CheckCircle2 } from 'lucide-react';
 import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
 import type { MonthlyGridProjectionRow } from '../types';
 import { GridCellDetailModal } from './GridCellDetailModal';
 import type { GridCellSelection } from './GridCellDetailModal';
+import { MonthClosingModal } from './MonthClosingModal';
 
 /**
  * Componente para exibição inteligente de valores numéricos:
@@ -47,14 +48,28 @@ export const GlanceableCurrency: React.FC<{
 };
 
 export const MonthlyProjectionGrid: React.FC = () => {
-  const { movements, natures, salaryContracts, activeCheckpoint } = useFinancial();
+  const {
+    movements,
+    natures,
+    salaryContracts,
+    activeCheckpoint,
+    monthlyClosings,
+    closeMonth,
+    reopenMonth,
+  } = useFinancial();
 
   const initialBalance = activeCheckpoint ? activeCheckpoint.initialBalance : 0;
 
-  // Geração determinística dos dados mês a mês
+  // Geração determinística dos dados mês a mês respeitando fechamentos e carryover
   const allRows: MonthlyGridProjectionRow[] = useMemo(() => {
-    return buildMonthlyProjectionGrid(movements, natures, initialBalance, salaryContracts);
-  }, [movements, natures, initialBalance, salaryContracts]);
+    return buildMonthlyProjectionGrid(
+      movements,
+      natures,
+      initialBalance,
+      salaryContracts,
+      monthlyClosings
+    );
+  }, [movements, natures, initialBalance, salaryContracts, monthlyClosings]);
 
   // Anos disponíveis na base projetada
   const availableYears = useMemo(() => {
@@ -70,6 +85,9 @@ export const MonthlyProjectionGrid: React.FC = () => {
 
   // Estado para abertura do pop-up modal de detalhamento da célula clicada
   const [cellSelection, setCellSelection] = useState<GridCellSelection | null>(null);
+
+  // Estado para o modal de fechamento financeiro da competência
+  const [closingModalRow, setClosingModalRow] = useState<MonthlyGridProjectionRow | null>(null);
 
   const handleOpenCell = (
     row: MonthlyGridProjectionRow,
@@ -281,7 +299,7 @@ export const MonthlyProjectionGrid: React.FC = () => {
                   key={row.monthKey}
                   className={`glanceable-row ${isCurrentMonth ? 'current-month-row' : ''} ${row.isDeficit ? 'row-deficit' : 'row-surplus'}`}
                 >
-                  {/* 1. Competência com destaque do Mês Atual */}
+                  {/* 1. Competência com destaque do Mês Atual e Fechamento */}
                   <td
                     className="td-competence td-clickable"
                     title="Clique para ver o resumo completo desta competência"
@@ -296,6 +314,33 @@ export const MonthlyProjectionGrid: React.FC = () => {
                           Atual
                         </span>
                       )}
+                      {row.isClosed ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setClosingModalRow(row);
+                          }}
+                          className="px-1.5 py-0.5 text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded flex items-center gap-1 hover:bg-emerald-500/30 transition-colors"
+                          title="Competência Fechada — Clique para gerenciar o fechamento"
+                        >
+                          <Lock className="w-2.5 h-2.5" />
+                          Fechado
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setClosingModalRow(row);
+                          }}
+                          className="px-1.5 py-0.5 text-[10px] font-medium text-slate-400 hover:text-slate-200 bg-slate-800/60 hover:bg-slate-700/60 border border-slate-700/60 rounded flex items-center gap-1 transition-colors"
+                          title="Clique para fechar financeiramente este mês"
+                        >
+                          <Lock className="w-2.5 h-2.5 opacity-60" />
+                          Fechar
+                        </button>
+                      )}
                       <span className="competence-sublabel text-xs text-muted truncate">{row.competenceLabel}</span>
                     </div>
                   </td>
@@ -304,12 +349,23 @@ export const MonthlyProjectionGrid: React.FC = () => {
                   <td
                     style={{ textAlign: 'right' }}
                     className="text-muted td-clickable"
-                    title="Clique para detalhar o saldo de abertura"
+                    title={
+                      row.isFirstMonth
+                        ? 'Saldo Inicial do Ponto de Partida'
+                        : `Saldo Inicial transportado do mês anterior (${row.previousMonthKey || ''})`
+                    }
                     onClick={() =>
                       handleOpenCell(row, 'accumulated', 'Saldo Inicial do Ciclo', row.initialBalance || 0)
                     }
                   >
-                    <GlanceableCurrency value={row.initialBalance} className="text-secondary" />
+                    <div className="inline-flex items-center gap-1.5">
+                      <GlanceableCurrency value={row.initialBalance} className="text-secondary font-medium" />
+                      {row.isClosed && (
+                        <span title="Saldo conciliado e fechado">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   {/* 3. Total Entradas (Receitas) */}
@@ -422,6 +478,15 @@ export const MonthlyProjectionGrid: React.FC = () => {
         isOpen={!!cellSelection}
         onClose={() => setCellSelection(null)}
         selection={cellSelection}
+      />
+
+      {/* Modal de Fechamento Financeiro da Competência */}
+      <MonthClosingModal
+        isOpen={!!closingModalRow}
+        onClose={() => setClosingModalRow(null)}
+        row={closingModalRow}
+        onCloseMonth={closeMonth}
+        onReopenMonth={reopenMonth}
       />
     </div>
   );

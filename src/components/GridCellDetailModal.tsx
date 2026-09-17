@@ -325,7 +325,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
   onClose,
   selection,
 }) => {
-  const { movements, natures, getNatureCeiling, activeCheckpoint } = useFinancial();
+  const { movements, natures, getNatureCeiling, activeCheckpoint, monthlyClosings } = useFinancial();
 
   const columnKey = selection?.columnKey;
   const columnTitle = selection?.columnTitle || '';
@@ -1110,25 +1110,69 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         });
       }
     } else if (columnTitle === 'Saldo Inicial do Ciclo') {
-      const checkpointLabel = activeCheckpoint?.label || 'Ponto de Partida';
-      const initialDateFormatted = activeCheckpoint?.startDate
-        ? activeCheckpoint.startDate.split('-').reverse().join('/')
-        : formattedCompetence;
+      const isFirst = row?.isFirstMonth ?? (monthPrefix === '2026-09');
+      const prevKey = row?.previousMonthKey;
 
-      items.push({
-        id: `saldo_inicial_${monthPrefix}`,
-        category: 'Ponto de Partida',
-        bankOrOrigin: checkpointLabel,
-        title: 'Saldo Inicial do Ponto de Partida',
-        notes: activeCheckpoint
-          ? `Saldo em caixa definido no marco de acompanhamento ativo (${checkpointLabel}) com início em ${initialDateFormatted}`
-          : 'Saldo em caixa inicial configurado como marco de partida das projeções',
-        badge: 'Saldo Inicial',
-        badgeType: 'emerald',
-        amount: totalValue,
-        dateOrDue: `Início do Ciclo: ${initialDateFormatted}`,
-        isProjected: true,
-      });
+      if (isFirst) {
+        const checkpointLabel = activeCheckpoint?.label || 'Ponto de Partida';
+        const initialDateFormatted = activeCheckpoint?.startDate
+          ? activeCheckpoint.startDate.split('-').reverse().join('/')
+          : formattedCompetence;
+
+        items.push({
+          id: `saldo_inicial_${monthPrefix}`,
+          category: 'Ponto de Partida',
+          bankOrOrigin: checkpointLabel,
+          title: 'Saldo Inicial do Ponto de Partida',
+          notes: activeCheckpoint
+            ? `Saldo em caixa definido no marco de acompanhamento ativo (${checkpointLabel}) com início em ${initialDateFormatted}`
+            : 'Saldo em caixa inicial configurado como marco de partida das projeções',
+          badge: 'Marco Inicial',
+          badgeType: 'emerald',
+          amount: totalValue,
+          dateOrDue: `Início do Ciclo: ${initialDateFormatted}`,
+          isProjected: true,
+        });
+      } else {
+        const prevClosing = monthlyClosings?.find(
+          (c) => c.monthKey === prevKey && c.status === 'FECHADO'
+        );
+
+        let prevMonthLabel = 'Mês Anterior';
+        if (prevKey) {
+          const [py, pm] = prevKey.split('-');
+          const pDate = new Date(parseInt(py, 10), parseInt(pm, 10) - 1, 1);
+          prevMonthLabel = pDate.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+        }
+
+        if (prevClosing) {
+          items.push({
+            id: `saldo_carryover_${monthPrefix}`,
+            category: 'Fechamento Contábil',
+            bankOrOrigin: `Fechamento ${prevMonthLabel}`,
+            title: `Saldo Transportado de ${prevMonthLabel}`,
+            notes: `Saldo final de ${prevMonthLabel} conciliado formalmente no fechamento contábil e fixado como abertura deste ciclo.`,
+            badge: 'Fechamento Consolidado',
+            badgeType: 'emerald',
+            amount: totalValue,
+            dateOrDue: `Abertura: ${formattedCompetence}`,
+            isProjected: true,
+          });
+        } else {
+          items.push({
+            id: `saldo_carryover_${monthPrefix}`,
+            category: 'Carryover de Saldo',
+            bankOrOrigin: `Projeção ${prevMonthLabel}`,
+            title: `Saldo Remanescente de ${prevMonthLabel}`,
+            notes: `Saldo final acumulado apurado na competência anterior (${prevMonthLabel}) e transferido automaticamente para abertura deste ciclo.`,
+            badge: 'Saldo Transportado',
+            badgeType: 'cyan',
+            amount: totalValue,
+            dateOrDue: `Abertura: ${formattedCompetence}`,
+            isProjected: true,
+          });
+        }
+      }
     } else {
       items.push({
         id: `summary_${columnKey}_${monthPrefix}`,
@@ -1145,7 +1189,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     }
 
     return items;
-  }, [selection, movements, columnKey, row, totalValue, allNatureItems, natures, competenceLabel, formattedCompetence, columnTitle, activeCheckpoint]);
+  }, [selection, movements, columnKey, row, totalValue, allNatureItems, natures, competenceLabel, formattedCompetence, columnTitle, activeCheckpoint, monthlyClosings]);
 
   // Inicialização e foco na natureza específica ao abrir o modal ou mudar de seleção
   useEffect(() => {

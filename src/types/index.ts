@@ -36,11 +36,22 @@ export interface InstallmentPrepaymentCalc {
   selected: boolean;
 }
 
+export interface MonthlyClosing {
+  id: string;
+  monthKey: string;            // '2026-09'
+  closedAt: string;            // ISO datetime
+  closingBalance: number;      // Saldo final consolidado
+  projectedBalance: number;    // Saldo projetado apurado pelo Balder
+  adjustmentAmount: number;    // Diferença de conciliação (closingBalance - projectedBalance)
+  status: 'FECHADO';
+  notes?: string;
+}
+
 export interface MonthlyGridProjectionRow {
   monthKey: string;            // '2026-09'
   formattedCompetence: string; // '01/09/2026'
   competenceLabel: string;     // 'Set/2026'
-  initialBalance?: number;     // Saldo Inicial (no primeiro mês ou transferido)
+  initialBalance: number;      // Saldo Inicial (no primeiro mês ou transferido da competência anterior)
   extrasTotal: number;         // Extras Total (+)
   salary: number;              // Salário Total (+) — soma de todas as parcelas/semanas/quinzenas
   salaryFirstInstallment?: number;  // 1ª Quinzena (se QUINZENAL)
@@ -55,8 +66,12 @@ export interface MonthlyGridProjectionRow {
   loanReceived: number;        // Empréstimo (+) TOTAL (Valor Recebido)
   loanPayment: number;         // Empréstimo (-) TOTAL (Valor a pagar no mês)
   monthNet: number;            // SALDO do Mês (Receitas - Despesas)
-  accumulatedBalance: number;  // SALDO ACUMULADO
+  accumulatedBalance: number;  // SALDO ACUMULADO (Saldo Inicial + Resultado do Mês)
   isDeficit: boolean;          // Indica se o mês fechou negativo
+  isClosed?: boolean;          // Se a competência foi formalmente encerrada
+  closingDetails?: MonthlyClosing; // Detalhes da conciliação do fechamento
+  previousMonthKey?: string;   // Competência anterior ('2026-08')
+  isFirstMonth?: boolean;      // Indica se é o marco inicial da grade
 }
 
 export interface LoanSpreadsheetRow {
