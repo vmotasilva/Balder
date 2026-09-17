@@ -43,6 +43,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
     getNatureSpent,
     getNatureMissingItems,
     addMovement,
+    loadSuggestedMappingsForNature,
   } = useFinancial();
 
   // Selected Natureza
@@ -732,12 +733,27 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                 <div className="empty-mappings-box glass-card mt-3">
                   <Layers size={32} className="text-muted" />
                   <p>Nenhum mapeamento de gastos cadastrado para esta natureza.</p>
-                  <button
-                    className="btn btn-primary btn-sm mt-2"
-                    onClick={() => setIsNewMappingModalOpen(true)}
-                  >
-                    Criar Primeiro Mapeamento
-                  </button>
+                  <div className="flex items-center gap-3 mt-3">
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={() => setIsNewMappingModalOpen(true)}
+                    >
+                      <Plus size={14} />
+                      <span>Criar Primeiro Mapeamento</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm text-xs"
+                      onClick={() => {
+                        if (confirm(`Deseja carregar sugestões de rotina e mapeamentos padrão para "${selectedNature.name}"?`)) {
+                          loadSuggestedMappingsForNature(selectedNature.id);
+                        }
+                      }}
+                      title="Carregar itens e rotinas pré-configuradas para esta natureza"
+                    >
+                      <span>💡 Carregar Modelos Sugeridos</span>
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="mappings-list-container">

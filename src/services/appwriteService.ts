@@ -120,9 +120,9 @@ export const AppwriteService = {
         icon: doc.icon,
         color: doc.color,
         type: doc.type || 'FIXA',
-        mappings: doc.mappings ? JSON.parse(doc.mappings) : [],
+        mappings: doc.mappings ? (typeof doc.mappings === 'string' ? JSON.parse(doc.mappings) : doc.mappings) : [],
         overCeilingJustification: doc.overCeilingJustification || undefined,
-        justificationHistory: doc.justificationHistory ? JSON.parse(doc.justificationHistory) : []
+        justificationHistory: doc.justificationHistory ? (typeof doc.justificationHistory === 'string' ? JSON.parse(doc.justificationHistory) : doc.justificationHistory) : []
       })) as ExpenseNature[];
     } catch (e) {
       console.error('Error fetching natures:', e);
@@ -176,15 +176,22 @@ export const AppwriteService = {
   async updateNature(id: string, updates: Partial<ExpenseNature>): Promise<boolean> {
     if (!isConfigured()) return false;
     try {
-      const dataToSave: any = cleanPayload({ ...updates });
-      delete dataToSave.id;
-      if (updates.mappings) {
-        dataToSave.mappings = JSON.stringify(updates.mappings);
+      const payload: Record<string, any> = {};
+      if (updates.name !== undefined) payload.name = updates.name;
+      if (updates.description !== undefined) payload.description = updates.description;
+      if (updates.icon !== undefined) payload.icon = updates.icon;
+      if (updates.color !== undefined) payload.color = updates.color;
+      if (updates.type !== undefined) payload.type = updates.type;
+      if ((updates as any).initialBudget !== undefined) payload.initialBudget = (updates as any).initialBudget;
+      if (updates.overCeilingJustification !== undefined) payload.overCeilingJustification = updates.overCeilingJustification;
+      if (updates.mappings !== undefined) {
+        payload.mappings = typeof updates.mappings === 'string' ? updates.mappings : JSON.stringify(updates.mappings);
       }
-      if (updates.justificationHistory) {
-        dataToSave.justificationHistory = JSON.stringify(updates.justificationHistory);
+      if (updates.justificationHistory !== undefined) {
+        payload.justificationHistory = typeof updates.justificationHistory === 'string' ? updates.justificationHistory : JSON.stringify(updates.justificationHistory);
       }
-      await databases.updateDocument(databaseId, COLLECTIONS.NATURES, id, dataToSave);
+
+      await databases.updateDocument(databaseId, COLLECTIONS.NATURES, id, payload);
       return true;
     } catch (e) {
       console.error('Error updating nature in Appwrite:', e);

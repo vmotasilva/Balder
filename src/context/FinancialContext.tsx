@@ -132,6 +132,7 @@ interface FinancialContextType {
   deleteMappingItem: (natureId: string, mappingId: string, itemId: string) => void;
   toggleItemFulfilled: (natureId: string, mappingId: string, itemId: string) => void;
   saveCeilingJustification: (natureId: string, reason: string) => void;
+  loadSuggestedMappingsForNature: (natureId: string) => void;
   getNatureCeiling: (nature: ExpenseNature) => number;
   getNatureSpent: (nature: ExpenseNature) => number;
   getNatureMissingItems: (nature: ExpenseNature) => Array<{ item: MappingItem; mappingName: string; missingAmount: number }>;
@@ -268,7 +269,22 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [goals, setGoals] = useState<Goal[]>(() => (isCloudUser ? [] : DEMO_GOALS));
 
   // Naturezas Orçamentárias
-  const [natures, setNatures] = useState<ExpenseNature[]>(() => (isCloudUser ? [] : DEMO_NATURES));
+  const [natures, setNatures] = useState<ExpenseNature[]>(() => {
+    if (!isCloudUser) {
+      try {
+        const guestNatures = localStorage.getItem('balder_natures_guest');
+        if (guestNatures) return JSON.parse(guestNatures);
+      } catch {}
+      return DEMO_NATURES;
+    }
+    if (user && !user.isGuest) {
+      try {
+        const userNatures = localStorage.getItem(`balder_natures_${user.$id}`);
+        if (userNatures) return JSON.parse(userNatures);
+      } catch {}
+    }
+    return [];
+  });
 
   // Gestão de Contas Bancárias
   const addAccount = (accountData: Omit<BankAccount, 'id'>) => {
@@ -700,10 +716,44 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           AppwriteService.getGoals(),
         ]);
         if (isMounted) {
-          // Em ambiente autenticado na nuvem, o que está no Appwrite é a verdade (se não há nada, fica vazio)
+          // Em ambiente autenticado na nuvem, mescla com cache local para resguardar mapeamentos recém-criados
+          let finalNatures = cloudNatures || [];
+          try {
+            const cacheKey = user ? `balder_natures_${user.$id}` : 'balder_natures_guest';
+            const savedNaturesStr = localStorage.getItem(cacheKey);
+            if (savedNaturesStr) {
+              const localNatures: ExpenseNature[] = JSON.parse(savedNaturesStr);
+              if (finalNatures.length === 0 && localNatures.length > 0) {
+                finalNatures = localNatures;
+              } else if (localNatures.length > 0) {
+                finalNatures = finalNatures.map((cNat) => {
+                  const localNat = localNatures.find((l) => l.id === cNat.id || l.name.trim().toLowerCase() === cNat.name.trim().toLowerCase());
+                  if (
+                    localNat &&
+                    (!cNat.mappings || cNat.mappings.length === 0) &&
+                    localNat.mappings &&
+                    localNat.mappings.length > 0
+                  ) {
+                    if (user && !user.isGuest && !cNat.id.startsWith('nat_')) {
+                      AppwriteService.updateNature(cNat.id, { mappings: localNat.mappings }).catch(console.error);
+                    }
+                    return { ...cNat, mappings: localNat.mappings };
+                  }
+                  return cNat;
+                });
+              }
+            }
+          } catch (e) {
+            console.warn('Erro ao mesclar cache local de naturezas:', e);
+          }
+
           setMovements(cloudMovements || []);
-          setNatures(cloudNatures || []);
+          setNatures(finalNatures);
           setGoals(cloudGoals || []);
+
+          if (user && !user.isGuest) {
+            localStorage.setItem(`balder_natures_${user.$id}`, JSON.stringify(finalNatures));
+          }
 
           try {
             const savedAccounts = user ? localStorage.getItem(`balder_accounts_${user.$id}`) : null;
@@ -1575,10 +1625,19 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     let newlyMappedCount = 0;
     const allocatedByRoutine: Record<string, number> = {};
 
-    setNatures((prevNatures) =>
-      prevNatures.map((nat) => {
-        if (nat.id !== 'nat_alimentacao') return nat;
+    setNatures((prevNatures) => {
+      let modifiedNatId: string | undefined;
+      let updatedMappingsToSave: FixedExpenseMapping[] = [];
 
+      const next = prevNatures.map((nat) => {
+        const isAlimentacao =
+          nat.id === 'nat_alimentacao' ||
+          nat.name.toLowerCase().includes('aliment') ||
+          nat.name.toLowerCase().includes('mercado');
+
+        if (!isAlimentacao) return nat;
+
+        modifiedNatId = nat.id;
         const updatedMappings = nat.mappings.map((mapping) => {
           const updatedItems = mapping.items.map((mItem) => {
             const matchedReceiptItems = data.items.filter((rItem) => rItem.matchedMappingItemId === mItem.id);
@@ -1603,7 +1662,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
           // Adicionar novos itens sugeridos com quantidade 0 (conforme solicitado pelo usuário!)
           const itemsToAddToThisMapping = data.items.filter(
-            (rItem) => rItem.isNewSuggestedItem && (rItem.targetMappingId === mapping.id || (!rItem.targetMappingId && mapping.id === 'map_mercado_mensal'))
+            (rItem) => rItem.isNewSuggestedItem && (rItem.targetMappingId === mapping.id || (!rItem.targetMappingId && (mapping.id === 'map_mercado_mensal' || mapping.id.includes('mercado'))))
           );
 
           if (itemsToAddToThisMapping.length > 0) {
@@ -1631,9 +1690,17 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           return { ...mapping, items: updatedItems };
         });
 
+        updatedMappingsToSave = updatedMappings;
         return { ...nat, mappings: updatedMappings };
-      })
-    );
+      });
+
+      if (modifiedNatId) {
+        saveNaturesData(next, modifiedNatId, { mappings: updatedMappingsToSave });
+      } else {
+        saveNaturesData(next);
+      }
+      return next;
+    });
 
     // 3. Atualizar o histórico do chat com confirmação e aprendizado
     const userFeedbackMsg: CopilotMessage = {
@@ -1700,6 +1767,34 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // NATUREZAS & MAPEAMENTOS DE GASTOS FIXOS
   // ==========================================
 
+  // Sincronização centralizada de Naturezas (Appwrite Cloud + localStorage)
+  const saveNaturesData = (
+    updatedNatures: ExpenseNature[],
+    modifiedNatureId?: string,
+    fieldsToSync?: Partial<ExpenseNature>
+  ) => {
+    try {
+      const storageKey = user && !user.isGuest ? `balder_natures_${user.$id}` : 'balder_natures_guest';
+      localStorage.setItem(storageKey, JSON.stringify(updatedNatures));
+    } catch (e) {
+      console.warn('Erro ao salvar naturezas no localStorage:', e);
+    }
+
+    if (user && !user.isGuest && modifiedNatureId) {
+      const targetNat = updatedNatures.find((n) => n.id === modifiedNatureId);
+      if (targetNat && !targetNat.id.startsWith('nat_')) {
+        const payload: Partial<ExpenseNature> = fieldsToSync || {
+          mappings: targetNat.mappings,
+          overCeilingJustification: targetNat.overCeilingJustification,
+          justificationHistory: targetNat.justificationHistory,
+        };
+        AppwriteService.updateNature(targetNat.id, payload).catch((err) =>
+          console.error(`Erro ao sincronizar natureza ${targetNat.id} no Appwrite:`, err)
+        );
+      }
+    }
+  };
+
   // Adicionar Nova Natureza
   const addNature = (natureData: Omit<ExpenseNature, 'id' | 'mappings'>) => {
     const tempId = `nat_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
@@ -1710,15 +1805,30 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       overCeilingJustification: '',
       justificationHistory: [],
     };
-    setNatures((prev) => [...prev, newNature]);
+    setNatures((prev) => {
+      const next = [...prev, newNature];
+      saveNaturesData(next);
+      return next;
+    });
 
     if (user && !user.isGuest) {
       AppwriteService.addNature(newNature)
         .then((created) => {
           if (created) {
-            setNatures((prev) =>
-              prev.map((nat) => (nat.id === tempId ? { ...nat, id: created.id } : nat))
-            );
+            setNatures((prev) => {
+              const next = prev.map((nat) => {
+                if (nat.id === tempId) {
+                  const updated = { ...nat, id: created.id };
+                  if (updated.mappings && updated.mappings.length > 0) {
+                    AppwriteService.updateNature(created.id, { mappings: updated.mappings }).catch(console.error);
+                  }
+                  return updated;
+                }
+                return nat;
+              });
+              saveNaturesData(next);
+              return next;
+            });
           }
         })
         .catch((err) => console.error('Erro ao criar natureza no Appwrite:', err));
@@ -1727,17 +1837,20 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Atualizar Natureza
   const updateNature = (id: string, updates: Partial<ExpenseNature>) => {
-    setNatures((prev) => prev.map((nat) => (nat.id === id ? { ...nat, ...updates } : nat)));
-    if (user && !user.isGuest && !id.startsWith('nat_')) {
-      AppwriteService.updateNature(id, updates).catch((err) =>
-        console.error('Erro ao atualizar natureza no Appwrite:', err)
-      );
-    }
+    setNatures((prev) => {
+      const next = prev.map((nat) => (nat.id === id ? { ...nat, ...updates } : nat));
+      saveNaturesData(next, id, updates);
+      return next;
+    });
   };
 
   // Excluir Natureza
   const deleteNature = (id: string) => {
-    setNatures((prev) => prev.filter((nat) => nat.id !== id));
+    setNatures((prev) => {
+      const next = prev.filter((nat) => nat.id !== id);
+      saveNaturesData(next);
+      return next;
+    });
     if (user && !user.isGuest && !id.startsWith('nat_')) {
       AppwriteService.deleteNature(id).catch((err) =>
         console.error('Erro ao excluir natureza no Appwrite:', err)
@@ -1762,17 +1875,21 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       dayOfMonth: dayOfMonth ? Math.min(31, Math.max(1, dayOfMonth)) : undefined,
     };
 
-    setNatures((prev) =>
-      prev.map((nat) => {
+    setNatures((prev) => {
+      let updatedMappings: FixedExpenseMapping[] = [];
+      const next = prev.map((nat) => {
         if (nat.id === natureId) {
+          updatedMappings = [...nat.mappings, newMapping];
           return {
             ...nat,
-            mappings: [...nat.mappings, newMapping],
+            mappings: updatedMappings,
           };
         }
         return nat;
-      })
-    );
+      });
+      saveNaturesData(next, natureId, { mappings: updatedMappings });
+      return next;
+    });
 
     return newMappingId;
   };
@@ -1783,37 +1900,45 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     mappingId: string,
     updates: Partial<FixedExpenseMapping>
   ) => {
-    setNatures((prev) =>
-      prev.map((nat) => {
+    setNatures((prev) => {
+      let updatedMappings: FixedExpenseMapping[] = [];
+      const next = prev.map((nat) => {
         if (nat.id === natureId) {
+          updatedMappings = nat.mappings.map((m) => {
+            if (m.id === mappingId) {
+              return { ...m, ...updates };
+            }
+            return m;
+          });
           return {
             ...nat,
-            mappings: nat.mappings.map((m) => {
-              if (m.id === mappingId) {
-                return { ...m, ...updates };
-              }
-              return m;
-            }),
+            mappings: updatedMappings,
           };
         }
         return nat;
-      })
-    );
+      });
+      saveNaturesData(next, natureId, { mappings: updatedMappings });
+      return next;
+    });
   };
 
   // Excluir Mapeamento
   const deleteMapping = (natureId: string, mappingId: string) => {
-    setNatures((prev) =>
-      prev.map((nat) => {
+    setNatures((prev) => {
+      let updatedMappings: FixedExpenseMapping[] = [];
+      const next = prev.map((nat) => {
         if (nat.id === natureId) {
+          updatedMappings = nat.mappings.filter((m) => m.id !== mappingId);
           return {
             ...nat,
-            mappings: nat.mappings.filter((m) => m.id !== mappingId),
+            mappings: updatedMappings,
           };
         }
         return nat;
-      })
-    );
+      });
+      saveNaturesData(next, natureId, { mappings: updatedMappings });
+      return next;
+    });
   };
 
   // Adicionar Item ao Mapeamento
@@ -1836,25 +1961,29 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       isFulfilled: itemData.isFulfilled || false,
     };
 
-    setNatures((prev) =>
-      prev.map((nat) => {
+    setNatures((prev) => {
+      let updatedMappings: FixedExpenseMapping[] = [];
+      const next = prev.map((nat) => {
         if (nat.id === natureId) {
+          updatedMappings = nat.mappings.map((m) => {
+            if (m.id === mappingId) {
+              return {
+                ...m,
+                items: [...m.items, newItem],
+              };
+            }
+            return m;
+          });
           return {
             ...nat,
-            mappings: nat.mappings.map((m) => {
-              if (m.id === mappingId) {
-                return {
-                  ...m,
-                  items: [...m.items, newItem],
-                };
-              }
-              return m;
-            }),
+            mappings: updatedMappings,
           };
         }
         return nat;
-      })
-    );
+      });
+      saveNaturesData(next, natureId, { mappings: updatedMappings });
+      return next;
+    });
 
     return newItemId;
   };
@@ -1866,90 +1995,102 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     itemId: string,
     updates: Partial<MappingItem>
   ) => {
-    setNatures((prev) =>
-      prev.map((nat) => {
+    setNatures((prev) => {
+      let updatedMappings: FixedExpenseMapping[] = [];
+      const next = prev.map((nat) => {
         if (nat.id === natureId) {
+          updatedMappings = nat.mappings.map((m) => {
+            if (m.id === mappingId) {
+              return {
+                ...m,
+                items: m.items.map((item) => {
+                  if (item.id === itemId) {
+                    const updated = { ...item, ...updates };
+                    const mult = updated.multiplierWeeks > 0 ? updated.multiplierWeeks : 1;
+                    updated.multiplierWeeks = mult;
+                    updated.totalValue = Math.round(updated.quantity * updated.price * mult * 100) / 100;
+                    return updated;
+                  }
+                  return item;
+                }),
+              };
+            }
+            return m;
+          });
           return {
             ...nat,
-            mappings: nat.mappings.map((m) => {
-              if (m.id === mappingId) {
-                return {
-                  ...m,
-                  items: m.items.map((item) => {
-                    if (item.id === itemId) {
-                      const updated = { ...item, ...updates };
-                      const mult = updated.multiplierWeeks > 0 ? updated.multiplierWeeks : 1;
-                      updated.multiplierWeeks = mult;
-                      updated.totalValue = Math.round(updated.quantity * updated.price * mult * 100) / 100;
-                      return updated;
-                    }
-                    return item;
-                  }),
-                };
-              }
-              return m;
-            }),
+            mappings: updatedMappings,
           };
         }
         return nat;
-      })
-    );
+      });
+      saveNaturesData(next, natureId, { mappings: updatedMappings });
+      return next;
+    });
   };
 
   // Excluir Item de Mapeamento
   const deleteMappingItem = (natureId: string, mappingId: string, itemId: string) => {
-    setNatures((prev) =>
-      prev.map((nat) => {
+    setNatures((prev) => {
+      let updatedMappings: FixedExpenseMapping[] = [];
+      const next = prev.map((nat) => {
         if (nat.id === natureId) {
+          updatedMappings = nat.mappings.map((m) => {
+            if (m.id === mappingId) {
+              return {
+                ...m,
+                items: m.items.filter((item) => item.id !== itemId),
+              };
+            }
+            return m;
+          });
           return {
             ...nat,
-            mappings: nat.mappings.map((m) => {
-              if (m.id === mappingId) {
-                return {
-                  ...m,
-                  items: m.items.filter((item) => item.id !== itemId),
-                };
-              }
-              return m;
-            }),
+            mappings: updatedMappings,
           };
         }
         return nat;
-      })
-    );
+      });
+      saveNaturesData(next, natureId, { mappings: updatedMappings });
+      return next;
+    });
   };
 
   // Alternar realização de item (marcar como cumprido no mês)
   const toggleItemFulfilled = (natureId: string, mappingId: string, itemId: string) => {
-    setNatures((prev) =>
-      prev.map((nat) => {
+    setNatures((prev) => {
+      let updatedMappings: FixedExpenseMapping[] = [];
+      const next = prev.map((nat) => {
         if (nat.id === natureId) {
+          updatedMappings = nat.mappings.map((m) => {
+            if (m.id === mappingId) {
+              return {
+                ...m,
+                items: m.items.map((item) => {
+                  if (item.id === itemId) {
+                    const willBeFulfilled = !item.isFulfilled;
+                    return {
+                      ...item,
+                      isFulfilled: willBeFulfilled,
+                      realizedValue: willBeFulfilled ? item.totalValue : 0,
+                    };
+                  }
+                  return item;
+                }),
+              };
+            }
+            return m;
+          });
           return {
             ...nat,
-            mappings: nat.mappings.map((m) => {
-              if (m.id === mappingId) {
-                return {
-                  ...m,
-                  items: m.items.map((item) => {
-                    if (item.id === itemId) {
-                      const willBeFulfilled = !item.isFulfilled;
-                      return {
-                        ...item,
-                        isFulfilled: willBeFulfilled,
-                        realizedValue: willBeFulfilled ? item.totalValue : 0,
-                      };
-                    }
-                    return item;
-                  }),
-                };
-              }
-              return m;
-            }),
+            mappings: updatedMappings,
           };
         }
         return nat;
-      })
-    );
+      });
+      saveNaturesData(next, natureId, { mappings: updatedMappings });
+      return next;
+    });
   };
 
   // Registrar Justificativa Contábil de Estouro de Teto
@@ -1969,18 +2110,161 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       reason,
     };
 
-    setNatures((prev) =>
-      prev.map((nat) => {
+    setNatures((prev) => {
+      let updatedJustHistory: CeilingJustificationRecord[] = [];
+      const next = prev.map((nat) => {
         if (nat.id === natureId) {
+          updatedJustHistory = [newRecord, ...(nat.justificationHistory || [])];
           return {
             ...nat,
             overCeilingJustification: reason,
-            justificationHistory: [newRecord, ...(nat.justificationHistory || [])],
+            justificationHistory: updatedJustHistory,
           };
         }
         return nat;
-      })
-    );
+      });
+      saveNaturesData(next, natureId, {
+        overCeilingJustification: reason,
+        justificationHistory: updatedJustHistory,
+      });
+      return next;
+    });
+  };
+
+  // Carregar Mapeamentos Sugeridos para uma Natureza (ex: modelos de Mercado/Feira para Alimentação)
+  const loadSuggestedMappingsForNature = (natureId: string) => {
+    const targetNat = natures.find((n) => n.id === natureId);
+    if (!targetNat) return;
+
+    const natName = targetNat.name.toLowerCase();
+    const isAlimentacao =
+      natName.includes('aliment') ||
+      natName.includes('mercado') ||
+      natName.includes('padaria') ||
+      natName.includes('feira') ||
+      natName.includes('refeiç');
+
+    const isMoradia =
+      natName.includes('moradia') ||
+      natName.includes('casa') ||
+      natName.includes('habit') ||
+      natName.includes('imóvel') ||
+      natName.includes('imovel');
+
+    const isTransporte =
+      natName.includes('transporte') ||
+      natName.includes('veículo') ||
+      natName.includes('veiculo') ||
+      natName.includes('carro') ||
+      natName.includes('moto');
+
+    let suggestedMappings: FixedExpenseMapping[] = [];
+    const timestamp = Date.now();
+
+    if (isAlimentacao) {
+      suggestedMappings = [
+        {
+          id: `map_${timestamp}_mercado`,
+          name: 'Supermercado Base Mensal (Estoque Seco & Limpeza)',
+          natureId,
+          applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+          frequency: 'MENSAL',
+          dayOfMonth: 7,
+          items: [
+            { id: `item_${timestamp}_1`, description: 'Arroz Nobre Tipo 1 (5kg)', quantity: 2, price: 34.0, multiplierWeeks: 1, totalValue: 68.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'CARTAO' },
+            { id: `item_${timestamp}_2`, description: 'Feijão Carioca (1kg)', quantity: 4, price: 8.5, multiplierWeeks: 1, totalValue: 34.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'CARTAO' },
+            { id: `item_${timestamp}_3`, description: 'Azeite de Oliva Extra Virgem 500ml', quantity: 2, price: 46.0, multiplierWeeks: 1, totalValue: 92.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'CARTAO' },
+            { id: `item_${timestamp}_4`, description: 'Café Especial Torrado em Grãos (500g)', quantity: 3, price: 28.0, multiplierWeeks: 1, totalValue: 84.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'CARTAO' },
+            { id: `item_${timestamp}_5`, description: 'Laticínios, Queijos & Manteiga', quantity: 1, price: 160.0, multiplierWeeks: 1, totalValue: 160.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'CARTAO' },
+            { id: `item_${timestamp}_6`, description: 'Produtos de Limpeza & Higiene Pessoal', quantity: 1, price: 210.0, multiplierWeeks: 1, totalValue: 210.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'CARTAO' },
+          ],
+        },
+        {
+          id: `map_${timestamp}_feira`,
+          name: 'Feira Livre & Hortifrúti (Rotina Semanal)',
+          natureId,
+          applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+          frequency: 'SEMANAL',
+          dayOfWeek: 'Sábado',
+          items: [
+            { id: `item_${timestamp}_7`, description: 'Frutas da Estação (Maçã, Banana, Uva, Mamão)', quantity: 1, price: 65.0, multiplierWeeks: 4, totalValue: 260.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'PIX' },
+            { id: `item_${timestamp}_8`, description: 'Verduras & Legumes Orgânicos da Semana', quantity: 1, price: 45.0, multiplierWeeks: 4, totalValue: 180.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'PIX' },
+            { id: `item_${timestamp}_9`, description: 'Ovos Caipiras Orgânicos (Cartela 30 un)', quantity: 1, price: 28.0, multiplierWeeks: 2, totalValue: 56.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'PIX' },
+          ],
+        },
+        {
+          id: `map_${timestamp}_proteinas`,
+          name: 'Açougue & Proteínas Nobres',
+          natureId,
+          applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+          frequency: 'QUINZENAL',
+          dayOfWeek: 'Sábado',
+          items: [
+            { id: `item_${timestamp}_10`, description: 'Peito de Frango & Filé de Coxa (kg)', quantity: 4, price: 26.0, multiplierWeeks: 4, totalValue: 416.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'CARTAO' },
+            { id: `item_${timestamp}_11`, description: 'Carnes Vermelhas de Primeira (Alcatra/Patinho)', quantity: 3, price: 54.0, multiplierWeeks: 2, totalValue: 324.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'CARTAO' },
+            { id: `item_${timestamp}_12`, description: 'Peixes & Frutos do Mar', quantity: 2, price: 65.0, multiplierWeeks: 1, totalValue: 130.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'CARTAO' },
+          ],
+        },
+      ];
+    } else if (isMoradia) {
+      suggestedMappings = [
+        {
+          id: `map_${timestamp}_moradia`,
+          name: 'Contas Fixas & Concessionárias',
+          natureId,
+          applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+          frequency: 'MENSAL',
+          dayOfMonth: 10,
+          items: [
+            { id: `item_${timestamp}_1`, description: 'Energia Elétrica (Coelba / Enel)', quantity: 1, price: 250.0, multiplierWeeks: 1, totalValue: 250.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'BOLETO' },
+            { id: `item_${timestamp}_2`, description: 'Água & Saneamento Básico', quantity: 1, price: 90.0, multiplierWeeks: 1, totalValue: 90.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'BOLETO' },
+            { id: `item_${timestamp}_3`, description: 'Internet Residencial Fibra Óptica', quantity: 1, price: 120.0, multiplierWeeks: 1, totalValue: 120.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'BOLETO' },
+          ],
+        },
+      ];
+    } else if (isTransporte) {
+      suggestedMappings = [
+        {
+          id: `map_${timestamp}_transporte`,
+          name: 'Combustível & Manutenção',
+          natureId,
+          applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+          frequency: 'MENSAL',
+          dayOfMonth: 15,
+          items: [
+            { id: `item_${timestamp}_1`, description: 'Combustível Mensal (Gasolina/Etanol)', quantity: 4, price: 120.0, multiplierWeeks: 1, totalValue: 480.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'CARTAO' },
+            { id: `item_${timestamp}_2`, description: 'Reserva para Manutenção & Troca de Óleo', quantity: 1, price: 150.0, multiplierWeeks: 1, totalValue: 150.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'CONTA' },
+          ],
+        },
+      ];
+    } else {
+      suggestedMappings = [
+        {
+          id: `map_${timestamp}_base`,
+          name: `Despesas Previstas de ${targetNat.name}`,
+          natureId,
+          applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+          frequency: 'MENSAL',
+          dayOfMonth: 10,
+          items: [
+            { id: `item_${timestamp}_1`, description: `Item Base de ${targetNat.name}`, quantity: 1, price: 100.0, multiplierWeeks: 1, totalValue: 100.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'PIX' },
+          ],
+        },
+      ];
+    }
+
+    setNatures((prev) => {
+      let updatedMappings: FixedExpenseMapping[] = [];
+      const next = prev.map((nat) => {
+        if (nat.id === natureId) {
+          updatedMappings = [...nat.mappings, ...suggestedMappings];
+          return { ...nat, mappings: updatedMappings };
+        }
+        return nat;
+      });
+      saveNaturesData(next, natureId, { mappings: updatedMappings });
+      return next;
+    });
   };
 
   // Cálculo Matemático Rigoroso do Teto da Natureza (Soma de todos os itens de todos os mapeamentos)
@@ -2121,6 +2405,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         getNatureSpent,
         getNatureMissingItems,
         reconcileReceiptData,
+        loadSuggestedMappingsForNature,
       }}
     >
       {children}
