@@ -79,6 +79,8 @@ export const SalaryAdjustmentModal: React.FC<SalaryAdjustmentModalProps> = ({
   const [paymentDay, setPaymentDay] = useState(1);
   const [firstInstallmentDay, setFirstInstallmentDay] = useState(15);
   const [secondInstallmentDay, setSecondInstallmentDay] = useState(1);
+  const [isSecondInstallmentLastDay, setIsSecondInstallmentLastDay] = useState(false);
+  const [isPaymentDayLastDay, setIsPaymentDayLastDay] = useState(false);
   const [quinzenaSplitMode, setQuinzenaSplitMode] = useState<'40_60' | '50_50' | 'CUSTOM'>('40_60');
   const [firstInstallmentAmount, setFirstInstallmentAmount] = useState('');
   const [secondInstallmentAmount, setSecondInstallmentAmount] = useState('');
@@ -159,8 +161,12 @@ export const SalaryAdjustmentModal: React.FC<SalaryAdjustmentModalProps> = ({
         setContractType(editContract.contractType);
         const sched = editContract.paymentSchedule || (editContract.secondPaymentDay ? 'QUINZENAL' : 'UNICO');
         setPaymentSchedule(sched);
-        setPaymentDay(editContract.paymentDay || 1);
-        setSecondInstallmentDay(editContract.paymentDay || 1);
+        const pDay = editContract.paymentDay || 1;
+        const isLastDay = pDay === 31;
+        setPaymentDay(pDay);
+        setSecondInstallmentDay(pDay);
+        setIsSecondInstallmentLastDay(isLastDay);
+        setIsPaymentDayLastDay(isLastDay);
         setFirstInstallmentDay(editContract.secondPaymentDay || 15);
 
         const net = editContract.currentNetAmount || 0;
@@ -206,6 +212,8 @@ export const SalaryAdjustmentModal: React.FC<SalaryAdjustmentModalProps> = ({
         setPaymentDay(1);
         setFirstInstallmentDay(15);
         setSecondInstallmentDay(1);
+        setIsSecondInstallmentLastDay(false);
+        setIsPaymentDayLastDay(false);
         setQuinzenaSplitMode('40_60');
         setFirstInstallmentAmount('');
         setSecondInstallmentAmount('');
@@ -301,7 +309,9 @@ export const SalaryAdjustmentModal: React.FC<SalaryAdjustmentModalProps> = ({
       contractType,
       paymentSchedule,
       installmentValueMode,
-      paymentDay: isQuinzenal ? Math.max(1, Math.min(31, secondInstallmentDay)) : Math.max(1, Math.min(31, paymentDay)),
+      paymentDay: isQuinzenal
+        ? (isSecondInstallmentLastDay ? 31 : Math.max(1, Math.min(31, secondInstallmentDay)))
+        : (isPaymentDayLastDay ? 31 : Math.max(1, Math.min(31, paymentDay))),
       secondPaymentDay: isQuinzenal ? Math.max(1, Math.min(31, firstInstallmentDay)) : undefined,
       weeklyPaymentDayOfWeek: isSemanal ? weeklyPaymentDayOfWeek : undefined,
       firstInstallmentPercent: pct,
@@ -566,7 +576,7 @@ export const SalaryAdjustmentModal: React.FC<SalaryAdjustmentModalProps> = ({
                   </strong>
                 </span>
                 <span>
-                  2ª Quinzena (Dia {selectedContractForAdj?.paymentDay || 1}):{' '}
+                  2ª Quinzena ({selectedContractForAdj?.paymentDay === 31 ? 'Último dia do mês' : `Dia ${selectedContractForAdj?.paymentDay || 1}`}):{' '}
                   <strong className="text-glow-cyan">
                     R${' '}
                     {(
@@ -973,7 +983,7 @@ export const SalaryAdjustmentModal: React.FC<SalaryAdjustmentModalProps> = ({
                           </span>
                         </span>
                         <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                          Dia {secondInstallmentDay}
+                          {isSecondInstallmentLastDay || secondInstallmentDay === 31 ? 'Último dia do mês' : `Dia ${secondInstallmentDay}`}
                         </span>
                       </div>
                       <div style={{ margin: '0.35rem 0' }}>
@@ -1068,23 +1078,54 @@ export const SalaryAdjustmentModal: React.FC<SalaryAdjustmentModalProps> = ({
 
                       {/* 2ª Quinzena */}
                       <div className="form-group flex-1">
-                        <label className="form-label" style={{ fontSize: '0.8rem' }}>
-                          🗓️ 2ª Quinzena (Saldo do Mês)
-                        </label>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                          <label className="form-label" style={{ fontSize: '0.8rem', marginBottom: 0 }}>
+                            🗓️ 2ª Quinzena (Saldo do Mês)
+                          </label>
+                          <label
+                            style={{
+                              fontSize: '0.73rem',
+                              color: isSecondInstallmentLastDay ? 'var(--accent-cyan)' : 'var(--text-muted)',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              fontWeight: isSecondInstallmentLastDay ? 600 : 400,
+                            }}
+                            title="Marca automaticamente para direcionar ao último dia de cada mês (28, 29, 30 ou 31)"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSecondInstallmentLastDay}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setIsSecondInstallmentLastDay(checked);
+                                if (checked) {
+                                  setSecondInstallmentDay(31);
+                                } else {
+                                  setSecondInstallmentDay(1);
+                                }
+                              }}
+                              style={{ accentColor: 'var(--color-primary)', width: '13px', height: '13px', cursor: 'pointer' }}
+                            />
+                            Último dia do mês
+                          </label>
+                        </div>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <div style={{ width: '80px' }}>
+                          <div style={{ width: '85px' }}>
                             <input
                               type="number"
                               min="1"
                               max="31"
                               className="form-input text-center"
                               placeholder="Dia"
-                              value={secondInstallmentDay}
+                              value={isSecondInstallmentLastDay ? 31 : secondInstallmentDay}
+                              disabled={isSecondInstallmentLastDay}
                               onChange={(e) => setSecondInstallmentDay(parseInt(e.target.value) || 1)}
-                              title="Dia do mês da 2ª quinzena"
+                              title={isSecondInstallmentLastDay ? 'Direcionado para o último dia de cada mês' : 'Dia do mês da 2ª quinzena'}
                               required
                             />
-                            <span className="form-hint">Dia do mês</span>
+                            <span className="form-hint">{isSecondInstallmentLastDay ? 'Último dia' : 'Dia do mês'}</span>
                           </div>
                           <div style={{ flex: 1 }}>
                             <input
@@ -1125,18 +1166,53 @@ export const SalaryAdjustmentModal: React.FC<SalaryAdjustmentModalProps> = ({
                         <span className="form-hint">Normalmente entre os dias 15 e 20</span>
                       </div>
                       <div className="form-group flex-1">
-                        <label className="form-label" style={{ fontSize: '0.8rem' }}>
-                          Dia da 2ª Quinzena (Saldo do Mês)
-                        </label>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                          <label className="form-label" style={{ fontSize: '0.8rem', marginBottom: 0 }}>
+                            Dia da 2ª Quinzena (Saldo do Mês)
+                          </label>
+                          <label
+                            style={{
+                              fontSize: '0.73rem',
+                              color: isSecondInstallmentLastDay ? 'var(--accent-cyan)' : 'var(--text-muted)',
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              fontWeight: isSecondInstallmentLastDay ? 600 : 400,
+                            }}
+                            title="Marca automaticamente para direcionar ao último dia de cada mês (28, 29, 30 ou 31)"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSecondInstallmentLastDay}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setIsSecondInstallmentLastDay(checked);
+                                if (checked) {
+                                  setSecondInstallmentDay(31);
+                                } else {
+                                  setSecondInstallmentDay(1);
+                                }
+                              }}
+                              style={{ accentColor: 'var(--color-primary)', width: '13px', height: '13px', cursor: 'pointer' }}
+                            />
+                            Último dia do mês
+                          </label>
+                        </div>
                         <input
                           type="number"
                           min="1"
                           max="31"
                           className="form-input text-center"
-                          value={secondInstallmentDay}
+                          value={isSecondInstallmentLastDay ? 31 : secondInstallmentDay}
+                          disabled={isSecondInstallmentLastDay}
                           onChange={(e) => setSecondInstallmentDay(parseInt(e.target.value) || 1)}
                         />
-                        <span className="form-hint">Normalmente entre os dias 1 e 5</span>
+                        <span className="form-hint">
+                          {isSecondInstallmentLastDay
+                            ? 'Direcionado automaticamente ao último dia do mês (28, 29, 30 ou 31)'
+                            : 'Normalmente entre os dias 1 e 5 ou fim do mês'}
+                        </span>
                       </div>
                     </div>
                   )}
@@ -1219,18 +1295,53 @@ export const SalaryAdjustmentModal: React.FC<SalaryAdjustmentModalProps> = ({
 
 
             {paymentSchedule === 'UNICO' && (
-              <div className="form-group" style={{ maxWidth: '200px' }}>
-                <label className="form-label">Dia do Pagamento Principal *</label>
+              <div className="form-group" style={{ maxWidth: '280px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                  <label className="form-label" style={{ marginBottom: 0 }}>Dia do Pagamento Principal *</label>
+                  <label
+                    style={{
+                      fontSize: '0.73rem',
+                      color: isPaymentDayLastDay ? 'var(--accent-cyan)' : 'var(--text-muted)',
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontWeight: isPaymentDayLastDay ? 600 : 400,
+                    }}
+                    title="Marca automaticamente para receber no último dia do mês"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isPaymentDayLastDay}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setIsPaymentDayLastDay(checked);
+                        if (checked) {
+                          setPaymentDay(31);
+                        } else {
+                          setPaymentDay(5);
+                        }
+                      }}
+                      style={{ accentColor: 'var(--color-primary)', width: '13px', height: '13px', cursor: 'pointer' }}
+                    />
+                    Último dia do mês
+                  </label>
+                </div>
                 <input
                   type="number"
                   min="1"
                   max="31"
                   className="form-input text-center"
-                  value={paymentDay}
+                  value={isPaymentDayLastDay ? 31 : paymentDay}
+                  disabled={isPaymentDayLastDay}
                   onChange={(e) => setPaymentDay(parseInt(e.target.value) || 5)}
                   required
                 />
-                <span className="form-hint">Ex: dia 5 ou dia útil de recebimento.</span>
+                <span className="form-hint">
+                  {isPaymentDayLastDay
+                    ? 'Ajustado ao último dia do mês (28, 29, 30 ou 31).'
+                    : 'Ex: dia 5 ou dia útil de recebimento.'}
+                </span>
               </div>
             )}
           </div>

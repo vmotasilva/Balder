@@ -57,15 +57,17 @@ export function getSalarySuggestion(
   const bank = activeContract.receivingBankName || 'Nubank';
 
   if (schedule === 'QUINZENAL') {
+    const daysInMonth = new Date(year, month, 0).getDate();
     const day1 = activeContract.secondPaymentDay || 15; // Adiantamento (ex: dia 15)
-    const day2 = activeContract.paymentDay || 1;        // Saldo com descontos (ex: dia 1 ou 5)
+    const rawDay2 = activeContract.paymentDay || 1;     // Saldo com descontos (ex: dia 1, 5 ou 31)
+    const day2 = Math.min(rawDay2, daysInMonth);        // Ajustado para o último dia real do mês corrente
 
     // Determina se estamos mais próximos da 1ª ou 2ª quinzena
     const dist1 = Math.abs(todayDay - day1);
     const dist2 = Math.min(
       Math.abs(todayDay - day2),
-      Math.abs(todayDay - (day2 + 30)),
-      Math.abs((todayDay + 30) - day2)
+      Math.abs(todayDay - (day2 + daysInMonth)),
+      Math.abs((todayDay + daysInMonth) - day2)
     );
 
     const isFirst = dist1 <= dist2;
@@ -75,7 +77,11 @@ export function getSalarySuggestion(
 
     const amount = isFirst ? firstAmt : secondAmt;
     const dueDay = isFirst ? day1 : day2;
-    const periodLabel = isFirst ? '1ª quinzena (Adiantamento)' : '2ª quinzena (Saldo do Mês)';
+    const periodLabel = isFirst
+      ? '1ª quinzena (Adiantamento)'
+      : rawDay2 === 31
+      ? '2ª quinzena (Último dia do mês)'
+      : '2ª quinzena (Saldo do Mês)';
 
     // Verificar se este período já foi registrado como realizado
     const alreadyRegistered = movements.some((m) => {
@@ -154,7 +160,9 @@ export function getSalarySuggestion(
   }
 
   // UNICO (Integral)
-  const dueDay = activeContract.paymentDay || 1;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const rawDueDay = activeContract.paymentDay || 1;
+  const dueDay = Math.min(rawDueDay, daysInMonth);
   const alreadyRegistered = movements.some((m) => {
     return (
       m.type === 'RECEBER' &&

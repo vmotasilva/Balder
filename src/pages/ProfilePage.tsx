@@ -684,7 +684,7 @@ export const ProfilePage: React.FC = () => {
                               </>
                             );
                           })() : (
-                            `Dia ${activeContract.paymentDay}`
+                            activeContract.paymentDay === 31 ? 'Último dia do mês' : `Dia ${activeContract.paymentDay}`
                           )}
                         </span>
                       </div>
@@ -698,7 +698,7 @@ export const ProfilePage: React.FC = () => {
                             const second = activeContract.secondInstallmentAmount || Math.round((activeContract.currentNetAmount - first) * 100) / 100;
                             return (
                               <>
-                                Dia {activeContract.paymentDay || 1}
+                                {activeContract.paymentDay === 31 ? 'Último dia do mês' : `Dia ${activeContract.paymentDay || 1}`}
                                 {second > 0 && (
                                   <span className="text-glow-cyan" style={{ marginLeft: '6px' }}>
                                     (R$ {second.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})
