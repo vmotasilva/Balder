@@ -423,22 +423,38 @@ export const ProfilePage: React.FC = () => {
                     {activeCheckpoint.creditCardDebt && activeCheckpoint.creditCardDebt > 0 && (
                       <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
                         <span className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold block mb-1">
-                          Dívida de Cartão
+                          Faturas / Dívida de Cartão
                         </span>
                         <span className="text-sm font-bold text-rose-400 flex items-center gap-1.5 flex-wrap">
                           <CreditCard size={15} className="text-rose-400" />
                           {activeCheckpoint.creditCardDebt.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                          {activeCheckpoint.cardInstallments && activeCheckpoint.cardInstallments > 1 && (
+                          {activeCheckpoint.cardInstallments && activeCheckpoint.cardInstallments > 1 && !activeCheckpoint.cardDebts && (
                             <span className="badge badge-amber text-[10px]" style={{ padding: '1px 5px' }}>
                               {activeCheckpoint.cardInstallments}x de {(activeCheckpoint.creditCardDebt / activeCheckpoint.cardInstallments).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                             </span>
                           )}
                         </span>
-                        {activeCheckpoint.cardName && (
+                        {activeCheckpoint.cardDebts && activeCheckpoint.cardDebts.length > 0 ? (
+                          <div className="flex flex-col gap-1 mt-2 pt-1.5 border-t border-slate-800/60">
+                            {activeCheckpoint.cardDebts.map((b) => (
+                              <div key={b.id} className="flex items-center justify-between text-[11px]">
+                                <span className="text-slate-300 truncate max-w-[130px]" title={b.cardName}>
+                                  💳 {b.cardName}:
+                                </span>
+                                <span className="text-rose-400 font-mono font-medium">
+                                  {b.totalDebt.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                  <span className="text-slate-500 text-[9.5px] ml-1 font-normal">
+                                    ({b.invoices.length} fat.)
+                                  </span>
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : activeCheckpoint.cardName ? (
                           <span className="text-[10.5px] text-slate-400 block mt-0.5 truncate" title={activeCheckpoint.cardName}>
                             {activeCheckpoint.cardName} {activeCheckpoint.cardDueDate ? `(${activeCheckpoint.cardDueDate.split('-').reverse().join('/')})` : ''}
                           </span>
-                        )}
+                        ) : null}
                       </div>
                     )}
 

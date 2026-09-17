@@ -421,6 +421,23 @@ export interface SalaryContract {
   history: SalaryAdjustment[];  // Histórico cronológico de reajustes
 }
 
+export interface CheckpointCardInvoice {
+  monthIndex: number; // 0 = atual, 1 = próxima (futura 1), 2 = futura 2, etc.
+  monthLabel: string; // Ex: "Outubro 2026 (Atual)", "Novembro 2026 (Futura)"
+  dueDate: string;    // YYYY-MM-DD
+  amount: number;     // Valor em R$
+}
+
+export interface CheckpointBankDebt {
+  id: string;
+  cardId?: string;     // Se vinculado a um cartão cadastrado no Balder
+  bankName: string;    // Ex: "Nubank", "Itaú", "Inter"
+  cardName: string;    // Ex: "Nubank Mastercard", "Itaú Click"
+  dueDay: number;      // Dia do vencimento (1-31)
+  invoices: CheckpointCardInvoice[]; // Faturas atual e futuras deste banco
+  totalDebt: number;   // Soma de todas as faturas deste banco
+}
+
 /**
  * Marco de início de acompanhamento financeiro.
  * Define a data e o saldo inicial a partir dos quais o sistema contabiliza métricas.
@@ -431,11 +448,12 @@ export interface FinancialCheckpoint {
   createdAt: string;       // ISO datetime de quando o marco foi criado
   startDate: string;       // YYYY-MM-DD — data a partir da qual monitorar
   initialBalance: number;  // Saldo em caixa nessa data (R$)
-  creditCardDebt?: number; // Dívida / Fatura acumulada de cartão de crédito no ponto de partida (R$)
+  creditCardDebt?: number; // Dívida / Fatura acumulada total de cartão de crédito no ponto de partida (R$)
   cardDueDate?: string;    // Data de vencimento da fatura inicial (YYYY-MM-DD)
-  cardName?: string;       // Nome do cartão associado à fatura
+  cardName?: string;       // Nome do cartão ou resumo de bancos
   cardInstallments?: number; // Quantidade de meses / parcelas em que a dívida se divide (padrão: 1)
   cardInstallmentAmount?: number; // Valor da parcela mensal correspondente (se parcelado)
+  cardDebts?: CheckpointBankDebt[]; // Detalhamento de faturas atuais e futuras por banco
   initialNetWorth?: number; // Patrimônio líquido estimado nessa data (opcional)
   label?: string;          // Rótulo livre, ex: "Início 2025", "Reset pós-crise"
   notes?: string;          // Observações sobre o marco
