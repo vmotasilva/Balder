@@ -2586,25 +2586,27 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
+  background: rgba(0, 0, 0, 0.82);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
-  padding: 20px;
+  z-index: 9999;
+  padding: 16px;
+  overflow-y: auto;
 }
 
 .modal-container {
   width: 100%;
-  max-height: calc(100vh - 40px);
+  margin: auto;
+  max-height: min(90vh, 760px);
   display: flex;
   flex-direction: column;
   background: var(--bg-card-elevated);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg), 0 0 35px rgba(0, 0, 0, 0.8);
+  box-shadow: var(--shadow-lg), 0 0 45px rgba(0, 0, 0, 0.9);
   overflow: hidden;
 }
 

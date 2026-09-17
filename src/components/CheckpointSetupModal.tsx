@@ -90,27 +90,26 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
       }
       maxWidth="540px"
     >
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
         {/* Banner Informativo */}
         <div
           style={{
-            padding: '0.85rem 1rem',
+            padding: '0.65rem 0.85rem',
             borderRadius: '10px',
-            background: 'rgba(6, 182, 212, 0.1)',
-            border: '1px solid rgba(6, 182, 212, 0.25)',
-            fontSize: '0.82rem',
+            background: 'rgba(6, 182, 212, 0.08)',
+            border: '1px solid rgba(6, 182, 212, 0.2)',
+            fontSize: '0.78rem',
             color: 'var(--text-primary)',
             display: 'flex',
-            gap: '0.75rem',
+            gap: '0.65rem',
             alignItems: 'flex-start',
           }}
         >
-          <Info size={18} className="text-cyan" style={{ flexShrink: 0, marginTop: '2px' }} />
+          <Info size={16} className="text-cyan" style={{ flexShrink: 0, marginTop: '2px' }} />
           <div>
             <strong style={{ color: 'var(--accent-cyan)' }}>Como funciona o Marco Financeiro?</strong>
-            <p style={{ margin: '0.25rem 0 0', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-              O sistema utiliza a <strong>data de início</strong> e o <strong>saldo em caixa</strong> como âncora principal.
-              Movimentações a partir dessa data alimentarão o saldo disponível e todas as projeções futuras.
+            <p style={{ margin: '0.15rem 0 0', color: 'var(--text-secondary)', lineHeight: '1.35', fontSize: '0.75rem' }}>
+              O sistema utiliza a <strong>data de início</strong> e o <strong>saldo em caixa</strong> como âncora principal para calibrar seu saldo disponível e projeções futuras.
             </p>
           </div>
         </div>
@@ -118,18 +117,18 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
         {checkpoints.length > 0 && !isInitialSetup && (
           <div
             style={{
-              padding: '0.75rem 1rem',
+              padding: '0.6rem 0.85rem',
               borderRadius: '10px',
-              background: 'rgba(245, 158, 11, 0.1)',
+              background: 'rgba(245, 158, 11, 0.08)',
               border: '1px solid rgba(245, 158, 11, 0.25)',
-              fontSize: '0.8rem',
+              fontSize: '0.76rem',
               color: '#FCD34D',
               display: 'flex',
-              gap: '0.6rem',
+              gap: '0.5rem',
               alignItems: 'center',
             }}
           >
-            <AlertTriangle size={16} className="text-amber" />
+            <AlertTriangle size={15} className="text-amber" style={{ flexShrink: 0 }} />
             <span>
               O marco atual ativo será substituído por este novo ponto de partida. Seu histórico anterior continuará seguro.
             </span>
@@ -137,8 +136,8 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
         )}
 
         {/* Campo 1: Data de Início */}
-        <div className="form-group">
-          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.82rem' }}>
               <Calendar size={14} className="text-cyan" />
               Data de Início do Acompanhamento
@@ -147,7 +146,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
               <button
                 type="button"
                 className="btn btn-outline btn-xs"
-                style={{ fontSize: '0.72rem', padding: '2px 8px' }}
+                style={{ fontSize: '0.7rem', padding: '2px 8px' }}
                 onClick={() => setStartDate(getFirstDayOfMonthString())}
               >
                 1º do Mês
@@ -155,7 +154,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
               <button
                 type="button"
                 className="btn btn-outline btn-xs"
-                style={{ fontSize: '0.72rem', padding: '2px 8px' }}
+                style={{ fontSize: '0.7rem', padding: '2px 8px' }}
                 onClick={() => setStartDate(getTodayString())}
               >
                 Hoje
@@ -169,14 +168,14 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
           />
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem', display: 'block' }}>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
             Apenas transações a partir desta data influenciarão o saldo em caixa e fluxo do dashboard.
           </span>
         </div>
 
         {/* Campo 2: Saldo Inicial em Caixa */}
-        <div className="form-group">
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.4rem' }}>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.3rem' }}>
             <DollarSign size={14} className="text-emerald" />
             Saldo Total em Caixa nessa Data (R$)
           </label>
@@ -207,14 +206,14 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
               onChange={(e) => setInitialBalance(e.target.value)}
             />
           </div>
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem', display: 'block' }}>
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
             Valor total real que você tinha disponível (somando conta corrente e carteira) no dia inicial escolhido.
           </span>
         </div>
 
         {/* Campo 3: Nome do Marco (Opcional) */}
-        <div className="form-group">
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.4rem' }}>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.3rem' }}>
             <Tag size={14} className="text-cyan" />
             Nome do Marco (Opcional)
           </label>
@@ -228,7 +227,17 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
         </div>
 
         {/* Botões do Rodapé */}
-        <div className="modal-footer-actions" style={{ marginTop: '0.5rem' }}>
+        <div
+          className="modal-footer-actions"
+          style={{
+            marginTop: '0.35rem',
+            paddingTop: '0.75rem',
+            borderTop: '1px solid var(--border-default)',
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: '0.65rem',
+          }}
+        >
           <button type="button" className="btn btn-outline" onClick={onClose}>
             Cancelar
           </button>

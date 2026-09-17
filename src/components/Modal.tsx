@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -28,9 +29,20 @@ export const Modal: React.FC<ModalProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
+  // Bloqueia rolagem do body de fundo enquanto o modal estiver aberto
+  useEffect(() => {
+    if (isOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
       <div
         className="modal-container glass-card animate-fade-in"
@@ -49,6 +61,7 @@ export const Modal: React.FC<ModalProps> = ({
 
         <div className="modal-body">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
