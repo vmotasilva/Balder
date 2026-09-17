@@ -117,8 +117,8 @@ export const ProfilePage: React.FC = () => {
 
   // Formulário Inline de Itens por Mapeamento
   const [newItemDesc, setNewItemDesc] = useState<Record<string, string>>({});
-  const [newItemQty, setNewItemQty] = useState<Record<string, number>>({});
-  const [newItemPrice, setNewItemPrice] = useState<Record<string, number>>({});
+  const [newItemQty, setNewItemQty] = useState<Record<string, number | string>>({});
+  const [newItemPrice, setNewItemPrice] = useState<Record<string, number | string>>({});
   const [newItemMult, setNewItemMult] = useState<Record<string, number>>({});
 
   // Modais de Criação
@@ -1705,11 +1705,33 @@ export const ProfilePage: React.FC = () => {
                                     <span className="badge badge-cyan text-xs">{mappingName}</span>
                                   </td>
                                   <td>
-                                    {item.quantity} un × {item.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} × {item.multiplierWeeks} {item.multiplierWeeks > 1 ? 'semanas' : 'sem'}
+                                    {typeof item.quantity === 'number'
+                                      ? item.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 3 })
+                                      : item.quantity}{' '}
+                                    {item.unit || 'un'} ×{' '}
+                                    {item.price.toLocaleString('pt-BR', {
+                                      style: 'currency',
+                                      currency: 'BRL',
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 3,
+                                    })}{' '}
+                                    × {item.multiplierWeeks} {item.multiplierWeeks > 1 ? 'semanas' : 'sem'}
                                   </td>
-                                  <td>{item.totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                                  <td>
+                                    {item.totalValue.toLocaleString('pt-BR', {
+                                      style: 'currency',
+                                      currency: 'BRL',
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 3,
+                                    })}
+                                  </td>
                                   <td className="text-cyan font-bold">
-                                    {missingAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                    {missingAmount.toLocaleString('pt-BR', {
+                                      style: 'currency',
+                                      currency: 'BRL',
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 3,
+                                    })}
                                   </td>
                                   <td>
                                     <button
@@ -1850,7 +1872,12 @@ export const ProfilePage: React.FC = () => {
                                           </span>
                                         </td>
                                         <td>
-                                          {item.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                          {item.price.toLocaleString('pt-BR', {
+                                            style: 'currency',
+                                            currency: 'BRL',
+                                            minimumFractionDigits: 2,
+                                            maximumFractionDigits: 3,
+                                          })}
                                         </td>
                                         <td>
                                           <span className="badge badge-cyan">
@@ -1859,7 +1886,12 @@ export const ProfilePage: React.FC = () => {
                                         </td>
                                         <td>
                                           <strong className="text-glow-cyan">
-                                            {item.totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                            {item.totalValue.toLocaleString('pt-BR', {
+                                              style: 'currency',
+                                              currency: 'BRL',
+                                              minimumFractionDigits: 2,
+                                              maximumFractionDigits: 3,
+                                            })}
                                           </strong>
                                         </td>
                                         <td>
@@ -1889,32 +1921,29 @@ export const ProfilePage: React.FC = () => {
                                       </td>
                                       <td>
                                         <input
-                                          type="number"
-                                          step="any"
-                                          min="0.001"
+                                          type="text"
+                                          inputMode="decimal"
                                           className="form-input form-input-sm text-center"
-                                          placeholder="Qtd"
+                                          placeholder="Qtd (ex: 1 ou 0.350)"
                                           value={newItemQty[mapping.id] !== undefined ? newItemQty[mapping.id] : 1}
                                           onChange={(e) => {
-                                            const raw = e.target.value.replace(',', '.');
-                                            const val = parseFloat(raw);
+                                            const raw = e.target.value;
                                             setNewItemQty((prev) => ({
                                               ...prev,
-                                              [mapping.id]: isNaN(val) ? (raw === '' ? ('' as any) : 0) : val,
+                                              [mapping.id]: raw,
                                             }));
                                           }}
                                         />
                                       </td>
                                       <td>
                                         <input
-                                          type="number"
-                                          step="0.01"
-                                          min="0"
+                                          type="text"
+                                          inputMode="decimal"
                                           className="form-input form-input-sm"
                                           placeholder="R$ 0,00"
                                           value={newItemPrice[mapping.id] !== undefined ? newItemPrice[mapping.id] : ''}
                                           onChange={(e) =>
-                                            setNewItemPrice((prev) => ({ ...prev, [mapping.id]: parseFloat(e.target.value) || 0 }))
+                                            setNewItemPrice((prev) => ({ ...prev, [mapping.id]: e.target.value }))
                                           }
                                         />
                                       </td>
@@ -1940,13 +1969,20 @@ export const ProfilePage: React.FC = () => {
                                             {(
                                               Math.round(
                                                 (typeof newItemQty[mapping.id] === 'number'
-                                                  ? newItemQty[mapping.id]
+                                                  ? (newItemQty[mapping.id] as number)
                                                   : parseFloat(String(newItemQty[mapping.id] || '1').replace(',', '.')) || 1) *
-                                                  (newItemPrice[mapping.id] || 0) *
+                                                  (typeof newItemPrice[mapping.id] === 'number'
+                                                    ? (newItemPrice[mapping.id] as number)
+                                                    : parseFloat(String(newItemPrice[mapping.id] || '0').replace(',', '.')) || 0) *
                                                   (newItemMult[mapping.id] !== undefined ? newItemMult[mapping.id] : 4) *
-                                                  100
-                                              ) / 100
-                                            ).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                  1000
+                                              ) / 1000
+                                            ).toLocaleString('pt-BR', {
+                                              style: 'currency',
+                                              currency: 'BRL',
+                                              minimumFractionDigits: 2,
+                                              maximumFractionDigits: 3,
+                                            })}
                                           </strong>
                                         </div>
                                       </td>
@@ -1960,7 +1996,11 @@ export const ProfilePage: React.FC = () => {
                                               typeof rawQty === 'number'
                                                 ? rawQty
                                                 : parseFloat(String(rawQty || '1').replace(',', '.')) || 1;
-                                            const price = newItemPrice[mapping.id] || 0;
+                                            const rawPrice = newItemPrice[mapping.id];
+                                            const price =
+                                              typeof rawPrice === 'number'
+                                                ? rawPrice
+                                                : parseFloat(String(rawPrice || '0').replace(',', '.')) || 0;
                                             const mult = newItemMult[mapping.id] !== undefined ? newItemMult[mapping.id] : 4;
 
                                             if (!desc) {

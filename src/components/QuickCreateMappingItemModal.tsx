@@ -48,11 +48,11 @@ export const QuickCreateMappingItemModal: React.FC<Props> = ({
 
   const [selectedMappingId, setSelectedMappingId] = useState<string>(defaultMapping?.id || '');
   const [description, setDescription] = useState<string>(receiptItem.detectedName || '');
-  const [quantity, setQuantity] = useState<number>(receiptItem.quantity || 1);
+  const [quantity, setQuantity] = useState<number | string>(receiptItem.quantity || 1);
 
-  const [price, setPrice] = useState<number>(
+  const [price, setPrice] = useState<number | string>(
     receiptItem.quantity && receiptItem.quantity > 0
-      ? Math.round((receiptItem.price / receiptItem.quantity) * 100) / 100
+      ? Math.round((receiptItem.price / receiptItem.quantity) * 1000) / 1000
       : receiptItem.price
   );
   const [unit, setUnit] = useState<string>('un');
@@ -68,7 +68,7 @@ export const QuickCreateMappingItemModal: React.FC<Props> = ({
       setDescription(receiptItem.detectedName || '');
       const unitPrice =
         receiptItem.quantity && receiptItem.quantity > 0
-          ? Math.round((receiptItem.price / receiptItem.quantity) * 100) / 100
+          ? Math.round((receiptItem.price / receiptItem.quantity) * 1000) / 1000
           : receiptItem.price;
       setPrice(unitPrice);
       setQuantity(receiptItem.quantity || 1);
@@ -114,10 +114,19 @@ export const QuickCreateMappingItemModal: React.FC<Props> = ({
       return;
     }
 
+    const parsedQty =
+      typeof quantity === 'number'
+        ? quantity
+        : parseFloat(String(quantity || '0').replace(',', '.')) || 0;
+    const parsedPrice =
+      typeof price === 'number'
+        ? price
+        : parseFloat(String(price || '0').replace(',', '.')) || 0;
+
     onSaveAndAssociate(receiptItem.id, selectedNatureId, selectedMappingId, {
       description: description.trim(),
-      quantity: Number(quantity) || 0,
-      price: Number(price) || 0,
+      quantity: Math.round(parsedQty * 1000) / 1000,
+      price: Math.round(parsedPrice * 1000) / 1000,
       unit: unit.trim() || 'un',
       multiplierWeeks: Number(multiplierWeeks) || 1,
     });
@@ -262,12 +271,12 @@ export const QuickCreateMappingItemModal: React.FC<Props> = ({
                 <span className="badge badge-cyan qm-zero-badge">Sugerido: 0 (Teto Neutro)</span>
               </div>
               <input
-                type="number"
-                step="1"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 className="qm-input"
+                placeholder="0 ou 0.350"
                 value={quantity}
-                onChange={(e) => setQuantity(Number(e.target.value))}
+                onChange={(e) => setQuantity(e.target.value)}
               />
               <span className="qm-field-hint">
                 Quantidade 0 não aumenta o seu teto base de compromissos fixos.
@@ -280,12 +289,12 @@ export const QuickCreateMappingItemModal: React.FC<Props> = ({
                 <span>Preço Unitário de Referência (R$)</span>
               </label>
               <input
-                type="number"
-                step="0.01"
-                min="0"
+                type="text"
+                inputMode="decimal"
                 className="qm-input"
+                placeholder="R$ 0,00"
                 value={price}
-                onChange={(e) => setPrice(Number(e.target.value))}
+                onChange={(e) => setPrice(e.target.value)}
               />
               <span className="qm-field-hint">
                 Preços variam a cada compra. Este valor servirá como base contábil inicial.

@@ -1410,7 +1410,12 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
   const formatBRL = (val?: number) => {
     if (val === undefined || val === null) return 'R$ 0,00';
-    return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    return val.toLocaleString('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 3,
+    });
   };
 
   const containerStyle: React.CSSProperties = isFullscreen

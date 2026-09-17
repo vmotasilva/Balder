@@ -2067,11 +2067,15 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     customId?: string
   ): string => {
     const mult = itemData.multiplierWeeks > 0 ? itemData.multiplierWeeks : 1;
-    const totalValue = Math.round(itemData.quantity * itemData.price * mult * 100) / 100;
+    const rawQty = Math.round((Number(itemData.quantity) || 0) * 1000) / 1000;
+    const rawPrice = Math.round((Number(itemData.price) || 0) * 1000) / 1000;
+    const totalValue = Math.round(rawQty * rawPrice * mult * 1000) / 1000;
 
     const newItemId = customId || `item_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
     const newItem: MappingItem = {
       ...itemData,
+      quantity: rawQty,
+      price: rawPrice,
       id: newItemId,
       multiplierWeeks: mult,
       totalValue,
@@ -2125,8 +2129,12 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                   if (item.id === itemId) {
                     const updated = { ...item, ...updates };
                     const mult = updated.multiplierWeeks > 0 ? updated.multiplierWeeks : 1;
+                    const rawQty = Math.round((Number(updated.quantity) || 0) * 1000) / 1000;
+                    const rawPrice = Math.round((Number(updated.price) || 0) * 1000) / 1000;
+                    updated.quantity = rawQty;
+                    updated.price = rawPrice;
                     updated.multiplierWeeks = mult;
-                    updated.totalValue = Math.round(updated.quantity * updated.price * mult * 100) / 100;
+                    updated.totalValue = Math.round(rawQty * rawPrice * mult * 1000) / 1000;
                     return updated;
                   }
                   return item;
@@ -2388,10 +2396,11 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Cálculo Matemático Rigoroso do Teto da Natureza (Soma de todos os itens de todos os mapeamentos)
   const getNatureCeiling = (nature: ExpenseNature): number => {
     if (!nature || !nature.mappings) return 0;
-    return nature.mappings.reduce((accMap, map) => {
+    const total = nature.mappings.reduce((accMap, map) => {
       const mapTotal = (map.items || []).reduce((accItem, it) => accItem + (it.totalValue || 0), 0);
       return accMap + mapTotal;
     }, 0);
+    return Math.round(total * 1000) / 1000;
   };
 
   // Cálculo de Gasto Real da Natureza no Mês Atual
