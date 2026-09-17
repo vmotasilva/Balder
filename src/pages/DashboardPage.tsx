@@ -39,6 +39,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onOpenPrepayment,
 }) => {
   const {
+    isDataReady,
     totalNetWorth,
     availableBalance,
     monthlyFreeCashflow,
@@ -54,7 +55,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     ? Math.min(Math.round((mainGoal.currentAmount / mainGoal.targetAmount) * 100), 100)
     : 0;
 
+  // Aguarda os dados do Appwrite antes de renderizar para evitar flash de dados demo
+  if (!isDataReady) {
+    return (
+      <div className="page-container animate-fade-in" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', flexDirection: 'column', gap: '1rem' }}>
+        <div style={{ width: '40px', height: '40px', border: '3px solid rgba(6,182,212,0.3)', borderTopColor: 'var(--accent-cyan)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Carregando dados financeiros...</span>
+      </div>
+    );
+  }
+
   return (
+
     <div className="page-container animate-fade-in">
       {/* Page Header */}
       <div className="page-header">

@@ -42,6 +42,7 @@ import {
 
 interface FinancialContextType {
   // Estado
+  isDataReady: boolean;   // true quando dados do Appwrite (ou DEMO) já foram carregados
   accounts: BankAccount[];
   cards: CreditCardItem[];
   paymentMethods: PaymentMethodItem[];
@@ -52,6 +53,7 @@ interface FinancialContextType {
   criticalEvents: CriticalEvent[];
   chatHistory: CopilotMessage[];
   natures: ExpenseNature[];
+
 
   // Métricas Calculadas
   totalNetWorth: number;
@@ -135,6 +137,10 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Se o usuário está autenticado na nuvem via Appwrite, a fonte de verdade é a sua conta real
   const isCloudUser = !!user && !user.isGuest;
+
+  // Flag que indica se os dados já foram carregados da nuvem.
+  // Enquanto false, o dashboard não deve renderizar valores (evita flash de DEMO).
+  const [isDataReady, setIsDataReady] = useState(!isCloudUser); // guest = já pronto
 
   // Contas Bancárias (armazenadas por usuário)
   const [accounts, setAccounts] = useState<BankAccount[]>(() => {
@@ -618,6 +624,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setMovements(DEMO_MOVEMENTS);
       setGoals(DEMO_GOALS);
       setNatures(DEMO_NATURES);
+      setIsDataReady(true);
       return;
     }
 
@@ -653,9 +660,13 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             setBanks([]);
             setSalaryContracts([]);
           }
+
+          setIsDataReady(true);
         }
       } catch (err) {
         console.error('Erro ao sincronizar com Appwrite:', err);
+        // Mesmo em erro, libera o render para não travar a tela
+        if (isMounted) setIsDataReady(true);
       }
     }
     loadCloudData();
@@ -1946,16 +1957,19 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   return (
     <FinancialContext.Provider
       value={{
+        isDataReady,
         accounts,
         cards,
         paymentMethods,
         banks,
+        salaryContracts,
         movements,
         goals,
         criticalEvents,
         chatHistory,
         natures,
         totalNetWorth,
+
         availableBalance,
         monthlyFreeCashflow,
         emergencyReserveMonths,

@@ -31,7 +31,13 @@ export function ProtectedApp() {
     return <LoginPage />;
   }
 
-  return <AppContent />;
+  // Só monta o FinancialProvider depois que o usuário já é conhecido,
+  // evitando o flash de dados DEMO para usuários autenticados.
+  return (
+    <FinancialProvider>
+      <AppContent />
+    </FinancialProvider>
+  );
 }
 
 export function AppContent() {
@@ -134,9 +140,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <FinancialProvider>
-          <ProtectedApp />
-        </FinancialProvider>
+        <ProtectedApp />
       </AuthProvider>
     </ThemeProvider>
   );
