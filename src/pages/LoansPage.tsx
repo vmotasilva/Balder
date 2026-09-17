@@ -21,6 +21,7 @@ import { calculateLoanSpreadsheet } from '../utils/loanSpreadsheetMath';
 import type { LoanSpreadsheetInput } from '../utils/loanSpreadsheetMath';
 import { groupLoanMovements, calculatePresentValue } from '../utils/loanMath';
 import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
+import { Modal } from '../components/Modal';
 
 export type RowSimMode = 'NORMAL' | 'ANTECIPAR' | 'PAUSAR' | 'CUSTOM';
 
@@ -32,7 +33,8 @@ export interface RowSimConfig {
 export const LoansPage: React.FC = () => {
   const { movements, natures, salaryContracts, addMovement, prepayInstallments } = useFinancial();
 
-  const [activeTab, setActiveTab] = useState<'SIMULATOR' | 'CONTRACTED'>('SIMULATOR');
+  const [activeTab, setActiveTab] = useState<'CONTRACTED' | 'SIMULATOR'>('CONTRACTED');
+  const [isSimulatorModalOpen, setIsSimulatorModalOpen] = useState(false);
 
   // Modo de exibição da tabela: Impacto no Caixa ou Tabela Price Oficial
   const [gridMode, setGridMode] = useState<'CASHFLOW_IMPACT' | 'OFFICIAL_PRICE'>('CASHFLOW_IMPACT');
@@ -383,6 +385,7 @@ export const LoansPage: React.FC = () => {
     alert(
       `✓ Empréstimo contratado com sucesso!\n\nAs ${summary.termMonths} parcelas de R$ ${summary.installmentValue.toLocaleString('pt-BR')} foram agendadas no seu cronograma contábil.`
     );
+    setIsSimulatorModalOpen(false);
     setActiveTab('CONTRACTED');
     setSelectedGroupId(newGroupId);
   };
@@ -430,51 +433,23 @@ export const LoansPage: React.FC = () => {
     document.body.removeChild(link);
   };
 
-  return (
-    <div className="page-container loans-page animate-fade-in">
-      {/* Header Principal */}
-      <div className="page-header flex justify-between items-start flex-wrap gap-4">
-        <div>
-          <div className="kicker-badge">
-            <Landmark size={14} className="text-cyan" />
-            <span>ENGENHARIA FINANCEIRA & CRÉDITO</span>
-          </div>
-          <h1 className="page-title">Sessão de Empréstimos & Financiamentos</h1>
-          <p className="page-subtitle">
-            Simulações determinísticas e auditoria de contratos com a Tabela Price oficial, pró-rata e deságio a valor presente.
-          </p>
-        </div>
-
-        {/* Alternância de Abas: Simulador vs Contratados */}
-        <div className="loans-nav-tabs">
-          <button
-            type="button"
-            className={`tab-btn ${activeTab === 'SIMULATOR' ? 'active' : ''}`}
-            onClick={() => setActiveTab('SIMULATOR')}
-          >
-            <Calculator size={16} />
-            <span>Simulador Price & Antecipação</span>
-          </button>
-          <button
-            type="button"
-            className={`tab-btn ${activeTab === 'CONTRACTED' ? 'active' : ''}`}
-            onClick={() => setActiveTab('CONTRACTED')}
-          >
-            <FileSpreadsheet size={16} />
-            <span>Contratos Ativos ({contractedGroups.length})</span>
-          </button>
-        </div>
-      </div>
-
-      {activeTab === 'SIMULATOR' ? (
-        /* ================================================================ */
-        /* ABA 1: SIMULADOR DE EMPRÉSTIMO COM ANTECIPAÇÃO (TABELA PRICE)    */
-        /* ================================================================ */
-        <div className="loan-simulator-view animate-fade-in">
-          {/* Grid de 2 Painéis Superiores (Condições + Resumo) */}
-          <div className="loan-sim-top-grid">
-            {/* Painel 1: Preencha as Condições */}
-            <div className="glass-card loan-params-card">
+  const renderSimulatorContent = (isInsideModal: boolean = false) => (
+    <div
+      className="loan-simulator-view animate-fade-in"
+      style={
+        isInsideModal
+          ? {
+              maxHeight: 'calc(85vh - 80px)',
+              overflowY: 'auto',
+              paddingRight: '6px',
+            }
+          : undefined
+      }
+    >
+      {/* Grid de 2 Painéis Superiores (Condições + Resumo) */}
+      <div className="loan-sim-top-grid">
+        {/* Painel 1: Preencha as Condições */}
+        <div className="glass-card loan-params-card">
               <div className="card-section-title">
                 <span className="step-num">1</span>
                 <h3>Condições do Empréstimo</h3>
@@ -1208,6 +1183,46 @@ export const LoansPage: React.FC = () => {
             </div>
           </div>
         </div>
+  );
+
+  return (
+    <div className="page-container loans-page animate-fade-in">
+      {/* Header Principal */}
+      <div className="page-header flex justify-between items-start flex-wrap gap-4">
+        <div>
+          <div className="kicker-badge">
+            <Landmark size={14} className="text-cyan" />
+            <span>ENGENHARIA FINANCEIRA & CRÉDITO</span>
+          </div>
+          <h1 className="page-title">Sessão de Empréstimos & Financiamentos</h1>
+          <p className="page-subtitle">
+            Simulações determinísticas e auditoria de contratos com a Tabela Price oficial, pró-rata e deságio a valor presente.
+          </p>
+        </div>
+
+        {/* Alternância de Abas: Contratos vs Simulador */}
+        <div className="loans-nav-tabs">
+          <button
+            type="button"
+            className={`tab-btn ${activeTab === 'CONTRACTED' ? 'active' : ''}`}
+            onClick={() => setActiveTab('CONTRACTED')}
+          >
+            <FileSpreadsheet size={16} />
+            <span>Contratos Ativos ({contractedGroups.length})</span>
+          </button>
+          <button
+            type="button"
+            className={`tab-btn ${activeTab === 'SIMULATOR' ? 'active' : ''}`}
+            onClick={() => setActiveTab('SIMULATOR')}
+          >
+            <Calculator size={16} />
+            <span>Simulador Price & Antecipação</span>
+          </button>
+        </div>
+      </div>
+
+      {activeTab === 'SIMULATOR' ? (
+        renderSimulatorContent(false)
       ) : (
         /* ================================================================ */
         /* ABA 2: EMPRÉSTIMOS CONTRATADOS NO BALDER                         */
@@ -1218,18 +1233,50 @@ export const LoansPage: React.FC = () => {
               <Landmark size={48} className="text-muted mx-auto mb-3" />
               <h3 className="text-lg font-bold text-white mb-1">Nenhum Empréstimo Contratado Ativo</h3>
               <p className="text-sm text-secondary mb-4">
-                Utilize o simulador ao lado para simular qualquer linha de crédito e contratá-la com 1 clique.
+                Utilize o simulador para calcular condições da Tabela Price oficial e contratar diretamente no seu fluxo de caixa.
               </p>
               <button
                 type="button"
-                className="btn btn-primary btn-sm"
-                onClick={() => setActiveTab('SIMULATOR')}
+                className="btn btn-primary"
+                onClick={() => setIsSimulatorModalOpen(true)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
               >
-                Abrir Simulador Price
+                <PlusCircle size={16} />
+                <span>Simular & Contratar Novo Empréstimo</span>
               </button>
             </div>
           ) : (
             <div>
+              {/* Barra de Ações de Contratos */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '1rem',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem',
+                }}
+              >
+                <div>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#fff', margin: 0 }}>
+                    Seus Contratos de Financiamento
+                  </h3>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
+                    Acompanhe parcelas em aberto, saldo devedor e execute amortizações antecipadas
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => setIsSimulatorModalOpen(true)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
+                >
+                  <PlusCircle size={16} />
+                  <span>+ Novo Empréstimo</span>
+                </button>
+              </div>
+
               {/* Seletor de Contratos Contratados */}
               <div className="contract-selector-cards-grid mb-4">
                 {contractedGroups.map((g) => {
@@ -1404,9 +1451,20 @@ export const LoansPage: React.FC = () => {
         </div>
       )}
 
+      {/* MODAL DE SIMULAÇÃO / NOVO EMPRÉSTIMO */}
+      <Modal
+        isOpen={isSimulatorModalOpen}
+        onClose={() => setIsSimulatorModalOpen(false)}
+        title="Novo Empréstimo — Simulador Price & Antecipação"
+        subtitle="Simule condições de crédito com a Tabela Price oficial e contrate com 1 clique"
+        maxWidth="1260px"
+      >
+        {renderSimulatorContent(true)}
+      </Modal>
+
       {/* MODAL DE ANTECIPAÇÃO INTERTEMPORAL DE PARCELAS */}
       {prepayModalMonth !== null && (
-        <div className="modal-overlay" onClick={() => setPrepayModalMonth(null)}>
+        <div className="modal-overlay" onClick={() => setPrepayModalMonth(null)} style={{ zIndex: 1200 }}>
           <div
             className="modal-container glass-card prepay-intertemporal-modal"
             onClick={(e) => e.stopPropagation()}
