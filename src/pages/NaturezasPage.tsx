@@ -19,6 +19,7 @@ import {
   Calendar,
   Zap,
 } from 'lucide-react';
+import { Modal } from '../components/Modal';
 
 interface NaturezasPageProps {
   embedded?: boolean;
@@ -1241,244 +1242,224 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
             </div>
           </div>
         ) : (
-          <div className="empty-state glass-card p-8 text-center mt-4">
+          <div className="naturezas-empty-state glass-card p-6 text-center text-muted">
             <Layers size={48} className="mx-auto text-muted mb-2" />
             <p>Selecione ou crie uma natureza orçamentária para gerenciar seus tetos.</p>
+            <button
+              className="btn btn-primary btn-sm mt-3"
+              onClick={() => setIsNewNatureModalOpen(true)}
+            >
+              <Plus size={16} />
+              <span>Cadastrar Nova Natureza</span>
+            </button>
           </div>
         )}
       </div>
 
       {/* Modal de Nova Natureza */}
-      {isNewNatureModalOpen && (
-        <div className="modal-backdrop" onClick={() => setIsNewNatureModalOpen(false)}>
-          <div
-            className="modal-container glass-card animate-fade-in"
-            style={{ maxWidth: '500px' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-header">
-              <div>
-                <h3 className="modal-title">Nova Natureza de Gastos</h3>
-                <p className="modal-subtitle">
-                  Defina o agrupamento para compor tetos orçamentários
-                </p>
-              </div>
-              <button
-                className="modal-close-btn"
-                onClick={() => setIsNewNatureModalOpen(false)}
-              >
-                ✕
-              </button>
-            </div>
+      <Modal
+        isOpen={isNewNatureModalOpen}
+        onClose={() => setIsNewNatureModalOpen(false)}
+        title="Nova Natureza de Gastos"
+        subtitle="Defina o agrupamento para compor tetos orçamentários"
+        maxWidth="500px"
+      >
+        <div className="form-group mb-3">
+          <label>Nome da Natureza</label>
+          <input
+            type="text"
+            className="form-input"
+            placeholder="Ex: Supermercado, Habitação, Lazer..."
+            value={newNatureName}
+            onChange={(e) => setNewNatureName(e.target.value)}
+            autoFocus
+          />
+        </div>
 
-            <div className="modal-body">
-              <div className="form-group mb-3">
-                <label>Nome da Natureza</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Ex: Supermercado, Habitação, Lazer..."
-                  value={newNatureName}
-                  onChange={(e) => setNewNatureName(e.target.value)}
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-3 mb-3">
-                <div className="form-group">
-                  <label>Ícone (Emoji)</label>
-                  <input
-                    type="text"
-                    className="form-input text-center text-lg"
-                    placeholder="🏷️"
-                    value={newNatureIcon}
-                    onChange={(e) => setNewNatureIcon(e.target.value)}
+        <div className="grid grid-cols-3 gap-3 mb-3">
+          <div className="form-group">
+            <label>Ícone (Emoji)</label>
+            <input
+              type="text"
+              className="form-input text-center text-lg"
+              placeholder="🏷️"
+              value={newNatureIcon}
+              onChange={(e) => setNewNatureIcon(e.target.value)}
+            />
+          </div>
+          <div className="form-group">
+            <label>Tipo Orçamentário</label>
+            <select
+              className="form-input"
+              value={newNatureType}
+              onChange={(e) => setNewNatureType(e.target.value as any)}
+            >
+              <option value="ESSENCIAL">Essencial (Sobrevivência)</option>
+              <option value="FIXA">Fixa (Compromisso)</option>
+              <option value="VARIAVEL">Variável (Estilo de Vida)</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Cor de Destaque</label>
+            <div className="nature-color-picker-row">
+              {['#10B981', '#38BDF8', '#A855F7', '#F43F5E', '#F59E0B', '#6366F1'].map(
+                (c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={`color-dot-btn ${newNatureColor === c ? 'active' : ''}`}
+                    style={{ backgroundColor: c }}
+                    onClick={() => setNewNatureColor(c)}
                   />
-                </div>
-                <div className="form-group">
-                  <label>Tipo Orçamentário</label>
-                  <select
-                    className="form-input"
-                    value={newNatureType}
-                    onChange={(e) => setNewNatureType(e.target.value as any)}
-                  >
-                    <option value="ESSENCIAL">Essencial (Sobrevivência)</option>
-                    <option value="FIXA">Fixa (Compromisso)</option>
-                    <option value="VARIAVEL">Variável (Estilo de Vida)</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Cor de Destaque</label>
-                  <div className="nature-color-picker-row">
-                    {['#10B981', '#38BDF8', '#A855F7', '#F43F5E', '#F59E0B', '#6366F1'].map(
-                      (c) => (
-                        <button
-                          key={c}
-                          type="button"
-                          className={`color-dot-btn ${newNatureColor === c ? 'active' : ''}`}
-                          style={{ backgroundColor: c }}
-                          onClick={() => setNewNatureColor(c)}
-                        />
-                      )
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="form-group mb-3">
-                <label>Descrição / Finalidade</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Finalidade orçamentária dos gastos desta natureza..."
-                  value={newNatureDesc}
-                  onChange={(e) => setNewNatureDesc(e.target.value)}
-                />
-              </div>
-
-              <div className="modal-footer-actions mt-4">
-                <button
-                  className="btn btn-outline"
-                  onClick={() => setIsNewNatureModalOpen(false)}
-                >
-                  Cancelar
-                </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={() => {
-                    if (!newNatureName.trim()) {
-                      alert('Informe o nome da natureza.');
-                      return;
-                    }
-                    addNature({
-                      name: newNatureName.trim(),
-                      icon: newNatureIcon || '🏷️',
-                      color: newNatureColor,
-                      type: newNatureType,
-                      description: newNatureDesc,
-                      overCeilingJustification: '',
-                      justificationHistory: [],
-                    });
-                    setNewNatureName('');
-                    setNewNatureDesc('');
-                    setIsNewNatureModalOpen(false);
-                  }}
-                >
-                  <Plus size={16} />
-                  <span>Cadastrar Natureza</span>
-                </button>
-              </div>
+                )
+              )}
             </div>
           </div>
         </div>
-      )}
+
+        <div className="form-group mb-3">
+          <label>Descrição / Finalidade</label>
+          <input
+            type="text"
+            className="form-input"
+            placeholder="Finalidade orçamentária dos gastos desta natureza..."
+            value={newNatureDesc}
+            onChange={(e) => setNewNatureDesc(e.target.value)}
+          />
+        </div>
+
+        <div className="modal-footer-actions mt-4">
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={() => setIsNewNatureModalOpen(false)}
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              if (!newNatureName.trim()) {
+                alert('Informe o nome da natureza.');
+                return;
+              }
+              addNature({
+                name: newNatureName.trim(),
+                icon: newNatureIcon || '🏷️',
+                color: newNatureColor,
+                type: newNatureType,
+                description: newNatureDesc,
+                overCeilingJustification: '',
+                justificationHistory: [],
+              });
+              setNewNatureName('');
+              setNewNatureDesc('');
+              setIsNewNatureModalOpen(false);
+            }}
+          >
+            <Plus size={16} />
+            <span>Cadastrar Natureza</span>
+          </button>
+        </div>
+      </Modal>
 
       {/* Modal de Novo Mapeamento de Gastos Fixos */}
-      {isNewMappingModalOpen && selectedNature && (
-        <div className="modal-backdrop" onClick={() => setIsNewMappingModalOpen(false)}>
-          <div
-            className="modal-container glass-card animate-fade-in"
-            style={{ maxWidth: '480px' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-header">
-              <div>
-                <h3 className="modal-title">Novo Mapeamento de Gastos</h3>
-                <p className="modal-subtitle">
-                  Adicionar mapeamento à natureza: <strong>{selectedNature.name}</strong>
-                </p>
-              </div>
+      {selectedNature && (
+        <Modal
+          isOpen={isNewMappingModalOpen}
+          onClose={() => {
+            setIsNewMappingModalOpen(false);
+            setNewMappingDueDay('');
+          }}
+          title="Novo Mapeamento de Gastos"
+          subtitle={`Adicionar mapeamento à natureza: ${selectedNature.name}`}
+          maxWidth="480px"
+        >
+          <div className="form-group mb-3">
+            <label>Nome do Mapeamento</label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Ex: Energia Elétrica (Coelba), Água (Embasa), Internet, Feira Semanal"
+              value={newMappingName}
+              onChange={(e) => setNewMappingName(e.target.value)}
+              autoFocus
+            />
+            <span className="text-xs text-muted mt-1 block">
+              Você poderá cadastrar múltiplos itens com quantidades, preços e multiplicadores
+              semanais para compor o teto.
+            </span>
+          </div>
+
+          <div className="form-group mb-3">
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <Calendar size={14} className="text-amber-400" />
+              <span>Dia Fixo de Vencimento no Mês (Opcional)</span>
+            </label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <input
+                type="number"
+                min="1"
+                max="31"
+                className="form-input"
+                placeholder="Ex: 10 (ou deixe em branco se não for conta fixa)"
+                value={newMappingDueDay}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  setNewMappingDueDay(isNaN(val) ? '' : Math.min(31, Math.max(1, val)));
+                }}
+              />
               <button
-                className="modal-close-btn"
-                onClick={() => setIsNewMappingModalOpen(false)}
+                type="button"
+                className="btn btn-outline btn-sm text-xs"
+                style={{ whiteSpace: 'nowrap' }}
+                onClick={() => setNewMappingDueDay(31)}
+                title="Definir para o último dia do mês"
               >
-                ✕
+                Fim do Mês
               </button>
             </div>
-
-            <div className="modal-body">
-              <div className="form-group mb-3">
-                <label>Nome do Mapeamento</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Ex: Energia Elétrica (Coelba), Água (Embasa), Internet, Feira Semanal"
-                  value={newMappingName}
-                  onChange={(e) => setNewMappingName(e.target.value)}
-                />
-                <span className="text-xs text-muted mt-1 block">
-                  Você poderá cadastrar múltiplos itens com quantidades, preços e multiplicadores
-                  semanais para compor o teto.
-                </span>
-              </div>
-
-              <div className="form-group mb-3">
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <Calendar size={14} className="text-amber-400" />
-                  <span>Dia Fixo de Vencimento no Mês (Opcional)</span>
-                </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <input
-                    type="number"
-                    min="1"
-                    max="31"
-                    className="form-input"
-                    placeholder="Ex: 10 (ou deixe em branco se não for conta fixa)"
-                    value={newMappingDueDay}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value, 10);
-                      setNewMappingDueDay(isNaN(val) ? '' : Math.min(31, Math.max(1, val)));
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="btn btn-outline btn-sm text-xs"
-                    style={{ whiteSpace: 'nowrap' }}
-                    onClick={() => setNewMappingDueDay(31)}
-                    title="Definir para o último dia do mês"
-                  >
-                    Fim do Mês
-                  </button>
-                </div>
-                <span className="text-xs text-muted mt-1 block">
-                  O BALDER questionará automaticamente quando esta data estiver próxima ou alcançada no mês para confirmar se você já efetuou o pagamento.
-                </span>
-              </div>
-
-              <div className="modal-footer-actions mt-4">
-                <button
-                  className="btn btn-outline"
-                  onClick={() => {
-                    setIsNewMappingModalOpen(false);
-                    setNewMappingDueDay('');
-                  }}
-                >
-                  Cancelar
-                </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={() => {
-                    if (!newMappingName.trim()) {
-                      alert('Informe o nome do mapeamento.');
-                      return;
-                    }
-                    addMappingToNature(
-                      selectedNature.id,
-                      newMappingName.trim(),
-                      undefined,
-                      newMappingDueDay !== '' ? Number(newMappingDueDay) : undefined
-                    );
-                    setNewMappingName('');
-                    setNewMappingDueDay('');
-                    setIsNewMappingModalOpen(false);
-                  }}
-                >
-                  <Plus size={16} />
-                  <span>Criar Mapeamento</span>
-                </button>
-              </div>
-            </div>
+            <span className="text-xs text-muted mt-1 block">
+              O BALDER questionará automaticamente quando esta data estiver próxima ou alcançada no mês para confirmar se você já efetuou o pagamento.
+            </span>
           </div>
-        </div>
+
+          <div className="modal-footer-actions mt-4">
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => {
+                setIsNewMappingModalOpen(false);
+                setNewMappingDueDay('');
+              }}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                if (!newMappingName.trim()) {
+                  alert('Informe o nome do mapeamento.');
+                  return;
+                }
+                addMappingToNature(
+                  selectedNature.id,
+                  newMappingName.trim(),
+                  undefined,
+                  newMappingDueDay !== '' ? Number(newMappingDueDay) : undefined
+                );
+                setNewMappingName('');
+                setNewMappingDueDay('');
+                setIsNewMappingModalOpen(false);
+              }}
+            >
+              <Plus size={16} />
+              <span>Criar Mapeamento</span>
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   );

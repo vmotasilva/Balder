@@ -36,6 +36,7 @@ import {
 import { FinanceEntityModal, type EntityTab } from '../components/FinanceEntityModal';
 import { SalaryAdjustmentModal, type SalaryModalMode } from '../components/SalaryAdjustmentModal';
 import { CheckpointSetupModal } from '../components/CheckpointSetupModal';
+import { Modal } from '../components/Modal';
 import type { SalaryContract, SalaryAdjustment } from '../types';
 
 export const ProfilePage: React.FC = () => {
@@ -2150,204 +2151,186 @@ export const ProfilePage: React.FC = () => {
       </div>
 
       {/* Modal de Nova Natureza */}
-      {isNewNatureModalOpen && (
-        <div className="modal-backdrop" onClick={() => setIsNewNatureModalOpen(false)}>
-          <div className="modal-container glass-card animate-fade-in" style={{ maxWidth: '520px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div>
-                <h3 className="modal-title">Nova Natureza de Gastos</h3>
-                <p className="modal-subtitle">Defina uma nova categoria orçamentária para receber mapeamentos fixos</p>
-              </div>
-              <button className="modal-close-btn" onClick={() => setIsNewNatureModalOpen(false)}>✕</button>
-            </div>
+      <Modal
+        isOpen={isNewNatureModalOpen}
+        onClose={() => setIsNewNatureModalOpen(false)}
+        title="Nova Natureza de Gastos"
+        subtitle="Defina uma nova categoria orçamentária para receber mapeamentos fixos"
+        maxWidth="520px"
+      >
+        <div className="form-group mb-3">
+          <label>Nome da Natureza</label>
+          <input
+            type="text"
+            className="form-input"
+            placeholder="Ex: Pets & Veterinário, Lazer, etc."
+            value={newNatureName}
+            onChange={(e) => setNewNatureName(e.target.value)}
+            autoFocus
+          />
+        </div>
 
-            <div className="modal-body">
-              <div className="form-group mb-3">
-                <label>Nome da Natureza</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Ex: Pets & Veterinário, Lazer, etc."
-                  value={newNatureName}
-                  onChange={(e) => setNewNatureName(e.target.value)}
-                />
-              </div>
-
-              <div className="form-grid-3 mb-3">
-                <div className="form-group">
-                  <label>Ícone / Emoji</label>
-                  <input
-                    type="text"
-                    className="form-input text-center text-xl"
-                    placeholder="🏷️"
-                    value={newNatureIcon}
-                    onChange={(e) => setNewNatureIcon(e.target.value)}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Tipo Orçamentário</label>
-                  <select
-                    className="form-input"
-                    value={newNatureType}
-                    onChange={(e) => setNewNatureType(e.target.value as any)}
-                  >
-                    <option value="ESSENCIAL">Essencial (Sobrevivência)</option>
-                    <option value="FIXA">Fixa (Compromisso)</option>
-                    <option value="VARIAVEL">Variável (Estilo de Vida)</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Cor de Destaque</label>
-                  <div className="nature-color-picker-row">
-                    {['#10B981', '#38BDF8', '#A855F7', '#F43F5E', '#F59E0B', '#6366F1'].map((c) => (
-                      <button
-                        key={c}
-                        type="button"
-                        className={`color-dot-btn ${newNatureColor === c ? 'active' : ''}`}
-                        style={{ backgroundColor: c }}
-                        onClick={() => setNewNatureColor(c)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="form-group mb-3">
-                <label>Descrição / Finalidade</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Finalidade orçamentária dos gastos desta natureza..."
-                  value={newNatureDesc}
-                  onChange={(e) => setNewNatureDesc(e.target.value)}
-                />
-              </div>
-
-              <div className="modal-footer-actions mt-4">
-                <button className="btn btn-outline" onClick={() => setIsNewNatureModalOpen(false)}>
-                  Cancelar
-                </button>
+        <div className="form-grid-3 mb-3">
+          <div className="form-group">
+            <label>Ícone / Emoji</label>
+            <input
+              type="text"
+              className="form-input text-center text-xl"
+              placeholder="🏷️"
+              value={newNatureIcon}
+              onChange={(e) => setNewNatureIcon(e.target.value)}
+            />
+          </div>
+          <div className="form-group">
+            <label>Tipo Orçamentário</label>
+            <select
+              className="form-input"
+              value={newNatureType}
+              onChange={(e) => setNewNatureType(e.target.value as any)}
+            >
+              <option value="ESSENCIAL">Essencial (Sobrevivência)</option>
+              <option value="FIXA">Fixa (Compromisso)</option>
+              <option value="VARIAVEL">Variável (Estilo de Vida)</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Cor de Destaque</label>
+            <div className="nature-color-picker-row">
+              {['#10B981', '#38BDF8', '#A855F7', '#F43F5E', '#F59E0B', '#6366F1'].map((c) => (
                 <button
-                  className="btn btn-primary"
-                  onClick={() => {
-                    if (!newNatureName.trim()) {
-                      alert('Informe o nome da natureza.');
-                      return;
-                    }
-                    addNature({
-                      name: newNatureName.trim(),
-                      icon: newNatureIcon || '🏷️',
-                      color: newNatureColor,
-                      type: newNatureType,
-                      description: newNatureDesc,
-                      overCeilingJustification: '',
-                      justificationHistory: [],
-                    });
-                    setNewNatureName('');
-                    setNewNatureDesc('');
-                    setIsNewNatureModalOpen(false);
-                  }}
-                >
-                  <Plus size={16} />
-                  <span>Cadastrar Natureza</span>
-                </button>
-              </div>
+                  key={c}
+                  type="button"
+                  className={`color-dot-btn ${newNatureColor === c ? 'active' : ''}`}
+                  style={{ backgroundColor: c }}
+                  onClick={() => setNewNatureColor(c)}
+                />
+              ))}
             </div>
           </div>
         </div>
-      )}
+
+        <div className="form-group mb-3">
+          <label>Descrição / Finalidade</label>
+          <input
+            type="text"
+            className="form-input"
+            placeholder="Finalidade orçamentária dos gastos desta natureza..."
+            value={newNatureDesc}
+            onChange={(e) => setNewNatureDesc(e.target.value)}
+          />
+        </div>
+
+        <div className="modal-footer-actions mt-4">
+          <button type="button" className="btn btn-outline" onClick={() => setIsNewNatureModalOpen(false)}>
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              if (!newNatureName.trim()) {
+                alert('Informe o nome da natureza.');
+                return;
+              }
+              addNature({
+                name: newNatureName.trim(),
+                icon: newNatureIcon || '🏷️',
+                color: newNatureColor,
+                type: newNatureType,
+                description: newNatureDesc,
+                overCeilingJustification: '',
+                justificationHistory: [],
+              });
+              setNewNatureName('');
+              setNewNatureDesc('');
+              setIsNewNatureModalOpen(false);
+            }}
+          >
+            <Plus size={16} />
+            <span>Cadastrar Natureza</span>
+          </button>
+        </div>
+      </Modal>
 
       {/* Modal de Novo Mapeamento de Gastos Fixos */}
-      {isNewMappingModalOpen && selectedNature && (
-        <div className="modal-backdrop" onClick={() => setIsNewMappingModalOpen(false)}>
-          <div className="modal-container glass-card animate-fade-in" style={{ maxWidth: '480px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div>
-                <h3 className="modal-title">Novo Mapeamento de Gastos</h3>
-                <p className="modal-subtitle">
-                  Adicionar mapeamento à natureza: <strong>{selectedNature.name}</strong>
-                </p>
-              </div>
-              <button className="modal-close-btn" onClick={() => setIsNewMappingModalOpen(false)}>✕</button>
-            </div>
-
-            <div className="modal-body">
-              <div className="form-group mb-3">
-                <label>Nome do Mapeamento</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Ex: Feira Semanal de Bairro, Compras em Atacado, etc."
-                  value={newMappingName}
-                  onChange={(e) => setNewMappingName(e.target.value)}
-                />
-                <span className="text-xs text-muted mt-1 block">
-                  Você poderá cadastrar múltiplos itens com quantidades, preços e multiplicadores semanais para compor o teto.
-                </span>
-              </div>
-
-              <div className="modal-footer-actions mt-4">
-                <button className="btn btn-outline" onClick={() => setIsNewMappingModalOpen(false)}>
-                  Cancelar
-                </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={() => {
-                    if (!newMappingName.trim()) {
-                      alert('Informe o nome do mapeamento.');
-                      return;
-                    }
-                    addMappingToNature(selectedNature.id, newMappingName.trim());
-                    setNewMappingName('');
-                    setIsNewMappingModalOpen(false);
-                  }}
-                >
-                  <Plus size={16} />
-                  <span>Criar Mapeamento</span>
-                </button>
-              </div>
-            </div>
+      {selectedNature && (
+        <Modal
+          isOpen={isNewMappingModalOpen}
+          onClose={() => setIsNewMappingModalOpen(false)}
+          title="Novo Mapeamento de Gastos"
+          subtitle={`Adicionar mapeamento à natureza: ${selectedNature.name}`}
+          maxWidth="480px"
+        >
+          <div className="form-group mb-3">
+            <label>Nome do Mapeamento</label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Ex: Feira Semanal de Bairro, Compras em Atacado, etc."
+              value={newMappingName}
+              onChange={(e) => setNewMappingName(e.target.value)}
+              autoFocus
+            />
+            <span className="text-xs text-muted mt-1 block">
+              Você poderá cadastrar múltiplos itens com quantidades, preços e multiplicadores semanais para compor o teto.
+            </span>
           </div>
-        </div>
+
+          <div className="modal-footer-actions mt-4">
+            <button type="button" className="btn btn-outline" onClick={() => setIsNewMappingModalOpen(false)}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                if (!newMappingName.trim()) {
+                  alert('Informe o nome do mapeamento.');
+                  return;
+                }
+                addMappingToNature(selectedNature.id, newMappingName.trim());
+                setNewMappingName('');
+                setIsNewMappingModalOpen(false);
+              }}
+            >
+              <Plus size={16} />
+              <span>Criar Mapeamento</span>
+            </button>
+          </div>
+        </Modal>
       )}
 
       {/* Modal de Ferramentas Avançadas */}
-      {advancedModalOpen && (
-        <div className="modal-backdrop" onClick={() => setAdvancedModalOpen(false)}>
-          <div className="modal-container glass-card animate-fade-in" style={{ maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div>
-                <h3 className="modal-title">Ferramentas Avançadas</h3>
-                <p className="modal-subtitle">Workspaces, Painéis Administrativos e Centros Analíticos</p>
-              </div>
-              <button className="modal-close-btn" onClick={() => setAdvancedModalOpen(false)}>✕</button>
-            </div>
+      <Modal
+        isOpen={advancedModalOpen}
+        onClose={() => setAdvancedModalOpen(false)}
+        title="Ferramentas Avançadas"
+        subtitle="Workspaces, Painéis Administrativos e Centros Analíticos"
+        maxWidth="600px"
+      >
+        <div className="advanced-catalog-grid">
+          <div className="adv-item glass-card">
+            <h4>🏛️ Multi-Window Analysis</h4>
+            <p>Grid de 4 quadrantes sincronizados (Fluxo, Patrimônio, Simulação, Copilot).</p>
+          </div>
 
-            <div className="modal-body">
-              <div className="advanced-catalog-grid">
-                <div className="adv-item glass-card">
-                  <h4>🏛️ Multi-Window Analysis</h4>
-                  <p>Grid de 4 quadrantes sincronizados (Fluxo, Patrimônio, Simulação, Copilot).</p>
-                </div>
+          <div className="adv-item glass-card">
+            <h4>📊 Excel Import & Export Center</h4>
+            <p>Ingestão e conciliação em lote com suporte a arquivos OFX e XLSX.</p>
+          </div>
 
-                <div className="adv-item glass-card">
-                  <h4>📊 Excel Import & Export Center</h4>
-                  <p>Ingestão e conciliação em lote com suporte a arquivos OFX e XLSX.</p>
-                </div>
-
-                <div className="adv-item glass-card">
-                  <h4>⚡ Founder Analytics Dashboard</h4>
-                  <p>Métricas de produto, retenção de coorte, NPS e Life Impact Score.</p>
-                </div>
-              </div>
-
-              <div className="modal-footer-actions mt-4">
-                <button className="btn btn-outline" onClick={() => setAdvancedModalOpen(false)}>Fechar</button>
-              </div>
-            </div>
+          <div className="adv-item glass-card">
+            <h4>⚡ Founder Analytics Dashboard</h4>
+            <p>Métricas de produto, retenção de coorte, NPS e Life Impact Score.</p>
           </div>
         </div>
-      )}
+
+        <div className="modal-footer-actions mt-4">
+          <button type="button" className="btn btn-outline" onClick={() => setAdvancedModalOpen(false)}>
+            Fechar
+          </button>
+        </div>
+      </Modal>
 
       {/* Modal Unificado para Cadastro e Edição de Entidades Financeiras */}
       <FinanceEntityModal
