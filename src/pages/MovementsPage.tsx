@@ -47,7 +47,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
     onOpenNewMovementModal('RECEBER', {
       title: salarySuggestion.title,
       amount: salarySuggestion.amount,
-      dueDate: new Date().toISOString().split('T')[0],
+      dueDate: salarySuggestion.dueDate,
       bank: salarySuggestion.bank,
       category: salarySuggestion.category,
       status: salarySuggestion.status,
@@ -61,9 +61,9 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
       title: salarySuggestion.title,
       type: 'RECEBER',
       amount: salarySuggestion.amount,
-      dueDate: new Date().toISOString().split('T')[0],
+      dueDate: salarySuggestion.dueDate,
       bank: salarySuggestion.bank,
-      status: 'REALIZADA',
+      status: salarySuggestion.status,
       category: 'Salário',
       notes: salarySuggestion.notes,
     });
@@ -283,9 +283,11 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
               fontWeight: 600,
             }}
             onClick={handleSalaryQuickAction}
-            title={salarySuggestion.hasContract
-              ? `Registrar recebimento de ${salarySuggestion.periodLabel} (Sugerido: R$ ${salarySuggestion.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})`
-              : 'Registrar recebimento de salário'}
+            title={
+              salarySuggestion.hasContract
+                ? `Lançar ${salarySuggestion.periodLabel} (${salarySuggestion.dueDate.split('-').reverse().join('/')} • R$ ${salarySuggestion.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})`
+                : 'Registrar recebimento de salário'
+            }
           >
             <Briefcase size={14} className="text-emerald" />
             <span className="text-emerald">+ Salário</span>

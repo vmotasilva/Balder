@@ -59,58 +59,133 @@ export function getSalarySuggestion(
   if (schedule === 'QUINZENAL') {
     const daysInMonth = new Date(year, month, 0).getDate();
     const day1 = activeContract.secondPaymentDay || 15; // Adiantamento (ex: dia 15)
-    const rawDay2 = activeContract.paymentDay || 1;     // Saldo com descontos (ex: dia 1, 5 ou 31)
-    const day2 = Math.min(rawDay2, daysInMonth);        // Ajustado para o último dia real do mês corrente
+    const rawDay2 = activeContract.paymentDay || 1;     // Saldo com descontos (ex: dia 31, 30 ou 1)
+    const day2 = rawDay2 === 31 ? daysInMonth : Math.min(rawDay2, daysInMonth);
 
-    // Determina se estamos mais próximos da 1ª ou 2ª quinzena
-    const dist1 = Math.abs(todayDay - day1);
-    const dist2 = Math.min(
-      Math.abs(todayDay - day2),
-      Math.abs(todayDay - (day2 + daysInMonth)),
-      Math.abs((todayDay + daysInMonth) - day2)
-    );
-
-    const isFirst = dist1 <= dist2;
     const autoPct = activeContract.firstInstallmentPercent || 40;
     const firstAmt = activeContract.firstInstallmentAmount || Math.round(net * (autoPct / 100) * 100) / 100;
     const secondAmt = activeContract.secondInstallmentAmount || Math.round((net - firstAmt) * 100) / 100;
 
-    const amount = isFirst ? firstAmt : secondAmt;
-    const dueDay = isFirst ? day1 : day2;
-    const periodLabel = isFirst
-      ? '1ª quinzena (Adiantamento)'
-      : rawDay2 === 31
-      ? '2ª quinzena (Último dia do mês)'
-      : '2ª quinzena (Saldo do Mês)';
+    // Helper para verificar se a movimentação é de salário
+    const isSalaryMov = (m: Movement) => {
+      if (m.type !== 'RECEBER') return false;
+      const t = m.title.toLowerCase();
+      const n = (m.notes || '').toLowerCase();
+      const c = m.category.toLowerCase();
+      const emp = (activeContract.employer || '').toLowerCase();
+      return (
+        c.includes('salário') ||
+        c.includes('salario') ||
+        c.includes('renda') ||
+        t.includes('salário') ||
+        t.includes('salario') ||
+        t.includes('quinzena') ||
+        n.includes('salarial') ||
+        (emp && t.includes(emp))
+      );
+    };
 
-    // Verificar se este período já foi registrado como realizado
-    const alreadyRegistered = movements.some((m) => {
-      if (m.type !== 'RECEBER' || m.status !== 'REALIZADA') return false;
-      const isSalaryCat = m.category === 'Salário' || m.title.toLowerCase().includes('salário') || m.title.toLowerCase().includes(activeContract.employer.toLowerCase());
-      if (!isSalaryCat) return false;
-
-      // Se for quinzena 1 ou 2, conferir o período
-      if (isFirst) {
-        return m.dueDate.startsWith(monthKey) && (m.title.includes('1ª quinzena') || m.notes?.includes('1ª quinzena') || (parseInt(m.dueDate.slice(8, 10), 10) >= 10 && parseInt(m.dueDate.slice(8, 10), 10) <= 24));
-      } else {
-        return m.dueDate.startsWith(monthKey) && (m.title.includes('2ª quinzena') || m.notes?.includes('2ª quinzena') || parseInt(m.dueDate.slice(8, 10), 10) <= 9 || parseInt(m.dueDate.slice(8, 10), 10) >= 25);
-      }
+    // Verificar se já existe a 1ª quinzena lançada no mês corrente
+    const firstQuinzenaMov = movements.find((m) => {
+      if (!isSalaryMov(m)) return false;
+      if (!m.dueDate.startsWith(monthKey)) return false;
+      const t = m.title.toLowerCase();
+      const n = (m.notes || '').toLowerCase();
+      const dayNum = parseInt(m.dueDate.slice(8, 10), 10);
+      return (
+        t.includes('1ª quinzena') ||
+        t.includes('1a quinzena') ||
+        t.includes('adiantamento') ||
+        n.includes('1ª quinzena') ||
+        n.includes('adiantamento') ||
+        (dayNum >= 10 && dayNum <= 24)
+      );
     });
 
-    // Deve sugerir confirmação se hoje estiver na janela prevista (entre 2 dias antes até 7 dias depois do dia previsto) e ainda não lançado
+    // Verificar se já existe a 2ª quinzena lançada no mês corrente
+    const secondQuinzenaMov = movements.find((m) => {
+      if (!isSalaryMov(m)) return false;
+      if (!m.dueDate.startsWith(monthKey)) return false;
+      const t = m.title.toLowerCase();
+      const n = (m.notes || '').toLowerCase();
+      const dayNum = parseInt(m.dueDate.slice(8, 10), 10);
+      return (
+        t.includes('2ª quinzena') ||
+        t.includes('2a quinzena') ||
+        t.includes('saldo') ||
+        n.includes('2ª quinzena') ||
+        n.includes('saldo') ||
+        dayNum >= 25 ||
+        dayNum <= 9
+      );
+    });
+
+    const hasFirst = !!firstQuinzenaMov;
+    const hasSecond = !!secondQuinzenaMov;
+
+    let targetQuinzena: 1 | 2 = 1;
+    let targetYear = year;
+    let targetMonth = month;
+    let targetDay = day1;
+
+    if (hasFirst && !hasSecond) {
+      // 1ª quinzena já foi praticada! A parcela ativa do mês é a 2ª quinzena
+      targetQuinzena = 2;
+      targetDay = day2;
+    } else if (!hasFirst && hasSecond) {
+      // 2ª quinzena já registrada, mas falta a 1ª
+      targetQuinzena = 1;
+      targetDay = day1;
+    } else if (hasFirst && hasSecond) {
+      // Ambas quinzenas do mês corrente já estão lançadas -> Propor a 1ª quinzena do próximo mês!
+      const nextMonthDate = new Date(year, month, 1);
+      targetYear = nextMonthDate.getFullYear();
+      targetMonth = nextMonthDate.getMonth() + 1;
+      targetQuinzena = 1;
+      targetDay = day1;
+    } else {
+      // Nenhuma das duas lançada no mês:
+      // Se hoje for após a metade do caminho entre dia1 e dia2 (ex: dia 23), sugere a 2ª; caso contrário, a 1ª
+      const midPoint = Math.floor((day1 + day2) / 2);
+      if (todayDay > midPoint) {
+        targetQuinzena = 2;
+        targetDay = day2;
+      } else {
+        targetQuinzena = 1;
+        targetDay = day1;
+      }
+    }
+
+    const isFirst = targetQuinzena === 1;
+    const amount = isFirst ? firstAmt : secondAmt;
+    const dueDay = targetDay;
+    const isoDueDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
+
+    // Se a data de vencimento estiver no futuro em relação a hoje, sugere PREVISTA; se for hoje ou passada, REALIZADA
+    const isFuture = isoDueDate > todayStr;
+    const suggestedStatus: MovementStatus = isFuture ? 'PREVISTA' : 'REALIZADA';
+
+    const periodLabel = isFirst ? '1ª quinzena' : '2ª quinzena';
+
+    // Banner de prompt inteligente (para quando a data da parcela estiver próxima e ainda não realizada)
+    const targetMov = isFirst ? firstQuinzenaMov : secondQuinzenaMov;
+    const isTargetRealized = targetMov?.status === 'REALIZADA';
     const dayDiff = Math.abs(todayDay - dueDay);
-    const inConfirmationWindow = dayDiff <= 4 || (todayDay >= dueDay && todayDay <= dueDay + 7);
-    const shouldPrompt = inConfirmationWindow && !alreadyRegistered && net > 0;
+    const inConfirmationWindow =
+      targetYear === year &&
+      targetMonth === month &&
+      (dayDiff <= 3 || (todayDay >= dueDay && todayDay <= dueDay + 7));
+    const shouldPrompt = inConfirmationWindow && !isTargetRealized && net > 0;
 
     return {
       hasContract: true,
       contract: activeContract,
       title: `${activeContract.employer} — ${activeContract.role} (${periodLabel})`,
       amount,
-      dueDate: todayStr, // data de hoje como padrão para liquidação
+      dueDate: isoDueDate,
       bank,
       category: 'Salário',
-      status: 'REALIZADA',
+      status: suggestedStatus,
       periodLabel,
       isQuinzenal: true,
       isSecondQuinzena: !isFirst,
@@ -159,30 +234,50 @@ export function getSalarySuggestion(
     };
   }
 
-  // UNICO (Integral)
+  // UNICO (Mensal Integral)
   const daysInMonth = new Date(year, month, 0).getDate();
   const rawDueDay = activeContract.paymentDay || 1;
   const dueDay = Math.min(rawDueDay, daysInMonth);
+
   const alreadyRegistered = movements.some((m) => {
     return (
       m.type === 'RECEBER' &&
-      m.status === 'REALIZADA' &&
       (m.category === 'Salário' || m.title.toLowerCase().includes(activeContract.employer.toLowerCase())) &&
       m.dueDate.startsWith(monthKey)
     );
   });
 
-  const inConfirmationWindow = Math.abs(todayDay - dueDay) <= 4 || (todayDay >= dueDay && todayDay <= dueDay + 7);
+  let targetYear = year;
+  let targetMonth = month;
+  let targetDay = dueDay;
+
+  if (alreadyRegistered) {
+    // Já lançado no mês corrente: propor o do próximo mês!
+    const nextMonthDate = new Date(year, month, 1);
+    targetYear = nextMonthDate.getFullYear();
+    targetMonth = nextMonthDate.getMonth() + 1;
+    const nextDaysInMonth = new Date(targetYear, targetMonth, 0).getDate();
+    targetDay = Math.min(rawDueDay, nextDaysInMonth);
+  }
+
+  const isoDueDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(targetDay).padStart(2, '0')}`;
+  const isFuture = isoDueDate > todayStr;
+  const suggestedStatus: MovementStatus = isFuture ? 'PREVISTA' : 'REALIZADA';
+
+  const inConfirmationWindow =
+    targetYear === year &&
+    targetMonth === month &&
+    (Math.abs(todayDay - dueDay) <= 4 || (todayDay >= dueDay && todayDay <= dueDay + 7));
 
   return {
     hasContract: true,
     contract: activeContract,
     title: `${activeContract.employer} — ${activeContract.role} (Salário Integral)`,
     amount: net,
-    dueDate: todayStr,
+    dueDate: isoDueDate,
     bank,
     category: 'Salário',
-    status: 'REALIZADA',
+    status: suggestedStatus,
     periodLabel: 'Salário Integral',
     isQuinzenal: false,
     isSecondQuinzena: false,
