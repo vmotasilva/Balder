@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
 import type { MovementType, MovementStatus, Movement } from '../types';
@@ -8,12 +8,14 @@ interface NewMovementModalProps {
   isOpen: boolean;
   onClose: () => void;
   defaultType?: MovementType;
+  initialData?: Partial<Movement>;
 }
 
 export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   isOpen,
   onClose,
   defaultType = 'PAGAR',
+  initialData,
 }) => {
   const { addMovement, addMultipleMovements, accounts, cards, banks } = useFinancial();
 
@@ -25,6 +27,34 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   const [category, setCategory] = useState('Geral');
   const [status, setStatus] = useState<MovementStatus>('PREVISTA');
   const [notes, setNotes] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialData) {
+        setType(initialData.type || defaultType);
+        setTitle(initialData.title || '');
+        setAmount(initialData.amount ? String(initialData.amount) : '');
+        setDueDate(initialData.dueDate || new Date().toISOString().split('T')[0]);
+        setBank(initialData.bank || accounts[0]?.name || 'Nubank');
+        setCategory(initialData.category || (initialData.type === 'RECEBER' ? 'Salário' : 'Geral'));
+        setStatus(initialData.status || 'REALIZADA');
+        setNotes(initialData.notes || '');
+      } else {
+        setType(defaultType);
+        setTitle('');
+        setAmount('');
+        setDueDate(new Date().toISOString().split('T')[0]);
+        setBank(accounts[0]?.name || 'Nubank');
+        setCategory(defaultType === 'RECEBER' ? 'Receita' : 'Geral');
+        setStatus(defaultType === 'RECEBER' ? 'REALIZADA' : 'PREVISTA');
+        setNotes('');
+      }
+      setIsInstallment(false);
+      setInstallmentsCount(3);
+      setInstallmentValueType('TOTAL');
+      setFirstInstallmentRealized(true);
+    }
+  }, [isOpen, defaultType, initialData, accounts]);
 
   // Estados de Parcelamento
   const [isInstallment, setIsInstallment] = useState(false);

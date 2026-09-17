@@ -16,8 +16,7 @@ import { LoansPage } from './pages/LoansPage';
 import { NewMovementModal } from './components/NewMovementModal';
 import { SimulationModal } from './components/SimulationModal';
 import { LoanPrepaymentModal } from './components/LoanPrepaymentModal';
-import type { MovementType, SimulationPresetId } from './types';
-import './App.css';
+import type { Movement, MovementType, SimulationPresetId } from './types';
 import './App.css';
 
 export function ProtectedApp() {
@@ -47,6 +46,7 @@ export function AppContent() {
   // Global Modals State
   const [newMovementModalOpen, setNewMovementModalOpen] = useState(false);
   const [defaultMovementType, setDefaultMovementType] = useState<MovementType>('PAGAR');
+  const [initialMovementData, setInitialMovementData] = useState<Partial<Movement> | undefined>(undefined);
 
   const [simulationModalOpen, setSimulationModalOpen] = useState(false);
   const [simulationPreset, setSimulationPreset] = useState<SimulationPresetId>('CARRO');
@@ -54,8 +54,12 @@ export function AppContent() {
 
   const [prepaymentModalOpen, setPrepaymentModalOpen] = useState(false);
 
-  const handleOpenNewMovement = (type: MovementType = 'PAGAR') => {
+  const handleOpenNewMovement = (
+    type: MovementType = 'PAGAR',
+    initialData?: Partial<Movement>
+  ) => {
     setDefaultMovementType(type);
+    setInitialMovementData(initialData);
     setNewMovementModalOpen(true);
   };
 
@@ -117,8 +121,12 @@ export function AppContent() {
       {/* Global Modals */}
       <NewMovementModal
         isOpen={newMovementModalOpen}
-        onClose={() => setNewMovementModalOpen(false)}
+        onClose={() => {
+          setNewMovementModalOpen(false);
+          setInitialMovementData(undefined);
+        }}
         defaultType={defaultMovementType}
+        initialData={initialMovementData}
       />
 
       <SimulationModal

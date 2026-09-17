@@ -14,35 +14,61 @@ import {
   Briefcase,
   Flag,
   History,
+  X,
 } from 'lucide-react';
-import type { MovementType } from '../types';
+import type { Movement, MovementType } from '../types';
 import { calculatePresentValue, groupLoanMovements } from '../utils/loanMath';
-import { generateSalaryVirtualMovements } from '../utils/projectionMath';
 import { LoanPrepaymentModal } from '../components/LoanPrepaymentModal';
+import { getSalarySuggestion } from '../utils/salarySuggestion';
 
 interface MovementsPageProps {
-  onOpenNewMovementModal: (defaultType?: MovementType) => void;
+  onOpenNewMovementModal: (defaultType?: MovementType, initialData?: Partial<Movement>) => void;
 }
 
 type TabFilter = 'TODOS' | 'RECEBER' | 'PAGAR' | 'EMPRESTIMO' | 'CARTAO';
 type StatusFilter = 'TODOS' | 'PREVISTA' | 'REALIZADA';
 
 export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementModal }) => {
-  const { movements, salaryContracts, deleteMovement, toggleMovementStatus, exportToCSV, activeCheckpoint } = useFinancial();
+  const { movements, salaryContracts, addMovement, deleteMovement, toggleMovementStatus, exportToCSV, activeCheckpoint } = useFinancial();
 
   const [includePreCheckpoint, setIncludePreCheckpoint] = useState(false);
+  const [isSalaryPromptDismissed, setIsSalaryPromptDismissed] = useState(false);
 
-  // Movimentos virtuais de salário (projetados a partir dos contratos cadastrados)
-  const salaryVirtualMovements = useMemo(
-    () => generateSalaryVirtualMovements(salaryContracts ?? []),
-    [salaryContracts]
+  // Apenas movimentações reais do usuário (sem preencher com projeções virtuais)
+  const allMovements = movements;
+
+  // Sugestão inteligente de recebimento salarial para o período corrente
+  const salarySuggestion = useMemo(
+    () => getSalarySuggestion(salaryContracts ?? [], movements),
+    [salaryContracts, movements]
   );
 
-  // Lista combinada: movimentos reais + virtuais de salário
-  const allMovements = useMemo(
-    () => [...movements, ...salaryVirtualMovements],
-    [movements, salaryVirtualMovements]
-  );
+  const handleSalaryQuickAction = () => {
+    onOpenNewMovementModal('RECEBER', {
+      title: salarySuggestion.title,
+      amount: salarySuggestion.amount,
+      dueDate: new Date().toISOString().split('T')[0],
+      bank: salarySuggestion.bank,
+      category: salarySuggestion.category,
+      status: salarySuggestion.status,
+      notes: salarySuggestion.notes,
+      type: 'RECEBER',
+    });
+  };
+
+  const handleConfirmSalaryDirectly = () => {
+    addMovement({
+      title: salarySuggestion.title,
+      type: 'RECEBER',
+      amount: salarySuggestion.amount,
+      dueDate: new Date().toISOString().split('T')[0],
+      bank: salarySuggestion.bank,
+      status: 'REALIZADA',
+      category: 'Salário',
+      notes: salarySuggestion.notes,
+    });
+    setIsSalaryPromptDismissed(true);
+  };
 
   const [activeTab, setActiveTab] = useState<TabFilter>('TODOS');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('TODOS');
@@ -155,10 +181,115 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
         </div>
       </div>
 
-      {/* 6 Ações Rápidas de Cadastro */}
+      {/* BANNER DE LEMBRETE E CONFIRMAÇÃO DE SALÁRIO PREVISTO */}
+      {salarySuggestion.shouldPromptConfirmation && !isSalaryPromptDismissed && (
+        <div
+          className="glass-card animate-fade-in mb-4"
+          style={{
+            padding: '1rem 1.25rem',
+            borderRadius: '12px',
+            border: '1px solid rgba(16, 185, 129, 0.4)',
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(15, 23, 42, 0.75) 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
+            <div
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                background: 'rgba(16, 185, 129, 0.2)',
+                color: '#34d399',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                marginTop: '2px',
+              }}
+            >
+              <Briefcase size={20} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.2rem' }}>
+                <span className="badge badge-emerald" style={{ fontSize: '0.7rem' }}>
+                  PREVISÃO SALARIAL ATINGIDA
+                </span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Previsto para o Dia {salarySuggestion.dueDay}
+                </span>
+              </div>
+              <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff', margin: 0 }}>
+                Você já recebeu o salário de {salarySuggestion.contract?.employer}?
+              </h4>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.25rem 0' }}>
+                Período identificado: <strong>{salarySuggestion.periodLabel}</strong> • Valor de referência: <strong className="text-emerald" style={{ fontSize: '0.9rem' }}>{salarySuggestion.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+              </p>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                {salarySuggestion.isSecondQuinzena
+                  ? 'A 2ª quinzena normalmente contém descontos da folha (INSS, IRRF, benefícios). Se o valor líquido recebido foi diferente, clique em "Ajustar Valor".'
+                  : 'Adiantamento salarial de referência. Confirme com 1 clique ou ajuste se houve variação no valor.'}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.85rem' }}
+              onClick={handleConfirmSalaryDirectly}
+              title="Registrar recebimento com o valor exato sugerido"
+            >
+              <CheckCircle2 size={15} />
+              <span>Confirmar R$ {salarySuggestion.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.85rem' }}
+              onClick={handleSalaryQuickAction}
+              title="Abrir para alterar o valor real recebido antes de salvar"
+            >
+              <Zap size={14} />
+              <span>Ajustar Valor</span>
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              style={{ padding: '0.45rem 0.6rem', color: 'var(--text-muted)' }}
+              onClick={() => setIsSalaryPromptDismissed(true)}
+              title="Lembrar mais tarde"
+            >
+              <X size={15} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Ações Rápidas de Cadastro */}
       <div className="movements-quick-actions-bar glass-card">
         <span className="quick-actions-label">Ações Imediatas:</span>
         <div className="quick-actions-buttons">
+          <button
+            className="quick-action-btn"
+            style={{
+              borderColor: 'rgba(16, 185, 129, 0.45)',
+              background: 'rgba(16, 185, 129, 0.08)',
+              fontWeight: 600,
+            }}
+            onClick={handleSalaryQuickAction}
+            title={salarySuggestion.hasContract
+              ? `Registrar recebimento de ${salarySuggestion.periodLabel} (Sugerido: R$ ${salarySuggestion.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})`
+              : 'Registrar recebimento de salário'}
+          >
+            <Briefcase size={14} className="text-emerald" />
+            <span className="text-emerald">+ Salário</span>
+          </button>
           <button className="quick-action-btn" onClick={() => onOpenNewMovementModal('RECEBER')}>
             <span className="text-emerald">+</span> Cadastrar a Receber
           </button>
@@ -378,7 +509,6 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
               {filteredMovements.map((item) => {
                 const isIncome = item.type === 'RECEBER';
                 const isRealized = item.status === 'REALIZADA';
-                const isVirtual = (item as any).isSalaryVirtual === true;
 
                 // Cálculo reativo do valor se pago hoje para empréstimos
                 let todayPrepayment = null;
@@ -388,22 +518,16 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
                 }
 
                 return (
-                  <tr key={item.id} className={`${isRealized ? 'row-realized' : ''} ${isVirtual ? 'row-virtual-salary' : ''}`}>
+                  <tr key={item.id} className={`${isRealized ? 'row-realized' : ''}`}>
                     {/* Toggle Status Checkbox */}
                     <td>
-                      {isVirtual ? (
-                        <span title="Previsto pelo contrato de salário" style={{ display: 'flex', justifyContent: 'center', color: 'var(--accent-cyan)', opacity: 0.7 }}>
-                          <Briefcase size={16} />
-                        </span>
-                      ) : (
-                        <button
-                          className={`status-toggle-btn ${isRealized ? 'checked' : ''}`}
-                          onClick={() => toggleMovementStatus(item.id)}
-                          title={isRealized ? 'Marcar como prevista' : 'Confirmar liquidação'}
-                        >
-                          {isRealized ? <CheckCircle2 size={18} className="text-emerald" /> : <Clock size={18} className="text-muted" />}
-                        </button>
-                      )}
+                      <button
+                        className={`status-toggle-btn ${isRealized ? 'checked' : ''}`}
+                        onClick={() => toggleMovementStatus(item.id)}
+                        title={isRealized ? 'Marcar como prevista' : 'Confirmar liquidação'}
+                      >
+                        {isRealized ? <CheckCircle2 size={18} className="text-emerald" /> : <Clock size={18} className="text-muted" />}
+                      </button>
                     </td>
 
                     {/* Title */}
@@ -411,11 +535,6 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
                       <div className="item-title-col">
                         <div className="flex items-center gap-2">
                           <span className={`item-title ${isRealized ? 'line-through' : ''}`}>{item.title}</span>
-                          {isVirtual && (
-                            <span className="badge badge-cyan text-xs" style={{ fontSize: '10px', padding: '2px 6px', opacity: 0.85 }}>
-                              💼 Salário
-                            </span>
-                          )}
                           {item.installmentNumber && item.installmentsTotal && (
                             <span className="badge badge-cyan text-xs">
                               {item.installmentNumber}/{item.installmentsTotal}
@@ -488,17 +607,13 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
 
                     {/* Actions */}
                     <td style={{ textAlign: 'center' }}>
-                      {isVirtual ? (
-                        <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontStyle: 'italic' }}>Projetado</span>
-                      ) : (
-                        <button
-                          className="delete-action-btn"
-                          onClick={() => deleteMovement(item.id)}
-                          title="Excluir movimentação"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      )}
+                      <button
+                        className="delete-action-btn"
+                        onClick={() => deleteMovement(item.id)}
+                        title="Excluir movimentação"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     </td>
                   </tr>
                 );
