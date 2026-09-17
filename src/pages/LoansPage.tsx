@@ -31,10 +31,17 @@ export interface RowSimConfig {
 }
 
 export const LoansPage: React.FC = () => {
-  const { movements, natures, salaryContracts, addMovement, prepayInstallments } = useFinancial();
+  const { movements, natures, salaryContracts, addMovement, prepayInstallments, toggleMovementStatus } = useFinancial();
 
   const [activeTab, setActiveTab] = useState<'CONTRACTED' | 'SIMULATOR'>('CONTRACTED');
   const [isSimulatorModalOpen, setIsSimulatorModalOpen] = useState(false);
+
+  // Parcelas já pagas no passado para empréstimos existentes
+  const [alreadyPaidCount, setAlreadyPaidCount] = useState<number>(0);
+  const [includeDisbursement, setIncludeDisbursement] = useState<boolean>(true);
+
+  // Filtro de parcelas na tela de contratos ativos ('ALL' | 'OPEN' | 'PAID')
+  const [contractInstallmentFilter, setContractInstallmentFilter] = useState<'ALL' | 'OPEN' | 'PAID'>('ALL');
 
   // Modo de exibição da tabela: Impacto no Caixa ou Tabela Price Oficial
   const [gridMode, setGridMode] = useState<'CASHFLOW_IMPACT' | 'OFFICIAL_PRICE'>('CASHFLOW_IMPACT');
@@ -337,35 +344,56 @@ export const LoansPage: React.FC = () => {
     return contractedGroups.find((g) => g.groupId === selectedGroupId) || contractedGroups[0];
   }, [contractedGroups, selectedGroupId]);
 
+  // Parcelas do contrato selecionado a serem exibidas conforme o filtro ativo ('ALL' | 'OPEN' | 'PAID')
+  const displayedInstallments = useMemo(() => {
+    if (!selectedGroup) return [];
+    let list = selectedGroup.allInstallments;
+    if (contractInstallmentFilter === 'OPEN') {
+      list = selectedGroup.openInstallments;
+    } else if (contractInstallmentFilter === 'PAID') {
+      list = selectedGroup.paidInstallments;
+    }
+    return [...list].sort((a, b) => (a.installmentNumber || 0) - (b.installmentNumber || 0));
+  }, [selectedGroup, contractInstallmentFilter]);
+
   // Contratar / Efetivar simulação no fluxo de caixa do Balder
   const handleContractInBalder = () => {
     if (summary.installmentValue <= 0 || summary.termMonths <= 0) return;
 
     const newGroupId = `loan_sim_${Date.now()}`;
-    const confirmed = window.confirm(
-      `Deseja contratar e efetivar este empréstimo no Balder?\n\n• Valor Financiado: R$ ${summary.principalAmount.toLocaleString('pt-BR')}\n• ${summary.termMonths} parcelas de R$ ${summary.installmentValue.toLocaleString('pt-BR')}\n\nSerá agendada a entrada do recurso e a programação de todas as parcelas mensais no seu fluxo de caixa.`
-    );
+    const totalCount = summary.termMonths;
+    const paidCount = alreadyPaidCount;
+    const openCount = totalCount - paidCount;
 
+    const msgConfirm =
+      alreadyPaidCount > 0
+        ? `Deseja cadastrar este empréstimo no Balder com ${alreadyPaidCount} parcela(s) já quitada(s)?\n\n• Valor Financiado: R$ ${summary.principalAmount.toLocaleString('pt-BR')}\n• Parcelas Totais: ${totalCount} de R$ ${summary.installmentValue.toLocaleString('pt-BR')}\n• Parcelas já pagas: ${paidCount} (serão registradas como quitadas)\n• Parcelas em aberto: ${openCount} (agendadas no fluxo futuro)\n• Registrar captação inicial: ${includeDisbursement ? 'Sim' : 'Não'}`
+        : `Deseja contratar e efetivar este empréstimo no Balder?\n\n• Valor Financiado: R$ ${summary.principalAmount.toLocaleString('pt-BR')}\n• ${summary.termMonths} parcelas de R$ ${summary.installmentValue.toLocaleString('pt-BR')}\n\nSerá agendada a entrada do recurso e a programação de todas as parcelas mensais no seu fluxo de caixa.`;
+
+    const confirmed = window.confirm(msgConfirm);
     if (!confirmed) return;
 
-    // 1. Injeção de Liquidez (Entrada do recurso)
-    addMovement({
-      title: `Captação: ${contractName}`,
-      type: 'RECEBER',
-      amount: summary.principalAmount,
-      dueDate: params.contractDate,
-      bank: 'Inter',
-      status: 'REALIZADA',
-      category: 'Empréstimos',
-      notes: `Captação financiada de R$ ${summary.principalAmount.toFixed(2)} a ${((params.monthlyInterestRate) * 100).toFixed(3)}% a.m.`,
-      installmentGroupId: newGroupId,
-    });
+    // 1. Injeção de Liquidez (Entrada do recurso) - opcional se já for empréstimo antigo
+    if (includeDisbursement) {
+      addMovement({
+        title: `Captação: ${contractName}`,
+        type: 'RECEBER',
+        amount: summary.principalAmount,
+        dueDate: params.contractDate,
+        bank: 'Inter',
+        status: 'REALIZADA',
+        category: 'Empréstimos',
+        notes: `Captação financiada de R$ ${summary.principalAmount.toFixed(2)} a ${(params.monthlyInterestRate * 100).toFixed(3)}% a.m.`,
+        installmentGroupId: newGroupId,
+      });
+    }
 
-    // 2. Programação de todas as parcelas futuras
+    // 2. Programação de todas as parcelas (pagas no passado e abertas no futuro)
     rows.slice(1).forEach((row) => {
       // Converte DD/MM/YYYY para YYYY-MM-DD
       const [d, m, y] = row.dueDate.split('/');
       const isoDue = `${y}-${m}-${d}`;
+      const isPaidPast = row.month <= alreadyPaidCount;
 
       addMovement({
         title: `${contractName} (${row.month}/${summary.termMonths})`,
@@ -373,9 +401,9 @@ export const LoansPage: React.FC = () => {
         amount: row.installmentValue,
         dueDate: isoDue,
         bank: 'Inter',
-        status: 'PREVISTA',
+        status: isPaidPast ? 'REALIZADA' : 'PREVISTA',
         category: 'Empréstimos',
-        notes: `Tabela Price. Amortização: R$ ${row.amortizationValue.toFixed(2)} | Juros: R$ ${row.interestValue.toFixed(2)}`,
+        notes: `Tabela Price. Amortização: R$ ${row.amortizationValue.toFixed(2)} | Juros: R$ ${row.interestValue.toFixed(2)}${isPaidPast ? ' (Quitada anteriormente)' : ''}`,
         installmentNumber: row.month,
         installmentsTotal: summary.termMonths,
         installmentGroupId: newGroupId,
@@ -383,7 +411,9 @@ export const LoansPage: React.FC = () => {
     });
 
     alert(
-      `✓ Empréstimo contratado com sucesso!\n\nAs ${summary.termMonths} parcelas de R$ ${summary.installmentValue.toLocaleString('pt-BR')} foram agendadas no seu cronograma contábil.`
+      alreadyPaidCount > 0
+        ? `✓ Empréstimo registrado com sucesso!\n\n${paidCount} parcela(s) quitada(s) e ${openCount} parcela(s) em aberto foram salvas.`
+        : `✓ Empréstimo contratado com sucesso!\n\nAs ${summary.termMonths} parcelas de R$ ${summary.installmentValue.toLocaleString('pt-BR')} foram agendadas no seu cronograma contábil.`
     );
     setIsSimulatorModalOpen(false);
     setActiveTab('CONTRACTED');
@@ -540,6 +570,89 @@ export const LoansPage: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {/* Seção: Empréstimo Já em Andamento / Parcelas Anteriores */}
+              <div
+                style={{
+                  marginTop: '1.25rem',
+                  padding: '1rem',
+                  background: 'rgba(14, 165, 233, 0.05)',
+                  border: '1px solid rgba(14, 165, 233, 0.2)',
+                  borderRadius: '12px',
+                }}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-cyan flex items-center gap-1.5 uppercase tracking-wider">
+                    <Clock size={14} /> Empréstimo já em andamento?
+                  </span>
+                  {alreadyPaidCount > 0 && (
+                    <span className="badge badge-emerald text-xs">
+                      {alreadyPaidCount} de {params.termMonths} quitadas
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted mb-3">
+                  Se você contratou este empréstimo no passado, defina quantas parcelas já foram pagas para que o Balder registre o histórico contábil e mantenha em aberto apenas as parcelas restantes.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                  <div className="form-group" style={{ margin: 0 }}>
+                    <label style={{ fontSize: '0.78rem' }}>Parcelas Já Quitadas no Passado</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max={params.termMonths - 1}
+                      className="form-input"
+                      value={alreadyPaidCount}
+                      onChange={(e) => {
+                        const val = Math.max(
+                          0,
+                          Math.min(params.termMonths - 1, parseInt(e.target.value, 10) || 0)
+                        );
+                        setAlreadyPaidCount(val);
+                        if (val > 0) {
+                          setIncludeDisbursement(false);
+                        }
+                      }}
+                      placeholder="0"
+                    />
+                  </div>
+
+                  <div className="flex flex-col justify-end">
+                    <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Atalhos rápidos</label>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {[0, 1, 3, 6, 12]
+                        .filter((n) => n < params.termMonths)
+                        .map((num) => (
+                          <button
+                            key={num}
+                            type="button"
+                            className={`btn btn-xs ${alreadyPaidCount === num ? 'btn-primary' : 'btn-outline'}`}
+                            onClick={() => {
+                              setAlreadyPaidCount(num);
+                              if (num > 0) setIncludeDisbursement(false);
+                            }}
+                          >
+                            {num === 0 ? 'Nenhuma (Novo)' : `${num} pagas`}
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
+                  <input
+                    type="checkbox"
+                    id="chk-disbursement"
+                    checked={includeDisbursement}
+                    onChange={(e) => setIncludeDisbursement(e.target.checked)}
+                    style={{ cursor: 'pointer', accentColor: '#0ea5e9' }}
+                  />
+                  <label htmlFor="chk-disbursement" className="text-xs text-secondary cursor-pointer">
+                    Lançar entrada do valor captado ({params.principalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}) na data de contratação
+                  </label>
+                </div>
+              </div>
             </div>
 
             {/* Painel 2: Resumo do Financiamento */}
@@ -601,6 +714,31 @@ export const LoansPage: React.FC = () => {
                 </div>
               </div>
 
+              {alreadyPaidCount > 0 && (
+                <div
+                  style={{
+                    marginTop: '0.75rem',
+                    padding: '0.65rem 0.75rem',
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                    borderRadius: '8px',
+                  }}
+                >
+                  <div className="flex justify-between items-center text-xs mb-1">
+                    <span className="text-muted">Já quitadas no passado:</span>
+                    <strong className="text-emerald">
+                      {alreadyPaidCount}x ({(alreadyPaidCount * summary.installmentValue).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
+                    </strong>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-muted">A pagar em aberto:</span>
+                    <strong className="text-cyan font-bold">
+                      {params.termMonths - alreadyPaidCount}x ({((params.termMonths - alreadyPaidCount) * summary.installmentValue).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
+                    </strong>
+                  </div>
+                </div>
+              )}
+
               {/* Nota Oficial da Planilha */}
               <div className="spreadsheet-note-box mt-3">
                 <Info size={14} className="text-cyan flex-shrink-0 mt-0.5" />
@@ -620,7 +758,11 @@ export const LoansPage: React.FC = () => {
                   onClick={handleContractInBalder}
                 >
                   <PlusCircle size={16} />
-                  <span>Contratar no Balder</span>
+                  <span>
+                    {alreadyPaidCount > 0
+                      ? `Registrar (${params.termMonths - alreadyPaidCount} em aberto)`
+                      : 'Contratar no Balder'}
+                  </span>
                 </button>
 
                 <button
@@ -1282,10 +1424,11 @@ export const LoansPage: React.FC = () => {
                 {contractedGroups.map((g) => {
                   const isSelected = g.groupId === selectedGroupId;
                   const openCount = g.openInstallments.length;
-                  const paidCount = Math.max(0, g.totalInstallmentsCount - openCount);
+                  const paidCount = g.paidInstallments.length;
+                  const totalCount = g.totalInstallmentsCount || g.allInstallments.length;
                   const progressPct =
-                    g.totalInstallmentsCount > 0
-                      ? Math.round((paidCount / g.totalInstallmentsCount) * 100)
+                    totalCount > 0
+                      ? Math.round((paidCount / totalCount) * 100)
                       : 0;
 
                   return (
@@ -1301,13 +1444,13 @@ export const LoansPage: React.FC = () => {
                           <span className="text-xs text-cyan font-semibold">{g.bank}</span>
                           <h4 className="font-bold text-white text-md">{g.title}</h4>
                         </div>
-                        <span className="badge badge-cyan text-xs">
-                          {paidCount}/{g.totalInstallmentsCount} Pagas
+                        <span className={`badge ${paidCount === totalCount && totalCount > 0 ? 'badge-emerald' : 'badge-cyan'} text-xs`}>
+                          {paidCount}/{totalCount} Pagas
                         </span>
                       </div>
 
                       <div className="flex justify-between text-xs text-muted mb-2">
-                        <span>Saldo Devedor:</span>
+                        <span>Saldo Devedor ({openCount} em aberto):</span>
                         <strong className="text-white">
                           {g.nominalBalance.toLocaleString('pt-BR', {
                             style: 'currency',
@@ -1327,19 +1470,43 @@ export const LoansPage: React.FC = () => {
               {/* Grid do Contrato Selecionado */}
               {selectedGroup && (
                 <div className="glass-card loan-spreadsheet-grid-card">
-                  <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+                  <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
                     <div>
                       <h3 className="text-md font-bold text-white">
                         Evolução das Parcelas: {selectedGroup.title}
                       </h3>
                       <p className="text-xs text-secondary">
-                        Acompanhe parcelas em aberto e o valor presente para antecipar qualquer prestação futura.
+                        Acompanhe o que já foi quitado, o que está em aberto e o valor presente para antecipar qualquer prestação futura.
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <div className="grid-filter-pills">
+                        <button
+                          type="button"
+                          className={`pill-btn ${contractInstallmentFilter === 'ALL' ? 'active' : ''}`}
+                          onClick={() => setContractInstallmentFilter('ALL')}
+                        >
+                          Todas ({selectedGroup.allInstallments.length})
+                        </button>
+                        <button
+                          type="button"
+                          className={`pill-btn ${contractInstallmentFilter === 'OPEN' ? 'active' : ''}`}
+                          onClick={() => setContractInstallmentFilter('OPEN')}
+                        >
+                          Em Aberto ({selectedGroup.openInstallments.length})
+                        </button>
+                        <button
+                          type="button"
+                          className={`pill-btn ${contractInstallmentFilter === 'PAID' ? 'active' : ''}`}
+                          onClick={() => setContractInstallmentFilter('PAID')}
+                        >
+                          Pagas ({selectedGroup.paidInstallments.length})
+                        </button>
+                      </div>
+
                       <div className="text-right">
-                        <span className="text-xs text-muted block">Quitação Integral Hoje</span>
+                        <span className="text-xs text-muted block">Quitação Restante Hoje</span>
                         <strong className="text-emerald text-sm">
                           {selectedGroup.presentValueToday.toLocaleString('pt-BR', {
                             style: 'currency',
@@ -1364,83 +1531,128 @@ export const LoansPage: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {selectedGroup.openInstallments.map((inst) => {
-                          const isPaid = inst.status === 'REALIZADA';
-                          const pvCalc = calculatePresentValue(
-                            inst.amount,
-                            inst.dueDate,
-                            new Date().toISOString().split('T')[0],
-                            selectedGroup.interestRatePercent
-                          );
+                        {displayedInstallments.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="text-center py-6 text-muted" style={{ padding: '2rem 1rem' }}>
+                              Nenhuma parcela encontrada para o filtro selecionado (
+                              {contractInstallmentFilter === 'PAID'
+                                ? 'Pagas'
+                                : contractInstallmentFilter === 'OPEN'
+                                ? 'Em Aberto'
+                                : 'Todas'}
+                              ).
+                            </td>
+                          </tr>
+                        ) : (
+                          displayedInstallments.map((inst) => {
+                            const isPaid = inst.status === 'REALIZADA';
+                            const pvCalc = calculatePresentValue(
+                              inst.amount,
+                              inst.dueDate,
+                              new Date().toISOString().split('T')[0],
+                              selectedGroup.interestRatePercent
+                            );
 
-                          return (
-                            <tr key={inst.id} className={isPaid ? 'row-paid' : ''}>
-                              <td className="font-mono font-bold">
-                                {inst.installmentNumber || 1}/{inst.installmentsTotal || selectedGroup.totalInstallmentsCount}
-                              </td>
-                              <td className="font-mono text-muted">{inst.dueDate}</td>
-                              <td className="th-right font-mono font-semibold text-white">
-                                {inst.amount.toLocaleString('pt-BR', {
-                                  style: 'currency',
-                                  currency: 'BRL',
-                                })}
-                              </td>
-                              <td className="th-right font-mono text-emerald">
-                                {isPaid
-                                  ? '-'
-                                  : pvCalc.discountedAmount.toLocaleString('pt-BR', {
-                                      style: 'currency',
-                                      currency: 'BRL',
-                                    })}
-                              </td>
-                              <td className="th-right font-mono text-amber">
-                                {isPaid
-                                  ? '-'
-                                  : `-${pvCalc.discountAmount.toLocaleString('pt-BR', {
-                                      style: 'currency',
-                                      currency: 'BRL',
-                                    })} (${pvCalc.discountPercent.toFixed(1)}%)`}
-                              </td>
-                              <td className="th-center">
-                                {isPaid ? (
-                                  <span className="badge badge-emerald flex items-center gap-1 justify-center">
-                                    <CheckCircle2 size={12} />
-                                    <span>Paga</span>
-                                  </span>
-                                ) : (
-                                  <span className="badge badge-cyan flex items-center gap-1 justify-center">
-                                    <Clock size={12} />
-                                    <span>Aberta</span>
-                                  </span>
-                                )}
-                              </td>
-                              <td className="th-center">
-                                {!isPaid && (
-                                  <button
-                                    type="button"
-                                    className="btn btn-outline btn-xs"
-                                    onClick={() => {
-                                      const confirmPay = window.confirm(
-                                        `Deseja liquidar esta parcela antecipada por R$ ${pvCalc.discountedAmount.toLocaleString(
-                                          'pt-BR'
-                                        )} (Economia de R$ ${pvCalc.discountAmount.toLocaleString('pt-BR')})?`
-                                      );
-                                      if (confirmPay) {
-                                        prepayInstallments(
-                                          [inst.id],
-                                          { [inst.id]: pvCalc.discountedAmount },
-                                          new Date().toISOString().split('T')[0]
-                                        );
-                                      }
-                                    }}
-                                  >
-                                    Antecipar Agora
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
+                            return (
+                              <tr key={inst.id} className={isPaid ? 'row-paid' : ''}>
+                                <td className="font-mono font-bold">
+                                  {inst.installmentNumber || 1}/{inst.installmentsTotal || selectedGroup.totalInstallmentsCount}
+                                </td>
+                                <td className="font-mono text-muted">{inst.dueDate}</td>
+                                <td className="th-right font-mono font-semibold text-white">
+                                  {inst.amount.toLocaleString('pt-BR', {
+                                    style: 'currency',
+                                    currency: 'BRL',
+                                  })}
+                                </td>
+                                <td className="th-right font-mono text-emerald">
+                                  {isPaid
+                                    ? '-'
+                                    : pvCalc.discountedAmount.toLocaleString('pt-BR', {
+                                        style: 'currency',
+                                        currency: 'BRL',
+                                      })}
+                                </td>
+                                <td className="th-right font-mono text-amber">
+                                  {isPaid
+                                    ? '-'
+                                    : `-${pvCalc.discountAmount.toLocaleString('pt-BR', {
+                                        style: 'currency',
+                                        currency: 'BRL',
+                                      })} (${pvCalc.discountPercent.toFixed(1)}%)`}
+                                </td>
+                                <td className="th-center">
+                                  {isPaid ? (
+                                    <span className="badge badge-emerald flex items-center gap-1 justify-center">
+                                      <CheckCircle2 size={12} />
+                                      <span>Paga</span>
+                                    </span>
+                                  ) : (
+                                    <span className="badge badge-cyan flex items-center gap-1 justify-center">
+                                      <Clock size={12} />
+                                      <span>Em Aberto</span>
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="th-center">
+                                  <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                    {isPaid ? (
+                                      <button
+                                        type="button"
+                                        className="btn btn-outline btn-xs text-muted hover:text-white"
+                                        title="Marcar parcela novamente como em aberto"
+                                        onClick={() => {
+                                          if (
+                                            window.confirm(
+                                              `Deseja reabrir a parcela ${inst.installmentNumber || ''} e marcá-la como em aberto?`
+                                            )
+                                          ) {
+                                            toggleMovementStatus(inst.id);
+                                          }
+                                        }}
+                                      >
+                                        <RotateCcw size={12} />
+                                        <span>Reabrir</span>
+                                      </button>
+                                    ) : (
+                                      <>
+                                        <button
+                                          type="button"
+                                          className="btn btn-outline btn-xs text-emerald border-emerald-500/30 hover:bg-emerald-500/10"
+                                          title="Marcar parcela como paga"
+                                          onClick={() => toggleMovementStatus(inst.id)}
+                                        >
+                                          <Check size={12} />
+                                          <span>Marcar Paga</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="btn btn-outline btn-xs"
+                                          onClick={() => {
+                                            const confirmPay = window.confirm(
+                                              `Deseja liquidar esta parcela antecipada por R$ ${pvCalc.discountedAmount.toLocaleString(
+                                                'pt-BR'
+                                              )} (Economia de R$ ${pvCalc.discountAmount.toLocaleString('pt-BR')})?`
+                                            );
+                                            if (confirmPay) {
+                                              prepayInstallments(
+                                                [inst.id],
+                                                { [inst.id]: pvCalc.discountedAmount },
+                                                new Date().toISOString().split('T')[0]
+                                              );
+                                            }
+                                          }}
+                                        >
+                                          Antecipar
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
                       </tbody>
                     </table>
                   </div>

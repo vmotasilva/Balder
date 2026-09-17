@@ -66,7 +66,9 @@ export interface LoanContractGroup {
   bank: string;
   category: string;
   interestRatePercent: number;
+  allInstallments: Movement[];
   openInstallments: Movement[];
+  paidInstallments: Movement[];
   totalInstallmentsCount: number;
   nominalBalance: number;
   presentValueToday: number;
@@ -80,7 +82,8 @@ export function groupLoanMovements(
   movements: Movement[],
   paymentDateStr: string = new Date().toISOString().split('T')[0]
 ): LoanContractGroup[] {
-  const loanMovements = movements.filter((m) => m.type === 'EMPRESTIMO' && m.status === 'PREVISTA');
+  // Considera todas as parcelas de empréstimo (tanto previstas quanto já realizadas/pagas)
+  const loanMovements = movements.filter((m) => m.type === 'EMPRESTIMO');
 
   const groupsMap = new Map<string, Movement[]>();
 
@@ -96,8 +99,16 @@ export function groupLoanMovements(
   const result: LoanContractGroup[] = [];
 
   groupsMap.forEach((items, key) => {
-    // Ordenar por data de vencimento
-    items.sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
+    // Ordenar por número da parcela ou por data de vencimento
+    items.sort((a, b) => {
+      if (a.installmentNumber && b.installmentNumber) {
+        return a.installmentNumber - b.installmentNumber;
+      }
+      return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+    });
+
+    const openItems = items.filter((m) => m.status === 'PREVISTA');
+    const paidItems = items.filter((m) => m.status === 'REALIZADA');
 
     const firstItem = items[0];
     const cleanTitle = firstItem.title.replace(/\s*\(\d+\/\d+\).*/, '').trim();
@@ -112,11 +123,15 @@ export function groupLoanMovements(
     }
     if (!rate) rate = 2.50; // fallback padrão se não especificado
 
-    const totalCount = firstItem.installmentsTotal || items.length;
-    const nominalBalance = items.reduce((sum, item) => sum + item.amount, 0);
+    const totalCount = Math.max(
+      firstItem.installmentsTotal || 0,
+      items.length,
+      ...items.map((i) => i.installmentNumber || 0)
+    );
+    const nominalBalance = openItems.reduce((sum, item) => sum + item.amount, 0);
 
     let pvSum = 0;
-    items.forEach((item) => {
+    openItems.forEach((item) => {
       const calc = calculatePresentValue(item.amount, item.dueDate, paymentDateStr, rate);
       pvSum += calc.discountedAmount;
     });
@@ -130,7 +145,9 @@ export function groupLoanMovements(
       bank: firstItem.bank,
       category: firstItem.category,
       interestRatePercent: rate,
-      openInstallments: items,
+      allInstallments: items,
+      openInstallments: openItems,
+      paidInstallments: paidItems,
       totalInstallmentsCount: totalCount,
       nominalBalance: Math.round(nominalBalance * 100) / 100,
       presentValueToday: roundedPv,
