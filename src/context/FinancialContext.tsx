@@ -60,6 +60,7 @@ interface FinancialContextType {
   activeCheckpoint: FinancialCheckpoint | null;
   addCheckpoint: (cp: Omit<FinancialCheckpoint, 'id' | 'createdAt' | 'isActive'>) => void;
   activateCheckpoint: (id: string) => void;
+  deleteCheckpoint: (id: string) => void;
 
 
   // Métricas Calculadas
@@ -218,14 +219,12 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Marcos de Acompanhamento Financeiro
   const [checkpoints, setCheckpoints] = useState<FinancialCheckpoint[]>(() => {
-    if (user) {
-      try {
-        const saved = localStorage.getItem(`balder_checkpoints_${user.$id}`);
-        return saved ? JSON.parse(saved) : [];
-      } catch {
-        return [];
-      }
-    }
+    try {
+      const savedUser = user ? localStorage.getItem(`balder_checkpoints_${user.$id}`) : null;
+      if (savedUser) return JSON.parse(savedUser);
+      const savedGuest = localStorage.getItem('balder_checkpoints_guest');
+      if (savedGuest) return JSON.parse(savedGuest);
+    } catch {}
     return [];
   });
 
@@ -235,9 +234,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     [checkpoints]
   );
 
-  // Persistência dos checkpoints
+  // Persistência dos checkpoints (apenas salva quando houver checkpoints definidos, evitando sobrescrita por array vazio)
   useEffect(() => {
-    if (user && !user.isGuest) {
+    if (user && !user.isGuest && checkpoints.length > 0) {
       localStorage.setItem(`balder_checkpoints_${user.$id}`, JSON.stringify(checkpoints));
     }
   }, [checkpoints, user]);
@@ -250,16 +249,47 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       createdAt: new Date().toISOString(),
       isActive: true,
     };
-    setCheckpoints((prev) =>
-      [...prev.map((c) => ({ ...c, isActive: false })), newCp]
-    );
+    setCheckpoints((prev) => {
+      const next = [...prev.map((c) => ({ ...c, isActive: false })), newCp];
+      const storageKey = user && !user.isGuest ? `balder_checkpoints_${user.$id}` : 'balder_checkpoints_guest';
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch (e) {
+        console.warn('Erro ao salvar checkpoint:', e);
+      }
+      return next;
+    });
   };
 
   // Ativar um checkpoint existente pelo ID
   const activateCheckpoint = (id: string) => {
-    setCheckpoints((prev) =>
-      prev.map((c) => ({ ...c, isActive: c.id === id }))
-    );
+    setCheckpoints((prev) => {
+      const next = prev.map((c) => ({ ...c, isActive: c.id === id }));
+      const storageKey = user && !user.isGuest ? `balder_checkpoints_${user.$id}` : 'balder_checkpoints_guest';
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch (e) {
+        console.warn('Erro ao ativar checkpoint:', e);
+      }
+      return next;
+    });
+  };
+
+  // Excluir um checkpoint existente pelo ID
+  const deleteCheckpoint = (id: string) => {
+    setCheckpoints((prev) => {
+      const next = prev.filter((c) => c.id !== id);
+      if (!next.some((c) => c.isActive) && next.length > 0) {
+        next[next.length - 1].isActive = true;
+      }
+      const storageKey = user && !user.isGuest ? `balder_checkpoints_${user.$id}` : 'balder_checkpoints_guest';
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch (e) {
+        console.warn('Erro ao excluir checkpoint:', e);
+      }
+      return next;
+    });
   };
 
   // Movimentações Financeiras
@@ -766,6 +796,15 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             setBanks(savedBanks ? JSON.parse(savedBanks) : []);
             const savedSalaries = user ? localStorage.getItem(`balder_salaries_${user.$id}`) : null;
             setSalaryContracts(savedSalaries ? JSON.parse(savedSalaries) : []);
+            const savedCheckpoints = user
+              ? localStorage.getItem(`balder_checkpoints_${user.$id}`)
+              : localStorage.getItem('balder_checkpoints_guest');
+            if (savedCheckpoints) {
+              const parsed = JSON.parse(savedCheckpoints);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                setCheckpoints(parsed);
+              }
+            }
           } catch {
             setAccounts([]);
             setCards([]);
@@ -2349,6 +2388,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         activeCheckpoint,
         addCheckpoint,
         activateCheckpoint,
+        deleteCheckpoint,
         totalNetWorth,
 
         availableBalance,

@@ -126,6 +126,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </div>
           </div>
           <button
+            type="button"
             onClick={() => setIsCheckpointModalOpen(true)}
             className="btn btn-primary whitespace-nowrap self-stretch md:self-auto text-xs py-2.5 px-4 shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2"
           >
@@ -164,7 +165,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 <span className="trend-pill trend-up">
                   <ArrowUpRight size={13} /> +4.2% este mês
                 </span>
-                <span className="stat-subtext">Consolidado B3 + Bancos</span>
+                <span className="stat-subtext">
+                  {activeCheckpoint && activeCheckpoint.initialNetWorth !== undefined
+                    ? 'Ancorado no Marco'
+                    : 'Consolidado B3 + Bancos'}
+                </span>
               </div>
             </div>
           </div>
@@ -182,7 +187,11 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 {availableBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </span>
               <div className="stat-card-footer">
-                <span className="stat-subtext">Nubank + Inter conta corrente</span>
+                <span className="stat-subtext">
+                  {activeCheckpoint
+                    ? (activeCheckpoint.label || 'Marco de Início Ativo')
+                    : 'Nubank + Inter conta corrente'}
+                </span>
               </div>
             </div>
           </div>

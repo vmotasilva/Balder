@@ -1,13 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { Modal } from './Modal';
-import { Flag, Calendar, DollarSign, Tag, Info, AlertTriangle } from 'lucide-react';
+import { Flag, Calendar, DollarSign, Tag, Info, AlertTriangle, CheckCircle } from 'lucide-react';
 
 interface CheckpointSetupModalProps {
   isOpen: boolean;
   onClose: () => void;
   isInitialSetup?: boolean;
 }
+
+// Utilitário robusto de conversão para moeda brasileira (trata milhares com ponto, vírgula e decimais)
+const parseBRLNumber = (val: string): number => {
+  if (!val) return 0;
+  const clean = val.replace(/[R$\s]/g, '').trim();
+  if (!clean) return 0;
+  if (clean.includes('.') && clean.includes(',')) {
+    return parseFloat(clean.replace(/\./g, '').replace(',', '.')) || 0;
+  }
+  if (clean.includes(',')) {
+    return parseFloat(clean.replace(',', '.')) || 0;
+  }
+  if ((clean.match(/\./g) || []).length > 1) {
+    return parseFloat(clean.replace(/\./g, '')) || 0;
+  }
+  return parseFloat(clean) || 0;
+};
 
 export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
   isOpen,
@@ -18,36 +35,47 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
 
   const getTodayString = () => new Date().toISOString().split('T')[0];
 
+  const getFirstDayOfMonthString = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}-01`;
+  };
+
   const [startDate, setStartDate] = useState<string>(getTodayString());
   const [initialBalance, setInitialBalance] = useState<string>('0');
   const [label, setLabel] = useState<string>('');
+  const [savedSuccess, setSavedSuccess] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
+      setSavedSuccess(false);
       if (activeCheckpoint && !isInitialSetup) {
-        // Se já existe e quer criar novo recomeço
-        setStartDate(getTodayString());
+        setStartDate(activeCheckpoint.startDate || getTodayString());
         setInitialBalance(String(activeCheckpoint.initialBalance || 0));
         setLabel(`Recomeço ${new Date().toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })}`);
       } else {
-        setStartDate(getTodayString());
+        setStartDate(getFirstDayOfMonthString());
         setInitialBalance('0');
-        setLabel(isInitialSetup ? 'Início do Acompanhamento' : '');
+        setLabel(isInitialSetup ? 'Ponto de Partida Inicial' : '');
       }
     }
   }, [isOpen, activeCheckpoint, isInitialSetup]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const balanceNum = parseFloat(initialBalance.replace(',', '.')) || 0;
+    const balanceNum = parseBRLNumber(initialBalance);
 
     addCheckpoint({
       startDate: startDate || getTodayString(),
       initialBalance: balanceNum,
-      label: label.trim() || (isInitialSetup ? 'Início do Acompanhamento' : `Marco de ${startDate}`),
+      label: label.trim() || (isInitialSetup ? 'Ponto de Partida Inicial' : `Marco de ${startDate}`),
     });
 
-    onClose();
+    setSavedSuccess(true);
+    setTimeout(() => {
+      onClose();
+    }, 450);
   };
 
   return (
@@ -62,100 +90,165 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
       }
       maxWidth="540px"
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
         {/* Banner Informativo */}
-        <div className="p-3.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-xs text-cyan-200 flex gap-2.5 items-start">
-          <Info size={18} className="text-cyan-400 shrink-0 mt-0.5" />
+        <div
+          style={{
+            padding: '0.85rem 1rem',
+            borderRadius: '10px',
+            background: 'rgba(6, 182, 212, 0.1)',
+            border: '1px solid rgba(6, 182, 212, 0.25)',
+            fontSize: '0.82rem',
+            color: 'var(--text-primary)',
+            display: 'flex',
+            gap: '0.75rem',
+            alignItems: 'flex-start',
+          }}
+        >
+          <Info size={18} className="text-cyan" style={{ flexShrink: 0, marginTop: '2px' }} />
           <div>
-            <p className="font-semibold text-cyan-300">Como funciona o Marco Financeiro?</p>
-            <p className="mt-1 leading-relaxed text-slate-300">
-              O sistema utiliza a <strong>data de início</strong> e o <strong>saldo em caixa</strong> como âncora principal. 
-              Movimentos realizados e previstos a partir dessa data alimentarão o saldo disponível e os cálculos futuros.
+            <strong style={{ color: 'var(--accent-cyan)' }}>Como funciona o Marco Financeiro?</strong>
+            <p style={{ margin: '0.25rem 0 0', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+              O sistema utiliza a <strong>data de início</strong> e o <strong>saldo em caixa</strong> como âncora principal.
+              Movimentações a partir dessa data alimentarão o saldo disponível e todas as projeções futuras.
             </p>
           </div>
         </div>
 
         {checkpoints.length > 0 && !isInitialSetup && (
-          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200 flex gap-2.5 items-center">
-            <AlertTriangle size={16} className="text-amber-400 shrink-0" />
+          <div
+            style={{
+              padding: '0.75rem 1rem',
+              borderRadius: '10px',
+              background: 'rgba(245, 158, 11, 0.1)',
+              border: '1px solid rgba(245, 158, 11, 0.25)',
+              fontSize: '0.8rem',
+              color: '#FCD34D',
+              display: 'flex',
+              gap: '0.6rem',
+              alignItems: 'center',
+            }}
+          >
+            <AlertTriangle size={16} className="text-amber" />
             <span>
               O marco atual ativo será substituído por este novo ponto de partida. Seu histórico anterior continuará seguro.
             </span>
           </div>
         )}
 
-        {/* Data de Início */}
-        <div>
-          <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-            <Calendar size={14} className="text-indigo-400" />
-            Data de Início do Acompanhamento
+        {/* Campo 1: Data de Início */}
+        <div className="form-group">
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.82rem' }}>
+              <Calendar size={14} className="text-cyan" />
+              Data de Início do Acompanhamento
+            </span>
+            <div style={{ display: 'flex', gap: '0.35rem' }}>
+              <button
+                type="button"
+                className="btn btn-outline btn-xs"
+                style={{ fontSize: '0.72rem', padding: '2px 8px' }}
+                onClick={() => setStartDate(getFirstDayOfMonthString())}
+              >
+                1º do Mês
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline btn-xs"
+                style={{ fontSize: '0.72rem', padding: '2px 8px' }}
+                onClick={() => setStartDate(getTodayString())}
+              >
+                Hoje
+              </button>
+            </div>
           </label>
           <input
             type="date"
             required
+            className="form-input"
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
-            className="w-full bg-slate-900/80 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
           />
-          <span className="text-[11px] text-slate-400 mt-1 block">
-            Apenas transações a partir desta data influenciarão o saldo e fluxo.
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem', display: 'block' }}>
+            Apenas transações a partir desta data influenciarão o saldo em caixa e fluxo do dashboard.
           </span>
         </div>
 
-        {/* Saldo Inicial em Caixa */}
-        <div>
-          <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-            <DollarSign size={14} className="text-emerald-400" />
-            Saldo em Caixa nessa Data (R$)
+        {/* Campo 2: Saldo Inicial em Caixa */}
+        <div className="form-group">
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.4rem' }}>
+            <DollarSign size={14} className="text-emerald" />
+            Saldo Total em Caixa nessa Data (R$)
           </label>
-          <div className="relative">
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-slate-400 font-semibold">
+          <div style={{ position: 'relative' }}>
+            <span
+              style={{
+                position: 'absolute',
+                left: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                fontWeight: 700,
+                color: 'var(--accent-emerald)',
+                fontSize: '0.9rem',
+              }}
+            >
               R$
             </span>
             <input
               type="text"
               required
-              value={initialBalance}
-              onChange={(e) => setInitialBalance(e.target.value)}
+              className="form-input"
+              style={{ paddingLeft: '40px', fontWeight: 700, color: 'var(--accent-emerald)', fontSize: '1.05rem' }}
               placeholder="0,00"
-              className="w-full bg-slate-900/80 border border-slate-700/80 rounded-xl pl-10 pr-3.5 py-2.5 text-sm font-semibold text-emerald-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+              value={initialBalance}
+              onFocus={(e) => {
+                if (e.target.value === '0') setInitialBalance('');
+              }}
+              onChange={(e) => setInitialBalance(e.target.value)}
             />
           </div>
-          <span className="text-[11px] text-slate-400 mt-1 block">
-            Valor total real disponível em contas e carteira no dia inicial escolhido.
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem', display: 'block' }}>
+            Valor total real que você tinha disponível (somando conta corrente e carteira) no dia inicial escolhido.
           </span>
         </div>
 
-        {/* Nome do Marco (Opcional) */}
-        <div>
-          <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-            <Tag size={14} className="text-purple-400" />
+        {/* Campo 3: Nome do Marco (Opcional) */}
+        <div className="form-group">
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.4rem' }}>
+            <Tag size={14} className="text-cyan" />
             Nome do Marco (Opcional)
           </label>
           <input
             type="text"
+            className="form-input"
+            placeholder="ex: Ponto de Partida 2026, Novo Ciclo Março"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            placeholder="ex: Início 2026, Recomeço Balder, Planejamento Março"
-            className="w-full bg-slate-900/80 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
           />
         </div>
 
-        {/* Botões de Ação */}
-        <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors"
-          >
+        {/* Botões do Rodapé */}
+        <div className="modal-footer-actions" style={{ marginTop: '0.5rem' }}>
+          <button type="button" className="btn btn-outline" onClick={onClose}>
             Cancelar
           </button>
           <button
             type="submit"
-            className="px-5 py-2.5 text-xs font-semibold bg-gradient-to-r from-indigo-500 to-cyan-500 hover:from-indigo-600 hover:to-cyan-600 text-white rounded-xl shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/40 transition-all flex items-center gap-2"
+            className="btn btn-primary"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+            disabled={savedSuccess}
           >
-            <Flag size={14} />
-            {isInitialSetup ? 'Salvar Ponto de Partida' : 'Ativar Novo Marco'}
+            {savedSuccess ? (
+              <>
+                <CheckCircle size={15} />
+                <span>Salvo com Sucesso!</span>
+              </>
+            ) : (
+              <>
+                <Flag size={15} />
+                <span>{isInitialSetup ? 'Salvar Ponto de Partida' : 'Ativar Novo Marco'}</span>
+              </>
+            )}
           </button>
         </div>
       </form>

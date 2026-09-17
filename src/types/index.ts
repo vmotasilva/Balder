@@ -415,6 +415,8 @@ export interface FinancialCheckpoint {
   createdAt: string;       // ISO datetime de quando o marco foi criado
   startDate: string;       // YYYY-MM-DD — data a partir da qual monitorar
   initialBalance: number;  // Saldo em caixa nessa data (R$)
+  initialNetWorth?: number; // Patrimônio líquido estimado nessa data (opcional)
   label?: string;          // Rótulo livre, ex: "Início 2025", "Reset pós-crise"
+  notes?: string;          // Observações sobre o marco
   isActive: boolean;       // true = checkpoint vigente (apenas um por vez)
 }

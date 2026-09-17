@@ -68,6 +68,7 @@ export const ProfilePage: React.FC = () => {
     checkpoints,
     activeCheckpoint,
     activateCheckpoint,
+    deleteCheckpoint,
   } = useFinancial();
   const { theme, setTheme } = useTheme();
 
@@ -841,6 +842,141 @@ export const ProfilePage: React.FC = () => {
                   </div>
                 </>
               ) : null}
+            </div>
+          )}
+
+          {activeSubTab === 'MARCOS' && (
+            <div className="subtab-content animate-fade-in">
+              <div className="naturezas-header-row mb-4">
+                <div>
+                  <h3>Marcos de Acompanhamento Financeiro</h3>
+                  <p className="subtab-desc">
+                    Defina datas-chave e saldos iniciais em caixa para ancorar e recalibrar suas projeções e saldos consolidados.
+                  </p>
+                </div>
+                <div>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={() => setCheckpointModalOpen(true)}
+                  >
+                    <Plus size={15} />
+                    <span>Novo Marco de Início</span>
+                  </button>
+                </div>
+              </div>
+
+              {checkpoints.length === 0 ? (
+                <div className="empty-state-card glass-card text-center p-8">
+                  <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto mb-4">
+                    <Flag size={32} />
+                  </div>
+                  <h4 className="text-base font-bold text-white mb-2">Nenhum marco de início definido</h4>
+                  <p className="text-sm text-muted max-w-md mx-auto mb-5 leading-relaxed">
+                    Defina um ponto de partida para indicar a partir de quando o Balder deve calcular seus saldos em caixa e projetar suas finanças.
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={() => setCheckpointModalOpen(true)}
+                  >
+                    <Flag size={14} />
+                    <span>Definir Ponto de Partida</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {checkpoints.map((cp) => (
+                    <div
+                      key={cp.id}
+                      className={`glass-card p-4 rounded-xl border transition-all ${
+                        cp.isActive
+                          ? 'border-indigo-500/50 bg-indigo-950/20 shadow-lg shadow-indigo-500/10'
+                          : 'border-slate-800 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className="flex items-center gap-2.5">
+                          <div
+                            className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                              cp.isActive
+                                ? 'bg-indigo-500/20 text-indigo-400'
+                                : 'bg-slate-800 text-slate-400'
+                            }`}
+                          >
+                            <Flag size={18} />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-semibold text-white">
+                              {cp.label || 'Marco de Início'}
+                            </h4>
+                            <span className="text-xs text-muted">
+                              Início em {cp.startDate.split('-').reverse().join('/')}
+                            </span>
+                          </div>
+                        </div>
+
+                        {cp.isActive ? (
+                          <span className="badge badge-emerald flex items-center gap-1">
+                            <CheckCircle2 size={12} />
+                            <span>Ativo</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-xs"
+                            onClick={() => activateCheckpoint(cp.id)}
+                            title="Tornar este marco o ponto de partida ativo"
+                          >
+                            Ativar
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 bg-slate-900/60 p-3 rounded-lg text-xs mb-3 border border-slate-800/80">
+                        <div>
+                          <span className="text-muted block text-[11px]">Saldo Inicial em Caixa</span>
+                          <span className="font-semibold text-emerald-400 text-sm">
+                            R$ {cp.initialBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        {cp.initialNetWorth !== undefined && (
+                          <div>
+                            <span className="text-muted block text-[11px]">Patrimônio Líquido</span>
+                            <span className="font-semibold text-cyan-400 text-sm">
+                              R$ {cp.initialNetWorth.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {cp.notes && (
+                        <p className="text-xs text-slate-400 italic mb-3">
+                          "{cp.notes}"
+                        </p>
+                      )}
+
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-800/60 text-xs">
+                        <span className="text-[11px] text-muted">
+                          Criado em {new Date(cp.createdAt).toLocaleDateString('pt-BR')}
+                        </span>
+                        <button
+                          type="button"
+                          className="text-rose-400 hover:text-rose-300 transition-colors p-1 rounded hover:bg-rose-500/10 cursor-pointer"
+                          title="Excluir este marco"
+                          onClick={() => {
+                            if (window.confirm(`Tem certeza que deseja excluir o marco "${cp.label || cp.startDate}"?`)) {
+                              deleteCheckpoint(cp.id);
+                            }
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
