@@ -39,6 +39,7 @@ import { FinanceEntityModal, type EntityTab } from '../components/FinanceEntityM
 import { SalaryAdjustmentModal, type SalaryModalMode } from '../components/SalaryAdjustmentModal';
 import { CheckpointSetupModal } from '../components/CheckpointSetupModal';
 import { Modal } from '../components/Modal';
+import { NatureModal } from '../components/NatureModal';
 import type { SalaryContract, SalaryAdjustment } from '../types';
 
 export const ProfilePage: React.FC = () => {
@@ -53,7 +54,6 @@ export const ProfilePage: React.FC = () => {
     deleteBank,
     exportToCSV,
     natures,
-    addNature,
     deleteNature,
     addMappingToNature,
     deleteMapping,
@@ -131,13 +131,19 @@ export const ProfilePage: React.FC = () => {
   const [newItemPrice, setNewItemPrice] = useState<Record<string, number | string>>({});
   const [newItemMult, setNewItemMult] = useState<Record<string, number>>({});
 
-  // Modais de Criação
-  const [isNewNatureModalOpen, setIsNewNatureModalOpen] = useState(false);
-  const [newNatureName, setNewNatureName] = useState('');
-  const [newNatureIcon, setNewNatureIcon] = useState('🏷️');
-  const [newNatureColor, setNewNatureColor] = useState('#10B981');
-  const [newNatureType, setNewNatureType] = useState<'ESSENCIAL' | 'FIXA' | 'VARIAVEL'>('ESSENCIAL');
-  const [newNatureDesc, setNewNatureDesc] = useState('');
+  // Modais de Criação e Edição de Natureza
+  const [isNatureModalOpen, setIsNatureModalOpen] = useState(false);
+  const [natureToEdit, setNatureToEdit] = useState<any | null>(null);
+
+  const handleOpenCreateNature = () => {
+    setNatureToEdit(null);
+    setIsNatureModalOpen(true);
+  };
+
+  const handleOpenEditNature = (nat?: any | null) => {
+    setNatureToEdit(nat || selectedNature || null);
+    setIsNatureModalOpen(true);
+  };
 
   const [isNewMappingModalOpen, setIsNewMappingModalOpen] = useState(false);
   const [newMappingName, setNewMappingName] = useState('');
@@ -1495,7 +1501,7 @@ export const ProfilePage: React.FC = () => {
                     Cadastre suas naturezas orçamentárias e estruture mapeamentos matemáticos de gastos fixos para justificar cada Teto.
                   </p>
                 </div>
-                <button className="btn btn-primary btn-sm" onClick={() => setIsNewNatureModalOpen(true)}>
+                <button className="btn btn-primary btn-sm" onClick={handleOpenCreateNature}>
                   <Plus size={16} />
                   <span>Nova Natureza</span>
                 </button>
@@ -1542,27 +1548,89 @@ export const ProfilePage: React.FC = () => {
                   <div className="natureza-kpi-banner glass-card">
                     <div className="natureza-info-left">
                       <div className="natureza-badge-title">
-                        <span className="natureza-large-icon">{selectedNature.icon}</span>
-                        <div className="flex-1">
-                          <div className="natureza-title-meta">
-                            <h4>{selectedNature.name}</h4>
-                            <span className="badge badge-cyan">{selectedNature.type}</span>
-                            {natures.length > 1 && (
+                        <div
+                          className="natureza-large-icon-wrapper"
+                          style={{ position: 'relative', cursor: 'pointer', flexShrink: 0 }}
+                          onClick={() => handleOpenEditNature(selectedNature)}
+                          title="Clique para editar nome, emoji e cor da natureza"
+                        >
+                          <span
+                            className="natureza-large-icon"
+                            style={{
+                              boxShadow: `0 0 16px ${selectedNature.color}33`,
+                              borderColor: `${selectedNature.color}66`,
+                            }}
+                          >
+                            {selectedNature.icon}
+                          </span>
+                          <span
+                            style={{
+                              position: 'absolute',
+                              bottom: '-2px',
+                              right: '-2px',
+                              background: 'rgba(15, 23, 42, 0.95)',
+                              border: '1px solid var(--border-default)',
+                              borderRadius: '50%',
+                              width: '20px',
+                              height: '20px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#38BDF8',
+                              boxShadow: '0 2px 5px rgba(0,0,0,0.5)',
+                            }}
+                          >
+                            <Edit2 size={11} />
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="natureza-title-meta" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <h4 style={{ borderLeft: `3px solid ${selectedNature.color}`, paddingLeft: '8px', margin: 0 }}>
+                              {selectedNature.name}
+                            </h4>
+                            <span
+                              className={`badge ${
+                                selectedNature.type === 'ESSENCIAL'
+                                  ? 'badge-cyan'
+                                  : selectedNature.type === 'FIXA'
+                                  ? 'badge-amber'
+                                  : 'badge-emerald'
+                              }`}
+                            >
+                              {selectedNature.type}
+                            </span>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
                               <button
-                                className="btn btn-ghost btn-xs text-rose ml-auto"
-                                title="Excluir esta Natureza"
-                                onClick={() => {
-                                  if (confirm(`Deseja realmente excluir a natureza "${selectedNature.name}" e todos os seus mapeamentos?`)) {
-                                    deleteNature(selectedNature.id);
-                                    const next = natures.find((n) => n.id !== selectedNature.id);
-                                    if (next) setSelectedNatureId(next.id);
-                                  }
-                                }}
+                                type="button"
+                                className="btn btn-outline btn-xs text-cyan"
+                                title="Editar Nome, Emoji e Cor desta Natureza"
+                                onClick={() => handleOpenEditNature(selectedNature)}
+                                style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
                               >
-                                <Trash2 size={13} />
-                                <span>Excluir Natureza</span>
+                                <Edit2 size={12} />
+                                <span>Editar Natureza</span>
                               </button>
-                            )}
+
+                              {natures.length > 1 && (
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-xs text-rose"
+                                  title="Excluir esta Natureza"
+                                  onClick={() => {
+                                    if (confirm(`Deseja realmente excluir a natureza "${selectedNature.name}" e todos os seus mapeamentos?`)) {
+                                      deleteNature(selectedNature.id);
+                                      const next = natures.find((n) => n.id !== selectedNature.id);
+                                      if (next) setSelectedNatureId(next.id);
+                                    }
+                                  }}
+                                  style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+                                >
+                                  <Trash2 size={12} />
+                                  <span>Excluir</span>
+                                </button>
+                              )}
+                            </div>
                           </div>
                           <p className="natureza-desc-text">
                             {selectedNature.description || 'Mapeamentos matemáticos definem a fundamentação do teto de gastos desta natureza.'}
@@ -2244,107 +2312,17 @@ export const ProfilePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Modal de Nova Natureza */}
-      <Modal
-        isOpen={isNewNatureModalOpen}
-        onClose={() => setIsNewNatureModalOpen(false)}
-        title="Nova Natureza de Gastos"
-        subtitle="Defina uma nova categoria orçamentária para receber mapeamentos fixos"
-        maxWidth="520px"
-      >
-        <div className="form-group mb-3">
-          <label>Nome da Natureza</label>
-          <input
-            type="text"
-            className="form-input"
-            placeholder="Ex: Pets & Veterinário, Lazer, etc."
-            value={newNatureName}
-            onChange={(e) => setNewNatureName(e.target.value)}
-            autoFocus
-          />
-        </div>
-
-        <div className="form-grid-3 mb-3">
-          <div className="form-group">
-            <label>Ícone / Emoji</label>
-            <input
-              type="text"
-              className="form-input text-center text-xl"
-              placeholder="🏷️"
-              value={newNatureIcon}
-              onChange={(e) => setNewNatureIcon(e.target.value)}
-            />
-          </div>
-          <div className="form-group">
-            <label>Tipo Orçamentário</label>
-            <select
-              className="form-input"
-              value={newNatureType}
-              onChange={(e) => setNewNatureType(e.target.value as any)}
-            >
-              <option value="ESSENCIAL">Essencial (Sobrevivência)</option>
-              <option value="FIXA">Fixa (Compromisso)</option>
-              <option value="VARIAVEL">Variável (Estilo de Vida)</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label>Cor de Destaque</label>
-            <div className="nature-color-picker-row">
-              {['#10B981', '#38BDF8', '#A855F7', '#F43F5E', '#F59E0B', '#6366F1'].map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  className={`color-dot-btn ${newNatureColor === c ? 'active' : ''}`}
-                  style={{ backgroundColor: c }}
-                  onClick={() => setNewNatureColor(c)}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="form-group mb-3">
-          <label>Descrição / Finalidade</label>
-          <input
-            type="text"
-            className="form-input"
-            placeholder="Finalidade orçamentária dos gastos desta natureza..."
-            value={newNatureDesc}
-            onChange={(e) => setNewNatureDesc(e.target.value)}
-          />
-        </div>
-
-        <div className="modal-footer-actions mt-4">
-          <button type="button" className="btn btn-outline" onClick={() => setIsNewNatureModalOpen(false)}>
-            Cancelar
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => {
-              if (!newNatureName.trim()) {
-                alert('Informe o nome da natureza.');
-                return;
-              }
-              addNature({
-                name: newNatureName.trim(),
-                icon: newNatureIcon || '🏷️',
-                color: newNatureColor,
-                type: newNatureType,
-                description: newNatureDesc,
-                overCeilingJustification: '',
-                justificationHistory: [],
-              });
-              setNewNatureName('');
-              setNewNatureDesc('');
-              setIsNewNatureModalOpen(false);
-            }}
-          >
-            <Plus size={16} />
-            <span>Cadastrar Natureza</span>
-          </button>
-        </div>
-      </Modal>
+      {/* Modal de Nova ou Edição de Natureza */}
+      <NatureModal
+        isOpen={isNatureModalOpen}
+        onClose={() => setIsNatureModalOpen(false)}
+        natureToEdit={natureToEdit}
+        onSuccess={(id) => {
+          if (id) {
+            setSelectedNatureId(id);
+          }
+        }}
+      />
 
       {/* Modal de Novo Mapeamento de Gastos Fixos */}
       {selectedNature && (

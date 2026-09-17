@@ -1956,8 +1956,16 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Atualizar Natureza
   const updateNature = (id: string, updates: Partial<ExpenseNature>) => {
     setNatures((prev) => {
+      const oldNat = prev.find((n) => n.id === id);
       const next = prev.map((nat) => (nat.id === id ? { ...nat, ...updates } : nat));
       saveNaturesData(next, id, updates);
+
+      if (oldNat && updates.name && updates.name !== oldNat.name) {
+        setMovements((prevMovs) =>
+          prevMovs.map((m) => (m.category === oldNat.name ? { ...m, category: updates.name! } : m))
+        );
+      }
+
       return next;
     });
   };
