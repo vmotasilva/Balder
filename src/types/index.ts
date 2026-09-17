@@ -421,11 +421,24 @@ export interface SalaryContract {
   history: SalaryAdjustment[];  // Histórico cronológico de reajustes
 }
 
+export interface InvoiceNatureItemBreakdown {
+  id: string;
+  natureId?: string;       // id da natureza (ou 'outros' ou undefined se não analisada)
+  natureName: string;      // Nome da natureza, "Outros", ou "Não Analisada"
+  mappingId?: string;      // ID do mapeamento se houver
+  mappingItemId?: string;  // ID do item do mapeamento vinculado se houver
+  description: string;     // Descrição do gasto (ex: "Supermercado Semanal", "Farmácia")
+  amount: number;          // Valor em R$
+  isAnalyzed: boolean;     // true se classificado em natureza ou 'Outros'; false se pendente
+}
+
 export interface CheckpointCardInvoice {
   monthIndex: number; // 0 = atual, 1 = próxima (futura 1), 2 = futura 2, etc.
   monthLabel: string; // Ex: "Outubro 2026 (Atual)", "Novembro 2026 (Futura)"
   dueDate: string;    // YYYY-MM-DD
   amount: number;     // Valor em R$
+  breakdown?: InvoiceNatureItemBreakdown[]; // Detalhamento por naturezas
+  unanalyzedAmount?: number;                // Diferença restante não analisada (R$)
 }
 
 export interface CheckpointBankDebt {

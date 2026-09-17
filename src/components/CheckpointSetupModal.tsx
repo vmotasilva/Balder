@@ -15,8 +15,10 @@ import {
   Trash2,
   Building2,
   Sparkles,
+  ArrowRight,
+  ArrowLeft,
 } from 'lucide-react';
-import type { CreditCardItem, CheckpointBankDebt } from '../types';
+import type { CreditCardItem, CheckpointBankDebt, InvoiceNatureItemBreakdown } from '../types';
 
 interface CheckpointSetupModalProps {
   isOpen: boolean;
@@ -94,6 +96,17 @@ interface BankDebtFormItem {
   quickInstallments?: number;
 }
 
+// Estrutura de cada linha de detalhamento da fatura na Etapa 2
+interface InvoiceBreakdownRow {
+  id: string;
+  natureId: string;       // id da natureza ou 'OUTROS'
+  natureName: string;     // Nome da natureza ou 'Outros'
+  mappingId?: string;     // id da rotina/mapeamento se vinculado
+  mappingItemId?: string; // id do item de teto se vinculado
+  description: string;    // Descrição do gasto (ex: Compras de Mercado)
+  amountInput: string;    // R$
+}
+
 const createDefaultBankDebt = (
   baseDate: string,
   card?: CreditCardItem,
@@ -129,7 +142,16 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
   onClose,
   isInitialSetup = false,
 }) => {
-  const { addCheckpoint, activeCheckpoint, checkpoints, cards, addMovement, updateCard } = useFinancial();
+  const {
+    addCheckpoint,
+    activeCheckpoint,
+    checkpoints,
+    cards,
+    natures,
+    addMovement,
+    updateCard,
+    markMappingItemsFulfilled,
+  } = useFinancial();
 
   const getTodayString = () => new Date().toISOString().split('T')[0];
 
@@ -139,6 +161,9 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
     const month = String(now.getMonth() + 1).padStart(2, '0');
     return `${year}-${month}-01`;
   };
+
+  // Controle de Etapa do Modal: 1 = Configuração do Marco / Faturas, 2 = Detalhamento por Natureza
+  const [step, setStep] = useState<1 | 2>(1);
 
   const [startDate, setStartDate] = useState<string>(getTodayString());
   const [initialBalance, setInitialBalance] = useState<string>('0');
@@ -150,9 +175,13 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
   const [bankDebts, setBankDebts] = useState<BankDebtFormItem[]>([]);
   const [launchAsMovement, setLaunchAsMovement] = useState(true);
 
+  // Estado para Detalhamento das Faturas em Aberto (Etapa 2), indexado por bankId
+  const [breakdownsByBank, setBreakdownsByBank] = useState<Record<string, InvoiceBreakdownRow[]>>({});
+
   // Carrega / restaura os dados do checkpoint vigente ao abrir o modal
   useEffect(() => {
     if (isOpen) {
+      setStep(1);
       setSavedSuccess(false);
       const todayStr = getTodayString();
       const firstDay = getFirstDayOfMonthString();
@@ -183,6 +212,24 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
             quickInstallments: 3,
           }));
           setBankDebts(restored);
+
+          // Restaura detalhamentos se existirem no checkpoint anterior
+          const restoredBreakdowns: Record<string, InvoiceBreakdownRow[]> = {};
+          activeCheckpoint.cardDebts.forEach((bd) => {
+            const firstInv = bd.invoices[0];
+            if (firstInv?.breakdown && firstInv.breakdown.length > 0) {
+              restoredBreakdowns[bd.id] = firstInv.breakdown.map((item) => ({
+                id: item.id,
+                natureId: item.natureId || (item.natureName === 'Outros' ? 'OUTROS' : ''),
+                natureName: item.natureName,
+                mappingId: item.mappingId,
+                mappingItemId: item.mappingItemId,
+                description: item.description,
+                amountInput: String(item.amount),
+              }));
+            }
+          });
+          setBreakdownsByBank(restoredBreakdowns);
         } else if (activeCheckpoint.creditCardDebt && activeCheckpoint.creditCardDebt > 0) {
           setHasCreditCardDebt(true);
           const total = activeCheckpoint.creditCardDebt;
@@ -213,9 +260,11 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
               quickInstallments: 3,
             },
           ]);
+          setBreakdownsByBank({});
         } else {
           setHasCreditCardDebt(false);
           setBankDebts([createDefaultBankDebt(cDate, cards[0])]);
+          setBreakdownsByBank({});
         }
       } else {
         setStartDate(firstDay);
@@ -223,6 +272,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
         setLabel(isInitialSetup ? 'Ponto de Partida Inicial' : '');
         setHasCreditCardDebt(false);
         setBankDebts([createDefaultBankDebt(firstDay, cards[0])]);
+        setBreakdownsByBank({});
       }
     }
   }, [isOpen, activeCheckpoint, isInitialSetup, cards]);
@@ -418,7 +468,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
     );
   };
 
-  // Cálculos Consolidados
+  // Cálculos Consolidados de Dívidas
   const initialCashNum = parseBRLNumber(initialBalance);
 
   const banksWithTotals = useMemo(() => {
@@ -434,6 +484,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
         currentAmount,
         futureTotal,
         futureCount: futureInvoices.length,
+        currentInvoice,
       };
     });
   }, [bankDebts]);
@@ -443,6 +494,11 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
     return banksWithTotals.reduce((acc, b) => acc + b.total, 0);
   }, [hasCreditCardDebt, banksWithTotals]);
 
+  const totalOpenInvoicesAmount = useMemo(() => {
+    if (!hasCreditCardDebt) return 0;
+    return banksWithTotals.reduce((acc, b) => acc + b.currentAmount, 0);
+  }, [hasCreditCardDebt, banksWithTotals]);
+
   const totalAllInvoicesCount = useMemo(() => {
     if (!hasCreditCardDebt) return 0;
     return banksWithTotals.reduce((acc, b) => acc + b.invoices.length, 0);
@@ -450,31 +506,215 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
 
   const netStartingBalance = initialCashNum - totalAllDebt;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Bancos que possuem fatura aberta no mês atual (elegíveis para destrinchamento na Etapa 2)
+  const banksWithOpenInvoices = useMemo(() => {
+    return banksWithTotals.filter((b) => b.currentAmount > 0);
+  }, [banksWithTotals]);
+
+  // Transição para Etapa 2 (Inicializa linhas se necessário)
+  const handleProceedToStep2 = () => {
+    const updatedBreakdowns = { ...breakdownsByBank };
+
+    banksWithOpenInvoices.forEach((b) => {
+      if (!updatedBreakdowns[b.id] || updatedBreakdowns[b.id].length === 0) {
+        // Inicializa com uma primeira linha vazia para facilitar a digitação
+        updatedBreakdowns[b.id] = [
+          {
+            id: `row_${Date.now()}_${b.id}_0`,
+            natureId: '',
+            natureName: '',
+            description: '',
+            amountInput: '',
+          },
+        ];
+      }
+    });
+
+    setBreakdownsByBank(updatedBreakdowns);
+    setStep(2);
+  };
+
+  // Manipulação de Linhas de Detalhamento na Etapa 2
+  const handleAddBreakdownRow = (bankId: string) => {
+    setBreakdownsByBank((prev) => ({
+      ...prev,
+      [bankId]: [
+        ...(prev[bankId] || []),
+        {
+          id: `row_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          natureId: '',
+          natureName: '',
+          description: '',
+          amountInput: '',
+        },
+      ],
+    }));
+  };
+
+  const handleRemoveBreakdownRow = (bankId: string, rowId: string) => {
+    setBreakdownsByBank((prev) => ({
+      ...prev,
+      [bankId]: (prev[bankId] || []).filter((r) => r.id !== rowId),
+    }));
+  };
+
+  const handleBreakdownNatureChange = (bankId: string, rowId: string, natureId: string) => {
+    const selectedNat = natures.find((n) => n.id === natureId);
+    const natureName = natureId === 'OUTROS' ? 'Outros' : selectedNat?.name || '';
+
+    setBreakdownsByBank((prev) => ({
+      ...prev,
+      [bankId]: (prev[bankId] || []).map((r) => {
+        if (r.id !== rowId) return r;
+        return {
+          ...r,
+          natureId,
+          natureName,
+          mappingId: undefined,
+          mappingItemId: undefined,
+          description: r.description || (natureId === 'OUTROS' ? 'Gastos diversos' : `${selectedNat?.name || ''}`),
+        };
+      }),
+    }));
+  };
+
+  const handleBreakdownMappingItemChange = (
+    bankId: string,
+    rowId: string,
+    combinedValue: string // formato: `${mappingId}:::${itemId}`
+  ) => {
+    setBreakdownsByBank((prev) => ({
+      ...prev,
+      [bankId]: (prev[bankId] || []).map((r) => {
+        if (r.id !== rowId) return r;
+        if (!combinedValue) {
+          return { ...r, mappingId: undefined, mappingItemId: undefined };
+        }
+        const [mappingId, mappingItemId] = combinedValue.split(':::');
+        const nat = natures.find((n) => n.id === r.natureId);
+        const map = nat?.mappings.find((m) => m.id === mappingId);
+        const item = map?.items.find((it) => it.id === mappingItemId);
+
+        return {
+          ...r,
+          mappingId,
+          mappingItemId,
+          description: r.description || item?.description || '',
+          amountInput: r.amountInput || (item?.totalValue ? String(item.totalValue) : ''),
+        };
+      }),
+    }));
+  };
+
+  const handleBreakdownDescriptionChange = (bankId: string, rowId: string, description: string) => {
+    setBreakdownsByBank((prev) => ({
+      ...prev,
+      [bankId]: (prev[bankId] || []).map((r) => (r.id === rowId ? { ...r, description } : r)),
+    }));
+  };
+
+  const handleBreakdownAmountChange = (bankId: string, rowId: string, amountInput: string) => {
+    setBreakdownsByBank((prev) => ({
+      ...prev,
+      [bankId]: (prev[bankId] || []).map((r) => (r.id === rowId ? { ...r, amountInput } : r)),
+    }));
+  };
+
+  // Atalho: Classificar o saldo restante da fatura como "Outros"
+  const handleAllocateRestToOutros = (bankId: string, unanalyzedVal: number) => {
+    if (unanalyzedVal <= 0) return;
+    setBreakdownsByBank((prev) => ({
+      ...prev,
+      [bankId]: [
+        ...(prev[bankId] || []),
+        {
+          id: `row_outros_${Date.now()}`,
+          natureId: 'OUTROS',
+          natureName: 'Outros',
+          description: 'Gastos diversos sem natureza específica',
+          amountInput: String(unanalyzedVal),
+        },
+      ],
+    }));
+  };
+
+  // Helper para obter itens de mapeamento para uma natureza
+  const getMappingItemsForNature = (natId: string) => {
+    const nat = natures.find((n) => n.id === natId);
+    if (!nat) return [];
+    const list: Array<{
+      id: string;
+      mappingId: string;
+      mappingName: string;
+      mappingIcon?: string;
+      description: string;
+      totalValue: number;
+    }> = [];
+
+    (nat.mappings || []).forEach((m) => {
+      (m.items || []).forEach((it) => {
+        list.push({
+          id: it.id,
+          mappingId: m.id,
+          mappingName: m.name,
+          mappingIcon: m.icon || '📋',
+          description: it.description,
+          totalValue: it.totalValue,
+        });
+      });
+    });
+    return list;
+  };
+
+  // Conclusão e Gravação do Checkpoint
+  const handleExecuteSave = () => {
     const balanceNum = initialCashNum;
 
-    // Filtra e prepara a lista de faturas válidas por banco
+    // Constrói os validBankDebts já com os breakdowns e unanalyzedAmount de cada banco
     const validBankDebts: CheckpointBankDebt[] = banksWithTotals
       .filter((b) => b.total > 0)
-      .map((b) => ({
-        id: b.id,
-        cardId: b.cardId,
-        bankName: b.bankName,
-        cardName: b.cardName,
-        dueDay: b.dueDay,
-        totalDebt: b.total,
-        invoices: b.invoices
-          .filter((inv) => parseBRLNumber(inv.amountInput) > 0)
-          .map((inv) => ({
-            monthIndex: inv.monthIndex,
-            monthLabel: inv.monthLabel,
-            dueDate: inv.dueDate,
-            amount: parseBRLNumber(inv.amountInput),
-          })),
-      }));
+      .map((b) => {
+        const rows = breakdownsByBank[b.id] || [];
+        const allocatedItems: InvoiceNatureItemBreakdown[] = rows
+          .filter((r) => parseBRLNumber(r.amountInput) > 0)
+          .map((r) => ({
+            id: r.id,
+            natureId: r.natureId === 'OUTROS' ? undefined : r.natureId,
+            natureName: r.natureName || (r.natureId === 'OUTROS' ? 'Outros' : 'Não Analisada'),
+            mappingId: r.mappingId,
+            mappingItemId: r.mappingItemId,
+            description: r.description || r.natureName || 'Fatura de Cartão',
+            amount: parseBRLNumber(r.amountInput),
+            isAnalyzed: !!r.natureId,
+          }));
 
-    // Para retrocompatibilidade com campos legados
+        const allocatedSum = allocatedItems.reduce((acc, it) => acc + it.amount, 0);
+        const unanalyzedAmount = Math.max(0, Math.round((b.currentAmount - allocatedSum) * 100) / 100);
+
+        return {
+          id: b.id,
+          cardId: b.cardId,
+          bankName: b.bankName,
+          cardName: b.cardName,
+          dueDay: b.dueDay,
+          totalDebt: b.total,
+          invoices: b.invoices
+            .filter((inv) => parseBRLNumber(inv.amountInput) > 0)
+            .map((inv) => {
+              const isCurrent = inv.monthIndex === 0;
+              return {
+                monthIndex: inv.monthIndex,
+                monthLabel: inv.monthLabel,
+                dueDate: inv.dueDate,
+                amount: parseBRLNumber(inv.amountInput),
+                breakdown: isCurrent && allocatedItems.length > 0 ? allocatedItems : undefined,
+                unanalyzedAmount: isCurrent && b.currentAmount > 0 ? unanalyzedAmount : undefined,
+              };
+            }),
+        };
+      });
+
+    // Retrocompatibilidade
     const firstBank = validBankDebts[0];
     const firstInvoice = firstBank?.invoices[0];
     const summaryCardName =
@@ -497,7 +737,26 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
       label: label.trim() || (isInitialSetup ? 'Ponto de Partida Inicial' : `Marco de ${startDate}`),
     });
 
-    // Se solicitado, agenda cada fatura no fluxo de caixa na sua respectiva data de vencimento
+    // 1. Marcar itens de mapeamento das naturezas como atendidos se vinculados no detalhamento
+    const itemsToFulfill: Array<{ natureId: string; mappingId: string; itemId: string; realizedValue?: number }> = [];
+    Object.values(breakdownsByBank).forEach((rows) => {
+      rows.forEach((r) => {
+        if (r.natureId && r.natureId !== 'OUTROS' && r.mappingId && r.mappingItemId) {
+          itemsToFulfill.push({
+            natureId: r.natureId,
+            mappingId: r.mappingId,
+            itemId: r.mappingItemId,
+            realizedValue: parseBRLNumber(r.amountInput),
+          });
+        }
+      });
+    });
+
+    if (itemsToFulfill.length > 0) {
+      markMappingItemsFulfilled(itemsToFulfill);
+    }
+
+    // 2. Lançar as movimentações categorizadas no fluxo de caixa
     if (hasCreditCardDebt && totalAllDebt > 0 && launchAsMovement) {
       validBankDebts.forEach((b) => {
         const installmentGroupId = `card_debt_${b.id}_${Date.now()}`;
@@ -507,21 +766,52 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
           const instNum = index + 1;
           const isCurrent = inv.monthIndex === 0;
 
-          addMovement({
-            title: isCurrent
-              ? `Fatura ${b.cardName} (Atual)`
-              : `Fatura ${b.cardName} (${inv.monthLabel.split(' ')[0]})`,
-            type: 'CARTAO',
-            amount: inv.amount,
-            dueDate: inv.dueDate,
-            bank: b.bankName || 'Cartão de Crédito',
-            status: 'PREVISTA',
-            category: 'Fatura de Cartão',
-            installmentNumber: instNum,
-            installmentsTotal: totalInvs,
-            installmentGroupId,
-            notes: `Fatura cadastrada no Ponto de Partida (${startDate}) - ${inv.monthLabel}`,
-          });
+          if (isCurrent && inv.breakdown && inv.breakdown.length > 0) {
+            // Lança cada item categorizado
+            inv.breakdown.forEach((item) => {
+              addMovement({
+                title: `Fatura ${b.cardName} — ${item.description || item.natureName}`,
+                type: 'CARTAO',
+                amount: item.amount,
+                dueDate: inv.dueDate,
+                bank: b.bankName || 'Cartão de Crédito',
+                status: 'PREVISTA',
+                category: item.natureName,
+                notes: `Item conciliado no Ponto de Partida (${startDate}) — ${item.description}`,
+              });
+            });
+
+            // Se houver saldo não analisado, lança explicitamente como "Não Analisada"
+            if (inv.unanalyzedAmount && inv.unanalyzedAmount > 0) {
+              addMovement({
+                title: `Fatura ${b.cardName} (Não Analisada)`,
+                type: 'CARTAO',
+                amount: inv.unanalyzedAmount,
+                dueDate: inv.dueDate,
+                bank: b.bankName || 'Cartão de Crédito',
+                status: 'PREVISTA',
+                category: 'Não Analisada',
+                notes: `Diferença de fatura em aberto pendente de análise no Ponto de Partida (${startDate})`,
+              });
+            }
+          } else {
+            // Fatura futura ou fatura atual sem detalhamento prévio
+            addMovement({
+              title: isCurrent
+                ? `Fatura ${b.cardName} (Atual — Não Analisada)`
+                : `Fatura ${b.cardName} (${inv.monthLabel.split(' ')[0]})`,
+              type: 'CARTAO',
+              amount: inv.amount,
+              dueDate: inv.dueDate,
+              bank: b.bankName || 'Cartão de Crédito',
+              status: 'PREVISTA',
+              category: isCurrent ? 'Não Analisada' : 'Fatura de Cartão',
+              installmentNumber: instNum,
+              installmentsTotal: totalInvs,
+              installmentGroupId,
+              notes: `Fatura cadastrada no Ponto de Partida (${startDate}) - ${inv.monthLabel}`,
+            });
+          }
         });
 
         if (b.cardId) {
@@ -540,554 +830,1011 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isInitialSetup ? '🎯 Definir Ponto de Partida' : '🚩 Novo Marco de Acompanhamento'}
-      subtitle={
-        isInitialSetup
-          ? 'Defina a data, saldo em caixa e faturas atuais e futuras de cada banco para calibrar suas métricas.'
-          : 'Inicie uma nova fase de acompanhamento com faturas de cada banco organizadas.'
+      title={
+        step === 1
+          ? isInitialSetup
+            ? '🎯 Definir Ponto de Partida'
+            : '🚩 Novo Marco de Acompanhamento'
+          : '🧩 Detalhar Faturas em Aberto por Natureza'
       }
-      maxWidth="640px"
+      subtitle={
+        step === 1
+          ? isInitialSetup
+            ? 'Defina a data, saldo em caixa e faturas atuais e futuras de cada banco para calibrar suas métricas.'
+            : 'Inicie uma nova fase de acompanhamento com faturas de cada banco organizadas.'
+          : 'Etapa 2 de 2: Correlacione os gastos da fatura com suas naturezas para reconhecer itens já atendidos no mês.'
+      }
+      maxWidth={step === 1 ? '640px' : '720px'}
     >
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-        {/* Banner Informativo */}
-        <div
-          style={{
-            padding: '0.65rem 0.85rem',
-            borderRadius: '10px',
-            background: 'rgba(6, 182, 212, 0.08)',
-            border: '1px solid rgba(6, 182, 212, 0.2)',
-            fontSize: '0.78rem',
-            color: 'var(--text-primary)',
-            display: 'flex',
-            gap: '0.65rem',
-            alignItems: 'flex-start',
+      {/* ========================================================================= */}
+      {/* ETAPA 1: PONTO DE PARTIDA, SALDO E FATURAS DOS BANCOS                     */}
+      {/* ========================================================================= */}
+      {step === 1 && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (hasCreditCardDebt && totalOpenInvoicesAmount > 0) {
+              handleProceedToStep2();
+            } else {
+              handleExecuteSave();
+            }
           }}
+          style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}
         >
-          <Info size={16} className="text-cyan" style={{ flexShrink: 0, marginTop: '2px' }} />
-          <div>
-            <strong style={{ color: 'var(--accent-cyan)' }}>Como funciona o Marco Financeiro?</strong>
-            <p style={{ margin: '0.15rem 0 0', color: 'var(--text-secondary)', lineHeight: '1.35', fontSize: '0.75rem' }}>
-              O sistema utiliza a <strong>data de início</strong>, o <strong>saldo em caixa</strong> e as <strong>faturas de cartão</strong> para calibrar seu saldo disponível, fluxo de caixa e patrimônio líquido inicial.
-            </p>
-          </div>
-        </div>
-
-        {checkpoints.length > 0 && !isInitialSetup && (
+          {/* Banner Informativo */}
           <div
             style={{
-              padding: '0.6rem 0.85rem',
+              padding: '0.65rem 0.85rem',
               borderRadius: '10px',
-              background: 'rgba(245, 158, 11, 0.08)',
-              border: '1px solid rgba(245, 158, 11, 0.25)',
-              fontSize: '0.76rem',
-              color: '#FCD34D',
+              background: 'rgba(6, 182, 212, 0.08)',
+              border: '1px solid rgba(6, 182, 212, 0.2)',
+              fontSize: '0.78rem',
+              color: 'var(--text-primary)',
               display: 'flex',
-              gap: '0.5rem',
-              alignItems: 'center',
+              gap: '0.65rem',
+              alignItems: 'flex-start',
             }}
           >
-            <AlertTriangle size={15} className="text-amber" style={{ flexShrink: 0 }} />
-            <span>
-              O marco atual ativo será substituído por este novo ponto de partida. Seu histórico anterior continuará seguro.
-            </span>
-          </div>
-        )}
-
-        {/* Campo 1: Data de Início */}
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.82rem' }}>
-              <Calendar size={14} className="text-cyan" />
-              Data de Início do Acompanhamento
-            </span>
-            <div style={{ display: 'flex', gap: '0.35rem' }}>
-              <button
-                type="button"
-                className="btn btn-outline btn-xs"
-                style={{ fontSize: '0.7rem', padding: '2px 8px' }}
-                onClick={() => handleStartDateChange(getFirstDayOfMonthString())}
-              >
-                1º do Mês
-              </button>
-              <button
-                type="button"
-                className="btn btn-outline btn-xs"
-                style={{ fontSize: '0.7rem', padding: '2px 8px' }}
-                onClick={() => handleStartDateChange(getTodayString())}
-              >
-                Hoje
-              </button>
+            <Info size={16} className="text-cyan" style={{ flexShrink: 0, marginTop: '2px' }} />
+            <div>
+              <strong style={{ color: 'var(--accent-cyan)' }}>Como funciona o Marco Financeiro?</strong>
+              <p style={{ margin: '0.15rem 0 0', color: 'var(--text-secondary)', lineHeight: '1.35', fontSize: '0.75rem' }}>
+                O sistema utiliza a <strong>data de início</strong>, o <strong>saldo em caixa</strong> e as <strong>faturas de cartão</strong> para calibrar seu saldo disponível, fluxo de caixa e patrimônio líquido inicial.
+              </p>
             </div>
-          </label>
-          <input
-            type="date"
-            required
-            className="form-input"
-            value={startDate}
-            onChange={(e) => handleStartDateChange(e.target.value)}
-          />
-          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
-            Apenas transações a partir desta data influenciarão o saldo em caixa e fluxo do dashboard.
-          </span>
-        </div>
+          </div>
 
-        {/* Campo 2: Saldo Inicial em Caixa */}
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.3rem' }}>
-            <DollarSign size={14} className="text-emerald" />
-            Saldo Total em Caixa nessa Data (R$)
-          </label>
-          <div style={{ position: 'relative' }}>
-            <span
+          {checkpoints.length > 0 && !isInitialSetup && (
+            <div
               style={{
-                position: 'absolute',
-                left: '12px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                fontWeight: 700,
-                color: 'var(--accent-emerald)',
-                fontSize: '0.9rem',
+                padding: '0.6rem 0.85rem',
+                borderRadius: '10px',
+                background: 'rgba(245, 158, 11, 0.08)',
+                border: '1px solid rgba(245, 158, 11, 0.25)',
+                fontSize: '0.76rem',
+                color: '#FCD34D',
+                display: 'flex',
+                gap: '0.5rem',
+                alignItems: 'center',
               }}
             >
-              R$
-            </span>
+              <AlertTriangle size={15} className="text-amber" style={{ flexShrink: 0 }} />
+              <span>
+                O marco atual ativo será substituído por este novo ponto de partida. Seu histórico anterior continuará seguro.
+              </span>
+            </div>
+          )}
+
+          {/* Campo 1: Data de Início */}
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.82rem' }}>
+                <Calendar size={14} className="text-cyan" />
+                Data de Início do Acompanhamento
+              </span>
+              <div style={{ display: 'flex', gap: '0.35rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-xs"
+                  style={{ fontSize: '0.7rem', padding: '2px 8px' }}
+                  onClick={() => handleStartDateChange(getFirstDayOfMonthString())}
+                >
+                  1º do Mês
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-xs"
+                  style={{ fontSize: '0.7rem', padding: '2px 8px' }}
+                  onClick={() => handleStartDateChange(getTodayString())}
+                >
+                  Hoje
+                </button>
+              </div>
+            </label>
             <input
-              type="text"
+              type="date"
               required
               className="form-input"
-              style={{ paddingLeft: '40px', fontWeight: 700, color: 'var(--accent-emerald)', fontSize: '1.05rem' }}
-              placeholder="0,00"
-              value={initialBalance}
-              onFocus={(e) => {
-                if (e.target.value === '0') setInitialBalance('');
-              }}
-              onChange={(e) => setInitialBalance(e.target.value)}
+              value={startDate}
+              onChange={(e) => handleStartDateChange(e.target.value)}
             />
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
+              Apenas transações a partir desta data influenciarão o saldo em caixa e fluxo do dashboard.
+            </span>
           </div>
-          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
-            Valor real disponível em contas e carteira no dia inicial escolhido.
-          </span>
-        </div>
 
-        {/* ========================================================================= */}
-        {/* SEÇÃO PRINCIPAL: Faturas Atuais e Futuras de Cartão de Crédito por Banco */}
-        {/* ========================================================================= */}
-        <div
-          style={{
-            borderRadius: '12px',
-            border: `1px solid ${hasCreditCardDebt ? 'rgba(244, 63, 94, 0.35)' : 'var(--border-default)'}`,
-            background: hasCreditCardDebt ? 'rgba(244, 63, 94, 0.04)' : 'rgba(255, 255, 255, 0.02)',
-            padding: '0.75rem 0.85rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.75rem',
-            transition: 'all 0.2s ease',
-          }}
-        >
-          {/* Header do Toggle */}
-          <div
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
-            onClick={() => setHasCreditCardDebt(!hasCreditCardDebt)}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
-              <div
+          {/* Campo 2: Saldo Inicial em Caixa */}
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.3rem' }}>
+              <DollarSign size={14} className="text-emerald" />
+              Saldo Total em Caixa nessa Data (R$)
+            </label>
+            <div style={{ position: 'relative' }}>
+              <span
                 style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '8px',
-                  background: hasCreditCardDebt ? 'rgba(244, 63, 94, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: hasCreditCardDebt ? '#F43F5E' : 'var(--text-muted)',
+                  position: 'absolute',
+                  left: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  fontWeight: 700,
+                  color: 'var(--accent-emerald)',
+                  fontSize: '0.9rem',
                 }}
               >
-                <CreditCard size={17} />
-              </div>
-              <div>
-                <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)', display: 'block' }}>
-                  Estabelecer Faturas Atuais e Futuras por Banco
-                </span>
-                <span style={{ fontSize: '0.71rem', color: 'var(--text-muted)' }}>
-                  {hasCreditCardDebt
-                    ? 'Informe as faturas em aberto e futuras de cada banco para descontar do patrimônio e lançar no fluxo'
-                    : 'Clique para definir faturas atuais e futuras (Nubank, Itaú, etc.)'}
-                </span>
-              </div>
+                R$
+              </span>
+              <input
+                type="text"
+                required
+                className="form-input"
+                style={{ paddingLeft: '40px', fontWeight: 700, color: 'var(--accent-emerald)', fontSize: '1.05rem' }}
+                placeholder="0,00"
+                value={initialBalance}
+                onFocus={(e) => {
+                  if (e.target.value === '0') setInitialBalance('');
+                }}
+                onChange={(e) => setInitialBalance(e.target.value)}
+              />
             </div>
-            <input
-              type="checkbox"
-              checked={hasCreditCardDebt}
-              onChange={(e) => setHasCreditCardDebt(e.target.checked)}
-              style={{ width: '16px', height: '16px', accentColor: '#F43F5E', cursor: 'pointer' }}
-              onClick={(e) => e.stopPropagation()}
-            />
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
+              Valor real disponível em contas e carteira no dia inicial escolhido.
+            </span>
           </div>
 
-          {/* Lista de Bancos e Faturas */}
-          {hasCreditCardDebt && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', paddingTop: '0.35rem', borderTop: '1px solid rgba(244, 63, 94, 0.15)' }}>
-              
-              {banksWithTotals.map((b) => {
-                const currentInvoice = b.invoices.find((inv) => inv.monthIndex === 0) || b.invoices[0];
-                const futureInvoices = b.invoices.filter((inv) => inv.monthIndex > 0);
+          {/* SEÇÃO: Faturas Atuais e Futuras por Banco */}
+          <div
+            style={{
+              borderRadius: '12px',
+              border: `1px solid ${hasCreditCardDebt ? 'rgba(244, 63, 94, 0.35)' : 'var(--border-default)'}`,
+              background: hasCreditCardDebt ? 'rgba(244, 63, 94, 0.04)' : 'rgba(255, 255, 255, 0.02)',
+              padding: '0.75rem 0.85rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.75rem',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            {/* Header do Toggle */}
+            <div
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}
+              onClick={() => setHasCreditCardDebt(!hasCreditCardDebt)}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                <div
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    background: hasCreditCardDebt ? 'rgba(244, 63, 94, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: hasCreditCardDebt ? '#F43F5E' : 'var(--text-muted)',
+                  }}
+                >
+                  <CreditCard size={17} />
+                </div>
+                <div>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)', display: 'block' }}>
+                    Estabelecer Faturas Atuais e Futuras por Banco
+                  </span>
+                  <span style={{ fontSize: '0.71rem', color: 'var(--text-muted)' }}>
+                    {hasCreditCardDebt
+                      ? 'Informe as faturas em aberto e futuras de cada banco para descontar do patrimônio e lançar no fluxo'
+                      : 'Clique para definir faturas atuais e futuras (Nubank, Itaú, etc.)'}
+                  </span>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                checked={hasCreditCardDebt}
+                onChange={(e) => setHasCreditCardDebt(e.target.checked)}
+                style={{ width: '16px', height: '16px', accentColor: '#F43F5E', cursor: 'pointer' }}
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
 
-                return (
-                  <div
-                    key={b.id}
-                    style={{
-                      borderRadius: '10px',
-                      background: 'rgba(15, 23, 42, 0.75)',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      padding: '0.75rem 0.85rem',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.65rem',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-                    }}
-                  >
-                    {/* Topo do Card do Banco */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '220px' }}>
-                        <Building2 size={15} className="text-cyan" style={{ flexShrink: 0 }} />
-                        
-                        {/* Seletor de Cartão ou Custom */}
-                        <select
-                          className="form-input"
-                          style={{ fontSize: '0.8rem', padding: '4px 8px', flex: 1 }}
-                          value={b.cardId || (b.cardId === undefined ? 'CUSTOM' : '')}
-                          onChange={(e) => handleBankCardChange(b.id, e.target.value)}
-                        >
-                          {cards.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              💳 {c.name} ({c.bank})
-                            </option>
-                          ))}
-                          <option value="CUSTOM">+ Outro Banco / Cartão Personalizado</option>
-                        </select>
-                      </div>
+            {/* Lista de Bancos e Faturas */}
+            {hasCreditCardDebt && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', paddingTop: '0.35rem', borderTop: '1px solid rgba(244, 63, 94, 0.15)' }}>
+                {banksWithTotals.map((b) => {
+                  const currentInvoice = b.invoices.find((inv) => inv.monthIndex === 0) || b.invoices[0];
+                  const futureInvoices = b.invoices.filter((inv) => inv.monthIndex > 0);
 
-                      {/* Dia de Vencimento e Botão Remover Banco */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                            Dia Venc.:
-                          </span>
-                          <input
-                            type="number"
-                            min="1"
-                            max="31"
-                            value={b.dueDay}
-                            onChange={(e) => handleDueDayChange(b.id, parseInt(e.target.value, 10))}
+                  return (
+                    <div
+                      key={b.id}
+                      style={{
+                        borderRadius: '10px',
+                        background: 'rgba(15, 23, 42, 0.75)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        padding: '0.75rem 0.85rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.65rem',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                      }}
+                    >
+                      {/* Topo do Card do Banco */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '220px' }}>
+                          <Building2 size={15} className="text-cyan" style={{ flexShrink: 0 }} />
+                          <select
                             className="form-input"
-                            style={{ width: '50px', padding: '3px 6px', fontSize: '0.78rem', textAlign: 'center' }}
-                            title="Dia do vencimento fixo no mês"
-                          />
-                        </div>
-
-                        {bankDebts.length > 1 && (
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-xs text-rose"
-                            onClick={() => handleRemoveBankDebt(b.id)}
-                            title="Remover este banco"
-                            style={{ padding: '3px 6px' }}
+                            style={{ fontSize: '0.8rem', padding: '4px 8px', flex: 1 }}
+                            value={b.cardId || (b.cardId === undefined ? 'CUSTOM' : '')}
+                            onChange={(e) => handleBankCardChange(b.id, e.target.value)}
                           >
-                            <Trash2 size={13} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Se for personalizado, exibe inputs de texto para nome do banco/cartão */}
-                    {!b.cardId && (
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                        <input
-                          type="text"
-                          placeholder="Nome do Banco (ex: Nubank, Itaú)"
-                          value={b.bankName}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setBankDebts((prev) =>
-                              prev.map((item) => (item.id === b.id ? { ...item, bankName: val } : item))
-                            );
-                          }}
-                          className="form-input"
-                          style={{ fontSize: '0.78rem', padding: '4px 8px' }}
-                        />
-                        <input
-                          type="text"
-                          placeholder="Nome do Cartão (ex: Ultravioleta)"
-                          value={b.cardName}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setBankDebts((prev) =>
-                              prev.map((item) => (item.id === b.id ? { ...item, cardName: val } : item))
-                            );
-                          }}
-                          className="form-input"
-                          style={{ fontSize: '0.78rem', padding: '4px 8px' }}
-                        />
-                      </div>
-                    )}
-
-                    {/* 1. Bloco de FATURA ATUAL (Mês Vigente) */}
-                    {currentInvoice && (
-                      <div
-                        style={{
-                          padding: '0.5rem 0.65rem',
-                          borderRadius: '8px',
-                          background: 'rgba(244, 63, 94, 0.08)',
-                          border: '1px solid rgba(244, 63, 94, 0.25)',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.35rem',
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                            <span>📌</span> Fatura Atual — {currentInvoice.monthLabel}
-                          </span>
-                          <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                            Vencimento: {currentInvoice.dueDate.split('-').reverse().join('/')}
-                          </span>
+                            {cards.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                💳 {c.name} ({c.bank})
+                              </option>
+                            ))}
+                            <option value="CUSTOM">+ Outro Banco / Cartão Personalizado</option>
+                          </select>
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div style={{ position: 'relative', flex: 1 }}>
-                            <span
-                              style={{
-                                position: 'absolute',
-                                left: '10px',
-                                top: '50%',
-                                transform: 'translateY(-50%)',
-                                fontWeight: 700,
-                                color: '#f87171',
-                                fontSize: '0.85rem',
-                              }}
-                            >
-                              R$
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                              Dia Venc.:
                             </span>
                             <input
-                              type="text"
-                              required={hasCreditCardDebt}
+                              type="number"
+                              min="1"
+                              max="31"
+                              value={b.dueDay}
+                              onChange={(e) => handleDueDayChange(b.id, parseInt(e.target.value, 10))}
                               className="form-input"
-                              style={{
-                                paddingLeft: '34px',
-                                fontWeight: 700,
-                                color: '#f87171',
-                                fontSize: '0.95rem',
-                              }}
-                              placeholder="0,00"
-                              value={currentInvoice.amountInput}
-                              onFocus={(e) => {
-                                if (e.target.value === '0') handleInvoiceAmountChange(b.id, currentInvoice.id, '');
-                              }}
-                              onChange={(e) => handleInvoiceAmountChange(b.id, currentInvoice.id, e.target.value)}
+                              style={{ width: '50px', padding: '3px 6px', fontSize: '0.78rem', textAlign: 'center' }}
+                              title="Dia do vencimento fixo no mês"
                             />
                           </div>
 
-                          <input
-                            type="date"
-                            value={currentInvoice.dueDate}
-                            onChange={(e) => handleInvoiceDueDateChange(b.id, currentInvoice.id, e.target.value)}
-                            className="form-input"
-                            style={{ width: '130px', fontSize: '0.75rem', padding: '4px 6px' }}
-                            title="Alterar data de vencimento da fatura atual"
-                          />
+                          {bankDebts.length > 1 && (
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-xs text-rose"
+                              onClick={() => handleRemoveBankDebt(b.id)}
+                              title="Remover este banco"
+                              style={{ padding: '3px 6px' }}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
                         </div>
                       </div>
-                    )}
 
-                    {/* 2. Bloco de FATURAS FUTURAS */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.15rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <CalendarDays size={13} className="text-cyan" />
-                          Faturas Futuras ({futureInvoices.length} {futureInvoices.length === 1 ? 'mês' : 'meses'} adicionais)
-                        </span>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <button
-                            type="button"
-                            className="btn btn-outline btn-xs text-cyan"
-                            style={{ fontSize: '0.7rem', padding: '2px 8px', display: 'flex', alignItems: 'center', gap: '3px' }}
-                            onClick={() => handleAddFutureInvoice(b.id)}
-                            title="Adicionar próximo mês de fatura futura"
-                          >
-                            <Plus size={11} />
-                            <span>Adicionar Mês Futuro</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-xs text-amber"
-                            style={{ fontSize: '0.68rem', padding: '2px 6px', display: 'flex', alignItems: 'center', gap: '3px' }}
-                            onClick={() => {
+                      {/* Se for personalizado */}
+                      {!b.cardId && (
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                          <input
+                            type="text"
+                            placeholder="Nome do Banco (ex: Nubank, Itaú)"
+                            value={b.bankName}
+                            onChange={(e) => {
+                              const val = e.target.value;
                               setBankDebts((prev) =>
-                                prev.map((item) =>
-                                  item.id === b.id ? { ...item, showQuickDivide: !item.showQuickDivide } : item
-                                )
+                                prev.map((item) => (item.id === b.id ? { ...item, bankName: val } : item))
                               );
                             }}
-                            title="Preencher parcelas iguais a partir de um valor total"
-                          >
-                            <Sparkles size={11} />
-                            <span>Dividir Total</span>
-                          </button>
+                            className="form-input"
+                            style={{ fontSize: '0.78rem', padding: '4px 8px' }}
+                          />
+                          <input
+                            type="text"
+                            placeholder="Nome do Cartão (ex: Ultravioleta)"
+                            value={b.cardName}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setBankDebts((prev) =>
+                                prev.map((item) => (item.id === b.id ? { ...item, cardName: val } : item))
+                              );
+                            }}
+                            className="form-input"
+                            style={{ fontSize: '0.78rem', padding: '4px 8px' }}
+                          />
                         </div>
-                      </div>
+                      )}
 
-                      {/* Painel expansível de divisão rápida em parcelas */}
-                      {b.showQuickDivide && (
+                      {/* 1. Bloco de FATURA ATUAL */}
+                      {currentInvoice && (
                         <div
                           style={{
                             padding: '0.5rem 0.65rem',
                             borderRadius: '8px',
-                            background: 'rgba(245, 158, 11, 0.08)',
-                            border: '1px solid rgba(245, 158, 11, 0.3)',
+                            background: 'rgba(244, 63, 94, 0.08)',
+                            border: '1px solid rgba(244, 63, 94, 0.25)',
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: '0.45rem',
-                            fontSize: '0.72rem',
+                            gap: '0.35rem',
                           }}
                         >
-                          <span style={{ fontWeight: 600, color: '#fcd34d' }}>
-                            ⚡ Gerador Rápido de Parcelas Iguais:
-                          </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                            <div style={{ position: 'relative', width: '130px' }}>
-                              <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', fontWeight: 600, color: '#fcd34d', fontSize: '0.75rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <span>📌</span> Fatura Atual — {currentInvoice.monthLabel}
+                            </span>
+                            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                              Vencimento: {currentInvoice.dueDate.split('-').reverse().join('/')}
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ position: 'relative', flex: 1 }}>
+                              <span
+                                style={{
+                                  position: 'absolute',
+                                  left: '10px',
+                                  top: '50%',
+                                  transform: 'translateY(-50%)',
+                                  fontWeight: 700,
+                                  color: '#f87171',
+                                  fontSize: '0.85rem',
+                                }}
+                              >
                                 R$
                               </span>
                               <input
                                 type="text"
-                                placeholder="Total a dividir"
-                                value={b.quickTotalInput || ''}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setBankDebts((prev) =>
-                                    prev.map((item) => (item.id === b.id ? { ...item, quickTotalInput: val } : item))
-                                  );
-                                }}
+                                required={hasCreditCardDebt}
                                 className="form-input"
-                                style={{ paddingLeft: '28px', fontSize: '0.75rem', padding: '3px 6px' }}
+                                style={{
+                                  paddingLeft: '34px',
+                                  fontWeight: 700,
+                                  color: '#f87171',
+                                  fontSize: '0.95rem',
+                                }}
+                                placeholder="0,00"
+                                value={currentInvoice.amountInput}
+                                onFocus={(e) => {
+                                  if (e.target.value === '0') handleInvoiceAmountChange(b.id, currentInvoice.id, '');
+                                }}
+                                onChange={(e) => handleInvoiceAmountChange(b.id, currentInvoice.id, e.target.value)}
                               />
                             </div>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <span style={{ color: 'var(--text-muted)' }}>em</span>
-                              <select
-                                className="form-input"
-                                style={{ fontSize: '0.75rem', padding: '3px 6px', width: '70px' }}
-                                value={b.quickInstallments || 3}
-                                onChange={(e) => {
-                                  const num = parseInt(e.target.value, 10);
-                                  setBankDebts((prev) =>
-                                    prev.map((item) => (item.id === b.id ? { ...item, quickInstallments: num } : item))
-                                  );
-                                }}
-                              >
-                                {[2, 3, 4, 5, 6, 8, 10, 12, 18, 24].map((n) => (
-                                  <option key={n} value={n}>
-                                    {n}x
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-
-                            <button
-                              type="button"
-                              className="btn btn-primary btn-xs"
-                              style={{ fontSize: '0.7rem', padding: '3px 8px' }}
-                              onClick={() => handleApplyQuickDivide(b.id)}
-                            >
-                              Distribuir
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-ghost btn-xs text-muted"
-                              style={{ fontSize: '0.7rem' }}
-                              onClick={() => {
-                                setBankDebts((prev) =>
-                                  prev.map((item) => (item.id === b.id ? { ...item, showQuickDivide: false } : item))
-                                );
-                              }}
-                            >
-                              Fechar
-                            </button>
+                            <input
+                              type="date"
+                              value={currentInvoice.dueDate}
+                              onChange={(e) => handleInvoiceDueDateChange(b.id, currentInvoice.id, e.target.value)}
+                              className="form-input"
+                              style={{ width: '130px', fontSize: '0.75rem', padding: '4px 6px' }}
+                              title="Alterar data de vencimento da fatura atual"
+                            />
                           </div>
                         </div>
                       )}
 
-                      {/* Lista de Faturas Futuras */}
-                      {futureInvoices.length === 0 ? (
-                        <div
-                          style={{
-                            padding: '0.4rem 0.6rem',
-                            borderRadius: '6px',
-                            background: 'rgba(255, 255, 255, 0.02)',
-                            border: '1px dashed rgba(255, 255, 255, 0.08)',
-                            fontSize: '0.7rem',
-                            color: 'var(--text-muted)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                          }}
-                        >
-                          <span>Nenhuma fatura futura adicionada para este banco.</span>
-                          <button
-                            type="button"
-                            className="btn btn-link btn-xs text-cyan"
-                            style={{ fontSize: '0.7rem', padding: 0 }}
-                            onClick={() => handleAddFutureInvoice(b.id)}
-                          >
-                            + Adicionar
-                          </button>
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                          {futureInvoices.map((inv) => (
-                            <div
-                              key={inv.id}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                padding: '0.35rem 0.5rem',
-                                borderRadius: '6px',
-                                background: 'rgba(255, 255, 255, 0.03)',
-                                border: '1px solid rgba(255, 255, 255, 0.06)',
-                              }}
-                            >
-                              <span
-                                style={{
-                                  fontSize: '0.72rem',
-                                  fontWeight: 600,
-                                  color: 'var(--text-primary)',
-                                  width: '135px',
-                                  flexShrink: 0,
-                                  whiteSpace: 'nowrap',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                }}
-                                title={inv.monthLabel}
-                              >
-                                🗓️ {inv.monthLabel}
-                              </span>
+                      {/* 2. Bloco de FATURAS FUTURAS */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.15rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <CalendarDays size={13} className="text-cyan" />
+                            Faturas Futuras ({futureInvoices.length} {futureInvoices.length === 1 ? 'mês' : 'meses'} adicionais)
+                          </span>
 
-                              <div style={{ position: 'relative', flex: 1 }}>
-                                <span
-                                  style={{
-                                    position: 'absolute',
-                                    left: '8px',
-                                    top: '50%',
-                                    transform: 'translateY(-50%)',
-                                    fontWeight: 600,
-                                    color: 'var(--accent-cyan)',
-                                    fontSize: '0.75rem',
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <button
+                              type="button"
+                              className="btn btn-outline btn-xs text-cyan"
+                              style={{ fontSize: '0.7rem', padding: '2px 8px', display: 'flex', alignItems: 'center', gap: '3px' }}
+                              onClick={() => handleAddFutureInvoice(b.id)}
+                              title="Adicionar próximo mês de fatura futura"
+                            >
+                              <Plus size={11} />
+                              <span>Adicionar Mês Futuro</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-xs text-amber"
+                              style={{ fontSize: '0.68rem', padding: '2px 6px', display: 'flex', alignItems: 'center', gap: '3px' }}
+                              onClick={() => {
+                                setBankDebts((prev) =>
+                                  prev.map((item) =>
+                                    item.id === b.id ? { ...item, showQuickDivide: !item.showQuickDivide } : item
+                                  )
+                                );
+                              }}
+                              title="Preencher parcelas iguais a partir de um valor total"
+                            >
+                              <Sparkles size={11} />
+                              <span>Dividir Total</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Painel expansível de divisão rápida */}
+                        {b.showQuickDivide && (
+                          <div
+                            style={{
+                              padding: '0.5rem 0.65rem',
+                              borderRadius: '8px',
+                              background: 'rgba(245, 158, 11, 0.08)',
+                              border: '1px solid rgba(245, 158, 11, 0.3)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.45rem',
+                              fontSize: '0.72rem',
+                            }}
+                          >
+                            <span style={{ fontWeight: 600, color: '#fcd34d' }}>
+                              ⚡ Gerador Rápido de Parcelas Iguais:
+                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                              <div style={{ position: 'relative', width: '130px' }}>
+                                <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', fontWeight: 600, color: '#fcd34d', fontSize: '0.75rem' }}>
+                                  R$
+                                </span>
+                                <input
+                                  type="text"
+                                  placeholder="Total a dividir"
+                                  value={b.quickTotalInput || ''}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setBankDebts((prev) =>
+                                      prev.map((item) => (item.id === b.id ? { ...item, quickTotalInput: val } : item))
+                                    );
+                                  }}
+                                  className="form-input"
+                                  style={{ paddingLeft: '28px', fontSize: '0.75rem', padding: '3px 6px' }}
+                                />
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span style={{ color: 'var(--text-muted)' }}>em</span>
+                                <select
+                                  className="form-input"
+                                  style={{ fontSize: '0.75rem', padding: '3px 6px', width: '70px' }}
+                                  value={b.quickInstallments || 3}
+                                  onChange={(e) => {
+                                    const num = parseInt(e.target.value, 10);
+                                    setBankDebts((prev) =>
+                                      prev.map((item) => (item.id === b.id ? { ...item, quickInstallments: num } : item))
+                                    );
                                   }}
                                 >
+                                  {[2, 3, 4, 5, 6, 8, 10, 12, 18, 24].map((n) => (
+                                    <option key={n} value={n}>
+                                      {n}x
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-xs"
+                                style={{ fontSize: '0.7rem', padding: '3px 8px' }}
+                                onClick={() => handleApplyQuickDivide(b.id)}
+                              >
+                                Distribuir
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-xs text-muted"
+                                style={{ fontSize: '0.7rem' }}
+                                onClick={() => {
+                                  setBankDebts((prev) =>
+                                    prev.map((item) => (item.id === b.id ? { ...item, showQuickDivide: false } : item))
+                                  );
+                                }}
+                              >
+                                Fechar
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Lista de Faturas Futuras */}
+                        {futureInvoices.length === 0 ? (
+                          <div
+                            style={{
+                              padding: '0.4rem 0.6rem',
+                              borderRadius: '6px',
+                              background: 'rgba(255, 255, 255, 0.02)',
+                              border: '1px dashed rgba(255, 255, 255, 0.08)',
+                              fontSize: '0.7rem',
+                              color: 'var(--text-muted)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                            }}
+                          >
+                            <span>Nenhuma fatura futura adicionada para este banco.</span>
+                            <button
+                              type="button"
+                              className="btn btn-link btn-xs text-cyan"
+                              style={{ fontSize: '0.7rem', padding: 0 }}
+                              onClick={() => handleAddFutureInvoice(b.id)}
+                            >
+                              + Adicionar
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                            {futureInvoices.map((inv) => (
+                              <div
+                                key={inv.id}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  padding: '0.35rem 0.5rem',
+                                  borderRadius: '6px',
+                                  background: 'rgba(255, 255, 255, 0.03)',
+                                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    fontSize: '0.72rem',
+                                    fontWeight: 600,
+                                    color: 'var(--text-primary)',
+                                    width: '135px',
+                                    flexShrink: 0,
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                  }}
+                                  title={inv.monthLabel}
+                                >
+                                  🗓️ {inv.monthLabel}
+                                </span>
+
+                                <div style={{ position: 'relative', flex: 1 }}>
+                                  <span
+                                    style={{
+                                      position: 'absolute',
+                                      left: '8px',
+                                      top: '50%',
+                                      transform: 'translateY(-50%)',
+                                      fontWeight: 600,
+                                      color: 'var(--accent-cyan)',
+                                      fontSize: '0.75rem',
+                                    }}
+                                  >
+                                    R$
+                                  </span>
+                                  <input
+                                    type="text"
+                                    className="form-input"
+                                    style={{
+                                      paddingLeft: '28px',
+                                      fontWeight: 600,
+                                      color: 'var(--accent-cyan)',
+                                      fontSize: '0.8rem',
+                                      padding: '3px 8px 3px 26px',
+                                    }}
+                                    placeholder="0,00"
+                                    value={inv.amountInput}
+                                    onFocus={(e) => {
+                                      if (e.target.value === '0') handleInvoiceAmountChange(b.id, inv.id, '');
+                                    }}
+                                    onChange={(e) => handleInvoiceAmountChange(b.id, inv.id, e.target.value)}
+                                  />
+                                </div>
+
+                                <input
+                                  type="date"
+                                  value={inv.dueDate}
+                                  onChange={(e) => handleInvoiceDueDateChange(b.id, inv.id, e.target.value)}
+                                  className="form-input"
+                                  style={{ width: '120px', fontSize: '0.72rem', padding: '3px 5px' }}
+                                  title="Data de vencimento desta fatura futura"
+                                />
+
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-xs text-rose"
+                                  style={{ padding: '3px' }}
+                                  onClick={() => handleRemoveInvoice(b.id, inv.id)}
+                                  title="Remover este mês futuro"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Subtotal do Banco */}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          paddingTop: '0.35rem',
+                          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                          fontSize: '0.72rem',
+                        }}
+                      >
+                        <span className="text-muted">
+                          Subtotal {b.cardName}:{' '}
+                          <span style={{ color: 'var(--text-secondary)' }}>
+                            Atual ({b.currentAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}) + Futuras ({b.futureTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
+                          </span>
+                        </span>
+                        <strong className="text-rose-400 font-mono">
+                          {b.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </strong>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Botão para Adicionar Outro Banco */}
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  style={{
+                    width: '100%',
+                    borderStyle: 'dashed',
+                    fontSize: '0.78rem',
+                    padding: '6px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    color: 'var(--accent-cyan)',
+                    borderColor: 'rgba(6, 182, 212, 0.4)',
+                  }}
+                  onClick={handleAddBankDebt}
+                >
+                  <Plus size={14} />
+                  <span>Adicionar Outro Banco / Cartão</span>
+                </button>
+
+                {/* Card Consolidado Geral de Todas as Faturas */}
+                <div
+                  style={{
+                    padding: '0.6rem 0.8rem',
+                    borderRadius: '8px',
+                    background: 'linear-gradient(135deg, rgba(244, 63, 94, 0.12) 0%, rgba(15, 23, 42, 0.85) 100%)',
+                    border: '1px solid rgba(244, 63, 94, 0.3)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    fontSize: '0.74rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span className="text-muted">Dívida Total Consolidada ({bankDebts.length} {bankDebts.length === 1 ? 'banco' : 'bancos'}, {totalAllInvoicesCount} faturas):</span>
+                    <strong className="text-rose-400 font-bold" style={{ fontSize: '0.9rem' }}>
+                      {totalAllDebt.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </strong>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', paddingTop: '3px', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                    <span className="text-muted">Patrimônio Líquido Inicial (Caixa - Dívida Total):</span>
+                    <span style={{ fontWeight: 700, color: netStartingBalance >= 0 ? 'var(--accent-emerald)' : '#F43F5E' }}>
+                      {netStartingBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Checkbox de agendamento das faturas no fluxo */}
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem', cursor: 'pointer', fontSize: '0.73rem', color: 'var(--text-secondary)' }}>
+                  <input
+                    type="checkbox"
+                    checked={launchAsMovement}
+                    onChange={(e) => setLaunchAsMovement(e.target.checked)}
+                    style={{ accentColor: 'var(--accent-cyan)', marginTop: '2px' }}
+                  />
+                  <span>
+                    Lançar todas as {totalAllInvoicesCount} faturas (atuais e futuras) no fluxo de caixa nas respectivas datas de vencimento de cada banco (status Prevista)
+                  </span>
+                </label>
+              </div>
+            )}
+          </div>
+
+          {/* Campo 3: Nome do Marco (Opcional) */}
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.3rem' }}>
+              <Tag size={14} className="text-cyan" />
+              Nome do Marco (Opcional)
+            </label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="ex: Ponto de Partida 2026, Novo Ciclo Março"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+            />
+          </div>
+
+          {/* Botões do Rodapé na Etapa 1 */}
+          <div
+            className="modal-footer-actions"
+            style={{
+              marginTop: '0.35rem',
+              paddingTop: '0.75rem',
+              borderTop: '1px solid var(--border-default)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '0.65rem',
+            }}
+          >
+            <button type="button" className="btn btn-outline" onClick={onClose}>
+              Cancelar
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {hasCreditCardDebt && totalOpenInvoicesAmount > 0 ? (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-outline text-amber"
+                    style={{ fontSize: '0.78rem' }}
+                    onClick={handleExecuteSave}
+                    title="Salvar o Ponto de Partida agora mantendo o valor da fatura como Não Analisada"
+                  >
+                    Salvar sem Detalhar
+                  </button>
+
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                  >
+                    <span>Avançar: Detalhar Faturas</span>
+                    <ArrowRight size={15} />
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                  disabled={savedSuccess}
+                >
+                  {savedSuccess ? (
+                    <>
+                      <CheckCircle size={15} />
+                      <span>Salvo com Sucesso!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Flag size={15} />
+                      <span>{isInitialSetup ? 'Salvar Ponto de Partida' : 'Ativar Novo Marco'}</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        </form>
+      )}
+
+      {/* ========================================================================= */}
+      {/* ETAPA 2: DETALHAMENTO DAS FATURAS EM ABERTO POR NATUREZA                  */}
+      {/* ========================================================================= */}
+      {step === 2 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+          {/* Banner de instrução da Etapa 2 */}
+          <div
+            style={{
+              padding: '0.65rem 0.85rem',
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(15, 23, 42, 0.85) 100%)',
+              border: '1px solid rgba(6, 182, 212, 0.3)',
+              fontSize: '0.78rem',
+              color: 'var(--text-primary)',
+              display: 'flex',
+              gap: '0.65rem',
+              alignItems: 'flex-start',
+            }}
+          >
+            <Sparkles size={16} className="text-cyan" style={{ flexShrink: 0, marginTop: '2px' }} />
+            <div>
+              <strong style={{ color: 'var(--accent-cyan)' }}>Conciliação de Gastos em Aberto:</strong>
+              <p style={{ margin: '0.15rem 0 0', color: 'var(--text-secondary)', lineHeight: '1.35', fontSize: '0.75rem' }}>
+                As faturas em aberto já cobriram itens das suas naturezas neste mês. Destrinche cada valor abaixo. Tudo o que não for correlacionado pode ser chamado de <strong>"Outros"</strong>, e qualquer diferença restante constará como <strong>"Não Analisada"</strong> até que você a defina.
+              </p>
+            </div>
+          </div>
+
+          {/* Lista de Bancos com Fatura Aberta para Detalhar */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '58vh', overflowY: 'auto', paddingRight: '4px' }}>
+            {banksWithOpenInvoices.map((b) => {
+              const rows = breakdownsByBank[b.id] || [];
+              const totalAllocatedInNatures = rows
+                .filter((r) => r.natureId && r.natureId !== 'OUTROS')
+                .reduce((sum, r) => sum + parseBRLNumber(r.amountInput), 0);
+              const totalAllocatedInOutros = rows
+                .filter((r) => r.natureId === 'OUTROS')
+                .reduce((sum, r) => sum + parseBRLNumber(r.amountInput), 0);
+              const totalAllocated = totalAllocatedInNatures + totalAllocatedInOutros;
+              const unanalyzedAmount = Math.max(0, Math.round((b.currentAmount - totalAllocated) * 100) / 100);
+              const isOver = totalAllocated > b.currentAmount;
+
+              return (
+                <div
+                  key={b.id}
+                  style={{
+                    borderRadius: '12px',
+                    background: 'rgba(15, 23, 42, 0.8)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    padding: '0.85rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.65rem',
+                    boxShadow: '0 4px 14px rgba(0,0,0,0.3)',
+                  }}
+                >
+                  {/* Cabeçalho da Fatura do Banco */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <CreditCard size={17} className="text-cyan" />
+                      <div>
+                        <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                          {b.cardName} ({b.bankName})
+                        </strong>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block' }}>
+                          Vencimento: {b.currentInvoice?.dueDate.split('-').reverse().join('/')}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'block' }}>
+                        Valor Total da Fatura em Aberto:
+                      </span>
+                      <strong className="text-rose-400 font-mono" style={{ fontSize: '1rem' }}>
+                        {b.currentAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {/* Status Visual da Análise da Fatura */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr 1fr',
+                      gap: '6px',
+                      fontSize: '0.72rem',
+                    }}
+                  >
+                    <div style={{ padding: '6px 8px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                      <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.66rem' }}>Em Naturezas:</span>
+                      <strong className="text-emerald-400 font-mono">
+                        {totalAllocatedInNatures.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </strong>
+                    </div>
+
+                    <div style={{ padding: '6px 8px', borderRadius: '6px', background: 'rgba(6, 182, 212, 0.08)', border: '1px solid rgba(6, 182, 212, 0.25)' }}>
+                      <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.66rem' }}>Em "Outros":</span>
+                      <strong className="text-cyan font-mono">
+                        {totalAllocatedInOutros.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </strong>
+                    </div>
+
+                    <div
+                      style={{
+                        padding: '6px 8px',
+                        borderRadius: '6px',
+                        background: unanalyzedAmount > 0 ? 'rgba(245, 158, 11, 0.12)' : 'rgba(255, 255, 255, 0.04)',
+                        border: unanalyzedAmount > 0 ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
+                      }}
+                    >
+                      <span style={{ color: unanalyzedAmount > 0 ? '#fcd34d' : 'var(--text-muted)', display: 'block', fontSize: '0.66rem', fontWeight: unanalyzedAmount > 0 ? 600 : 400 }}>
+                        {unanalyzedAmount > 0 ? '⚠️ Não Analisada:' : 'Não Analisada:'}
+                      </span>
+                      <strong className={unanalyzedAmount > 0 ? 'text-amber font-mono' : 'text-slate-400 font-mono'}>
+                        {unanalyzedAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {/* Alerta se o usuário ultrapassar o total da fatura */}
+                  {isOver && (
+                    <div style={{ padding: '4px 8px', borderRadius: '6px', background: 'rgba(244, 63, 94, 0.15)', color: '#fca5a5', fontSize: '0.72rem' }}>
+                      ⚠️ O total detalhado ultrapassou a fatura em {(totalAllocated - b.currentAmount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.
+                    </div>
+                  )}
+
+                  {/* Lista de Linhas Detalhadas para este Banco */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.2rem' }}>
+                    <span style={{ fontSize: '0.73rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                      Gastos e Naturezas Atendidas nesta Fatura ({rows.length} {rows.length === 1 ? 'item' : 'itens'}):
+                    </span>
+
+                    {rows.length === 0 ? (
+                      <div
+                        style={{
+                          padding: '0.6rem',
+                          borderRadius: '6px',
+                          background: 'rgba(255, 255, 255, 0.02)',
+                          border: '1px dashed rgba(255, 255, 255, 0.1)',
+                          textAlign: 'center',
+                          fontSize: '0.72rem',
+                          color: 'var(--text-muted)',
+                        }}
+                      >
+                        Nenhum item destrinchado ainda. Clique abaixo para correlacionar itens com suas naturezas.
+                      </div>
+                    ) : (
+                      rows.map((row) => {
+                        const availableMappingItems = row.natureId && row.natureId !== 'OUTROS' ? getMappingItemsForNature(row.natureId) : [];
+                        const combinedMappingValue = row.mappingId && row.mappingItemId ? `${row.mappingId}:::${row.mappingItemId}` : '';
+
+                        return (
+                          <div
+                            key={row.id}
+                            style={{
+                              padding: '0.55rem 0.65rem',
+                              borderRadius: '8px',
+                              background: 'rgba(255, 255, 255, 0.03)',
+                              border: '1px solid rgba(255, 255, 255, 0.08)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.4rem',
+                            }}
+                          >
+                            {/* Linha 1: Seletor de Natureza e Item de Mapeamento */}
+                            <div style={{ display: 'grid', gridTemplateColumns: availableMappingItems.length > 0 ? '1fr 1.2fr auto' : '1fr auto', gap: '6px', alignItems: 'center' }}>
+                              {/* Seletor de Natureza */}
+                              <select
+                                className="form-input"
+                                style={{ fontSize: '0.76rem', padding: '4px 6px' }}
+                                value={row.natureId}
+                                onChange={(e) => handleBreakdownNatureChange(b.id, row.id, e.target.value)}
+                              >
+                                <option value="">-- Selecione a Natureza --</option>
+                                {natures.map((nat) => (
+                                  <option key={nat.id} value={nat.id}>
+                                    {nat.icon || '🏷️'} {nat.name}
+                                  </option>
+                                ))}
+                                <option value="OUTROS">📦 Outros (Sem Natureza Específica)</option>
+                              </select>
+
+                              {/* Seletor de Item de Mapeamento (se a natureza possuir itens cadastrados) */}
+                              {availableMappingItems.length > 0 && (
+                                <select
+                                  className="form-input"
+                                  style={{ fontSize: '0.75rem', padding: '4px 6px' }}
+                                  value={combinedMappingValue}
+                                  onChange={(e) => handleBreakdownMappingItemChange(b.id, row.id, e.target.value)}
+                                >
+                                  <option value="">(Geral da Natureza — Sem dar baixa em item específico)</option>
+                                  {availableMappingItems.map((item) => (
+                                    <option key={`${item.mappingId}:::${item.id}`} value={`${item.mappingId}:::${item.id}`}>
+                                      {item.mappingIcon || '📋'} {item.description} ({item.totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+
+                              {/* Botão Remover Linha */}
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-xs text-rose"
+                                style={{ padding: '3px 6px' }}
+                                onClick={() => handleRemoveBreakdownRow(b.id, row.id)}
+                                title="Remover item"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+
+                            {/* Linha 2: Descrição e Valor R$ */}
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: '6px' }}>
+                              <input
+                                type="text"
+                                className="form-input"
+                                style={{ fontSize: '0.76rem', padding: '4px 8px' }}
+                                placeholder="Descrição do gasto (ex: Compras de Mercado, Farmácia...)"
+                                value={row.description}
+                                onChange={(e) => handleBreakdownDescriptionChange(b.id, row.id, e.target.value)}
+                              />
+
+                              <div style={{ position: 'relative' }}>
+                                <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', fontWeight: 600, color: 'var(--accent-emerald)', fontSize: '0.75rem' }}>
                                   R$
                                 </span>
                                 <input
@@ -1095,185 +1842,100 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                                   className="form-input"
                                   style={{
                                     paddingLeft: '28px',
-                                    fontWeight: 600,
-                                    color: 'var(--accent-cyan)',
-                                    fontSize: '0.8rem',
-                                    padding: '3px 8px 3px 26px',
+                                    fontWeight: 700,
+                                    color: 'var(--accent-emerald)',
+                                    fontSize: '0.82rem',
+                                    padding: '4px 6px 4px 26px',
                                   }}
                                   placeholder="0,00"
-                                  value={inv.amountInput}
-                                  onFocus={(e) => {
-                                    if (e.target.value === '0') handleInvoiceAmountChange(b.id, inv.id, '');
-                                  }}
-                                  onChange={(e) => handleInvoiceAmountChange(b.id, inv.id, e.target.value)}
+                                  value={row.amountInput}
+                                  onChange={(e) => handleBreakdownAmountChange(b.id, row.id, e.target.value)}
                                 />
                               </div>
-
-                              <input
-                                type="date"
-                                value={inv.dueDate}
-                                onChange={(e) => handleInvoiceDueDateChange(b.id, inv.id, e.target.value)}
-                                className="form-input"
-                                style={{ width: '120px', fontSize: '0.72rem', padding: '3px 5px' }}
-                                title="Data de vencimento desta fatura futura"
-                              />
-
-                              <button
-                                type="button"
-                                className="btn btn-ghost btn-xs text-rose"
-                                style={{ padding: '3px' }}
-                                onClick={() => handleRemoveInvoice(b.id, inv.id)}
-                                title="Remover este mês futuro"
-                              >
-                                <Trash2 size={12} />
-                              </button>
                             </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Subtotal do Banco */}
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        paddingTop: '0.35rem',
-                        borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-                        fontSize: '0.72rem',
-                      }}
-                    >
-                      <span className="text-muted">
-                        Subtotal {b.cardName}:{' '}
-                        <span style={{ color: 'var(--text-secondary)' }}>
-                          Atual ({b.currentAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}) + Futuras ({b.futureTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
-                        </span>
-                      </span>
-                      <strong className="text-rose-400 font-mono">
-                        {b.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                      </strong>
-                    </div>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
-                );
-              })}
 
-              {/* Botão para Adicionar Outro Banco */}
-              <button
-                type="button"
-                className="btn btn-outline"
-                style={{
-                  width: '100%',
-                  borderStyle: 'dashed',
-                  fontSize: '0.78rem',
-                  padding: '6px 12px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  color: 'var(--accent-cyan)',
-                  borderColor: 'rgba(6, 182, 212, 0.4)',
-                }}
-                onClick={handleAddBankDebt}
-              >
-                <Plus size={14} />
-                <span>Adicionar Outro Banco / Cartão</span>
-              </button>
+                  {/* Botões de Ação para o Banco */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', paddingTop: '0.35rem', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-xs text-cyan"
+                      style={{ fontSize: '0.72rem', padding: '3px 8px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                      onClick={() => handleAddBreakdownRow(b.id)}
+                    >
+                      <Plus size={12} />
+                      <span>Adicionar Item / Natureza</span>
+                    </button>
 
-              {/* Card Consolidado Geral de Todas as Faturas */}
-              <div
-                style={{
-                  padding: '0.6rem 0.8rem',
-                  borderRadius: '8px',
-                  background: 'linear-gradient(135deg, rgba(244, 63, 94, 0.12) 0%, rgba(15, 23, 42, 0.85) 100%)',
-                  border: '1px solid rgba(244, 63, 94, 0.3)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '4px',
-                  fontSize: '0.74rem',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <span className="text-muted">Dívida Total Consolidada ({bankDebts.length} {bankDebts.length === 1 ? 'banco' : 'bancos'}, {totalAllInvoicesCount} faturas):</span>
-                  <strong className="text-rose-400 font-bold" style={{ fontSize: '0.9rem' }}>
-                    {totalAllDebt.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </strong>
+                    {unanalyzedAmount > 0 && (
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-xs text-amber"
+                        style={{ fontSize: '0.72rem', padding: '3px 8px', display: 'flex', alignItems: 'center', gap: '4px', borderColor: 'rgba(245, 158, 11, 0.4)' }}
+                        onClick={() => handleAllocateRestToOutros(b.id, unanalyzedAmount)}
+                        title="Criar uma linha 'Outros' com todo o valor restante não analisado"
+                      >
+                        <Sparkles size={12} />
+                        <span>Classificar restante ({unanalyzedAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}) como "Outros"</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
+              );
+            })}
+          </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', paddingTop: '3px', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                  <span className="text-muted">Patrimônio Líquido Inicial (Caixa - Dívida Total):</span>
-                  <span style={{ fontWeight: 700, color: netStartingBalance >= 0 ? 'var(--accent-emerald)' : '#F43F5E' }}>
-                    {netStartingBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </span>
-                </div>
-              </div>
-
-              {/* Checkbox de agendamento das faturas no fluxo */}
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem', cursor: 'pointer', fontSize: '0.73rem', color: 'var(--text-secondary)' }}>
-                <input
-                  type="checkbox"
-                  checked={launchAsMovement}
-                  onChange={(e) => setLaunchAsMovement(e.target.checked)}
-                  style={{ accentColor: 'var(--accent-cyan)', marginTop: '2px' }}
-                />
-                <span>
-                  Lançar todas as {totalAllInvoicesCount} faturas (atuais e futuras) no fluxo de caixa nas respectivas datas de vencimento de cada banco (status Prevista)
-                </span>
-              </label>
-            </div>
-          )}
-        </div>
-
-        {/* Campo 3: Nome do Marco (Opcional) */}
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.3rem' }}>
-            <Tag size={14} className="text-cyan" />
-            Nome do Marco (Opcional)
-          </label>
-          <input
-            type="text"
-            className="form-input"
-            placeholder="ex: Ponto de Partida 2026, Novo Ciclo Março"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-          />
-        </div>
-
-        {/* Botões do Rodapé */}
-        <div
-          className="modal-footer-actions"
-          style={{
-            marginTop: '0.35rem',
-            paddingTop: '0.75rem',
-            borderTop: '1px solid var(--border-default)',
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: '0.65rem',
-          }}
-        >
-          <button type="button" className="btn btn-outline" onClick={onClose}>
-            Cancelar
-          </button>
-          <button
-            type="submit"
-            className="btn btn-primary"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-            disabled={savedSuccess}
+          {/* Rodapé da Etapa 2 */}
+          <div
+            className="modal-footer-actions"
+            style={{
+              marginTop: '0.35rem',
+              paddingTop: '0.75rem',
+              borderTop: '1px solid var(--border-default)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '0.65rem',
+            }}
           >
-            {savedSuccess ? (
-              <>
-                <CheckCircle size={15} />
-                <span>Salvo com Sucesso!</span>
-              </>
-            ) : (
-              <>
-                <Flag size={15} />
-                <span>{isInitialSetup ? 'Salvar Ponto de Partida' : 'Ativar Novo Marco'}</span>
-              </>
-            )}
-          </button>
+            <button
+              type="button"
+              className="btn btn-outline"
+              style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+              onClick={() => setStep(1)}
+            >
+              <ArrowLeft size={14} />
+              <span>Voltar para Etapa 1</span>
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+              onClick={handleExecuteSave}
+              disabled={savedSuccess}
+            >
+              {savedSuccess ? (
+                <>
+                  <CheckCircle size={15} />
+                  <span>Salvo com Sucesso!</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle size={15} />
+                  <span>Concluir e Salvar Ponto de Partida</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
-      </form>
+      )}
     </Modal>
   );
 };
+

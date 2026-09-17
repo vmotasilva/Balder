@@ -139,6 +139,7 @@ interface FinancialContextType {
   updateMappingItem: (natureId: string, mappingId: string, itemId: string, updates: Partial<MappingItem>) => void;
   deleteMappingItem: (natureId: string, mappingId: string, itemId: string) => void;
   toggleItemFulfilled: (natureId: string, mappingId: string, itemId: string) => void;
+  markMappingItemsFulfilled: (itemsToFulfill: Array<{ natureId: string; mappingId: string; itemId: string; realizedValue?: number }>) => void;
   saveCeilingJustification: (natureId: string, reason: string) => void;
   loadSuggestedMappingsForNature: (natureId: string) => void;
   getNatureCeiling: (nature: ExpenseNature) => number;
@@ -2229,6 +2230,54 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
+  // Marcar múltiplos itens de mapeamento como realizados em lote (ex: conciliação de fatura aberta)
+  const markMappingItemsFulfilled = (
+    itemsToFulfill: Array<{ natureId: string; mappingId: string; itemId: string; realizedValue?: number }>
+  ) => {
+    if (!itemsToFulfill || itemsToFulfill.length === 0) return;
+    setNatures((prev) => {
+      const next = prev.map((nat) => {
+        const matchingForNat = itemsToFulfill.filter((it) => it.natureId === nat.id);
+        if (matchingForNat.length === 0) return nat;
+
+        const updatedMappings = nat.mappings.map((m) => {
+          const matchingForMap = matchingForNat.filter((it) => it.mappingId === m.id);
+          if (matchingForMap.length === 0) return m;
+
+          return {
+            ...m,
+            items: m.items.map((item) => {
+              const matched = matchingForMap.find((it) => it.itemId === item.id);
+              if (matched) {
+                return {
+                  ...item,
+                  isFulfilled: true,
+                  realizedValue: matched.realizedValue !== undefined ? matched.realizedValue : item.totalValue,
+                };
+              }
+              return item;
+            }),
+          };
+        });
+
+        return {
+          ...nat,
+          mappings: updatedMappings,
+        };
+      });
+
+      if (isCloudUser && user) {
+        try {
+          localStorage.setItem(`balder_natures_${user.$id}`, JSON.stringify(next));
+        } catch {}
+      } else {
+        localStorage.setItem('balder_natures', JSON.stringify(next));
+      }
+
+      return next;
+    });
+  };
+
   // Registrar Justificativa Contábil de Estouro de Teto
   const saveCeilingJustification = (natureId: string, reason: string) => {
     const targetNature = natures.find((n) => n.id === natureId);
@@ -2548,6 +2597,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         updateMappingItem,
         deleteMappingItem,
         toggleItemFulfilled,
+        markMappingItemsFulfilled,
         saveCeilingJustification,
         getNatureCeiling,
         getNatureSpent,
