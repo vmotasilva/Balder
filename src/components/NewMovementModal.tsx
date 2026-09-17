@@ -234,17 +234,53 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
           </div>
 
           <div className="form-group flex-1">
-            <label htmlFor="mov-date">
-              {isInstallment ? '1º Vencimento' : 'Data de Vencimento'}
-            </label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+              <label htmlFor="mov-date" style={{ marginBottom: 0 }}>
+                {isInstallment ? '1º Vencimento' : 'Data de Vencimento'}
+              </label>
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ fontSize: '0.7rem', padding: '1px 6px', height: 'auto', color: 'var(--accent-cyan)' }}
+                  onClick={() => setDueDate(new Date().toISOString().split('T')[0])}
+                  title="Definir para a data de hoje"
+                >
+                  Hoje
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ fontSize: '0.7rem', padding: '1px 6px', height: 'auto', color: 'var(--accent-cyan)' }}
+                  onClick={() => {
+                    const now = new Date();
+                    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+                    const monthStr = String(now.getMonth() + 1).padStart(2, '0');
+                    setDueDate(`${now.getFullYear()}-${monthStr}-${String(lastDay).padStart(2, '0')}`);
+                  }}
+                  title="Definir para o último dia do mês atual"
+                >
+                  Fim do Mês
+                </button>
+              </div>
+            </div>
             <input
               id="mov-date"
               type="date"
               className="form-input"
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
+              onClick={(e) => {
+                try {
+                  e.currentTarget.showPicker();
+                } catch {}
+              }}
+              style={{ cursor: 'pointer' }}
               required
             />
+            <span className="form-hint" style={{ fontSize: '0.72rem' }}>
+              Clique para abrir o calendário e selecionar
+            </span>
           </div>
         </div>
 
