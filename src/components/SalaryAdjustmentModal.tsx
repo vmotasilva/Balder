@@ -272,15 +272,24 @@ export const SalaryAdjustmentModal: React.FC<SalaryAdjustmentModalProps> = ({
     const isSemanal   = paymentSchedule === 'SEMANAL';
     const isFixed     = installmentValueMode === 'FIXED';
 
-    // Só persiste valores por período quando o modo é FIXED
-    const firstAmt = isFixed && isQuinzenal
-      ? parseFloat(firstInstallmentAmount.replace(',', '.')) || Math.round(net * 0.40 * 100) / 100
+    const autoPct = quinzenaSplitMode === '50_50' ? 50 : 40;
+    const calcFirst = Math.round(net * (autoPct / 100) * 100) / 100;
+    const calcSecond = Math.round((net - calcFirst) * 100) / 100;
+
+    const firstAmt = isQuinzenal
+      ? isFixed
+        ? parseFloat(firstInstallmentAmount.replace(',', '.')) || calcFirst
+        : calcFirst
       : undefined;
-    const secondAmt = isFixed && isQuinzenal
-      ? parseFloat(secondInstallmentAmount.replace(',', '.')) || Math.round((net - (firstAmt || 0)) * 100) / 100
+    const secondAmt = isQuinzenal
+      ? isFixed
+        ? parseFloat(secondInstallmentAmount.replace(',', '.')) || calcSecond
+        : calcSecond
       : undefined;
-    const pct = isFixed && isQuinzenal && firstAmt && net > 0
+    const pct = isQuinzenal && firstAmt && net > 0
       ? Math.round((firstAmt / net) * 100)
+      : isQuinzenal
+      ? autoPct
       : undefined;
     const weeklyAmt = isFixed && isSemanal
       ? parseFloat(weeklyInstallmentAmount.replace(',', '.')) || Math.round((net * 12 / 52) * 100) / 100
@@ -820,26 +829,28 @@ export const SalaryAdjustmentModal: React.FC<SalaryAdjustmentModalProps> = ({
               </div>
             )}
 
-            {paymentSchedule === 'QUINZENAL' && (
+            {paymentSchedule === 'QUINZENAL' && (() => {
+              const currentNetVal = parseFloat(contractNet.replace(',', '.')) || 0;
+              const autoPct = quinzenaSplitMode === '50_50' ? 50 : 40;
+              const refFirst = installmentValueMode === 'FIXED' && firstInstallmentAmount
+                ? parseFloat(firstInstallmentAmount.replace(',', '.')) || 0
+                : Math.round(currentNetVal * (autoPct / 100) * 100) / 100;
+              const refSecond = installmentValueMode === 'FIXED' && secondInstallmentAmount
+                ? parseFloat(secondInstallmentAmount.replace(',', '.')) || 0
+                : Math.round((currentNetVal - refFirst) * 100) / 100;
 
-              <div
-                className="glass-card"
-                style={{
-                  padding: '1rem',
-                  borderRadius: '10px',
-                  border: '1px solid rgba(6, 182, 212, 0.25)',
-                  background: 'rgba(6, 182, 212, 0.04)',
-                }}
-              >
-                {/* Divisão das parcelas — só em modo FIXED */}
-                {installmentValueMode === 'AUTO' ? (
-                  <div style={{ padding: '0.5rem 0.75rem', background: 'rgba(16,185,129,0.07)',
-                    borderRadius: '8px', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-                    ⚡ <strong>Modo Automático:</strong> os valores de cada quinzena serão calculados automaticamente
-                    com base no salário líquido vigente no mês (proporção {quinzenaSplitMode === '50_50' ? '50%/50%' : '40%/60%'}).
-                    Informe apenas os dias de recebimento abaixo.
-                  </div>
-                ) : (
+              return (
+                <div
+                  className="glass-card"
+                  style={{
+                    padding: '1.1rem',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(6, 182, 212, 0.25)',
+                    background: 'rgba(6, 182, 212, 0.04)',
+                    marginBottom: '1rem',
+                  }}
+                >
+                  {/* Seletor de Divisão / Proporção de Referência */}
                   <div
                     style={{
                       display: 'flex',
@@ -847,13 +858,18 @@ export const SalaryAdjustmentModal: React.FC<SalaryAdjustmentModalProps> = ({
                       justifyContent: 'space-between',
                       flexWrap: 'wrap',
                       gap: '0.5rem',
-                      marginBottom: '0.75rem',
+                      marginBottom: '0.85rem',
                     }}
                   >
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                      Divisão das Parcelas:
-                    </span>
-                    <div style={{ display: 'flex', gap: '0.25rem' }}>
+                    <div>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        Divisão de Referência:
+                      </span>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>
+                        (base para os cálculos da quinzena)
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.35rem' }}>
                       <button
                         type="button"
                         className={`btn btn-xs ${quinzenaSplitMode === '40_60' ? 'btn-primary' : 'btn-ghost'}`}
@@ -862,8 +878,9 @@ export const SalaryAdjustmentModal: React.FC<SalaryAdjustmentModalProps> = ({
                           const netVal = parseFloat(contractNet.replace(',', '.')) || 0;
                           updateQuinzenaAmounts(netVal, '40_60');
                         }}
+                        title="Proporção comum da CLT onde o adiantamento é 40% e o saldo de 60% recebe os descontos da folha"
                       >
-                        40% / 60% (CLT)
+                        40% / 60% (Padrão CLT)
                       </button>
                       <button
                         type="button"
@@ -873,148 +890,259 @@ export const SalaryAdjustmentModal: React.FC<SalaryAdjustmentModalProps> = ({
                           const netVal = parseFloat(contractNet.replace(',', '.')) || 0;
                           updateQuinzenaAmounts(netVal, '50_50');
                         }}
+                        title="Divisão de 50% em cada quinzena"
                       >
-                        50% / 50%
+                        50% / 50% (Iguais)
                       </button>
-                      <button
-                        type="button"
-                        className={`btn btn-xs ${quinzenaSplitMode === 'CUSTOM' ? 'btn-primary' : 'btn-ghost'}`}
-                        onClick={() => setQuinzenaSplitMode('CUSTOM')}
-                      >
-                        Personalizado
-                      </button>
+                      {installmentValueMode === 'FIXED' && (
+                        <button
+                          type="button"
+                          className={`btn btn-xs ${quinzenaSplitMode === 'CUSTOM' ? 'btn-primary' : 'btn-ghost'}`}
+                          onClick={() => setQuinzenaSplitMode('CUSTOM')}
+                        >
+                          Personalizado
+                        </button>
+                      )}
                     </div>
                   </div>
-                )}
 
-                {/* Inputs de valores (apenas no modo FIXED) */}
-                {installmentValueMode === 'FIXED' && (
-                  <div className="form-row">
-                    {/* 1ª Quinzena */}
-                    <div className="form-group flex-1">
-                      <label className="form-label" style={{ fontSize: '0.8rem' }}>
-                        🗓️ 1ª Quinzena (Adiantamento)
-                      </label>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <div style={{ width: '80px' }}>
-                          <input
-                            type="number"
-                            min="1"
-                            max="31"
-                            className="form-input text-center"
-                            placeholder="Dia"
-                            value={firstInstallmentDay}
-                            onChange={(e) => setFirstInstallmentDay(parseInt(e.target.value) || 15)}
-                            title="Dia do mês da 1ª quinzena"
-                            required
-                          />
-                          <span className="form-hint">Dia do mês</span>
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <input
-                            type="text"
-                            className="form-input text-glow-cyan font-semibold"
-                            placeholder="Valor R$"
-                            value={firstInstallmentAmount}
-                            readOnly={quinzenaSplitMode !== 'CUSTOM'}
-                            onChange={(e) => {
-                              setFirstInstallmentAmount(e.target.value);
-                              const netVal = parseFloat(contractNet.replace(',', '.')) || 0;
-                              const val = parseFloat(e.target.value.replace(',', '.')) || 0;
-                              if (netVal > 0) {
-                                setSecondInstallmentAmount(Math.max(0, netVal - val).toFixed(2));
-                              }
-                            }}
-                            required
-                          />
-                          <span className="form-hint">Valor da 1ª quinzena</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 2ª Quinzena */}
-                    <div className="form-group flex-1">
-                      <label className="form-label" style={{ fontSize: '0.8rem' }}>
-                        🗓️ 2ª Quinzena (Saldo do Mês)
-                      </label>
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <div style={{ width: '80px' }}>
-                          <input
-                            type="number"
-                            min="1"
-                            max="31"
-                            className="form-input text-center"
-                            placeholder="Dia"
-                            value={secondInstallmentDay}
-                            onChange={(e) => setSecondInstallmentDay(parseInt(e.target.value) || 1)}
-                            title="Dia do mês da 2ª quinzena"
-                            required
-                          />
-                          <span className="form-hint">Dia do mês</span>
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <input
-                            type="text"
-                            className="form-input text-glow-cyan font-semibold"
-                            placeholder="Valor R$"
-                            value={secondInstallmentAmount}
-                            readOnly={quinzenaSplitMode !== 'CUSTOM'}
-                            onChange={(e) => {
-                              setSecondInstallmentAmount(e.target.value);
-                              const netVal = parseFloat(contractNet.replace(',', '.')) || 0;
-                              const val = parseFloat(e.target.value.replace(',', '.')) || 0;
-                              if (netVal > 0) {
-                                setFirstInstallmentAmount(Math.max(0, netVal - val).toFixed(2));
-                              }
-                            }}
-                            required
-                          />
-                          <span className="form-hint">Valor da 2ª quinzena</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Dias de recebimento (sempre visível) */}
-                {installmentValueMode === 'AUTO' && (
-                  <div className="form-row">
-                    <div className="form-group flex-1">
-                      <label className="form-label" style={{ fontSize: '0.8rem' }}>Dia da 1ª Quinzena</label>
-                      <input type="number" min="1" max="31" className="form-input text-center"
-                        value={firstInstallmentDay}
-                        onChange={(e) => setFirstInstallmentDay(parseInt(e.target.value) || 15)} />
-                    </div>
-                    <div className="form-group flex-1">
-                      <label className="form-label" style={{ fontSize: '0.8rem' }}>Dia da 2ª Quinzena</label>
-                      <input type="number" min="1" max="31" className="form-input text-center"
-                        value={secondInstallmentDay}
-                        onChange={(e) => setSecondInstallmentDay(parseInt(e.target.value) || 1)} />
-                    </div>
-                  </div>
-                )}
-
-                {/* Resumo */}
-                {installmentValueMode === 'FIXED' && firstInstallmentAmount && secondInstallmentAmount && (
+                  {/* Quadro Visual dos Valores de Referência */}
                   <div
                     style={{
-                      marginTop: '0.5rem', padding: '0.5rem 0.75rem',
-                      background: 'rgba(255, 255, 255, 0.04)', borderRadius: '6px',
-                      fontSize: '0.75rem', display: 'flex', alignItems: 'center',
-                      justifyContent: 'space-between', color: 'var(--text-secondary)',
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                      gap: '0.75rem',
+                      marginBottom: '0.85rem',
                     }}
                   >
-                    <span>Dia {firstInstallmentDay}: <strong>R$ {parseFloat(firstInstallmentAmount || '0').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></span>
-                    <span>+</span>
-                    <span>Dia {secondInstallmentDay}: <strong>R$ {parseFloat(secondInstallmentAmount || '0').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></span>
-                    <span>=</span>
-                    <span className="text-glow-cyan font-bold">
-                      Total R$ {parseFloat(contractNet || '0').toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    {/* Card 1ª Quinzena: Adiantamento */}
+                    <div
+                      style={{
+                        padding: '0.85rem',
+                        borderRadius: '10px',
+                        background: 'rgba(15, 23, 42, 0.65)',
+                        border: '1px solid rgba(6, 182, 212, 0.25)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                          🗓️ 1ª Quinzena
+                          <span style={{ fontSize: '0.65rem', padding: '0.15rem 0.4rem', borderRadius: '4px', background: 'rgba(6,182,212,0.15)', color: 'var(--accent-cyan)' }}>
+                            Adiantamento
+                          </span>
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          Dia {firstInstallmentDay}
+                        </span>
+                      </div>
+                      <div style={{ margin: '0.35rem 0' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block' }}>
+                          Valor de Referência:
+                        </span>
+                        <strong className="text-glow-cyan" style={{ fontSize: '1.05rem' }}>
+                          {currentNetVal > 0
+                            ? refFirst.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                            : 'Informe o salário líquido acima'}
+                        </strong>
+                      </div>
+                      <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.35rem', marginTop: '0.2rem' }}>
+                        Adiantamento salarial (sem incidência dos principais descontos).
+                      </span>
+                    </div>
+
+                    {/* Card 2ª Quinzena: Saldo do Mês */}
+                    <div
+                      style={{
+                        padding: '0.85rem',
+                        borderRadius: '10px',
+                        background: 'rgba(15, 23, 42, 0.65)',
+                        border: '1px solid rgba(168, 85, 247, 0.25)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                          🗓️ 2ª Quinzena
+                          <span style={{ fontSize: '0.65rem', padding: '0.15rem 0.4rem', borderRadius: '4px', background: 'rgba(168,85,247,0.15)', color: '#c084fc' }}>
+                            Saldo c/ Descontos
+                          </span>
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          Dia {secondInstallmentDay}
+                        </span>
+                      </div>
+                      <div style={{ margin: '0.35rem 0' }}>
+                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block' }}>
+                          Valor de Referência:
+                        </span>
+                        <strong className="text-glow-cyan" style={{ fontSize: '1.05rem', color: '#34d399' }}>
+                          {currentNetVal > 0
+                            ? refSecond.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                            : 'Informe o salário líquido acima'}
+                        </strong>
+                      </div>
+                      <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '0.35rem', marginTop: '0.2rem' }}>
+                        Saldo da competência sujeito a variações e descontos (INSS, IRRF, benefícios).
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Informação sobre os descontos e total líquido */}
+                  <div
+                    style={{
+                      padding: '0.55rem 0.75rem',
+                      borderRadius: '8px',
+                      background: 'rgba(255, 255, 255, 0.03)',
+                      border: '1px solid rgba(255, 255, 255, 0.06)',
+                      fontSize: '0.74rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '0.4rem',
+                      marginBottom: '0.85rem',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>Total Líquido Base:</span>
+                      <strong style={{ color: '#fff' }}>
+                        {currentNetVal > 0
+                          ? currentNetVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                          : 'R$ 0,00'}
+                      </strong>
+                    </div>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem', fontStyle: 'italic' }}>
+                      💡 A 2ª quinzena geralmente varia conforme os descontos aplicados pelo empregador.
                     </span>
                   </div>
-                )}
-              </div>
-            )}
+
+                  {/* Configuração dos Dias e Valores */}
+                  {installmentValueMode === 'FIXED' ? (
+                    <div className="form-row">
+                      {/* 1ª Quinzena */}
+                      <div className="form-group flex-1">
+                        <label className="form-label" style={{ fontSize: '0.8rem' }}>
+                          🗓️ 1ª Quinzena (Adiantamento)
+                        </label>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <div style={{ width: '80px' }}>
+                            <input
+                              type="number"
+                              min="1"
+                              max="31"
+                              className="form-input text-center"
+                              placeholder="Dia"
+                              value={firstInstallmentDay}
+                              onChange={(e) => setFirstInstallmentDay(parseInt(e.target.value) || 15)}
+                              title="Dia do mês da 1ª quinzena"
+                              required
+                            />
+                            <span className="form-hint">Dia do mês</span>
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <input
+                              type="text"
+                              className="form-input text-glow-cyan font-semibold"
+                              placeholder="Valor R$"
+                              value={firstInstallmentAmount}
+                              readOnly={quinzenaSplitMode !== 'CUSTOM'}
+                              onChange={(e) => {
+                                setFirstInstallmentAmount(e.target.value);
+                                const netVal = parseFloat(contractNet.replace(',', '.')) || 0;
+                                const val = parseFloat(e.target.value.replace(',', '.')) || 0;
+                                if (netVal > 0) {
+                                  setSecondInstallmentAmount(Math.max(0, netVal - val).toFixed(2));
+                                }
+                              }}
+                              required
+                            />
+                            <span className="form-hint">Valor da 1ª quinzena</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 2ª Quinzena */}
+                      <div className="form-group flex-1">
+                        <label className="form-label" style={{ fontSize: '0.8rem' }}>
+                          🗓️ 2ª Quinzena (Saldo do Mês)
+                        </label>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <div style={{ width: '80px' }}>
+                            <input
+                              type="number"
+                              min="1"
+                              max="31"
+                              className="form-input text-center"
+                              placeholder="Dia"
+                              value={secondInstallmentDay}
+                              onChange={(e) => setSecondInstallmentDay(parseInt(e.target.value) || 1)}
+                              title="Dia do mês da 2ª quinzena"
+                              required
+                            />
+                            <span className="form-hint">Dia do mês</span>
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <input
+                              type="text"
+                              className="form-input text-glow-cyan font-semibold"
+                              placeholder="Valor R$"
+                              value={secondInstallmentAmount}
+                              readOnly={quinzenaSplitMode !== 'CUSTOM'}
+                              onChange={(e) => {
+                                setSecondInstallmentAmount(e.target.value);
+                                const netVal = parseFloat(contractNet.replace(',', '.')) || 0;
+                                const val = parseFloat(e.target.value.replace(',', '.')) || 0;
+                                if (netVal > 0) {
+                                  setFirstInstallmentAmount(Math.max(0, netVal - val).toFixed(2));
+                                }
+                              }}
+                              required
+                            />
+                            <span className="form-hint">Valor da 2ª quinzena</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="form-row">
+                      <div className="form-group flex-1">
+                        <label className="form-label" style={{ fontSize: '0.8rem' }}>
+                          Dia da 1ª Quinzena (Adiantamento)
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="31"
+                          className="form-input text-center"
+                          value={firstInstallmentDay}
+                          onChange={(e) => setFirstInstallmentDay(parseInt(e.target.value) || 15)}
+                        />
+                        <span className="form-hint">Normalmente entre os dias 15 e 20</span>
+                      </div>
+                      <div className="form-group flex-1">
+                        <label className="form-label" style={{ fontSize: '0.8rem' }}>
+                          Dia da 2ª Quinzena (Saldo do Mês)
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="31"
+                          className="form-input text-center"
+                          value={secondInstallmentDay}
+                          onChange={(e) => setSecondInstallmentDay(parseInt(e.target.value) || 1)}
+                        />
+                        <span className="form-hint">Normalmente entre os dias 1 e 5</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {paymentSchedule === 'SEMANAL' && (
               <div

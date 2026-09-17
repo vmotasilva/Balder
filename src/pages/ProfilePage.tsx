@@ -671,16 +671,19 @@ export const ProfilePage: React.FC = () => {
                           {activeContract.paymentSchedule === 'QUINZENAL' || activeContract.secondPaymentDay ? '1ª Quinzena (Adiantamento)' : 'Dia de Pagamento'}
                         </span>
                         <span className="info-cell-val font-semibold">
-                          {activeContract.paymentSchedule === 'QUINZENAL' || activeContract.secondPaymentDay ? (
-                            <>
-                              Dia {activeContract.secondPaymentDay || 15}
-                              {activeContract.firstInstallmentAmount ? (
-                                <span className="text-glow-cyan" style={{ marginLeft: '6px' }}>
-                                  (R$ {activeContract.firstInstallmentAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})
-                                </span>
-                              ) : ''}
-                            </>
-                          ) : (
+                          {activeContract.paymentSchedule === 'QUINZENAL' || activeContract.secondPaymentDay ? (() => {
+                            const first = activeContract.firstInstallmentAmount || Math.round(activeContract.currentNetAmount * ((activeContract.firstInstallmentPercent || 40) / 100) * 100) / 100;
+                            return (
+                              <>
+                                Dia {activeContract.secondPaymentDay || 15}
+                                {first > 0 && (
+                                  <span className="text-glow-cyan" style={{ marginLeft: '6px' }}>
+                                    (R$ {first.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})
+                                  </span>
+                                )}
+                              </>
+                            );
+                          })() : (
                             `Dia ${activeContract.paymentDay}`
                           )}
                         </span>
@@ -690,16 +693,20 @@ export const ProfilePage: React.FC = () => {
                           {activeContract.paymentSchedule === 'QUINZENAL' || activeContract.secondPaymentDay ? '2ª Quinzena (Saldo)' : 'Banco de Recebimento'}
                         </span>
                         <span className="info-cell-val font-semibold">
-                          {activeContract.paymentSchedule === 'QUINZENAL' || activeContract.secondPaymentDay ? (
-                            <>
-                              Dia {activeContract.paymentDay || 1}
-                              {activeContract.secondInstallmentAmount ? (
-                                <span className="text-glow-cyan" style={{ marginLeft: '6px' }}>
-                                  (R$ {activeContract.secondInstallmentAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})
-                                </span>
-                              ) : ''}
-                            </>
-                          ) : (
+                          {activeContract.paymentSchedule === 'QUINZENAL' || activeContract.secondPaymentDay ? (() => {
+                            const first = activeContract.firstInstallmentAmount || Math.round(activeContract.currentNetAmount * ((activeContract.firstInstallmentPercent || 40) / 100) * 100) / 100;
+                            const second = activeContract.secondInstallmentAmount || Math.round((activeContract.currentNetAmount - first) * 100) / 100;
+                            return (
+                              <>
+                                Dia {activeContract.paymentDay || 1}
+                                {second > 0 && (
+                                  <span className="text-glow-cyan" style={{ marginLeft: '6px' }}>
+                                    (R$ {second.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})
+                                  </span>
+                                )}
+                              </>
+                            );
+                          })() : (
                             activeContract.receivingBankName || 'Conta Padrão'
                           )}
                         </span>
