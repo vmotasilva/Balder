@@ -18,7 +18,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import type { MonthlyGridProjectionRow, MappingItem } from '../types';
-import { extrasSchedule } from '../utils/projectionMath';
+
 
 export interface GridCellSelection {
   columnKey:
@@ -415,24 +415,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         });
       });
 
-      const scheduledVal = extrasSchedule[monthPrefix] || 0;
-      if (scheduledVal > 0) {
-        items.push({
-          id: `sched_extra_${monthPrefix}`,
-          category: monthPrefix === '2026-12' ? '13º Salário / Bônus' : 'Aporte & Proventos',
-          bankOrOrigin: 'XP / Inter',
-          title:
-            monthPrefix === '2026-12'
-              ? '13º Salário & Bônus de Final de Ano (Planejado)'
-              : 'Aporte & Rendimentos Extras Planejados',
-          notes: 'Previsão oficial da planilha orçamentária do Balder',
-          badge: 'Projeção Orçamentária',
-          badgeType: 'amber',
-          amount: scheduledVal,
-          dateOrDue: `Previsão: ${monthPrefix}-20`,
-          isProjected: true,
-        });
-      }
+
 
       const currentSum = items.reduce((acc, it) => acc + it.amount, 0);
       const remaining = Math.round(((totalValue || 0) - currentSum) * 100) / 100;
@@ -851,7 +834,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         }
       });
     } else if (columnKey === 'totalIncome') {
-      // 1. Salário CLT
+      // 1. Salário
       if (row.salary > 0) {
         const realSalaries = movements.filter(
           (m) =>
@@ -859,38 +842,111 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             (m.category === 'Salário' || m.category.toLowerCase().includes('salário')) &&
             m.dueDate.startsWith(monthPrefix)
         );
-        items.push({
-          id: `income_sal_${monthPrefix}`,
-          category: 'Salário CLT',
-          bankOrOrigin: realSalaries[0]?.bank || 'Conta Corrente (Itaú / Bradesco)',
-          title: 'Salário CLT Líquido Regular',
-          notes: 'Remuneração mensal regular conforme holerite',
-          badge: 'Proventos',
-          badgeType: 'emerald',
-          amount: row.salary,
-          dateOrDue: `5º dia útil (${monthPrefix})`,
-          isProjected: true,
-          subItems: [
+
+        const fmt = (v: number) =>
+          new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+
+        const isSemanal   = (row.salaryWeeklyInstallments ?? 0) > 0;
+        const isQuinzenal = !isSemanal && ((row.salaryFirstInstallment ?? 0) > 0 || (row.salarySecondInstallment ?? 0) > 0);
+
+        let salarySubItems: CellBreakdownSubItem[] = [];
+
+        if (isSemanal) {
+          // Gera N sub-itens, um por semana no mês
+          const count     = row.salaryWeeklyInstallments ?? 0;
+          const weeklyVal = row.salaryWeeklyAmount ?? Math.round((row.salary / count) * 100) / 100;
+          for (let w = 1; w <= count; w++) {
+            salarySubItems.push({
+              id: `sub_sal_w${w}_${monthPrefix}`,
+              description: `${w}ª semana`,
+              quantity: 1,
+              price: weeklyVal,
+              multiplierWeeks: 1,
+              totalValue: weeklyVal,
+              mappingName: `Provento Semanal (${w}/${count})`,
+            });
+          }
+        } else if (isQuinzenal) {
+          salarySubItems = [
+            {
+              id: `sub_sal_q1_${monthPrefix}`,
+              description: '1ª Quinzena (adiantamento)',
+              quantity: 1,
+              price: row.salaryFirstInstallment ?? 0,
+              multiplierWeeks: 1,
+              totalValue: row.salaryFirstInstallment ?? 0,
+              mappingName: 'Proventos — 1ª Quinzena',
+            },
+            {
+              id: `sub_sal_q2_${monthPrefix}`,
+              description: '2ª Quinzena (pagamento principal)',
+              quantity: 1,
+              price: row.salarySecondInstallment ?? 0,
+              multiplierWeeks: 1,
+              totalValue: row.salarySecondInstallment ?? 0,
+              mappingName: 'Proventos — 2ª Quinzena',
+            },
+          ];
+        } else {
+          salarySubItems = [
             {
               id: `sub_sal_${monthPrefix}`,
-              description: 'Salário CLT Líquido',
+              description: 'Salário Líquido',
               quantity: 1,
               price: row.salary,
               multiplierWeeks: 1,
               totalValue: row.salary,
               mappingName: 'Proventos Fixos',
             },
-          ],
+          ];
+        }
+
+        const category = isSemanal ? 'Salário — Pagamento Semanal'
+          : isQuinzenal ? 'Salário — Pagamento Quinzenal'
+          : 'Salário';
+
+        const title = isSemanal
+          ? `Salário Líquido (${row.salaryWeeklyInstallments} semanas no mês)`
+          : isQuinzenal
+          ? 'Salário Líquido (1ª + 2ª Quinzena)'
+          : 'Salário Líquido Regular';
+
+        const notes = isSemanal
+          ? `${row.salaryWeeklyInstallments} pagamentos × ${fmt(row.salaryWeeklyAmount ?? 0)} = ${fmt(row.salary)}`
+          : isQuinzenal
+          ? `1ª Quinzena: ${fmt(row.salaryFirstInstallment ?? 0)} · 2ª Quinzena: ${fmt(row.salarySecondInstallment ?? 0)}`
+          : 'Remuneração mensal regular conforme holerite';
+
+        const dateOrDue = isSemanal
+          ? `${row.salaryWeeklyInstallments} pagamentos semanais em ${row.competenceLabel}`
+          : isQuinzenal
+          ? `Quinzenas em ${row.competenceLabel}`
+          : `5º dia útil (${monthPrefix})`;
+
+        items.push({
+          id: `income_sal_${monthPrefix}`,
+          category,
+          bankOrOrigin: realSalaries[0]?.bank || 'Conta Corrente',
+          title,
+          notes,
+          badge: isSemanal ? 'Semanal' : isQuinzenal ? 'Quinzenal' : 'Proventos',
+          badgeType: 'emerald',
+          amount: row.salary,
+          dateOrDue,
+          isProjected: true,
+          subItems: salarySubItems,
         });
       }
 
+
+
       // 2. Extras Total (Bônus, 13º, aportes)
       if (row.extrasTotal > 0) {
-        const scheduledVal = extrasSchedule[monthPrefix] || 0;
         const realMovements = movements.filter(
           (m) =>
             m.type === 'RECEBER' &&
             m.category !== 'Salário' &&
+            !m.title.toLowerCase().includes('salário') &&
             m.dueDate.startsWith(monthPrefix)
         );
         const subItemsList: CellBreakdownSubItem[] = [];
@@ -906,18 +962,6 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             mappingName: m.category,
           });
         });
-
-        if (scheduledVal > 0) {
-          subItemsList.push({
-            id: `sub_sched_extra_${monthPrefix}`,
-            description: monthPrefix === '2026-12' ? '13º Salário & Bônus de Final de Ano' : 'Aporte & Proventos Planejados',
-            quantity: 1,
-            price: scheduledVal,
-            multiplierWeeks: 1,
-            totalValue: scheduledVal,
-            mappingName: 'Projeção Orçamentária',
-          });
-        }
 
         items.push({
           id: `income_extras_${monthPrefix}`,

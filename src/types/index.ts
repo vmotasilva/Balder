@@ -42,7 +42,11 @@ export interface MonthlyGridProjectionRow {
   competenceLabel: string;     // 'Set/2026'
   initialBalance?: number;     // Saldo Inicial (no primeiro mês ou transferido)
   extrasTotal: number;         // Extras Total (+)
-  salary: number;              // Salário (+)
+  salary: number;              // Salário Total (+) — soma de todas as parcelas/semanas/quinzenas
+  salaryFirstInstallment?: number;  // 1ª Quinzena (se QUINZENAL)
+  salarySecondInstallment?: number; // 2ª Quinzena (se QUINZENAL)
+  salaryWeeklyInstallments?: number; // Nº de pagamentos semanais no mês (se SEMANAL)
+  salaryWeeklyAmount?: number;       // Valor por semana (se SEMANAL)
   creditCardTotal: number;     // Cartão de Crédito (-)
   fixedCostMapped: number;     // Custo Fixo Mapeado TOTAL (-)
   fixedCostOnCard: number;     // Custo Fixo pago em Cartão de Crédito (integrado à fatura)
@@ -361,7 +365,7 @@ export type SalaryAdjustmentReason =
   | 'INFLAÇÃO_CORREÇÃO'
   | 'OUTRO';
 
-export type SalaryPaymentSchedule = 'UNICO' | 'QUINZENAL';
+export type SalaryPaymentSchedule = 'UNICO' | 'QUINZENAL' | 'SEMANAL';
 
 export interface SalaryAdjustment {
   id: string;
@@ -372,8 +376,10 @@ export interface SalaryAdjustment {
   reason: SalaryAdjustmentReason;
   title?: string;               // Título descritivo (ex: 'Acordo Coletivo 2026', 'Promoção para Tech Lead')
   notes?: string;               // Detalhes, observações sobre novos benefícios, etc.
-  firstInstallmentAmount?: number;  // Valor da 1ª quinzena (se quinzenal)
-  secondInstallmentAmount?: number; // Valor da 2ª quinzena (se quinzenal)
+  firstInstallmentAmount?: number;  // Valor da 1ª quinzena (se quinzenal e FIXED)
+  secondInstallmentAmount?: number; // Valor da 2ª quinzena (se quinzenal e FIXED)
+  weeklyInstallmentAmount?: number; // Valor líquido por semana (se semanal e FIXED)
+  installmentValueMode?: 'FIXED' | 'AUTO'; // Como o valor por período é determinado
 }
 
 export interface SalaryContract {
@@ -381,12 +387,15 @@ export interface SalaryContract {
   employer: string;             // Nome da Empresa / Empregador (ex: 'Tech Inovação S.A.')
   role: string;                 // Cargo ou Função (ex: 'Especialista de Sistemas')
   contractType: SalaryContractType;
-  paymentSchedule?: SalaryPaymentSchedule; // 'UNICO' ou 'QUINZENAL'
+  paymentSchedule?: SalaryPaymentSchedule; // 'UNICO', 'QUINZENAL' ou 'SEMANAL'
   paymentDay: number;           // Dia do mês do pagamento principal / 2ª quinzena (ex: 1 ou 5)
   secondPaymentDay?: number;    // Dia do mês da 1ª quinzena / adiantamento (ex: 15 ou 20)
-  firstInstallmentPercent?: number;  // % da 1ª quinzena (ex: 40 ou 50)
-  firstInstallmentAmount?: number;   // Valor em R$ da 1ª quinzena
-  secondInstallmentAmount?: number;  // Valor em R$ da 2ª quinzena
+  weeklyPaymentDayOfWeek?: number;   // Dia da semana do pagamento semanal (0=Dom … 6=Sáb, padrão 5=Sex)
+  firstInstallmentPercent?: number;  // % da 1ª quinzena (ex: 40 ou 50) — usado no modo AUTO
+  firstInstallmentAmount?: number;   // Valor em R$ da 1ª quinzena — usado no modo FIXED
+  secondInstallmentAmount?: number;  // Valor em R$ da 2ª quinzena — usado no modo FIXED
+  weeklyInstallmentAmount?: number;  // Valor líquido por semana — usado no modo FIXED
+  installmentValueMode?: 'FIXED' | 'AUTO'; // FIXED = valores fixos cadastrados; AUTO = calcula a partir do líquido
   currentGrossAmount: number;   // Salário Bruto Atual
   currentNetAmount: number;     // Salário Líquido Atual vigente
   receivingBankAccountId?: string; // ID da Conta Bancária cadastrada

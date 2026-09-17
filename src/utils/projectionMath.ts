@@ -1,4 +1,4 @@
-import type { Movement, ExpenseNature, MonthlyGridProjectionRow, SalaryContract } from '../types';
+import type { Movement, ExpenseNature, MonthlyGridProjectionRow, SalaryContract, SalaryAdjustment } from '../types';
 
 export interface ProjectionGridConfig {
   initialBalance?: number;
@@ -7,68 +7,154 @@ export interface ProjectionGridConfig {
   horizonMonths?: number;
 }
 
-// Mapa de parcelas de cartão e avulsos por competência da planilha do usuário
-// Mostra o decaimento gradual e realista dos cartões de crédito ao longo dos meses
-export const creditCardSchedule: Record<string, number> = {
-  '2026-09': 6706.53,
-  '2026-10': 4902.49,
-  '2026-11': 3502.93,
-  '2026-12': 2687.27,
-  '2027-01': 1829.54,
-  '2027-02': 1551.81,
-  '2027-03': 545.78,
-  '2027-04': 274.47,
-  '2027-05': 247.75,
-  '2027-06': 136.74,
-  '2027-07': 54.54,
-  '2027-08': 0,
-  '2027-09': 0,
-  '2027-10': 0,
-  '2027-11': 0,
-};
-
-export const variableCostSchedule: Record<string, number> = {
-  '2026-09': 510.00,
-  '2026-10': 360.00,
-  '2026-11': 360.00,
-  '2026-12': 600.00,
-};
-
-export const extrasSchedule: Record<string, number> = {
-  '2026-09': 1000.00,
-  '2026-12': 21311.33, // 13º Salário / Bônus
-};
+/**
+ * Gera as competências do horizonte de projeção: 15 meses a partir do mês atual.
+ */
+function generateCompetenceMonths() {
+  const now = new Date();
+  const months = [];
+  for (let i = 0; i < 15; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    const key = `${year}-${String(month).padStart(2, '0')}`;
+    const label = d.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' });
+    const date = `01/${String(month).padStart(2, '0')}/${year}`;
+    months.push({ key, date, label, monthIndex: month, year });
+  }
+  return months;
+}
 
 /**
- * Constrói o grid de projeção financeira mês a mês (2026 - 2027)
- * com base na estrutura da planilha do usuário.
+ * Conta quantas ocorrências de um determinado dia da semana existem em um mês.
+ * @param year  Ano (ex: 2026)
+ * @param month Mês 1-indexed (ex: 9 = setembro)
+ * @param dayOfWeek 0 = Domingo … 6 = Sábado (padrão JS Date)
+ */
+function countWeekdayOccurrencesInMonth(year: number, month: number, dayOfWeek: number): number {
+  const firstDay = new Date(year, month - 1, 1).getDay();
+  const daysInMonth = new Date(year, month, 0).getDate();
+  // Quantos dias completos do mês têm aquele dia da semana
+  let count = Math.floor(daysInMonth / 7);
+  const remainder = daysInMonth % 7;
+  // Os dias "sobrando" após as semanas completas (começando do firstDay)
+  for (let extra = 0; extra < remainder; extra++) {
+    if ((firstDay + extra) % 7 === dayOfWeek) {
+      count++;
+    }
+  }
+  return count;
+}
+
+/**
+ * Resultado da resolução do salário para uma competência.
+ */
+interface SalaryResolution {
+  total: number;
+  first: number;          // 1ª quinzena (QUINZENAL)
+  second: number;         // 2ª quinzena (QUINZENAL)
+  weeklyAmount: number;   // Valor por semana (SEMANAL)
+  weeklyCount: number;    // Nº de pagamentos semanais no mês (SEMANAL)
+}
+
+/**
+ * Retorna o valor líquido total de um contrato para uma competência específica,
+ * respeitando o histórico de reajustes e o formato de pagamento:
+ *   - UNICO    : pagamento único mensal = netAmount
+ *   - QUINZENAL: soma de 1ª + 2ª quinzena
+ *   - SEMANAL  : weeklyAmount × nº de pagamentos do dia da semana no mês
+ *
+ * installmentValueMode:
+ *   - 'FIXED' → usa os valores por período exatamente como cadastrados
+ *   - 'AUTO'  → recalcula a partir do netAmount a cada resolução (ignora valores fixados)
+ *   - undefined → comportamento legado: tenta FIXED; se não houver, cai em AUTO
+ */
+function resolveSalaryForMonth(sc: SalaryContract, compKey: string): SalaryResolution {
+  const zero: SalaryResolution = { total: 0, first: 0, second: 0, weeklyAmount: 0, weeklyCount: 0 };
+
+  if (!sc.startDate || sc.startDate > compKey) return zero;
+
+  // ── Encontrar a entrada de histórico aplicável ──────────────────────────────
+  let applicableEntry: SalaryAdjustment | null = null;
+  if (sc.history && sc.history.length > 0) {
+    const sorted = [...sc.history].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
+    applicableEntry = sorted.filter((a) => a.effectiveDate <= compKey).pop() ?? null;
+  }
+
+  // Valores base: preferir entrada do histórico
+  const baseNetAmount = applicableEntry?.netAmount ?? sc.currentNetAmount;
+
+  // O modo vigente: a entrada do histórico pode sobrescrever o do contrato
+  const mode = applicableEntry?.installmentValueMode ?? sc.installmentValueMode;
+
+  // Valores explícitos por período (só relevantes no modo FIXED ou legado)
+  const storedFirst       = applicableEntry?.firstInstallmentAmount  ?? sc.firstInstallmentAmount  ?? 0;
+  const storedSecond      = applicableEntry?.secondInstallmentAmount ?? sc.secondInstallmentAmount ?? 0;
+  const storedWeeklyValue = applicableEntry?.weeklyInstallmentAmount ?? sc.weeklyInstallmentAmount ?? 0;
+
+  const schedule = sc.paymentSchedule ?? 'UNICO';
+
+  // ── UNICO ──────────────────────────────────────────────────────────────────
+  if (schedule === 'UNICO') {
+    return { total: baseNetAmount, first: 0, second: 0, weeklyAmount: 0, weeklyCount: 0 };
+  }
+
+  // ── QUINZENAL ──────────────────────────────────────────────────────────────
+  if (schedule === 'QUINZENAL') {
+    const isFixed = mode === 'FIXED' || (mode === undefined && storedFirst > 0);
+
+    if (isFixed && storedFirst > 0) {
+      const first  = storedFirst;
+      const second = storedSecond > 0 ? storedSecond : Math.round((baseNetAmount - first) * 100) / 100;
+      return { total: first + second, first, second, weeklyAmount: 0, weeklyCount: 0 };
+    }
+
+    // AUTO: derivar do percentual ou 40/60 padrão
+    const pct    = sc.firstInstallmentPercent ?? 40;
+    const first  = Math.round((baseNetAmount * pct) / 100 * 100) / 100;
+    const second = Math.round((baseNetAmount - first) * 100) / 100;
+    return { total: baseNetAmount, first, second, weeklyAmount: 0, weeklyCount: 0 };
+  }
+
+  // ── SEMANAL ────────────────────────────────────────────────────────────────
+  const dayOfWeek = sc.weeklyPaymentDayOfWeek ?? 5;
+  const [yearStr, monthStr] = compKey.split('-');
+  const year      = parseInt(yearStr, 10);
+  const month     = parseInt(monthStr, 10);
+  const weeklyCount = countWeekdayOccurrencesInMonth(year, month, dayOfWeek);
+
+  const isFixed = mode === 'FIXED' || (mode === undefined && storedWeeklyValue > 0);
+
+  if (isFixed && storedWeeklyValue > 0) {
+    const total = Math.round(storedWeeklyValue * weeklyCount * 100) / 100;
+    return { total, first: 0, second: 0, weeklyAmount: storedWeeklyValue, weeklyCount };
+  }
+
+  // AUTO: deriva semanalmente do líquido anual ÷ 52
+  const weeklyFromAnnual = Math.round((baseNetAmount * 12 / 52) * 100) / 100;
+  const total = Math.round(weeklyFromAnnual * weeklyCount * 100) / 100;
+  return { total, first: 0, second: 0, weeklyAmount: weeklyFromAnnual, weeklyCount };
+}
+
+/**
+ * Constrói o grid de projeção financeira mês a mês.
+ * Utiliza APENAS dados efetivamente cadastrados pelo usuário.
+ * Sem valores hardcoded ou fallbacks arbitrários.
+ *
+ * Formatos de pagamento suportados:
+ *   - UNICO    : pagamento integral único no mês
+ *   - QUINZENAL: dois pagamentos (1ª + 2ª quinzena) com valores específicos ou percentual
+ *   - SEMANAL  : N pagamentos por semana no mês (conta ocorrências reais do dia da semana)
  */
 export function buildMonthlyProjectionGrid(
   movements: Movement[],
   natures: ExpenseNature[],
-  initialBalance: number = 668.78,
+  initialBalance: number = 0,
   salaryContracts?: SalaryContract[]
 ): MonthlyGridProjectionRow[] {
-  // Competências base: Setembro/2026 até Novembro/2027 (15 meses)
-  const competenceMonths = [
-    { key: '2026-09', date: '01/09/2026', label: 'Set/2026', monthIndex: 9, year: 2026 },
-    { key: '2026-10', date: '01/10/2026', label: 'Out/2026', monthIndex: 10, year: 2026 },
-    { key: '2026-11', date: '01/11/2026', label: 'Nov/2026', monthIndex: 11, year: 2026 },
-    { key: '2026-12', date: '01/12/2026', label: 'Dez/2026', monthIndex: 12, year: 2026 },
-    { key: '2027-01', date: '01/01/2027', label: 'Jan/2027', monthIndex: 1, year: 2027 },
-    { key: '2027-02', date: '01/02/2027', label: 'Fev/2027', monthIndex: 2, year: 2027 },
-    { key: '2027-03', date: '01/03/2027', label: 'Mar/2027', monthIndex: 3, year: 2027 },
-    { key: '2027-04', date: '01/04/2027', label: 'Abr/2027', monthIndex: 4, year: 2027 },
-    { key: '2027-05', date: '01/05/2027', label: 'Mai/2027', monthIndex: 5, year: 2027 },
-    { key: '2027-06', date: '01/06/2027', label: 'Jun/2027', monthIndex: 6, year: 2027 },
-    { key: '2027-07', date: '01/07/2027', label: 'Jul/2027', monthIndex: 7, year: 2027 },
-    { key: '2027-08', date: '01/08/2027', label: 'Ago/2027', monthIndex: 8, year: 2027 },
-    { key: '2027-09', date: '01/09/2027', label: 'Set/2027', monthIndex: 9, year: 2027 },
-    { key: '2027-10', date: '01/10/2027', label: 'Out/2027', monthIndex: 10, year: 2027 },
-    { key: '2027-11', date: '01/11/2027', label: 'Nov/2027', monthIndex: 11, year: 2027 },
-  ];
+  const competenceMonths = generateCompetenceMonths();
 
-  // Cálculo do Custo Fixo Mapeado das Naturezas com segregação de meio de pagamento
+  // ── Custo Fixo das Naturezas (segregado por meio de pagamento) ──────────────
   let totalFixedFromNatures = 0;
   let fixedOnCardFromNatures = 0;
   let fixedDirectFromNatures = 0;
@@ -78,7 +164,6 @@ export function buildMonthlyProjectionGrid(
       m.items.forEach((item) => {
         const itemVal = item.totalValue || item.quantity * item.price * (item.multiplierWeeks || 1);
         totalFixedFromNatures += itemVal;
-
         if (item.paymentMethod === 'CARTAO') {
           fixedOnCardFromNatures += itemVal;
         } else {
@@ -88,67 +173,77 @@ export function buildMonthlyProjectionGrid(
     });
   });
 
-  // Se não houver itens cadastrados nas naturezas, fallback para o valor base da planilha (R$ 3.945,67)
-  const defaultMonthlyFixedCost = totalFixedFromNatures > 0 ? totalFixedFromNatures : 3945.67;
+  const defaultMonthlyFixedCost = totalFixedFromNatures;
   const defaultFixedOnCard = fixedOnCardFromNatures;
-  const defaultFixedDirect = fixedDirectFromNatures > 0 ? fixedDirectFromNatures : defaultMonthlyFixedCost;
+  const defaultFixedDirect = fixedDirectFromNatures;
 
-  // Identificar salário cadastrado nas movimentações como fallback
-  const salaryMovement = movements.find(
-    (m) => m.type === 'RECEBER' && (m.category === 'Salário' || m.title.toLowerCase().includes('salário'))
-  );
-  const regularSalary = salaryMovement ? salaryMovement.amount : 8963.68;
-
-  // Identificar parcela de empréstimo contratada
-  const loanInstallment = movements.find((m) => m.type === 'EMPRESTIMO');
-  const regularLoanPayment = loanInstallment ? loanInstallment.amount : 1415.54;
+  const loanMovements = movements.filter((m) => m.type === 'EMPRESTIMO');
 
   const rows: MonthlyGridProjectionRow[] = [];
   let runningAccumulated = 0;
 
   competenceMonths.forEach((comp, idx) => {
-    // 1. Saldo Inicial
     const isFirstMonth = idx === 0;
     const initial = isFirstMonth ? initialBalance : undefined;
 
-    // 2. Extras Total (+)
-    // Soma movimentações avulsas de recebimento daquele mês + schedule
-    const customExtras = movements
-      .filter((m) => m.type === 'RECEBER' && m.category !== 'Salário' && m.dueDate.startsWith(comp.key))
+    // ── 1. Extras / Receitas avulsas (+) ──────────────────────────────────────
+    const extrasTotal = movements
+      .filter(
+        (m) =>
+          m.type === 'RECEBER' &&
+          m.category !== 'Salário' &&
+          !m.title.toLowerCase().includes('salário') &&
+          m.dueDate.startsWith(comp.key)
+      )
       .reduce((acc, m) => acc + m.amount, 0);
-    const extrasTotal = (extrasSchedule[comp.key] || 0) + (customExtras > 0 ? customExtras : 0);
 
-    // 3. Salário (+) calculado dinamicamente conforme reajustes vigentes na competência comp.key
-    const isJanuary2027 = comp.key === '2027-01';
+    // ── 2. Salário (+) — suporta UNICO, QUINZENAL e SEMANAL ──────────────────
     let salary = 0;
-    if (!isJanuary2027) {
-      if (salaryContracts && salaryContracts.length > 0) {
-        salary = salaryContracts
-          .filter((sc) => sc.isActive)
-          .reduce((sum, sc) => {
-            if (!sc.history || sc.history.length === 0) return sum + sc.currentNetAmount;
-            const sorted = [...sc.history].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
-            const applicable = sorted.filter((a) => a.effectiveDate <= comp.key).pop();
-            return sum + (applicable ? applicable.netAmount : sorted[0].netAmount);
-          }, 0);
-      } else {
-        salary = regularSalary;
-      }
+    let salaryFirstInstallment: number | undefined;
+    let salarySecondInstallment: number | undefined;
+    let salaryWeeklyAmount: number | undefined;
+    let salaryWeeklyInstallments: number | undefined;
+
+    if (salaryContracts && salaryContracts.length > 0) {
+      salaryContracts
+        .filter((sc) => sc.isActive)
+        .forEach((sc) => {
+          const res = resolveSalaryForMonth(sc, comp.key);
+          salary = Math.round((salary + res.total) * 100) / 100;
+
+          if (res.first > 0 || res.second > 0) {
+            salaryFirstInstallment  = Math.round(((salaryFirstInstallment  ?? 0) + res.first)  * 100) / 100;
+            salarySecondInstallment = Math.round(((salarySecondInstallment ?? 0) + res.second) * 100) / 100;
+          }
+          if (res.weeklyCount > 0) {
+            salaryWeeklyAmount       = Math.round(((salaryWeeklyAmount      ?? 0) + res.weeklyAmount) * 100) / 100;
+            salaryWeeklyInstallments = Math.max(salaryWeeklyInstallments ?? 0, res.weeklyCount); // usa maior (múltiplos contratos semanais são raros)
+          }
+        });
+    } else {
+      // Fallback: movimentos de salário cadastrados para o mês
+      salary = movements
+        .filter(
+          (m) =>
+            m.type === 'RECEBER' &&
+            (m.category === 'Salário' || m.title.toLowerCase().includes('salário')) &&
+            m.dueDate.startsWith(comp.key)
+        )
+        .reduce((acc, m) => acc + m.amount, 0);
     }
 
-    // 4. Cartão de Crédito (-)
-    const customCard = movements
+    // ── 3. Cartão de Crédito (-) ───────────────────────────────────────────────
+    const creditCardTotal = movements
       .filter((m) => m.type === 'CARTAO' && m.dueDate.startsWith(comp.key))
       .reduce((acc, m) => acc + m.amount, 0);
-    const creditCardTotal = customCard > 0 && comp.key === '2026-10' ? customCard : (creditCardSchedule[comp.key] || 0);
 
-    // 5. Custo Fixo Mapeado (-)
-    const fixedCostMapped = defaultMonthlyFixedCost;
-    const fixedCostOnCard = defaultFixedOnCard;
-    const fixedCostDirect = defaultFixedDirect;
+    // ── 4. Custo Fixo Mapeado (-) ──────────────────────────────────────────────
+    const fixedCostMapped  = defaultMonthlyFixedCost;
+    const fixedCostOnCard  = defaultFixedOnCard;
+    const fixedCostDirect  = defaultFixedDirect;
 
-    // 6. Custos Avulsos (Variável) (-)
-    const customVariable = movements
+    // ── 5. Custos Avulsos / Variáveis (-) ─────────────────────────────────────
+    const variableCost = movements
       .filter(
         (m) =>
           m.type === 'PAGAR' &&
@@ -157,27 +252,25 @@ export function buildMonthlyProjectionGrid(
           m.dueDate.startsWith(comp.key)
       )
       .reduce((acc, m) => acc + m.amount, 0);
-    const variableCost = (variableCostSchedule[comp.key] || 0) + (customVariable > 0 && !variableCostSchedule[comp.key] ? customVariable : 0);
 
-    // 7. Empréstimo (+) TOTAL (Valor Recebido)
-    const loanReceived = 0;
+    // ── 6. Empréstimos Recebidos (+) ───────────────────────────────────────────
+    const loanReceived = movements
+      .filter((m) => m.type === 'EMPRESTIMO' && m.category === 'Recebimento' && m.dueDate.startsWith(comp.key))
+      .reduce((acc, m) => acc + m.amount, 0);
 
-    // 8. Empréstimo (-) TOTAL (Valor a pagar no mês)
-    // Na planilha começa a pagar a partir de 11/2026
-    const hasLoanPaymentThisMonth = comp.key >= '2026-11';
-    const loanPayment = hasLoanPaymentThisMonth ? regularLoanPayment : 0;
+    // ── 7. Parcelas de Empréstimo (-) ──────────────────────────────────────────
+    const loanPayment = loanMovements
+      .filter((m) => m.category !== 'Recebimento' && m.dueDate.startsWith(comp.key))
+      .reduce((acc, m) => acc + m.amount, 0);
 
-    // 9. SALDO (Mês Net) COM REGRA ANTI-DUPLICIDADE:
-    // O valor de custo fixo pago no cartão de crédito já integra a fatura do cartão (creditCardTotal).
-    // O desembolso de caixa direto em conta/boleto é apenas fixedCostDirect.
-    // Portanto, totalOutflow debita creditCardTotal + fixedCostDirect para evitar duplicidade!
-    const totalInflow = extrasTotal + salary + loanReceived;
+    // ── 8. Saldo do Mês ────────────────────────────────────────────────────────
+    const totalInflow  = extrasTotal + salary + loanReceived;
     const totalOutflow = creditCardTotal + fixedCostDirect + variableCost + loanPayment;
-    const monthNet = Math.round((totalInflow - totalOutflow) * 100) / 100;
+    const monthNet     = Math.round((totalInflow - totalOutflow) * 100) / 100;
 
-    // 10. SALDO ACUMULADO
+    // ── 9. Saldo Acumulado ─────────────────────────────────────────────────────
     if (isFirstMonth) {
-      runningAccumulated = monthNet;
+      runningAccumulated = Math.round((initialBalance + monthNet) * 100) / 100;
     } else {
       runningAccumulated = Math.round((runningAccumulated + monthNet) * 100) / 100;
     }
@@ -189,6 +282,10 @@ export function buildMonthlyProjectionGrid(
       initialBalance: initial,
       extrasTotal,
       salary,
+      salaryFirstInstallment:   salaryFirstInstallment   && salaryFirstInstallment   > 0 ? salaryFirstInstallment   : undefined,
+      salarySecondInstallment:  salarySecondInstallment  && salarySecondInstallment  > 0 ? salarySecondInstallment  : undefined,
+      salaryWeeklyAmount:       salaryWeeklyAmount       && salaryWeeklyAmount       > 0 ? salaryWeeklyAmount       : undefined,
+      salaryWeeklyInstallments: salaryWeeklyInstallments && salaryWeeklyInstallments > 0 ? salaryWeeklyInstallments : undefined,
       creditCardTotal,
       fixedCostMapped,
       fixedCostOnCard,

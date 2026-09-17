@@ -476,26 +476,56 @@ export const ProfilePage: React.FC = () => {
 
                     <div className="salary-contract-grid-info">
                       <div className="info-cell">
-                        <span className="info-cell-label">Regime</span>
-                        <span className="info-cell-val font-semibold">{activeContract.contractType}</span>
-                      </div>
-                      <div className="info-cell">
-                        <span className="info-cell-label">Dia de Pagamento</span>
+                        <span className="info-cell-label">Regime & Formato</span>
                         <span className="info-cell-val font-semibold">
-                          Dia {activeContract.paymentDay}
-                          {activeContract.secondPaymentDay ? ` (Vale dia ${activeContract.secondPaymentDay})` : ''}
+                          {activeContract.contractType} • {activeContract.paymentSchedule === 'QUINZENAL' || activeContract.secondPaymentDay ? 'Em 2 Quinzenas' : 'Mensal Integral'}
                         </span>
                       </div>
                       <div className="info-cell">
-                        <span className="info-cell-label">Banco de Recebimento</span>
+                        <span className="info-cell-label">
+                          {activeContract.paymentSchedule === 'QUINZENAL' || activeContract.secondPaymentDay ? '1ª Quinzena (Adiantamento)' : 'Dia de Pagamento'}
+                        </span>
                         <span className="info-cell-val font-semibold">
-                          {activeContract.receivingBankName || 'Conta Padrão'}
+                          {activeContract.paymentSchedule === 'QUINZENAL' || activeContract.secondPaymentDay ? (
+                            <>
+                              Dia {activeContract.secondPaymentDay || 15}
+                              {activeContract.firstInstallmentAmount ? (
+                                <span className="text-glow-cyan" style={{ marginLeft: '6px' }}>
+                                  (R$ {activeContract.firstInstallmentAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})
+                                </span>
+                              ) : ''}
+                            </>
+                          ) : (
+                            `Dia ${activeContract.paymentDay}`
+                          )}
                         </span>
                       </div>
                       <div className="info-cell">
-                        <span className="info-cell-label">Status</span>
-                        <span className="badge badge-emerald">
-                          {activeContract.isActive ? 'Ativo na Projeção' : 'Inativo'}
+                        <span className="info-cell-label">
+                          {activeContract.paymentSchedule === 'QUINZENAL' || activeContract.secondPaymentDay ? '2ª Quinzena (Saldo)' : 'Banco de Recebimento'}
+                        </span>
+                        <span className="info-cell-val font-semibold">
+                          {activeContract.paymentSchedule === 'QUINZENAL' || activeContract.secondPaymentDay ? (
+                            <>
+                              Dia {activeContract.paymentDay || 1}
+                              {activeContract.secondInstallmentAmount ? (
+                                <span className="text-glow-cyan" style={{ marginLeft: '6px' }}>
+                                  (R$ {activeContract.secondInstallmentAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})
+                                </span>
+                              ) : ''}
+                            </>
+                          ) : (
+                            activeContract.receivingBankName || 'Conta Padrão'
+                          )}
+                        </span>
+                      </div>
+                      <div className="info-cell">
+                        <span className="info-cell-label">Banco / Status</span>
+                        <span className="info-cell-val font-semibold flex items-center gap-2">
+                          <span>{activeContract.receivingBankName || 'Conta Padrão'}</span>
+                          <span className="badge badge-emerald">
+                            {activeContract.isActive ? 'Ativo' : 'Inativo'}
+                          </span>
                         </span>
                       </div>
                     </div>
