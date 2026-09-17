@@ -10,8 +10,11 @@ import {
   CreditCard,
   Building2,
   Banknote,
+  Zap,
 } from 'lucide-react';
 import type { MovementType } from '../types';
+import { calculatePresentValue, groupLoanMovements } from '../utils/loanMath';
+import { LoanPrepaymentModal } from '../components/LoanPrepaymentModal';
 
 interface MovementsPageProps {
   onOpenNewMovementModal: (defaultType?: MovementType) => void;
@@ -27,6 +30,36 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('TODOS');
   const [bankFilter, setBankFilter] = useState<string>('TODOS');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Modal de Simulação e Antecipação de Empréstimos
+  const [prepaymentModalOpen, setPrepaymentModalOpen] = useState(false);
+  const [selectedPrepayGroup, setSelectedPrepayGroup] = useState<string | undefined>(undefined);
+  const [selectedPrepayMovement, setSelectedPrepayMovement] = useState<string | undefined>(undefined);
+
+  const handleOpenPrepayment = (groupId?: string, movementId?: string) => {
+    setSelectedPrepayGroup(groupId);
+    setSelectedPrepayMovement(movementId);
+    setPrepaymentModalOpen(true);
+  };
+
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+  // Análise da carteira de empréstimos em aberto
+  const loanGroups = useMemo(() => {
+    return groupLoanMovements(movements, todayStr);
+  }, [movements, todayStr]);
+
+  const totalLoanNominal = useMemo(() => {
+    return loanGroups.reduce((sum, g) => sum + g.nominalBalance, 0);
+  }, [loanGroups]);
+
+  const totalLoanPresentValue = useMemo(() => {
+    return loanGroups.reduce((sum, g) => sum + g.presentValueToday, 0);
+  }, [loanGroups]);
+
+  const totalLoanImmediateSavings = useMemo(() => {
+    return Math.max(0, Math.round((totalLoanNominal - totalLoanPresentValue) * 100) / 100);
+  }, [totalLoanNominal, totalLoanPresentValue]);
 
   // Filtragem Multidimensional
   const filteredMovements = useMemo(() => {
@@ -119,6 +152,55 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
         </div>
       </div>
 
+      {/* BANNER EXECUTIVO QUANDO A ABA FOR EMPRÉSTIMO */}
+      {activeTab === 'EMPRESTIMO' && loanGroups.length > 0 && (
+        <div className="loan-portfolio-banner glass-card animate-fade-in mb-4">
+          <div className="loan-portfolio-info">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="badge badge-amber text-xs">RESUMO DE CRÉDITOS ATIVOS</span>
+              <span className="text-xs text-muted">Resolução BACEN nº 3.516 (Deságio a Valor Presente)</span>
+            </div>
+            <h3 className="text-lg font-bold text-white">Carteira de Empréstimos & Oportunidade de Quitação</h3>
+            <p className="text-xs text-secondary mt-1">
+              Você possui <strong>{loanGroups.reduce((acc, g) => acc + g.openInstallments.length, 0)} parcelas futuras</strong> ativas.
+              Ao antecipar parcelas, todos os juros futuros não decorridos são deduzidos por lei.
+            </p>
+          </div>
+
+          <div className="loan-portfolio-kpis">
+            <div className="portfolio-kpi-item">
+              <span className="portfolio-kpi-label">Saldo Devedor Nominal</span>
+              <strong className="portfolio-kpi-val text-white">
+                {totalLoanNominal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </strong>
+            </div>
+
+            <div className="portfolio-kpi-item">
+              <span className="portfolio-kpi-label">Se Quitado Hoje</span>
+              <strong className="portfolio-kpi-val text-cyan">
+                {totalLoanPresentValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </strong>
+            </div>
+
+            <div className="portfolio-kpi-item">
+              <span className="portfolio-kpi-label">Economia Imediata</span>
+              <strong className="portfolio-kpi-val text-emerald">
+                +{totalLoanImmediateSavings.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </strong>
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-primary btn-sm portfolio-cta-btn"
+              onClick={() => handleOpenPrepayment()}
+            >
+              <Zap size={15} />
+              <span>Simular Antecipação</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Summary KPI Pills */}
       <div className="movements-kpi-row">
         <div className="kpi-pill glass-card">
@@ -158,7 +240,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
             Pagar
           </button>
           <button className={`view-tab ${activeTab === 'EMPRESTIMO' ? 'active' : ''}`} onClick={() => setActiveTab('EMPRESTIMO')}>
-            Empréstimos
+            Empréstimos {loanGroups.length > 0 && `(${loanGroups.reduce((acc, g) => acc + g.openInstallments.length, 0)})`}
           </button>
           <button className={`view-tab ${activeTab === 'CARTAO' ? 'active' : ''}`} onClick={() => setActiveTab('CARTAO')}>
             Cartões
@@ -229,7 +311,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
                 <th>Categoria</th>
                 <th>Vencimento</th>
                 <th>Banco</th>
-                <th style={{ textAlign: 'right' }}>Valor</th>
+                <th style={{ textAlign: 'right' }}>Valor Nominal</th>
                 <th style={{ width: '60px', textAlign: 'center' }}>Ações</th>
               </tr>
             </thead>
@@ -237,6 +319,13 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
               {filteredMovements.map((item) => {
                 const isIncome = item.type === 'RECEBER';
                 const isRealized = item.status === 'REALIZADA';
+
+                // Cálculo reativo do valor se pago hoje para empréstimos
+                let todayPrepayment = null;
+                if (item.type === 'EMPRESTIMO' && !isRealized) {
+                  const rate = item.interestRatePercent || 3.03;
+                  todayPrepayment = calculatePresentValue(item.amount, item.dueDate, todayStr, rate);
+                }
 
                 return (
                   <tr key={item.id} className={isRealized ? 'row-realized' : ''}>
@@ -254,7 +343,14 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
                     {/* Title */}
                     <td>
                       <div className="item-title-col">
-                        <span className={`item-title ${isRealized ? 'line-through' : ''}`}>{item.title}</span>
+                        <div className="flex items-center gap-2">
+                          <span className={`item-title ${isRealized ? 'line-through' : ''}`}>{item.title}</span>
+                          {item.installmentNumber && item.installmentsTotal && (
+                            <span className="badge badge-cyan text-xs">
+                              {item.installmentNumber}/{item.installmentsTotal}
+                            </span>
+                          )}
+                        </div>
                         {item.notes && <span className="item-notes">{item.notes}</span>}
                       </div>
                     </td>
@@ -281,11 +377,42 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
                       <span className="bank-text">{item.bank}</span>
                     </td>
 
-                    {/* Amount */}
+                    {/* Amount + Valor Se Pago Hoje */}
                     <td style={{ textAlign: 'right' }}>
                       <span className={`amount-text ${isIncome ? 'text-emerald' : 'text-rose font-semibold'}`}>
                         {isIncome ? '+' : '-'} {item.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </span>
+
+                      {/* Exibição do Valor se pago hoje para cada parcela de empréstimo cadastrado */}
+                      {todayPrepayment && (
+                        <div className="prepayment-row-indicator mt-1">
+                          <div className="text-xs text-cyan flex justify-end items-center gap-1 font-medium">
+                            <span className="text-muted text-xs">Se pago hoje:</span>
+                            <strong className="text-white">
+                              {todayPrepayment.discountedAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            </strong>
+                          </div>
+                          {todayPrepayment.discountAmount > 0 && (
+                            <div className="flex justify-end items-center gap-2 mt-1">
+                              <span className="badge badge-emerald" style={{ fontSize: '10px', padding: '1px 5px' }}>
+                                - {todayPrepayment.discountAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} ({todayPrepayment.discountPercent}%)
+                              </span>
+                              <button
+                                type="button"
+                                className="btn-prepay-shortcut"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOpenPrepayment(item.installmentGroupId, item.id);
+                                }}
+                                title="Simular antecipação desta ou de outras parcelas deste contrato"
+                              >
+                                <Zap size={11} />
+                                <span>Simular Antecipação</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </td>
 
                     {/* Actions */}
@@ -314,6 +441,14 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
           </div>
         )}
       </div>
+
+      {/* Modal de Simulação de Antecipação de Empréstimo */}
+      <LoanPrepaymentModal
+        isOpen={prepaymentModalOpen}
+        onClose={() => setPrepaymentModalOpen(false)}
+        initialGroupId={selectedPrepayGroup}
+        initialMovementId={selectedPrepayMovement}
+      />
     </div>
   );
 };

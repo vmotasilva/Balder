@@ -70,6 +70,54 @@
   --transition-slow: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* ==============================================================
+   BALDER FINANCIAL OS - LIGHT THEME TOKENS (LIGHT ELEGANCE)
+   Aesthetic: Clean Fintech Luxury (Stripe / Apple Card / Linear)
+   ============================================================== */
+[data-theme="light"] {
+  /* Surface & Background */
+  --bg-space: #F8FAFC;
+  --bg-app: #F1F5F9;
+  --bg-sidebar: #FFFFFF;
+  --bg-card: #F0F7FF;
+  --bg-card-hover: #E0F2FE;
+  --bg-card-elevated: #F0F7FF;
+  --bg-input: #FFFFFF;
+  --bg-glass: rgba(240, 247, 255, 0.95);
+
+  /* Borders */
+  --border-subtle: #BAE6FD;
+  --border-default: #CBD5E1;
+  --border-active: #0284C7;
+  --border-highlight: rgba(2, 132, 199, 0.35);
+
+  /* Accent Colors (calibrated for high contrast on light backgrounds) */
+  --accent-cyan: #0284C7;
+  --accent-cyan-glow: rgba(2, 132, 199, 0.15);
+  --accent-emerald: #059669;
+  --accent-emerald-glow: rgba(5, 150, 105, 0.15);
+  --accent-amber: #D97706;
+  --accent-amber-glow: rgba(217, 119, 6, 0.15);
+  --accent-rose: #DC2626;
+  --accent-rose-glow: rgba(220, 38, 38, 0.15);
+  --accent-purple: #7C3AED;
+  --accent-indigo: #4F46E5;
+
+  /* Typography */
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-muted: #64748B;
+  --text-dim: #94A3B8;
+
+  /* Elevation & Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 14px -1px rgba(0, 0, 0, 0.07);
+  --shadow-lg: 0 10px 25px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04);
+  --shadow-glow: 0 0 20px -3px rgba(2, 132, 199, 0.15);
+  --shadow-glow-emerald: 0 0 20px -3px rgba(5, 150, 105, 0.15);
+  --shadow-glow-rose: 0 0 20px -3px rgba(220, 38, 38, 0.15);
+}
+
 /* Base Styles */
 *, *::before, *::after {
   box-sizing: border-box;
@@ -292,3 +340,73 @@ button {
   color: var(--text-primary);
   background: rgba(56, 189, 248, 0.08);
 }
+
+/* ==============================================================
+   LIGHT THEME UTILITY & COMPONENT REFINEMENTS
+   ============================================================== */
+[data-theme="light"] body::before {
+  background: radial-gradient(circle, rgba(2, 132, 199, 0.04) 0%, transparent 70%);
+}
+
+[data-theme="light"] body::after {
+  background: radial-gradient(circle, rgba(5, 150, 105, 0.03) 0%, transparent 70%);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-track {
+  background: #F1F5F9;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.16);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(2, 132, 199, 0.4);
+}
+
+[data-theme="light"] .glass-card {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: var(--border-default);
+  box-shadow: var(--shadow-md);
+}
+
+[data-theme="light"] .glass-card:hover {
+  border-color: rgba(2, 132, 199, 0.35);
+  box-shadow: var(--shadow-lg), 0 0 20px -5px rgba(2, 132, 199, 0.12);
+}
+
+[data-theme="light"] .btn-secondary {
+  background: #FFFFFF;
+  color: var(--text-primary);
+  border-color: var(--border-default);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .btn-secondary:hover {
+  background: #F8FAFC;
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+
+[data-theme="light"] .btn-outline {
+  border-color: var(--border-default);
+  color: var(--text-secondary);
+  background: #FFFFFF;
+}
+
+[data-theme="light"] .btn-outline:hover {
+  background: rgba(2, 132, 199, 0.06);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+
+[data-theme="light"] .btn-primary {
+  background: linear-gradient(135deg, #0284C7 0%, #0EA5E9 100%);
+  color: #FFFFFF;
+  box-shadow: 0 2px 10px rgba(2, 132, 199, 0.28);
+}
+
+[data-theme="light"] .btn-primary:hover {
+  box-shadow: 0 4px 16px rgba(2, 132, 199, 0.4);
+}
+

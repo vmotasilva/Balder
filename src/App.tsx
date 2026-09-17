@@ -1,17 +1,38 @@
 import { useState } from 'react';
+import { ThemeProvider } from './context/ThemeContext';
 import { FinancialProvider } from './context/FinancialContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sidebar } from './components/Sidebar';
 import type { TabId } from './components/Sidebar';
 import { Navbar } from './components/Navbar';
+import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { MovementsPage } from './pages/MovementsPage';
 import { CopilotPage } from './pages/CopilotPage';
 import { GoalsPage } from './pages/GoalsPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { NaturezasPage } from './pages/NaturezasPage';
+import { LoansPage } from './pages/LoansPage';
 import { NewMovementModal } from './components/NewMovementModal';
 import { SimulationModal } from './components/SimulationModal';
+import { LoanPrepaymentModal } from './components/LoanPrepaymentModal';
 import type { MovementType, SimulationPresetId } from './types';
 import './App.css';
+import './App.css';
+
+export function ProtectedApp() {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <div className="loading-screen">Carregando Balder...</div>;
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
+  return <AppContent />;
+}
 
 export function AppContent() {
   const [activeTab, setActiveTab] = useState<TabId>('DASHBOARD');
@@ -24,6 +45,8 @@ export function AppContent() {
   const [simulationModalOpen, setSimulationModalOpen] = useState(false);
   const [simulationPreset, setSimulationPreset] = useState<SimulationPresetId>('CARRO');
   const [simulationMode, setSimulationMode] = useState<'PRESETS' | 'STUDIO'>('PRESETS');
+
+  const [prepaymentModalOpen, setPrepaymentModalOpen] = useState(false);
 
   const handleOpenNewMovement = (type: MovementType = 'PAGAR') => {
     setDefaultMovementType(type);
@@ -62,13 +85,20 @@ export function AppContent() {
               onNavigateToMovements={() => setActiveTab('MOVIMENTACOES')}
               onNavigateToGoals={() => setActiveTab('METAS')}
               onNavigateToCopilot={() => setActiveTab('COPILOT')}
+              onNavigateToLoans={() => setActiveTab('EMPRESTIMOS')}
+              onNavigateToNatures={() => setActiveTab('NATUREZAS')}
               onOpenSimulation={handleOpenSimulation}
+              onOpenPrepayment={() => setPrepaymentModalOpen(true)}
             />
           )}
 
           {activeTab === 'MOVIMENTACOES' && (
             <MovementsPage onOpenNewMovementModal={handleOpenNewMovement} />
           )}
+
+          {activeTab === 'NATUREZAS' && <NaturezasPage />}
+
+          {activeTab === 'EMPRESTIMOS' && <LoansPage />}
 
           {activeTab === 'COPILOT' && <CopilotPage />}
 
@@ -91,14 +121,23 @@ export function AppContent() {
         initialPreset={simulationPreset}
         initialMode={simulationMode}
       />
+
+      <LoanPrepaymentModal
+        isOpen={prepaymentModalOpen}
+        onClose={() => setPrepaymentModalOpen(false)}
+      />
     </div>
   );
 }
 
 export default function App() {
   return (
-    <FinancialProvider>
-      <AppContent />
-    </FinancialProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <FinancialProvider>
+          <ProtectedApp />
+        </FinancialProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

@@ -14,6 +14,12 @@ import {
   TrendingUp,
   Shield,
   Plus,
+  HelpCircle,
+  ChevronDown,
+  ChevronUp,
+  Calendar,
+  DollarSign,
+  Percent,
 } from 'lucide-react';
 import type {
   SimulationVerdict,
@@ -30,24 +36,204 @@ interface SimulationModalProps {
   initialMode?: 'PRESETS' | 'STUDIO';
 }
 
+// Configurações padrão de referência para cada possibilidade
+const PRESET_DEFAULTS: Record<SimulationPresetId, {
+  title: string;
+  defaultAmount: number;
+  defaultRate: number;
+  defaultInstallments: number;
+  defaultBankPayment: number;
+  description: string;
+}> = {
+  NOVO_EMPRESTIMO: {
+    title: 'Simulação: Novo Empréstimo Pessoal',
+    defaultAmount: 30000,
+    defaultRate: 2.10,
+    defaultInstallments: 24,
+    defaultBankPayment: 1680.00,
+    description: 'Captação bancária com parcelas mensais debitadas em conta.',
+  },
+  FINANCIAMENTO: {
+    title: 'Simulação: Novo Financiamento Empresarial / Bens',
+    defaultAmount: 50000,
+    defaultRate: 1.95,
+    defaultInstallments: 36,
+    defaultBankPayment: 1950.00,
+    description: 'Financiamento estruturado com carência e prazos estendidos.',
+  },
+  CARRO: {
+    title: 'Simulação: Financiamento de Veículo (Auto)',
+    defaultAmount: 45000,
+    defaultRate: 1.75,
+    defaultInstallments: 48,
+    defaultBankPayment: 1420.00,
+    description: 'Crédito automotivo com alienação fiduciária em garantia.',
+  },
+  QUITAR_DIVIDA: {
+    title: 'Simulação: Troca / Consolidação de Dívida',
+    defaultAmount: 17367,
+    defaultRate: 3.03,
+    defaultInstallments: 14,
+    defaultBankPayment: 1458.51,
+    description: 'Consolidação e liquidação de passivos rotativos de juros elevados.',
+  },
+  IMOVEL: {
+    title: 'Simulação: Financiamento Imobiliário Residencial',
+    defaultAmount: 350000,
+    defaultRate: 0.85,
+    defaultInstallments: 360,
+    defaultBankPayment: 3180.00,
+    description: 'Crédito imobiliário habitacional de longo prazo (SFH/SFI).',
+  },
+};
+
+// Cálculo da Taxa Efetiva Real (TIR mensal) com base no PV, Parcela do Banco e N
+export function calculateEffectiveRate(pv: number, pmtBanco: number, n: number): number {
+  if (pv <= 0 || pmtBanco <= 0 || n <= 0) return 0;
+  if (pmtBanco * n <= pv) return 0;
+
+  let low = 0.00001;
+  let high = 1.0; // até 100% a.m.
+
+  for (let iter = 0; iter < 60; iter++) {
+    const mid = (low + high) / 2;
+    const factor = Math.pow(1 + mid, -n);
+    const computedPv = (pmtBanco * (1 - factor)) / mid;
+
+    if (Math.abs(computedPv - pv) < 0.01) {
+      return Math.round(mid * 10000) / 100;
+    }
+
+    if (computedPv > pv) {
+      low = mid;
+    } else {
+      high = mid;
+    }
+  }
+
+  return Math.round(((low + high) / 2) * 10000) / 100;
+}
+
+// Cálculo Matemático Rigoroso da Parcela Teórica (Price com ajuste de dias até 1º vencimento)
+export function calculateMathematicalLoan(
+  pv: number,
+  monthlyRatePercent: number,
+  n: number,
+  contractDateStr: string,
+  firstDueDateStr: string
+) {
+  if (pv <= 0 || n <= 0) {
+    return {
+      calculatedPayment: 0,
+      calculatedTotal: 0,
+      totalInterest: 0,
+      daysDifference: 30,
+    };
+  }
+
+  const i = (monthlyRatePercent || 0) / 100;
+
+  let daysDiff = 30;
+  let adjustedPv = pv;
+  try {
+    const cDate = new Date(contractDateStr + 'T12:00:00');
+    const fDate = new Date(firstDueDateStr + 'T12:00:00');
+    const diffMs = fDate.getTime() - cDate.getTime();
+    daysDiff = Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24)));
+
+    // Se o prazo até a 1ª parcela for superior a 30 dias (carência), incidem juros pro-rata
+    if (daysDiff > 30) {
+      const extraDays = daysDiff - 30;
+      adjustedPv = pv * (1 + (i * (extraDays / 30)));
+    }
+  } catch (e) {
+    daysDiff = 30;
+  }
+
+  const pmt = i > 0
+    ? (adjustedPv * i) / (1 - Math.pow(1 + i, -n))
+    : pv / n;
+
+  const total = pmt * n;
+  const totalInterest = Math.max(0, total - pv);
+
+  return {
+    calculatedPayment: Math.round(pmt * 100) / 100,
+    calculatedTotal: Math.round(total * 100) / 100,
+    totalInterest: Math.round(totalInterest * 100) / 100,
+    daysDifference: daysDiff,
+  };
+}
+
 export const SimulationModal: React.FC<SimulationModalProps> = ({
   isOpen,
   onClose,
-  initialPreset = 'CARRO',
+  initialPreset = 'NOVO_EMPRESTIMO',
   initialMode = 'PRESETS',
 }) => {
   const {
-    runSimulation,
     simulateCustomFutureScenario,
     applyScenarioToBudget,
+    addMultipleMovements,
     monthlyFreeCashflow,
   } = useFinancial();
 
   const [activeMode, setActiveMode] = useState<'PRESETS' | 'STUDIO'>(initialMode);
-
-  // Modo 1: Presets Rápidos
   const [selectedPreset, setSelectedPreset] = useState<SimulationPresetId>(initialPreset);
-  const presetScenario = runSimulation(selectedPreset);
+
+  // ==============================================================
+  // OS 10 CAMPOS CRÍTICOS DE AUDITORIA & SIMULAÇÃO PREENCHÍVEIS
+  // ==============================================================
+  const todayStr = new Date().toISOString().split('T')[0];
+  const nextMonthDate = new Date();
+  nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
+  const nextMonthStr = nextMonthDate.toISOString().split('T')[0];
+
+  const currentDefaults = PRESET_DEFAULTS[selectedPreset] || PRESET_DEFAULTS.NOVO_EMPRESTIMO;
+
+  const [loanAmount, setLoanAmount] = useState<number>(currentDefaults.defaultAmount);
+  const [declaredRate, setDeclaredRate] = useState<number>(currentDefaults.defaultRate);
+  const [installments, setInstallments] = useState<number>(currentDefaults.defaultInstallments);
+  const [contractDate, setContractDate] = useState<string>(todayStr);
+  const [firstDueDate, setFirstDueDate] = useState<string>(nextMonthStr);
+  const [bankPayment, setBankPayment] = useState<number>(currentDefaults.defaultBankPayment);
+  const [showFieldDetails, setShowFieldDetails] = useState<boolean>(false);
+
+  // Atualizar valores padrão ao mudar de preset
+  const handlePresetSelect = (preset: SimulationPresetId) => {
+    setSelectedPreset(preset);
+    const def = PRESET_DEFAULTS[preset];
+    setLoanAmount(def.defaultAmount);
+    setDeclaredRate(def.defaultRate);
+    setInstallments(def.defaultInstallments);
+    setBankPayment(def.defaultBankPayment);
+  };
+
+  // CÁLCULOS AUTOMÁTICOS DO BALDER
+  const mathResults = calculateMathematicalLoan(
+    loanAmount,
+    declaredRate,
+    installments,
+    contractDate,
+    firstDueDate
+  );
+
+  const calculatedPayment = mathResults.calculatedPayment;
+  const calculatedTotal = mathResults.calculatedTotal;
+  const bankTotal = Math.round(bankPayment * installments * 100) / 100;
+  const effectiveRate = calculateEffectiveRate(loanAmount, bankPayment, installments);
+
+  // VALIDAÇÃO DA PARCELA
+  const paymentDiff = Math.round((bankPayment - calculatedPayment) * 100) / 100;
+  const totalDiff = Math.round((bankTotal - calculatedTotal) * 100) / 100;
+  const rateDiff = Math.round((effectiveRate - declaredRate) * 100) / 100;
+
+  let validationVerdict: 'CONFORME' | 'CUSTO_OCULTO' | 'SUBSIDIADO' = 'CONFORME';
+  if (paymentDiff > 1.50) {
+    validationVerdict = 'CUSTO_OCULTO';
+  } else if (paymentDiff < -1.50) {
+    validationVerdict = 'SUBSIDIADO';
+  }
 
   // Modo 2: Estúdio de Cenários Futuros
   const [operationType, setOperationType] = useState<CreditOperationType>('EMPRESTIMO_PESSOAL');
@@ -109,6 +295,55 @@ export const SimulationModal: React.FC<SimulationModalProps> = ({
     }
   };
 
+  // Salvar a simulação validada diretamente no planejamento financeiro
+  const handleSaveValidatedLoan = () => {
+    if (confirm(`Deseja efetivar este financiamento no seu Balder?\n\n• Captação de ${loanAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} em ${contractDate}\n• ${installments} parcelas de ${bankPayment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} a partir de ${firstDueDate}.`)) {
+      const groupId = `loan_${Date.now()}`;
+      const itemsToAdd = [];
+
+      // 1. Entrada do valor captado
+      itemsToAdd.push({
+        title: `Captação: ${currentDefaults.title.replace('Simulação: ', '')}`,
+        type: 'RECEBER' as const,
+        amount: loanAmount,
+        dueDate: contractDate,
+        bank: 'Nubank',
+        status: 'REALIZADA' as const,
+        category: 'Empréstimos / Financiamentos',
+        notes: `Efetivado via Simulador de Crédito. Taxa real: ${effectiveRate}% a.m.`,
+      });
+
+      // 2. Projeção das parcelas mensais
+      const startParts = firstDueDate.split('-');
+      const y = parseInt(startParts[0], 10);
+      const m = parseInt(startParts[1], 10) - 1;
+      const d = parseInt(startParts[2], 10);
+
+      for (let idx = 0; idx < installments; idx++) {
+        const pDate = new Date(y, m + idx, d);
+        if (pDate.getDate() !== d) pDate.setDate(0);
+
+        itemsToAdd.push({
+          title: `Parcela (${idx + 1}/${installments}) - ${currentDefaults.title.replace('Simulação: ', '')}`,
+          type: 'EMPRESTIMO' as const,
+          amount: bankPayment,
+          dueDate: pDate.toISOString().split('T')[0],
+          bank: 'Nubank',
+          status: 'PREVISTA' as const,
+          category: 'Empréstimos & Financiamentos',
+          notes: `Plano de ${installments}x de ${bankPayment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} • Taxa Real: ${effectiveRate}% a.m.`,
+          installmentNumber: idx + 1,
+          installmentsTotal: installments,
+          installmentGroupId: groupId,
+        });
+      }
+
+      addMultipleMovements(itemsToAdd);
+      alert('Operação de crédito efetivada no seu fluxo de caixa!');
+      onClose();
+    }
+  };
+
   const handleApplyScenario = () => {
     if (confirm('Deseja efetivar este cenário no seu Balder? Isso programará a captação e as parcelas futuras no seu fluxo de caixa.')) {
       applyScenarioToBudget(customResult);
@@ -120,13 +355,13 @@ export const SimulationModal: React.FC<SimulationModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={activeMode === 'STUDIO' ? 'Estúdio de Cenários Futuros' : 'Simulador de Decisões'}
+      title={activeMode === 'STUDIO' ? 'Estúdio de Cenários Futuros' : 'Simulador & Auditor de Crédito'}
       subtitle={
         activeMode === 'STUDIO'
           ? 'Projete créditos, direcione o recurso e defina o comportamento orçamentário com projeção de 12 meses'
-          : 'Teste o impacto patrimonial e de liquidez antes de assumir compromissos'
+          : 'Preencha as propostas de bancos e audite taxas reais, parcelas calculadas e custos ocultos'
       }
-      maxWidth={activeMode === 'STUDIO' ? '880px' : '720px'}
+      maxWidth={activeMode === 'STUDIO' ? '920px' : '860px'}
     >
       <div className="simulation-modal-content">
         {/* Top Dual Mode Switcher */}
@@ -136,7 +371,7 @@ export const SimulationModal: React.FC<SimulationModalProps> = ({
             onClick={() => setActiveMode('PRESETS')}
           >
             <Sparkles size={16} />
-            <span>Decisões Rápidas (Presets)</span>
+            <span>Auditor de Propostas & Possibilidades</span>
           </button>
 
           <button
@@ -144,135 +379,368 @@ export const SimulationModal: React.FC<SimulationModalProps> = ({
             onClick={() => setActiveMode('STUDIO')}
           >
             <Sliders size={16} />
-            <span>Estúdio de Cenários Futuros (Avançado)</span>
-            <span className="badge badge-cyan" style={{ fontSize: '9px', padding: '2px 6px' }}>NOVO</span>
+            <span>Estúdio de Cenários Futuros (12 Meses)</span>
+            <span className="badge badge-cyan" style={{ fontSize: '9px', padding: '2px 6px' }}>AVANÇADO</span>
           </button>
         </div>
 
         {/* ============================================================== */}
-        {/* MODO 1: PRESETS RÁPIDOS                                         */}
+        {/* MODO 1: AUDITOR DE POSSIBILIDADES COM OS 10 CAMPOS CRÍTICOS     */}
         {/* ============================================================== */}
         {activeMode === 'PRESETS' && (
           <div className="presets-mode-wrapper animate-fade-in">
-            {/* Presets Selector Grid */}
+            {/* Seletor de Possibilidades Rápidas */}
             <div className="simulation-presets-grid">
               <button
-                className={`sim-preset-btn ${selectedPreset === 'CARRO' ? 'active' : ''}`}
-                onClick={() => setSelectedPreset('CARRO')}
-              >
-                <Car size={20} />
-                <span>Comprar Carro</span>
-              </button>
-
-              <button
-                className={`sim-preset-btn ${selectedPreset === 'QUITAR_DIVIDA' ? 'active' : ''}`}
-                onClick={() => setSelectedPreset('QUITAR_DIVIDA')}
-              >
-                <CheckCircle2 size={20} />
-                <span>Quitar Dívida</span>
-              </button>
-
-              <button
                 className={`sim-preset-btn ${selectedPreset === 'NOVO_EMPRESTIMO' ? 'active' : ''}`}
-                onClick={() => setSelectedPreset('NOVO_EMPRESTIMO')}
+                onClick={() => handlePresetSelect('NOVO_EMPRESTIMO')}
               >
-                <Banknote size={20} />
+                <Banknote size={18} />
                 <span>Novo Empréstimo</span>
               </button>
 
               <button
                 className={`sim-preset-btn ${selectedPreset === 'FINANCIAMENTO' ? 'active' : ''}`}
-                onClick={() => setSelectedPreset('FINANCIAMENTO')}
+                onClick={() => handlePresetSelect('FINANCIAMENTO')}
               >
-                <CreditCard size={20} />
-                <span>Novo Financiamento</span>
+                <CreditCard size={18} />
+                <span>Financiamento</span>
+              </button>
+
+              <button
+                className={`sim-preset-btn ${selectedPreset === 'CARRO' ? 'active' : ''}`}
+                onClick={() => handlePresetSelect('CARRO')}
+              >
+                <Car size={18} />
+                <span>Comprar Carro</span>
+              </button>
+
+              <button
+                className={`sim-preset-btn ${selectedPreset === 'QUITAR_DIVIDA' ? 'active' : ''}`}
+                onClick={() => handlePresetSelect('QUITAR_DIVIDA')}
+              >
+                <CheckCircle2 size={18} />
+                <span>Quitar Dívida</span>
               </button>
 
               <button
                 className={`sim-preset-btn ${selectedPreset === 'IMOVEL' ? 'active' : ''}`}
-                onClick={() => setSelectedPreset('IMOVEL')}
+                onClick={() => handlePresetSelect('IMOVEL')}
               >
-                <Home size={20} />
+                <Home size={18} />
                 <span>Comprar Imóvel</span>
               </button>
             </div>
 
-            {/* Verdict Box */}
-            <div className="scenario-card glass-card">
-              <div className="scenario-header">
+            {/* FORMULÁRIO DOS CAMPOS ESSENCIAIS DE ENTRADA */}
+            <div className="loan-audit-form-card glass-card mt-3">
+              <div className="loan-audit-header">
                 <div>
-                  <h4 className="scenario-title">{presetScenario.title}</h4>
-                  <p className="scenario-desc">{presetScenario.description}</p>
+                  <h4 className="text-white font-bold">{currentDefaults.title}</h4>
+                  <p className="text-xs text-secondary">{currentDefaults.description}</p>
                 </div>
-                {getVerdictBadge(presetScenario.verdict)}
+                <button
+                  type="button"
+                  className="btn btn-outline btn-xs"
+                  onClick={() => setShowFieldDetails(!showFieldDetails)}
+                >
+                  <HelpCircle size={14} className="text-cyan" />
+                  <span>{showFieldDetails ? 'Ocultar Detalhamento' : 'Detalhamento dos Campos'}</span>
+                  {showFieldDetails ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                </button>
               </div>
 
-              {/* Impact Metrics Grid */}
-              <div className="scenario-metrics-grid">
-                <div className="metric-box">
-                  <span className="metric-box-label">
-                    {presetScenario.initialOutflow < 0 ? 'Captação em Caixa' : 'Desembolso Inicial'}
-                  </span>
-                  <span className={`metric-box-value ${presetScenario.initialOutflow < 0 ? 'text-emerald' : presetScenario.initialOutflow > 0 ? 'text-amber' : ''}`}>
-                    {presetScenario.initialOutflow < 0
-                      ? `+ ${Math.abs(presetScenario.initialOutflow).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
-                      : presetScenario.initialOutflow > 0
-                      ? `- ${presetScenario.initialOutflow.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
-                      : 'R$ 0,00'}
-                  </span>
+              {/* DETALHAMENTO DIDÁTICO DOS CAMPOS (EXPANSÍVEL) */}
+              {showFieldDetails && (
+                <div className="loan-fields-glossary glass-card animate-fade-in mt-3 p-3">
+                  <h5 className="text-xs font-bold text-cyan mb-2">Detalhamento dos Campos & Fórmulas Contábeis:</h5>
+                  <div className="glossary-grid">
+                    <div className="glossary-item">
+                      <strong>1. Valor Emprestado:</strong> Montante principal captado líquido liberado na sua conta.
+                    </div>
+                    <div className="glossary-item">
+                      <strong>2. Taxa:</strong> Taxa de juros mensal nominal declarada pelo banco ou financeira na proposta.
+                    </div>
+                    <div className="glossary-item">
+                      <strong>3. Quantidade de Parcelas:</strong> Prazo de pagamento em prestações mensais consecutivas.
+                    </div>
+                    <div className="glossary-item">
+                      <strong>4. Data da Contratação:</strong> Dia do desembolso / assinatura do contrato de crédito.
+                    </div>
+                    <div className="glossary-item">
+                      <strong>5. Data de Vencimento Inicial:</strong> Vencimento da 1ª parcela (define dias de carência).
+                    </div>
+                    <div className="glossary-item">
+                      <strong>6. Valor da Parcela (Calculada):</strong> Prestação teórica calculada matematicamente pela Tabela Price pura.
+                    </div>
+                    <div className="glossary-item">
+                      <strong>7. Valor Total c/ Juros (Calculada):</strong> Total rigoroso sem cobranças adicionais (Parcela Calc. × N).
+                    </div>
+                    <div className="glossary-item">
+                      <strong>8. Valor da Parcela (No Banco):</strong> Valor real exigido pela instituição bancária no boleto/fatura.
+                    </div>
+                    <div className="glossary-item">
+                      <strong>9. Valor Total c/ Juros (No Banco):</strong> Custo total efetivo a ser pago ao banco (Parcela Banco × N).
+                    </div>
+                    <div className="glossary-item">
+                      <strong>10. Taxa (de acordo com o cálculo):</strong> Taxa efetiva real (TIR/CET) apurada pelo valor da parcela cobrada.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* LINHA 1: VALOR EMPRESTADO, TAXA, PARCELAS */}
+              <div className="form-grid-3 mt-3">
+                <div className="form-group">
+                  <label>
+                    <DollarSign size={13} className="text-emerald inline mr-1" />
+                    Valor Emprestado (R$)
+                  </label>
+                  <input
+                    type="number"
+                    min="1000"
+                    step="500"
+                    className="form-input text-base font-bold text-emerald"
+                    value={loanAmount || ''}
+                    onChange={(e) => setLoanAmount(parseFloat(e.target.value) || 0)}
+                  />
                 </div>
 
-                <div className="metric-box">
-                  <span className="metric-box-label">Impacto Mensal no Fluxo</span>
-                  <span className={`metric-box-value ${presetScenario.monthlyCost > 0 ? 'text-rose' : 'text-emerald'}`}>
-                    {presetScenario.monthlyCost > 0
-                      ? `- ${presetScenario.monthlyCost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês`
-                      : `+ ${Math.abs(presetScenario.monthlyCost).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês`}
-                  </span>
+                <div className="form-group">
+                  <label>
+                    <Percent size={13} className="text-amber inline mr-1" />
+                    Taxa Declarada (% a.m.)
+                  </label>
+                  <input
+                    type="number"
+                    min="0.1"
+                    max="30"
+                    step="0.05"
+                    className="form-input text-base font-bold text-amber"
+                    value={declaredRate || ''}
+                    onChange={(e) => setDeclaredRate(parseFloat(e.target.value) || 0)}
+                  />
                 </div>
 
-                <div className="metric-box">
-                  <span className="metric-box-label">Reserva Runway</span>
-                  <span className="metric-box-value">
-                    {presetScenario.runwayBeforeMonths}m ➔ <strong className="text-cyan">{presetScenario.runwayAfterMonths}m</strong>
-                  </span>
+                <div className="form-group">
+                  <label>Quantidade de Parcelas</label>
+                  <input
+                    type="number"
+                    min="2"
+                    max="420"
+                    className="form-input text-base font-bold text-cyan"
+                    value={installments || ''}
+                    onChange={(e) => setInstallments(parseInt(e.target.value, 10) || 1)}
+                  />
                 </div>
               </div>
 
-              {/* Explanation Text */}
-              <div className="scenario-explanation">
-                <h5>Diagnóstico do Motor Financeiro:</h5>
-                <p>{presetScenario.explanation}</p>
+              {/* LINHA 2: DATAS E VALOR COBRADO PELO BANCO */}
+              <div className="form-grid-3 mt-3">
+                <div className="form-group">
+                  <label>
+                    <Calendar size={13} className="text-muted inline mr-1" />
+                    Data da Contratação
+                  </label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={contractDate}
+                    onChange={(e) => setContractDate(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    <Calendar size={13} className="text-cyan inline mr-1" />
+                    Data Vencimento Inicial
+                  </label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={firstDueDate}
+                    onChange={(e) => setFirstDueDate(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="text-glow-cyan font-bold">
+                    Valor da Parcela (No Banco)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="form-input text-base font-bold border-cyan text-white"
+                    placeholder="Valor exigido pelo banco"
+                    value={bankPayment || ''}
+                    onChange={(e) => setBankPayment(parseFloat(e.target.value) || 0)}
+                  />
+                  <span className="text-xs text-muted block mt-1">Preencha com o valor da proposta real do banco</span>
+                </div>
               </div>
 
-              {/* Action Recommendations */}
-              <div className="scenario-recommendations">
-                <h5>Recomendações Táticas:</h5>
-                <ul>
-                  {presetScenario.actionRecommendations.map((rec, idx) => (
-                    <li key={idx}>{rec}</li>
-                  ))}
-                </ul>
+              {/* PAINEL COMPARATIVO & AUDITORIA FINANCEIRA BALDER */}
+              <div className="audit-comparison-panel glass-card mt-4">
+                <div className="audit-table-wrapper">
+                  <table className="audit-comparison-table">
+                    <thead>
+                      <tr>
+                        <th>Métrica de Auditoria</th>
+                        <th className="text-cyan">Cálculo Matemático Puro</th>
+                        <th className="text-amber">Proposta Real do Banco</th>
+                        <th className="text-right">Diferença / Auditoria Balder</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>
+                          <strong>Valor da Parcela</strong>
+                          <span className="text-xs text-muted block">Prestação mensal devida</span>
+                        </td>
+                        <td className="text-cyan font-bold text-base">
+                          {calculatedPayment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </td>
+                        <td className="text-amber font-bold text-base">
+                          {bankPayment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </td>
+                        <td className="text-right font-bold">
+                          <span className={paymentDiff > 1.5 ? 'text-rose' : paymentDiff < -1.5 ? 'text-emerald' : 'text-cyan'}>
+                            {paymentDiff > 0 ? `+ ${paymentDiff.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês` : paymentDiff < 0 ? `- ${Math.abs(paymentDiff).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês` : 'R$ 0,00 (Exato)'}
+                          </span>
+                        </td>
+                      </tr>
+
+                      <tr>
+                        <td>
+                          <strong>Valor Total c/ Juros</strong>
+                          <span className="text-xs text-muted block">Soma de todas as {installments} parcelas</span>
+                        </td>
+                        <td className="text-cyan font-semibold">
+                          {calculatedTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </td>
+                        <td className="text-amber font-semibold">
+                          {bankTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </td>
+                        <td className="text-right font-bold">
+                          <span className={totalDiff > 10 ? 'text-rose' : totalDiff < -10 ? 'text-emerald' : 'text-cyan'}>
+                            {totalDiff > 0 ? `+ ${totalDiff.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} acumulados` : totalDiff < 0 ? `- ${Math.abs(totalDiff).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : 'R$ 0,00 (Exato)'}
+                          </span>
+                        </td>
+                      </tr>
+
+                      <tr>
+                        <td>
+                          <strong>Taxa de Juros Mensal</strong>
+                          <span className="text-xs text-muted block">Nominal vs Efetiva real</span>
+                        </td>
+                        <td className="text-cyan">
+                          {declaredRate.toFixed(2)}% a.m. (Declarada)
+                        </td>
+                        <td className="text-amber font-bold">
+                          {effectiveRate.toFixed(2)}% a.m. (De acordo c/ o cálculo)
+                        </td>
+                        <td className="text-right">
+                          <span className={`badge ${rateDiff > 0.05 ? 'badge-rose' : rateDiff < -0.05 ? 'badge-emerald' : 'badge-cyan'}`}>
+                            {rateDiff > 0 ? `Spread Oculto: +${rateDiff.toFixed(2)}% a.m.` : rateDiff < 0 ? `Desconto: ${rateDiff.toFixed(2)}% a.m.` : 'Taxa Exata'}
+                          </span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* VEREDITO E VALIDAÇÃO DA PARCELA */}
+                <div className={`loan-validation-banner mt-3 ${validationVerdict === 'CUSTO_OCULTO' ? 'val-warning' : validationVerdict === 'SUBSIDIADO' ? 'val-bonus' : 'val-success'}`}>
+                  <div className="val-banner-icon">
+                    {validationVerdict === 'CUSTO_OCULTO' ? (
+                      <AlertTriangle size={22} className="text-rose" />
+                    ) : (
+                      <CheckCircle2 size={22} className="text-emerald" />
+                    )}
+                  </div>
+                  <div className="val-banner-text">
+                    {validationVerdict === 'CUSTO_OCULTO' && (
+                      <>
+                        <h5 className="text-rose font-bold">⚠️ Atenção: Custos e Tarifas Ocultas Identificadas na Proposta</h5>
+                        <p className="text-xs">
+                          O banco informou taxa nominal de <strong>{declaredRate.toFixed(2)}% a.m.</strong>, mas pela parcela cobrada de <strong>{bankPayment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>, a <strong>Taxa Real Efetiva é de {effectiveRate.toFixed(2)}% a.m.</strong> Você pagará <strong>{totalDiff.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} a mais</strong> do que o cálculo puro dos juros. Isso decorre de IOF financiado, TAC, tarifas cadastrais ou seguros embutidos.
+                        </p>
+                      </>
+                    )}
+
+                    {validationVerdict === 'CONFORME' && (
+                      <>
+                        <h5 className="text-emerald font-bold">✓ Parcela Válida & Conforme com o Cálculo Matemático</h5>
+                        <p className="text-xs">
+                          A parcela de <strong>{bankPayment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong> reflete rigorosamente a taxa declarada de <strong>{declaredRate.toFixed(2)}% a.m.</strong> pela Tabela Price, sem incidência de custos ocultos desproporcionais.
+                        </p>
+                      </>
+                    )}
+
+                    {validationVerdict === 'SUBSIDIADO' && (
+                      <>
+                        <h5 className="text-cyan font-bold">⭐ Condição Especial / Parcela com Subsídio</h5>
+                        <p className="text-xs">
+                          A parcela cobrada pelo banco é inferior ao custo matemático puro da taxa, o que indica subsídio de juros da montadora/loja ou carência contratual bonificada.
+                        </p>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* IMPACTO NO FLUXO DE CAIXA E RUNWAY */}
+                <div className="loan-cashflow-impact mt-3">
+                  <div className="impact-pill">
+                    <span className="text-xs text-muted">Impacto Mensal no Fluxo</span>
+                    <strong className="text-rose">- {bankPayment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês</strong>
+                  </div>
+                  <div className="impact-pill">
+                    <span className="text-xs text-muted">Fluxo Livre Após Parcela</span>
+                    <strong className={monthlyFreeCashflow - bankPayment >= 0 ? 'text-emerald' : 'text-rose'}>
+                      {(monthlyFreeCashflow - bankPayment).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês
+                    </strong>
+                  </div>
+                  <div className="impact-pill">
+                    <span className="text-xs text-muted">Total de Juros Pagos</span>
+                    <strong className="text-amber">
+                      {Math.max(0, bankTotal - loanAmount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </strong>
+                  </div>
+                </div>
               </div>
 
-              <div className="scenario-footer-actions">
+              {/* AÇÕES DE SALVAR NO PLANEJAMENTO */}
+              <div className="loan-actions-row mt-4">
                 <button
                   type="button"
                   className="btn btn-secondary btn-sm"
                   onClick={() => setActiveMode('STUDIO')}
                 >
                   <Sliders size={14} />
-                  <span>Personalizar no Estúdio Avançado</span>
+                  <span>Projetar no Estúdio de 12 Meses</span>
                 </button>
-                <button type="button" className="btn btn-primary btn-sm" onClick={onClose}>
-                  Entendido
-                </button>
+
+                <div className="flex gap-2">
+                  <button type="button" className="btn btn-outline btn-sm" onClick={onClose}>
+                    Fechar
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={handleSaveValidatedLoan}
+                  >
+                    <Plus size={14} />
+                    <span>Salvar no Planejamento</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         )}
 
         {/* ============================================================== */}
+
         {/* MODO 2: ESTÚDIO DE CENÁRIOS FUTUROS (CUSTOMIZADO)               */}
         {/* ============================================================== */}
         {activeMode === 'STUDIO' && (

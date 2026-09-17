@@ -1,0 +1,458 @@
+import React, { useState } from 'react';
+import type { ReceiptReconciliationData, ReceiptItemLine, ExpenseNature } from '../types';
+import { useFinancial } from '../context/FinancialContext';
+import { QuickCreateMappingItemModal } from './QuickCreateMappingItemModal';
+import { MappingCombobox } from './MappingCombobox';
+import type { ComboboxOption } from './MappingCombobox';
+import { learnReceiptItemAssociation } from '../services/receiptMemoryService';
+import { Check, Plus, Edit2, AlertCircle, ShoppingBag, Sparkles, Store, Calendar, DollarSign, Wallet, CheckCircle2 } from 'lucide-react';
+
+interface Props {
+  data: ReceiptReconciliationData;
+  messageId: string;
+  natures: ExpenseNature[];
+  onConfirm: (messageId: string, updatedData: ReceiptReconciliationData) => void;
+}
+
+export const ReceiptReconciliationCard: React.FC<Props> = ({
+  data,
+  messageId,
+  natures,
+  onConfirm,
+}) => {
+  const { addItemToMapping, addMappingToNature } = useFinancial();
+  const [store, setStore] = useState(data.store);
+  const [date, setDate] = useState(data.date);
+  const [totalAmount, setTotalAmount] = useState(data.totalAmount);
+  const [paymentMethod, setPaymentMethod] = useState(data.paymentMethod);
+  const [items, setItems] = useState<ReceiptItemLine[]>(data.items);
+  const [isEditingHeader, setIsEditingHeader] = useState(false);
+
+  // Modal para criar item de mapeamento na hora
+  const [modalItem, setModalItem] = useState<ReceiptItemLine | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
+
+  // Mapear todas as opções disponíveis de itens fixos no Balder (estrutura raw)
+  const availableMappingOptions: { id: string; routineId: string; routineName: string; label: string; natureId: string }[] = [];
+  natures.forEach((nat) => {
+    nat.mappings.forEach((map) => {
+      map.items.forEach((item) => {
+        availableMappingOptions.push({
+          id: item.id,
+          routineId: map.id,
+          routineName: map.name,
+          label: item.description,
+          natureId: nat.id,
+        });
+      });
+    });
+  });
+
+  // Opções formatadas para o combobox com grupos por rotina
+  const buildComboboxOptions = (forItem: ReceiptItemLine): ComboboxOption[] => {
+    const regular: ComboboxOption[] = availableMappingOptions.map((opt) => ({
+      value: opt.id,
+      label: opt.label,
+      sublabel: opt.routineName,
+      group: opt.routineName,
+      isMatched: forItem.matchedMappingItemId === opt.id,
+    }));
+
+    const specials: ComboboxOption[] = [
+      {
+        value: 'NEW_ITEM',
+        label: 'Mapear como Novo Item',
+        sublabel: 'Criar e vincular na rotina',
+        group: 'Ações Especiais',
+        isSpecial: true,
+      },
+      {
+        value: 'UNMAPPED_AVULSO',
+        label: 'Despesa Avulsa',
+        sublabel: 'Não vincular ao mapeamento fixo',
+        group: 'Ações Especiais',
+        isSpecial: true,
+      },
+    ];
+
+    return [...regular, ...specials];
+  };
+
+  const handleOpenCreateModal = (item: ReceiptItemLine) => {
+    setModalItem(item);
+    setIsModalOpen(true);
+  };
+
+  const handleSaveAndAssociateNewItem = (
+    receiptItemId: string,
+    natureId: string,
+    mappingId: string,
+    itemData: {
+      description: string;
+      quantity: number;
+      price: number;
+      unit: string;
+      multiplierWeeks: number;
+    }
+  ) => {
+    // 1. Criar o item no mapeamento de gastos fixos da natureza no Balder
+    const createdItemId = addItemToMapping(natureId, mappingId, {
+      description: itemData.description,
+      quantity: itemData.quantity,
+      price: itemData.price,
+      unit: itemData.unit,
+      multiplierWeeks: itemData.multiplierWeeks,
+      realizedValue: itemData.price,
+      isFulfilled: true,
+    });
+
+    // 2. Treinar Forseti imediatamente para este e futuros cupons
+    const targetItem = items.find((it) => it.id === receiptItemId);
+    if (targetItem) {
+      learnReceiptItemAssociation(
+        targetItem.detectedName,
+        createdItemId,
+        mappingId,
+        natureId
+      );
+    }
+
+    // 3. Atualizar a linha na tabela de conciliação imediatamente
+    setItems((prev) =>
+      prev.map((it) => {
+        if (it.id !== receiptItemId) return it;
+        return {
+          ...it,
+          matchedMappingItemId: createdItemId,
+          targetMappingId: mappingId,
+          natureId: natureId,
+          isNewSuggestedItem: false, // Agora já está formalmente mapeado!
+        };
+      })
+    );
+
+    setNotificationMsg(`Item "${itemData.description}" cadastrado na rotina e associado com sucesso!`);
+    setTimeout(() => setNotificationMsg(null), 4000);
+  };
+
+  const handleItemMappingChange = (itemId: string, targetOptId: string) => {
+    const targetIt = items.find((it) => it.id === itemId);
+
+    if (targetOptId === 'NEW_ITEM') {
+      if (targetIt) {
+        handleOpenCreateModal(targetIt);
+      }
+      setItems((prev) =>
+        prev.map((it) => {
+          if (it.id !== itemId) return it;
+          return {
+            ...it,
+            matchedMappingItemId: undefined,
+            isNewSuggestedItem: true,
+          };
+        })
+      );
+      return;
+    }
+
+    if (targetOptId === 'UNMAPPED_AVULSO') {
+      setItems((prev) =>
+        prev.map((it) => {
+          if (it.id !== itemId) return it;
+          return {
+            ...it,
+            matchedMappingItemId: undefined,
+            isNewSuggestedItem: false,
+          };
+        })
+      );
+      return;
+    }
+
+    const foundOpt = availableMappingOptions.find((opt) => opt.id === targetOptId);
+    setItems((prev) =>
+      prev.map((it) => {
+        if (it.id !== itemId) return it;
+        return {
+          ...it,
+          matchedMappingItemId: targetOptId,
+          targetMappingId: foundOpt?.routineId,
+          natureId: foundOpt?.natureId || 'nat_alimentacao',
+          isNewSuggestedItem: false,
+        };
+      })
+    );
+  };
+
+  const handleItemPriceChange = (itemId: string, newPriceStr: string) => {
+    const parsed = parseFloat(newPriceStr.replace(',', '.'));
+    if (isNaN(parsed) || parsed < 0) return;
+
+    setItems((prev) => {
+      const updated = prev.map((it) => (it.id === itemId ? { ...it, price: parsed } : it));
+      const newTotal = Math.round(updated.reduce((acc, curr) => acc + curr.price, 0) * 100) / 100;
+      setTotalAmount(newTotal);
+      return updated;
+    });
+  };
+
+  const handleConfirm = () => {
+    onConfirm(messageId, {
+      ...data,
+      store,
+      date,
+      totalAmount,
+      paymentMethod,
+      items,
+      isReconciled: true,
+    });
+  };
+
+  if (data.isReconciled) {
+    return (
+      <div className="receipt-reconciliation-card is-reconciled animate-fade-in">
+        <div className="reconciled-header-badge">
+          <Check size={16} className="text-emerald" />
+          <span>Conciliação Concluída e Mapeamentos Atualizados</span>
+        </div>
+        <p className="reconciled-desc">
+          Os itens e preços foram integrados ao seu fluxo de caixa e o Forseti aprendeu as associações para os próximos cupons.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="receipt-reconciliation-card animate-fade-in">
+      {/* Header Resumo Editável */}
+      <div className="reconciliation-top-bar">
+        <div className="reconciliation-title-group">
+          <div className="rec-icon-badge">
+            <ShoppingBag size={18} />
+          </div>
+          <div>
+            <h4 className="rec-title">Conciliação Inteligente de Itens da Nota</h4>
+            <span className="rec-subtitle">
+              Relacione os itens comprados aos gastos fixos. Os preços variam a cada compra e o Forseti memoriza suas associações.
+            </span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="rec-toggle-edit-btn"
+          onClick={() => setIsEditingHeader(!isEditingHeader)}
+        >
+          <Edit2 size={13} />
+          <span>{isEditingHeader ? 'Salvar Cabeçalho' : 'Editar Dados Gerais'}</span>
+        </button>
+      </div>
+
+      {/* Faixa de Parâmetros Principais */}
+      <div className="reconciliation-params-grid">
+        <div className="rec-param-box">
+          <div className="param-label-row">
+            <Store size={13} className="text-cyan" />
+            <span>Estabelecimento</span>
+          </div>
+          {isEditingHeader ? (
+            <input
+              type="text"
+              className="rec-inline-input"
+              value={store}
+              onChange={(e) => setStore(e.target.value)}
+            />
+          ) : (
+            <span className="param-value-text">{store}</span>
+          )}
+        </div>
+
+        <div className="rec-param-box">
+          <div className="param-label-row">
+            <Calendar size={13} className="text-cyan" />
+            <span>Data do Cupom</span>
+          </div>
+          {isEditingHeader ? (
+            <input
+              type="date"
+              className="rec-inline-input"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          ) : (
+            <span className="param-value-text">{date.split('-').reverse().join('/')}</span>
+          )}
+        </div>
+
+        <div className="rec-param-box highlight-amount">
+          <div className="param-label-row">
+            <DollarSign size={13} className="text-emerald" />
+            <span>Total da Compra</span>
+          </div>
+          {isEditingHeader ? (
+            <input
+              type="number"
+              step="0.01"
+              className="rec-inline-input"
+              value={totalAmount}
+              onChange={(e) => setTotalAmount(parseFloat(e.target.value) || 0)}
+            />
+          ) : (
+            <span className="param-value-amount">
+              {totalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            </span>
+          )}
+        </div>
+
+        <div className="rec-param-box">
+          <div className="param-label-row">
+            <Wallet size={13} className="text-cyan" />
+            <span>Forma de Pagamento</span>
+          </div>
+          <select
+            className="rec-inline-select"
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value as any)}
+          >
+            <option value="DINHEIRO">💵 Dinheiro em Espécie (Pago R$ 315 / Troco R$ 46,80)</option>
+            <option value="DEBITO">🟠 Banco Inter (Débito / PIX)</option>
+            <option value="CARTAO">💳 Cartão Nubank Mastercard Black</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Notificação Toast de Criação de Item */}
+      {notificationMsg && (
+        <div className="qm-notification-toast animate-fade-in">
+          <CheckCircle2 size={16} className="text-emerald" />
+          <span>{notificationMsg}</span>
+        </div>
+      )}
+
+      {/* Lista de Itens do Cupom */}
+      <div className="reconciliation-items-section">
+        <div className="items-section-header">
+          <div className="items-count-badge">
+            <Sparkles size={13} />
+            <span>{items.length} Itens Identificados na Nota</span>
+          </div>
+          <span className="items-hint-text">
+            Itens sem mapeamento podem ser cadastrados na hora com <strong>quantidade 0</strong> para facilitar compras futuras.
+          </span>
+        </div>
+
+        <div className="rec-items-table-wrap">
+          <table className="rec-items-table">
+            <thead>
+              <tr>
+                <th>Item no Cupom</th>
+                <th className="col-amount" style={{ width: '130px' }}>Valor Pago</th>
+                <th>Associação ao Mapeamento</th>
+                <th style={{ width: '150px', textAlign: 'center' }}>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((it) => {
+                const isMapped = !!it.matchedMappingItemId;
+                const isNewSuggested = it.isNewSuggestedItem;
+
+                return (
+                  <tr key={it.id} className={isNewSuggested ? 'row-new-suggested' : ''}>
+                    <td>
+                      <div className="item-name-cell">
+                        <span className="item-primary-name">{it.detectedName}</span>
+                        {it.rawName !== it.detectedName && (
+                          <span className="item-raw-subtitle">{it.rawName}</span>
+                        )}
+                      </div>
+                    </td>
+
+                    <td className="col-amount">
+                      <div className="item-price-input-wrap">
+                        <span className="currency-prefix">R$</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          className="item-price-input"
+                          value={it.price}
+                          onChange={(e) => handleItemPriceChange(it.id, e.target.value)}
+                        />
+                      </div>
+                    </td>
+
+                    <td className="mapping-combobox-cell">
+                      <MappingCombobox
+                        options={buildComboboxOptions(it)}
+                        value={
+                          it.isNewSuggestedItem
+                            ? 'NEW_ITEM_ZERO_QTY'
+                            : it.matchedMappingItemId || 'UNMAPPED_AVULSO'
+                        }
+                        onChange={(val) => handleItemMappingChange(it.id, val)}
+                        placeholder="Buscar rotina ou item..."
+                      />
+                    </td>
+
+                    <td style={{ textAlign: 'center' }}>
+                      {isMapped ? (
+                        <span className="badge badge-emerald item-status-badge">
+                          <Check size={11} /> Mapeado
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="btn-create-mapping-action animate-fade-in"
+                          onClick={() => handleOpenCreateModal(it)}
+                          title="Abrir formulário imediato para cadastrar este item na rotina da natureza"
+                        >
+                          <Plus size={12} />
+                          <span>Criar no Mapeamento</span>
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Rodapé com Ação Principal de Conciliação */}
+      <div className="reconciliation-footer-action">
+        <div className="rec-footer-summary">
+          <AlertCircle size={15} className="text-cyan" />
+          <span>
+            Ao confirmar, o Forseti criará o lançamento de{' '}
+            <strong>
+              {totalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            </strong>
+            , atualizará os valores realizados nos seus gastos fixos e aprenderá essas associações para os próximos cupons.
+          </span>
+        </div>
+
+        <button type="button" className="btn btn-primary rec-confirm-btn" onClick={handleConfirm}>
+          <Check size={16} />
+          <span>
+            Confirmar Conciliação & Mapeamentos (
+            {totalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
+          </span>
+        </button>
+      </div>
+
+      {/* Modal de Criação Imediata de Item de Mapeamento */}
+      <QuickCreateMappingItemModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setModalItem(null);
+        }}
+        receiptItem={modalItem}
+        natures={natures}
+        onSaveAndAssociate={handleSaveAndAssociateNewItem}
+        onAddNewRoutine={addMappingToNature}
+      />
+    </div>
+  );
+};

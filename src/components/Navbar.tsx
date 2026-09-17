@@ -1,6 +1,7 @@
 import React from 'react';
 import { useFinancial } from '../context/FinancialContext';
-import { Plus, Sparkles } from 'lucide-react';
+import { useTheme } from '../context/ThemeContext';
+import { Plus, Sparkles, Sun, Moon } from 'lucide-react';
 
 interface NavbarProps {
   onOpenNewMovementModal: () => void;
@@ -9,6 +10,7 @@ interface NavbarProps {
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenNewMovementModal, onOpenSimulationModal }) => {
   const { availableBalance, emergencyReserveMonths, nextCriticalEvent } = useFinancial();
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <header className="app-navbar">
@@ -45,6 +47,17 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenNewMovementModal, onOpenSi
             {emergencyReserveMonths} meses
           </span>
         </div>
+
+        {/* Theme Toggle Button */}
+        <button
+          type="button"
+          className="theme-toggle-btn"
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Alternar para Tema Claro' : 'Alternar para Tema Escuro'}
+          aria-label="Alternar tema"
+        >
+          {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+        </button>
 
         {/* Quick Action Buttons */}
         <button 

@@ -1,98 +1,32 @@
-# Balder - Microsserviço de Inteligência Financeira e Auditoria IA
+# React + TypeScript + Vite
 
-Microsserviço construído com **FastAPI** e **Appwrite Python SDK** para processamento de transações bancárias (Open Finance), correlação com despesas planejadas (âncoras fixas) e auditoria automatizada por IA.
+This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
----
+Currently, two official plugins are available:
 
-## 🏗️ Arquitetura do Projeto
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
-```
-Balder/
-├── app/
-│   ├── api/
-│   │   ├── __init__.py
-│   │   └── webhooks.py          # Rota POST /webhooks/transactions
-│   ├── core/
-│   │   ├── __init__.py
-│   │   ├── config.py            # Variáveis de ambiente e configurações
-│   │   └── appwrite.py          # Wrapper do Client Appwrite e Databases/TablesDB
-│   ├── models/
-│   │   ├── __init__.py
-│   │   └── schemas.py           # Modelos Pydantic de entrada e saída
-│   └── services/
-│       ├── __init__.py
-│       └── ai_auditor.py        # Módulo isolado de auditoria e regras de IA
-├── tests/
-│   ├── __init__.py
-│   └── test_audit_webhook.py   # Testes de integração ponta a ponta
-├── main.py                      # Ponto de entrada FastAPI e inicialização do servidor
-├── provision_appwrite.py        # Script de provisionamento idempotente do Appwrite
-├── requirements.txt             # Dependências Python
-└── .env                         # Variáveis de ambiente (ignorado no Git)
-```
+## React Compiler
 
----
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
-## ⚙️ Variáveis de Ambiente (`.env`)
+## Expanding the Oxlint configuration
 
-```env
-APPWRITE_ENDPOINT=https://sfo.cloud.appwrite.io/v1
-APPWRITE_PROJECT_ID=6a9c60c1003ddd007882
-APPWRITE_API_KEY=sua_api_key_aqui
-APPWRITE_DATABASE_ID=balder_db
-```
+If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
 
----
-
-## 🚀 Como Executar o Microsserviço
-
-### 1. Instalar Dependências
-```bash
-pip install -r requirements.txt
-```
-
-### 2. Iniciar o Servidor FastAPI com Uvicorn
-```bash
-python main.py
-```
-*Ou diretamente via Uvicorn:*
-```bash
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-- Documentação Swagger interativa: [http://localhost:8000/docs](http://localhost:8000/docs)
-- Health Check: [http://localhost:8000/health](http://localhost:8000/health)
-
----
-
-## 📡 Rota de Webhook: Ingestão Open Finance
-
-### `POST /webhooks/transactions`
-
-#### Exemplo de Payload de Entrada:
 ```json
 {
-  "workspace_id": "workspace_exemplo_123",
-  "amount": -2850.00,
-  "description": "Pix Aluguel Apartamento",
-  "date": "2026-09-05T15:30:00.000+00:00"
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "typescript", "oxc"],
+  "options": {
+    "typeAware": true
+  },
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+  }
 }
 ```
 
-#### Fluxo de Execução:
-1. Consulta âncoras da coleção `fixed_anchors` no Appwrite vinculadas ao `workspace_id` usando `Query.equal`.
-2. O serviço `ai_auditor.py` calcula o desvio orçamentário ou detecta anomalias de liquidez/fornecedor.
-3. Persiste a transação na coleção `transactions` do Appwrite com os campos auditados:
-   - `predicted_category`
-   - `ai_confidence_score`
-   - `is_anomaly`
-   - `ai_justification_suggestion`
-4. Retorna confirmação e ID da transação criada no Appwrite.
-
----
-
-## 🧪 Como Rodar os Testes Automatizados
-
-```bash
-python tests/test_audit_webhook.py
-```
+See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.

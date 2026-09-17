@@ -16,19 +16,27 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import type { SimulationPresetId } from '../types';
+import { MonthlyProjectionGrid } from '../components/MonthlyProjectionGrid';
+import { NatureBudgetGrid } from '../components/NatureBudgetGrid';
 
 interface DashboardPageProps {
   onNavigateToMovements: () => void;
   onNavigateToGoals: () => void;
   onNavigateToCopilot: () => void;
+  onNavigateToLoans?: () => void;
+  onNavigateToNatures?: () => void;
   onOpenSimulation: (preset?: SimulationPresetId, mode?: 'PRESETS' | 'STUDIO') => void;
+  onOpenPrepayment?: () => void;
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
   onNavigateToMovements,
   onNavigateToGoals,
   onNavigateToCopilot,
+  onNavigateToLoans,
+  onNavigateToNatures,
   onOpenSimulation,
+  onOpenPrepayment,
 }) => {
   const {
     totalNetWorth,
@@ -42,7 +50,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   } = useFinancial();
 
   const mainGoal = goals[0];
-  const goalPercent = mainGoal ? Math.min(Math.round((mainGoal.currentAmount / mainGoal.targetAmount) * 100), 100) : 85;
+  const goalPercent = mainGoal && mainGoal.targetAmount > 0
+    ? Math.min(Math.round((mainGoal.currentAmount / mainGoal.targetAmount) * 100), 100)
+    : 0;
 
   return (
     <div className="page-container animate-fade-in">
@@ -59,7 +69,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         <div className="page-header-actions">
           <button className="btn btn-secondary" onClick={onNavigateToCopilot}>
             <Sparkles size={16} className="text-cyan" />
-            <span>Consultar Copilot</span>
+            <span>Consultar Forseti</span>
           </button>
         </div>
       </div>
@@ -285,7 +295,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             </button>
           </div>
 
-          {mainGoal && (
+          {mainGoal ? (
             <div className="goal-featured-card glass-card">
               <div className="goal-featured-header">
                 <div className="goal-icon-title">
@@ -326,12 +336,34 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 </div>
               </div>
             </div>
+          ) : (
+            <div className="glass-card safe-state-card" style={{ padding: '24px', textAlign: 'center' }}>
+              <CheckCircle2 size={24} className="text-emerald" style={{ margin: '0 auto 8px' }} />
+              <h4 style={{ fontSize: '13px', marginBottom: '4px' }}>Nenhuma meta cadastrada</h4>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>
+                Defina seus objetivos financeiros e acompanhe a evolução do seu patrimônio.
+              </p>
+            </div>
           )}
         </section>
       </div>
 
       {/* ============================================================== */}
-      {/* SEÇÃO 5: SIMULAÇÕES RÁPIDAS DE DECISÃO                         */}
+      {/* SEÇÃO NOBRE: GRID DE PROJEÇÃO ORÇAMENTÁRIA MÊS A MÊS          */}
+      {/* ============================================================== */}
+      <section className="dashboard-section">
+        <MonthlyProjectionGrid />
+      </section>
+
+      {/* ============================================================== */}
+      {/* SEÇÃO NOBRE: GRID DE NATUREZAS (PREVISTO vs REALIZADO)         */}
+      {/* ============================================================== */}
+      <section className="dashboard-section">
+        <NatureBudgetGrid onNavigateToNatures={onNavigateToNatures} />
+      </section>
+
+      {/* ============================================================== */}
+      {/* SEÇÃO 4: SIMULAÇÃO DE CENÁRIOS E DECISÕES                      */}
       {/* ============================================================== */}
       <section className="dashboard-section">
         <div className="section-title-row">
@@ -376,24 +408,30 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <span className="sim-arrow">→</span>
           </button>
 
-          <button className="sim-shortcut-card glass-card" onClick={() => onOpenSimulation('QUITAR_DIVIDA')}>
+          <button
+            className="sim-shortcut-card glass-card"
+            onClick={() => (onNavigateToLoans ? onNavigateToLoans() : onOpenPrepayment ? onOpenPrepayment() : onOpenSimulation('QUITAR_DIVIDA'))}
+          >
             <div className="sim-shortcut-icon">
               <CheckCircle2 size={24} className="text-emerald" />
             </div>
             <div className="sim-shortcut-info">
-              <h4>Quitar Empréstimo</h4>
-              <p>Calcular economia de juros a valor presente</p>
+              <h4>Quitar / Antecipar Empréstimo</h4>
+              <p>Deságio de juros a valor presente & tabela price oficial</p>
             </div>
             <span className="sim-arrow">→</span>
           </button>
 
-          <button className="sim-shortcut-card glass-card" onClick={() => onOpenSimulation('NOVO_EMPRESTIMO')}>
+          <button
+            className="sim-shortcut-card glass-card"
+            onClick={() => (onNavigateToLoans ? onNavigateToLoans() : onOpenSimulation('NOVO_EMPRESTIMO'))}
+          >
             <div className="sim-shortcut-icon">
               <Banknote size={24} className="text-cyan" />
             </div>
             <div className="sim-shortcut-info">
               <h4>Novo Empréstimo</h4>
-              <p>Simular captação, CET e impacto no fluxo</p>
+              <p>Simulador Price, Pró-rata e Cronograma de Parcelas</p>
             </div>
             <span className="sim-arrow">→</span>
           </button>

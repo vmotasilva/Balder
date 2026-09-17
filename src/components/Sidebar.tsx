@@ -2,14 +2,18 @@ import React from 'react';
 import {
   LayoutDashboard,
   ArrowLeftRight,
-  Bot,
+  Layers,
+  Landmark,
+  Sparkles,
   Target,
   UserCheck,
   ChevronLeft,
   ChevronRight,
+  LogOut,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
-export type TabId = 'DASHBOARD' | 'MOVIMENTACOES' | 'COPILOT' | 'METAS' | 'PERFIL';
+export type TabId = 'DASHBOARD' | 'MOVIMENTACOES' | 'NATUREZAS' | 'EMPRESTIMOS' | 'COPILOT' | 'METAS' | 'PERFIL';
 
 interface SidebarProps {
   activeTab: TabId;
@@ -24,6 +28,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   collapsed,
   onToggleCollapse,
 }) => {
+  const { user, logout } = useAuth();
+
+  const userInitials = (user?.name || 'VM')
+    .split(' ')
+    .map((n) => n[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+
   const navItems = [
     {
       id: 'DASHBOARD' as TabId,
@@ -39,17 +52,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: ArrowLeftRight,
     },
     {
+      id: 'NATUREZAS' as TabId,
+      label: 'Naturezas',
+      subtitle: 'Tetos & Gastos Fixos',
+      icon: Layers,
+      badge: 'Tetos',
+    },
+    {
+      id: 'EMPRESTIMOS' as TabId,
+      label: 'Empréstimos',
+      subtitle: 'Contratos & Simulador',
+      icon: Landmark,
+      badge: 'Price',
+    },
+    {
       id: 'COPILOT' as TabId,
-      label: 'Copilot',
+      label: 'Forseti',
       subtitle: 'Assistente & Auditor',
-      icon: Bot,
+      icon: Sparkles,
       badge: 'IA',
     },
     {
       id: 'METAS' as TabId,
       label: 'Metas',
-      subtitle: 'Objetivos & Planos',
+      subtitle: 'Objetivos & Sonhos',
       icon: Target,
+      badge: 'Price',
     },
     {
       id: 'PERFIL' as TabId,
@@ -125,14 +153,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
 
         {!collapsed && (
-          <div className="user-profile-widget">
-            <div className="user-avatar">
-              <span>VM</span>
+          <div className="user-profile-widget" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+              <div className="user-avatar">
+                <span>{userInitials}</span>
+              </div>
+              <div className="user-info" style={{ overflow: 'hidden' }}>
+                <span className="user-name" style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', display: 'block' }}>
+                  {user?.name || 'Vinicius Mota'}
+                </span>
+                <span className="user-workspace">
+                  {user?.isGuest ? 'Modo Demo Local' : 'Appwrite Cloud'}
+                </span>
+              </div>
             </div>
-            <div className="user-info">
-              <span className="user-name">Vinicius Mota</span>
-              <span className="user-workspace">Workspace Pessoal</span>
-            </div>
+            <button
+              onClick={logout}
+              title="Sair da Conta"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--text-muted, #94a3b8)',
+                cursor: 'pointer',
+                padding: '6px',
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'color 0.2s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted, #94a3b8)')}
+            >
+              <LogOut size={16} />
+            </button>
           </div>
         )}
       </div>
