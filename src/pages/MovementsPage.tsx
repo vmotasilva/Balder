@@ -11,9 +11,11 @@ import {
   Building2,
   Banknote,
   Zap,
+  Briefcase,
 } from 'lucide-react';
 import type { MovementType } from '../types';
 import { calculatePresentValue, groupLoanMovements } from '../utils/loanMath';
+import { generateSalaryVirtualMovements } from '../utils/projectionMath';
 import { LoanPrepaymentModal } from '../components/LoanPrepaymentModal';
 
 interface MovementsPageProps {
@@ -24,7 +26,19 @@ type TabFilter = 'TODOS' | 'RECEBER' | 'PAGAR' | 'EMPRESTIMO' | 'CARTAO';
 type StatusFilter = 'TODOS' | 'PREVISTA' | 'REALIZADA';
 
 export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementModal }) => {
-  const { movements, deleteMovement, toggleMovementStatus, exportToCSV } = useFinancial();
+  const { movements, salaryContracts, deleteMovement, toggleMovementStatus, exportToCSV } = useFinancial();
+
+  // Movimentos virtuais de salário (projetados a partir dos contratos cadastrados)
+  const salaryVirtualMovements = useMemo(
+    () => generateSalaryVirtualMovements(salaryContracts ?? []),
+    [salaryContracts]
+  );
+
+  // Lista combinada: movimentos reais + virtuais de salário
+  const allMovements = useMemo(
+    () => [...movements, ...salaryVirtualMovements],
+    [movements, salaryVirtualMovements]
+  );
 
   const [activeTab, setActiveTab] = useState<TabFilter>('TODOS');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('TODOS');
@@ -61,9 +75,9 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
     return Math.max(0, Math.round((totalLoanNominal - totalLoanPresentValue) * 100) / 100);
   }, [totalLoanNominal, totalLoanPresentValue]);
 
-  // Filtragem Multidimensional
+  // Filtragem Multidimensional (inclui movimentos virtuais de salário)
   const filteredMovements = useMemo(() => {
-    return movements.filter((item) => {
+    return allMovements.filter((item) => {
       // Aba
       if (activeTab === 'RECEBER' && item.type !== 'RECEBER') return false;
       if (activeTab === 'PAGAR' && item.type !== 'PAGAR') return false;
@@ -75,7 +89,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
       if (statusFilter === 'REALIZADA' && item.status !== 'REALIZADA') return false;
 
       // Banco
-      if (bankFilter !== 'TODOS' && item.bank.toLowerCase() !== bankFilter.toLowerCase()) return false;
+      if (bankFilter !== 'TODOS' && item.bank && item.bank.toLowerCase() !== bankFilter.toLowerCase()) return false;
 
       // Busca
       if (searchQuery.trim()) {
@@ -88,7 +102,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
 
       return true;
     });
-  }, [movements, activeTab, statusFilter, bankFilter, searchQuery]);
+  }, [allMovements, activeTab, statusFilter, bankFilter, searchQuery]);
 
   // Totais
   const totalReceber = useMemo(() => {
@@ -319,6 +333,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
               {filteredMovements.map((item) => {
                 const isIncome = item.type === 'RECEBER';
                 const isRealized = item.status === 'REALIZADA';
+                const isVirtual = (item as any).isSalaryVirtual === true;
 
                 // Cálculo reativo do valor se pago hoje para empréstimos
                 let todayPrepayment = null;
@@ -328,16 +343,22 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
                 }
 
                 return (
-                  <tr key={item.id} className={isRealized ? 'row-realized' : ''}>
+                  <tr key={item.id} className={`${isRealized ? 'row-realized' : ''} ${isVirtual ? 'row-virtual-salary' : ''}`}>
                     {/* Toggle Status Checkbox */}
                     <td>
-                      <button
-                        className={`status-toggle-btn ${isRealized ? 'checked' : ''}`}
-                        onClick={() => toggleMovementStatus(item.id)}
-                        title={isRealized ? 'Marcar como prevista' : 'Confirmar liquidação'}
-                      >
-                        {isRealized ? <CheckCircle2 size={18} className="text-emerald" /> : <Clock size={18} className="text-muted" />}
-                      </button>
+                      {isVirtual ? (
+                        <span title="Previsto pelo contrato de salário" style={{ display: 'flex', justifyContent: 'center', color: 'var(--accent-cyan)', opacity: 0.7 }}>
+                          <Briefcase size={16} />
+                        </span>
+                      ) : (
+                        <button
+                          className={`status-toggle-btn ${isRealized ? 'checked' : ''}`}
+                          onClick={() => toggleMovementStatus(item.id)}
+                          title={isRealized ? 'Marcar como prevista' : 'Confirmar liquidação'}
+                        >
+                          {isRealized ? <CheckCircle2 size={18} className="text-emerald" /> : <Clock size={18} className="text-muted" />}
+                        </button>
+                      )}
                     </td>
 
                     {/* Title */}
@@ -345,6 +366,11 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
                       <div className="item-title-col">
                         <div className="flex items-center gap-2">
                           <span className={`item-title ${isRealized ? 'line-through' : ''}`}>{item.title}</span>
+                          {isVirtual && (
+                            <span className="badge badge-cyan text-xs" style={{ fontSize: '10px', padding: '2px 6px', opacity: 0.85 }}>
+                              💼 Salário
+                            </span>
+                          )}
                           {item.installmentNumber && item.installmentsTotal && (
                             <span className="badge badge-cyan text-xs">
                               {item.installmentNumber}/{item.installmentsTotal}
@@ -417,13 +443,17 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
 
                     {/* Actions */}
                     <td style={{ textAlign: 'center' }}>
-                      <button
-                        className="delete-action-btn"
-                        onClick={() => deleteMovement(item.id)}
-                        title="Excluir movimentação"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {isVirtual ? (
+                        <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontStyle: 'italic' }}>Projetado</span>
+                      ) : (
+                        <button
+                          className="delete-action-btn"
+                          onClick={() => deleteMovement(item.id)}
+                          title="Excluir movimentação"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );

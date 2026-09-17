@@ -301,3 +301,122 @@ export function buildMonthlyProjectionGrid(
 
   return rows;
 }
+
+/**
+ * Gera movimentos VIRTUAIS (previstos) a partir dos contratos de salário cadastrados.
+ * Esses movimentos não existem no Appwrite — são projetados para exibição na tela
+ * de Movimentações → Receber → Previstas.
+ *
+ * Geração: mês atual + próximos 11 meses (12 meses no total).
+ * Retorna objetos com id prefixado em "salary_virtual_" para diferenciá-los.
+ */
+export function generateSalaryVirtualMovements(
+  salaryContracts: SalaryContract[]
+): (Movement & { isSalaryVirtual: true })[] {
+  if (!salaryContracts || salaryContracts.length === 0) return [];
+
+  const result: (Movement & { isSalaryVirtual: true })[] = [];
+  const now = new Date();
+
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1; // 1-indexed
+    const compKey = `${year}-${String(month).padStart(2, '0')}`;
+
+    for (const sc of salaryContracts) {
+      if (!sc.startDate || sc.startDate > compKey) continue;
+      if (!sc.isActive) continue;
+
+      const resolution = resolveSalaryForMonth(sc, compKey);
+      if (resolution.total <= 0) continue;
+
+      // Título a exibir: usa o employer + role como label
+      const contractTitle = [sc.employer, sc.role].filter(Boolean).join(' — ') || 'Salário';
+      const bankName = sc.receivingBankName ?? '';
+      const baseId = `salary_virtual_${sc.id}_${compKey}`;
+      const schedule = sc.paymentSchedule ?? 'UNICO';
+
+      if (schedule === 'QUINZENAL') {
+        // 1ª quinzena: usa secondPaymentDay (adiantamento, ex: dia 15)
+        const day1 = sc.secondPaymentDay ?? 15;
+        const date1 = `${year}-${String(month).padStart(2, '0')}-${String(day1).padStart(2, '0')}`;
+        result.push({
+          id: `${baseId}_1`,
+          title: `${contractTitle} (1ª quinzena)`,
+          type: 'RECEBER',
+          amount: resolution.first,
+          dueDate: date1,
+          bank: bankName,
+          status: 'PREVISTA',
+          category: 'Salário',
+          notes: `Contrato: ${sc.employer}`,
+          isSalaryVirtual: true,
+        });
+
+        // 2ª quinzena: usa paymentDay (principal, ex: dia 5 do mês seguinte ou dia 1)
+        const day2 = sc.paymentDay;
+        const daysInMonth = new Date(year, month, 0).getDate();
+        const clampedDay2 = Math.min(day2, daysInMonth);
+        const date2 = `${year}-${String(month).padStart(2, '0')}-${String(clampedDay2).padStart(2, '0')}`;
+        result.push({
+          id: `${baseId}_2`,
+          title: `${contractTitle} (2ª quinzena)`,
+          type: 'RECEBER',
+          amount: resolution.second,
+          dueDate: date2,
+          bank: bankName,
+          status: 'PREVISTA',
+          category: 'Salário',
+          notes: `Contrato: ${sc.employer}`,
+          isSalaryVirtual: true,
+        });
+
+      } else if (schedule === 'SEMANAL') {
+        const dayOfWeek = sc.weeklyPaymentDayOfWeek ?? 5;
+        const daysInMonth = new Date(year, month, 0).getDate();
+        let weekIdx = 0;
+        for (let day = 1; day <= daysInMonth; day++) {
+          const wd = new Date(year, month - 1, day).getDay();
+          if (wd === dayOfWeek) {
+            weekIdx++;
+            const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            result.push({
+              id: `${baseId}_w${weekIdx}`,
+              title: `${contractTitle} (semana ${weekIdx})`,
+              type: 'RECEBER',
+              amount: resolution.weeklyAmount,
+              dueDate: dateStr,
+              bank: bankName,
+              status: 'PREVISTA',
+              category: 'Salário',
+              notes: `Contrato: ${sc.employer}`,
+              isSalaryVirtual: true,
+            });
+          }
+        }
+
+      } else {
+        // UNICO
+        const daysInMonth = new Date(year, month, 0).getDate();
+        const clampedDay = Math.min(sc.paymentDay, daysInMonth);
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`;
+        result.push({
+          id: baseId,
+          title: contractTitle,
+          type: 'RECEBER',
+          amount: resolution.total,
+          dueDate: dateStr,
+          bank: bankName,
+          status: 'PREVISTA',
+          category: 'Salário',
+          notes: `Contrato: ${sc.employer}`,
+          isSalaryVirtual: true,
+        });
+      }
+    }
+  }
+
+  return result.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+}
+
