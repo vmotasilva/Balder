@@ -668,7 +668,13 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, [activeCheckpoint, movements, accounts]);
 
   const totalNetWorth = useMemo(() => {
-    if (activeCheckpoint) return availableBalance;
+    if (activeCheckpoint) {
+      if (activeCheckpoint.initialNetWorth !== undefined) {
+        return activeCheckpoint.initialNetWorth;
+      }
+      const debt = activeCheckpoint.creditCardDebt || 0;
+      return availableBalance - debt;
+    }
     return accounts.reduce((acc, cur) => acc + cur.balance, 0);
   }, [activeCheckpoint, availableBalance, accounts]);
 

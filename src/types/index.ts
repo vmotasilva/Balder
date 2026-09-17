@@ -415,6 +415,9 @@ export interface FinancialCheckpoint {
   createdAt: string;       // ISO datetime de quando o marco foi criado
   startDate: string;       // YYYY-MM-DD — data a partir da qual monitorar
   initialBalance: number;  // Saldo em caixa nessa data (R$)
+  creditCardDebt?: number; // Dívida / Fatura acumulada de cartão de crédito no ponto de partida (R$)
+  cardDueDate?: string;    // Data de vencimento da fatura inicial (YYYY-MM-DD)
+  cardName?: string;       // Nome do cartão associado à fatura
   initialNetWorth?: number; // Patrimônio líquido estimado nessa data (opcional)
   label?: string;          // Rótulo livre, ex: "Início 2025", "Reset pós-crise"
   notes?: string;          // Observações sobre o marco

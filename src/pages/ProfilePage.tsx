@@ -940,13 +940,27 @@ export const ProfilePage: React.FC = () => {
                             R$ {cp.initialBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
                         </div>
-                        {cp.initialNetWorth !== undefined && (
+                        {cp.creditCardDebt !== undefined && cp.creditCardDebt > 0 ? (
                           <div>
-                            <span className="text-muted block text-[11px]">Patrimônio Líquido</span>
-                            <span className="font-semibold text-cyan-400 text-sm">
-                              R$ {cp.initialNetWorth.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            <span className="text-muted block text-[11px]">Dívida de Cartão</span>
+                            <span className="font-semibold text-rose-400 text-sm">
+                              - R$ {cp.creditCardDebt.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
+                            {cp.cardDueDate && (
+                              <span className="text-[10px] text-muted block">
+                                Venc. {cp.cardDueDate.split('-').reverse().join('/')}
+                              </span>
+                            )}
                           </div>
+                        ) : (
+                          cp.initialNetWorth !== undefined && (
+                            <div>
+                              <span className="text-muted block text-[11px]">Patrimônio Líquido</span>
+                              <span className="font-semibold text-cyan-400 text-sm">
+                                R$ {cp.initialNetWorth.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          )
                         )}
                       </div>
 
