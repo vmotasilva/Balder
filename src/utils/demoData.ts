@@ -356,6 +356,7 @@ export const DEMO_NATURES: ExpenseNature[] = [
         name: 'Contas Fixas & Estruturais',
         natureId: 'nat_moradia',
         applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        dayOfMonth: 10,
         items: [
           { id: 'item_m_condo', description: 'Taxa Condominial Residencial', quantity: 1, price: 1250.00, multiplierWeeks: 1, totalValue: 1250.00, realizedValue: 1250.00, isFulfilled: true, paymentMethod: 'BOLETO' },
           { id: 'item_m_energia', description: 'Energia Elétrica Estimada (Coelba)', quantity: 1, price: 420.00, multiplierWeeks: 1, totalValue: 420.00, realizedValue: 420.00, isFulfilled: true, paymentMethod: 'BOLETO' },

@@ -124,7 +124,8 @@ interface FinancialContextType {
   addNature: (nature: Omit<ExpenseNature, 'id' | 'mappings'>) => void;
   updateNature: (id: string, updates: Partial<ExpenseNature>) => void;
   deleteNature: (id: string) => void;
-  addMappingToNature: (natureId: string, name: string, applicableMonths?: number[]) => string;
+  addMappingToNature: (natureId: string, name: string, applicableMonths?: number[], dayOfMonth?: number) => string;
+  updateMapping: (natureId: string, mappingId: string, updates: Partial<FixedExpenseMapping>) => void;
   deleteMapping: (natureId: string, mappingId: string) => void;
   addItemToMapping: (natureId: string, mappingId: string, item: Omit<MappingItem, 'id' | 'totalValue'>, customId?: string) => string;
   updateMappingItem: (natureId: string, mappingId: string, itemId: string, updates: Partial<MappingItem>) => void;
@@ -1745,7 +1746,12 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   // Adicionar Mapeamento a uma Natureza
-  const addMappingToNature = (natureId: string, name: string, applicableMonths?: number[]): string => {
+  const addMappingToNature = (
+    natureId: string,
+    name: string,
+    applicableMonths?: number[],
+    dayOfMonth?: number
+  ): string => {
     const newMappingId = `map_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
     const newMapping: FixedExpenseMapping = {
       id: newMappingId,
@@ -1753,6 +1759,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       name,
       applicableMonths: applicableMonths || [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
       items: [],
+      dayOfMonth: dayOfMonth ? Math.min(31, Math.max(1, dayOfMonth)) : undefined,
     };
 
     setNatures((prev) =>
@@ -1768,6 +1775,30 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     );
 
     return newMappingId;
+  };
+
+  // Atualizar Mapeamento
+  const updateMapping = (
+    natureId: string,
+    mappingId: string,
+    updates: Partial<FixedExpenseMapping>
+  ) => {
+    setNatures((prev) =>
+      prev.map((nat) => {
+        if (nat.id === natureId) {
+          return {
+            ...nat,
+            mappings: nat.mappings.map((m) => {
+              if (m.id === mappingId) {
+                return { ...m, ...updates };
+              }
+              return m;
+            }),
+          };
+        }
+        return nat;
+      })
+    );
   };
 
   // Excluir Mapeamento
@@ -2079,6 +2110,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         updateNature,
         deleteNature,
         addMappingToNature,
+        updateMapping,
         deleteMapping,
         addItemToMapping,
         updateMappingItem,

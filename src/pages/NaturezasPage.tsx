@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useFinancial } from '../context/FinancialContext';
+import { getPendingFixedBills, type PendingFixedBill } from '../utils/fixedBillsAlert';
+import type { Movement, MovementType } from '../types';
 import {
   Layers,
   Plus,
@@ -14,18 +16,23 @@ import {
   Edit2,
   Save,
   X,
+  Calendar,
+  Zap,
 } from 'lucide-react';
 
 interface NaturezasPageProps {
   embedded?: boolean;
+  onOpenNewMovementModal?: (type?: MovementType, initialData?: Partial<Movement>) => void;
 }
 
-export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false }) => {
+export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, onOpenNewMovementModal }) => {
   const {
     natures,
+    movements,
     addNature,
     deleteNature,
     addMappingToNature,
+    updateMapping,
     deleteMapping,
     addItemToMapping,
     updateMappingItem,
@@ -35,6 +42,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false }
     getNatureCeiling,
     getNatureSpent,
     getNatureMissingItems,
+    addMovement,
   } = useFinancial();
 
   // Selected Natureza
@@ -66,6 +74,65 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false }
 
   const [isNewMappingModalOpen, setIsNewMappingModalOpen] = useState(false);
   const [newMappingName, setNewMappingName] = useState('');
+  const [newMappingDueDay, setNewMappingDueDay] = useState<number | ''>('');
+
+  // Edição rápida do dia de vencimento de um mapeamento
+  const [editingMappingDueDayId, setEditingMappingDueDayId] = useState<string | null>(null);
+  const [editMappingDueDayVal, setEditMappingDueDayVal] = useState<number | ''>('');
+
+  // Contas fixas pendentes dispensadas temporariamente nesta sessão
+  const [dismissedBills, setDismissedBills] = useState<Record<string, boolean>>({});
+
+  // Contas pendentes com vencimento fixo chegado ou próximo
+  const pendingFixedBills = useMemo(() => {
+    return getPendingFixedBills(natures, movements, new Date(), 3);
+  }, [natures, movements]);
+
+  // Contas a exibir no banner (excluindo as dispensadas)
+  const activePendingBills = useMemo(() => {
+    return pendingFixedBills.filter((b) => !dismissedBills[`${b.natureId}_${b.mappingId}`]);
+  }, [pendingFixedBills, dismissedBills]);
+
+  // Ação rápida: Confirmar pagamento de conta fixa com 1 clique
+  const handleConfirmBillDirectly = (bill: PendingFixedBill) => {
+    // 1. Cria a movimentação de saída realizada
+    addMovement({
+      title: `${bill.mappingName} (${bill.natureName})`,
+      type: 'PAGAR',
+      amount: bill.totalAmount,
+      dueDate: bill.dueDate,
+      bank: 'Nubank',
+      status: 'REALIZADA',
+      category: bill.natureName,
+      notes: `Pagamento automático de conta fixa mapeada (${bill.itemDescriptions.join(', ')})`,
+    });
+
+    // 2. Marca todos os itens do mapeamento como realizados no mês
+    bill.items.forEach((item) => {
+      if (!item.isFulfilled) {
+        toggleItemFulfilled(bill.natureId, bill.mappingId, item.id);
+      }
+    });
+
+    // 3. Remove o alerta do banner
+    setDismissedBills((prev) => ({ ...prev, [`${bill.natureId}_${bill.mappingId}`]: true }));
+  };
+
+  // Ação rápida: Abrir modal de movimentação com os dados já preenchidos para ajuste
+  const handleAdjustBillMovement = (bill: PendingFixedBill) => {
+    if (onOpenNewMovementModal) {
+      onOpenNewMovementModal('PAGAR', {
+        title: `${bill.mappingName} (${bill.natureName})`,
+        amount: bill.totalAmount,
+        dueDate: bill.dueDate,
+        bank: 'Nubank',
+        category: bill.natureName,
+        status: 'REALIZADA',
+        type: 'PAGAR',
+        notes: `Conta fixa de ${bill.mappingName} com vencimento no dia ${bill.dayOfMonth}`,
+      });
+    }
+  };
 
   // Active Nature data
   const selectedNature = natures.find((n) => n.id === selectedNatureId) || natures[0];
@@ -173,6 +240,132 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false }
               </span>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* BANNER INTELIGENTE: QUESTIONAMENTO DE CONTAS FIXAS PREVISTAS NO MÊS */}
+      {activePendingBills.length > 0 && (
+        <div className="pending-bills-prompt-container mb-4">
+          {activePendingBills.map((bill) => {
+            const isLate = bill.isOverdue;
+            const isToday = bill.isDueToday;
+
+            return (
+              <div
+                key={`bill_${bill.natureId}_${bill.mappingId}`}
+                className="glass-card animate-fade-in mb-3"
+                style={{
+                  padding: '1rem 1.25rem',
+                  borderRadius: '12px',
+                  border: isLate
+                    ? '1px solid rgba(239, 68, 68, 0.45)'
+                    : isToday
+                    ? '1px solid rgba(245, 158, 11, 0.45)'
+                    : '1px solid rgba(6, 182, 212, 0.45)',
+                  background: isLate
+                    ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(15, 23, 42, 0.8) 100%)'
+                    : isToday
+                    ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(15, 23, 42, 0.8) 100%)'
+                    : 'linear-gradient(135deg, rgba(6, 182, 212, 0.12) 0%, rgba(15, 23, 42, 0.8) 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '1rem',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
+                  <div
+                    style={{
+                      width: '42px',
+                      height: '42px',
+                      borderRadius: '10px',
+                      background: isLate
+                        ? 'rgba(239, 68, 68, 0.2)'
+                        : isToday
+                        ? 'rgba(245, 158, 11, 0.2)'
+                        : 'rgba(6, 182, 212, 0.2)',
+                      color: isLate ? '#f87171' : isToday ? '#fbbf24' : '#38bdf8',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      marginTop: '2px',
+                    }}
+                  >
+                    <Calendar size={20} />
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.2rem' }}>
+                      <span
+                        className={`badge ${isLate ? 'badge-rose' : isToday ? 'badge-amber' : 'badge-cyan'}`}
+                        style={{ fontSize: '0.7rem' }}
+                      >
+                        {isLate ? 'CONTA VENCIDA NESTE MÊS' : isToday ? 'VENCE HOJE' : 'VENCIMENTO PRÓXIMO'}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        Vencimento fixo no Dia {bill.dayOfMonth} ({bill.dueDate.split('-').reverse().join('/')})
+                      </span>
+                    </div>
+                    <h4 style={{ fontSize: '0.98rem', fontWeight: 700, color: '#fff', margin: 0 }}>
+                      Você já efetuou o pagamento de {bill.mappingName} ({bill.natureName})?
+                    </h4>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0.25rem 0' }}>
+                      Valor previsto no mapeamento:{' '}
+                      <strong className="text-emerald font-bold" style={{ fontSize: '0.95rem' }}>
+                        {bill.totalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </strong>
+                      {' • '}
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        Itens: {bill.itemDescriptions.slice(0, 3).join(', ')}{bill.itemDescriptions.length > 3 ? '...' : ''}
+                      </span>
+                    </p>
+                    <span style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>
+                      {isLate
+                        ? 'O dia previsto de vencimento já passou. Se você já pagou este boleto/fatura, confirme abaixo para manter o teto e extrato em dia.'
+                        : 'Confirme com 1 clique se já pagou ou clique em "Ajustar Valor" caso o valor da fatura deste mês tenha variado.'}
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 0.9rem' }}
+                    onClick={() => handleConfirmBillDirectly(bill)}
+                    title="Confirmar pagamento e registrar saída realizada"
+                  >
+                    <CheckCircle2 size={15} />
+                    <span>Confirmar Pagamento ({bill.totalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})</span>
+                  </button>
+
+                  {onOpenNewMovementModal && (
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 0.85rem' }}
+                      onClick={() => handleAdjustBillMovement(bill)}
+                      title="Abrir para alterar o valor real pago antes de lançar"
+                    >
+                      <Zap size={14} />
+                      <span>Ajustar Valor</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    style={{ padding: '0.5rem 0.6rem', color: 'var(--text-muted)' }}
+                    onClick={() => setDismissedBills((prev) => ({ ...prev, [`${bill.natureId}_${bill.mappingId}`]: true }))}
+                    title="Lembrar mais tarde"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -566,6 +759,64 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false }
                               {mapping.items.length}{' '}
                               {mapping.items.length === 1 ? 'item' : 'itens'}
                             </span>
+
+                            {/* Badge & Configuração de Vencimento Fixo no Mês */}
+                            {editingMappingDueDayId === mapping.id ? (
+                              <div className="flex items-center gap-1 bg-[rgba(15,23,42,0.8)] p-1 rounded border border-[var(--border-default)]">
+                                <Calendar size={13} className="text-amber-400 ml-1" />
+                                <span className="text-xs text-muted">Dia:</span>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="31"
+                                  className="form-input form-input-sm text-center"
+                                  style={{ width: '48px', padding: '2px 4px', height: '24px' }}
+                                  value={editMappingDueDayVal}
+                                  placeholder="Ex: 10"
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value, 10);
+                                    setEditMappingDueDayVal(isNaN(val) ? '' : Math.min(31, Math.max(1, val)));
+                                  }}
+                                  autoFocus
+                                />
+                                <button
+                                  className="btn btn-primary btn-xs"
+                                  style={{ padding: '2px 6px', height: '24px' }}
+                                  title="Salvar dia de vencimento"
+                                  onClick={() => {
+                                    updateMapping(selectedNature.id, mapping.id, {
+                                      dayOfMonth: editMappingDueDayVal !== '' ? Number(editMappingDueDayVal) : undefined,
+                                    });
+                                    setEditingMappingDueDayId(null);
+                                  }}
+                                >
+                                  <Save size={12} />
+                                </button>
+                                <button
+                                  className="btn btn-ghost btn-xs text-muted"
+                                  style={{ padding: '2px 4px', height: '24px' }}
+                                  title="Cancelar"
+                                  onClick={() => setEditingMappingDueDayId(null)}
+                                >
+                                  <X size={12} />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                className={`badge ${mapping.dayOfMonth ? 'badge-amber' : 'badge-outline text-muted'} cursor-pointer hover:border-amber-400`}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', background: mapping.dayOfMonth ? undefined : 'rgba(255,255,255,0.03)' }}
+                                title="Clique para alterar a previsão fixa de vencimento"
+                                onClick={() => {
+                                  setEditingMappingDueDayId(mapping.id);
+                                  setEditMappingDueDayVal(mapping.dayOfMonth || '');
+                                }}
+                              >
+                                <Calendar size={12} />
+                                <span>{mapping.dayOfMonth ? `Vence Dia ${mapping.dayOfMonth}` : '+ Definir Vencimento'}</span>
+                                <Edit2 size={10} style={{ opacity: 0.6 }} />
+                              </button>
+                            )}
                           </div>
                           <div className="mapping-header-actions">
                             <button
@@ -1092,7 +1343,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false }
                 <input
                   type="text"
                   className="form-input"
-                  placeholder="Ex: Feira Semanal de Bairro, Compras em Atacado, etc."
+                  placeholder="Ex: Energia Elétrica (Coelba), Água (Embasa), Internet, Feira Semanal"
                   value={newMappingName}
                   onChange={(e) => setNewMappingName(e.target.value)}
                 />
@@ -1102,10 +1353,46 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false }
                 </span>
               </div>
 
+              <div className="form-group mb-3">
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Calendar size={14} className="text-amber-400" />
+                  <span>Dia Fixo de Vencimento no Mês (Opcional)</span>
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input
+                    type="number"
+                    min="1"
+                    max="31"
+                    className="form-input"
+                    placeholder="Ex: 10 (ou deixe em branco se não for conta fixa)"
+                    value={newMappingDueDay}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      setNewMappingDueDay(isNaN(val) ? '' : Math.min(31, Math.max(1, val)));
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm text-xs"
+                    style={{ whiteSpace: 'nowrap' }}
+                    onClick={() => setNewMappingDueDay(31)}
+                    title="Definir para o último dia do mês"
+                  >
+                    Fim do Mês
+                  </button>
+                </div>
+                <span className="text-xs text-muted mt-1 block">
+                  O BALDER questionará automaticamente quando esta data estiver próxima ou alcançada no mês para confirmar se você já efetuou o pagamento.
+                </span>
+              </div>
+
               <div className="modal-footer-actions mt-4">
                 <button
                   className="btn btn-outline"
-                  onClick={() => setIsNewMappingModalOpen(false)}
+                  onClick={() => {
+                    setIsNewMappingModalOpen(false);
+                    setNewMappingDueDay('');
+                  }}
                 >
                   Cancelar
                 </button>
@@ -1116,8 +1403,14 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false }
                       alert('Informe o nome do mapeamento.');
                       return;
                     }
-                    addMappingToNature(selectedNature.id, newMappingName.trim());
+                    addMappingToNature(
+                      selectedNature.id,
+                      newMappingName.trim(),
+                      undefined,
+                      newMappingDueDay !== '' ? Number(newMappingDueDay) : undefined
+                    );
                     setNewMappingName('');
+                    setNewMappingDueDay('');
                     setIsNewMappingModalOpen(false);
                   }}
                 >

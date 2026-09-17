@@ -106,7 +106,9 @@ export function AppContent() {
             <MovementsPage onOpenNewMovementModal={handleOpenNewMovement} />
           )}
 
-          {activeTab === 'NATUREZAS' && <NaturezasPage />}
+          {activeTab === 'NATUREZAS' && (
+            <NaturezasPage onOpenNewMovementModal={handleOpenNewMovement} />
+          )}
 
           {activeTab === 'EMPRESTIMOS' && <LoansPage />}
 

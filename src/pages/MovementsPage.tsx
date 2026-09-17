@@ -15,11 +15,13 @@ import {
   Flag,
   History,
   X,
+  Calendar,
 } from 'lucide-react';
 import type { Movement, MovementType } from '../types';
 import { calculatePresentValue, groupLoanMovements } from '../utils/loanMath';
 import { LoanPrepaymentModal } from '../components/LoanPrepaymentModal';
 import { getSalarySuggestion } from '../utils/salarySuggestion';
+import { getPendingFixedBills, type PendingFixedBill } from '../utils/fixedBillsAlert';
 
 interface MovementsPageProps {
   onOpenNewMovementModal: (defaultType?: MovementType, initialData?: Partial<Movement>) => void;
@@ -29,10 +31,68 @@ type TabFilter = 'TODOS' | 'RECEBER' | 'PAGAR' | 'EMPRESTIMO' | 'CARTAO';
 type StatusFilter = 'TODOS' | 'PREVISTA' | 'REALIZADA';
 
 export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementModal }) => {
-  const { movements, salaryContracts, addMovement, deleteMovement, toggleMovementStatus, exportToCSV, activeCheckpoint } = useFinancial();
+  const {
+    movements,
+    salaryContracts,
+    natures,
+    addMovement,
+    deleteMovement,
+    toggleMovementStatus,
+    toggleItemFulfilled,
+    exportToCSV,
+    activeCheckpoint,
+  } = useFinancial();
 
   const [includePreCheckpoint, setIncludePreCheckpoint] = useState(false);
   const [isSalaryPromptDismissed, setIsSalaryPromptDismissed] = useState(false);
+
+  // Contas fixas pendentes dispensadas temporariamente no banner
+  const [dismissedBills, setDismissedBills] = useState<Record<string, boolean>>({});
+
+  // Contas com vencimento fixo no mês pendentes de pagamento
+  const pendingFixedBills = useMemo(() => {
+    return getPendingFixedBills(natures, movements, new Date(), 3);
+  }, [natures, movements]);
+
+  const activePendingBills = useMemo(() => {
+    return pendingFixedBills.filter((b) => !dismissedBills[`${b.natureId}_${b.mappingId}`]);
+  }, [pendingFixedBills, dismissedBills]);
+
+  // Ação rápida: Confirmar pagamento de conta fixa com 1 clique
+  const handleConfirmBillDirectly = (bill: PendingFixedBill) => {
+    addMovement({
+      title: `${bill.mappingName} (${bill.natureName})`,
+      type: 'PAGAR',
+      amount: bill.totalAmount,
+      dueDate: bill.dueDate,
+      bank: 'Nubank',
+      status: 'REALIZADA',
+      category: bill.natureName,
+      notes: `Pagamento automático de conta fixa mapeada (${bill.itemDescriptions.join(', ')})`,
+    });
+
+    bill.items.forEach((item) => {
+      if (!item.isFulfilled) {
+        toggleItemFulfilled(bill.natureId, bill.mappingId, item.id);
+      }
+    });
+
+    setDismissedBills((prev) => ({ ...prev, [`${bill.natureId}_${bill.mappingId}`]: true }));
+  };
+
+  // Ação rápida: Ajustar valor antes de lançar
+  const handleAdjustBillMovement = (bill: PendingFixedBill) => {
+    onOpenNewMovementModal('PAGAR', {
+      title: `${bill.mappingName} (${bill.natureName})`,
+      amount: bill.totalAmount,
+      dueDate: bill.dueDate,
+      bank: 'Nubank',
+      category: bill.natureName,
+      status: 'REALIZADA',
+      type: 'PAGAR',
+      notes: `Conta fixa de ${bill.mappingName} com vencimento no dia ${bill.dayOfMonth}`,
+    });
+  };
 
   // Apenas movimentações reais do usuário (sem preencher com projeções virtuais)
   const allMovements = movements;
@@ -268,6 +328,130 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
               <X size={15} />
             </button>
           </div>
+        </div>
+      )}
+
+      {/* BANNER DE LEMBRETE E CONFIRMAÇÃO DE CONTAS FIXAS PREVISTAS NO MÊS */}
+      {activePendingBills.length > 0 && (
+        <div className="pending-bills-movements-container mb-4">
+          {activePendingBills.map((bill) => {
+            const isLate = bill.isOverdue;
+            const isToday = bill.isDueToday;
+
+            return (
+              <div
+                key={`mov_bill_${bill.natureId}_${bill.mappingId}`}
+                className="glass-card animate-fade-in mb-3"
+                style={{
+                  padding: '1rem 1.25rem',
+                  borderRadius: '12px',
+                  border: isLate
+                    ? '1px solid rgba(239, 68, 68, 0.45)'
+                    : isToday
+                    ? '1px solid rgba(245, 158, 11, 0.45)'
+                    : '1px solid rgba(6, 182, 212, 0.45)',
+                  background: isLate
+                    ? 'linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(15, 23, 42, 0.8) 100%)'
+                    : isToday
+                    ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(15, 23, 42, 0.8) 100%)'
+                    : 'linear-gradient(135deg, rgba(6, 182, 212, 0.12) 0%, rgba(15, 23, 42, 0.8) 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '1rem',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
+                  <div
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '10px',
+                      background: isLate
+                        ? 'rgba(239, 68, 68, 0.2)'
+                        : isToday
+                        ? 'rgba(245, 158, 11, 0.2)'
+                        : 'rgba(6, 182, 212, 0.2)',
+                      color: isLate ? '#f87171' : isToday ? '#fbbf24' : '#38bdf8',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      marginTop: '2px',
+                    }}
+                  >
+                    <Calendar size={20} />
+                  </div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.2rem' }}>
+                      <span
+                        className={`badge ${isLate ? 'badge-rose' : isToday ? 'badge-amber' : 'badge-cyan'}`}
+                        style={{ fontSize: '0.7rem' }}
+                      >
+                        {isLate ? 'CONTA VENCIDA NESTE MÊS' : isToday ? 'VENCE HOJE' : 'VENCIMENTO PRÓXIMO'}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                        Vencimento no Dia {bill.dayOfMonth} ({bill.dueDate.split('-').reverse().join('/')})
+                      </span>
+                    </div>
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff', margin: 0 }}>
+                      Você já efetuou o pagamento de {bill.mappingName} ({bill.natureName})?
+                    </h4>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.25rem 0' }}>
+                      Valor de referência mapeado:{' '}
+                      <strong className="text-emerald font-bold" style={{ fontSize: '0.9rem' }}>
+                        {bill.totalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </strong>
+                      {' • '}
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        Itens: {bill.itemDescriptions.slice(0, 3).join(', ')}{bill.itemDescriptions.length > 3 ? '...' : ''}
+                      </span>
+                    </p>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      {isLate
+                        ? 'A data prevista já passou. Clique em "Confirmar" para registrar como pago ou "Ajustar Valor" se o boleto veio com valor diferente.'
+                        : 'Confirme com 1 clique se a conta já foi quitada ou faça o ajuste pontual de valor.'}
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.85rem' }}
+                    onClick={() => handleConfirmBillDirectly(bill)}
+                    title="Confirmar pagamento e registrar saída realizada"
+                  >
+                    <CheckCircle2 size={15} />
+                    <span>Confirmar R$ {bill.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.85rem' }}
+                    onClick={() => handleAdjustBillMovement(bill)}
+                    title="Abrir para alterar o valor real pago antes de lançar"
+                  >
+                    <Zap size={14} />
+                    <span>Ajustar Valor</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    style={{ padding: '0.45rem 0.6rem', color: 'var(--text-muted)' }}
+                    onClick={() => setDismissedBills((prev) => ({ ...prev, [`${bill.natureId}_${bill.mappingId}`]: true }))}
+                    title="Lembrar mais tarde"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
