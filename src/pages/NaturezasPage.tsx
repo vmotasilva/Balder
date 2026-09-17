@@ -617,10 +617,14 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false }
                                       <td>
                                         <input
                                           type="number"
-                                          min="1"
+                                          step="any"
+                                          min="0.001"
                                           className="form-input form-input-sm text-center"
                                           value={editQty}
-                                          onChange={(e) => setEditQty(Math.max(1, parseInt(e.target.value) || 1))}
+                                          onChange={(e) => {
+                                            const val = parseFloat(e.target.value.replace(',', '.'));
+                                            setEditQty(isNaN(val) ? 0 : val);
+                                          }}
                                         />
                                       </td>
                                       <td>
@@ -710,7 +714,11 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false }
                                       </div>
                                     </td>
                                     <td>
-                                      <span className="item-val-pill">{item.quantity}</span>
+                                      <span className="item-val-pill">
+                                        {typeof item.quantity === 'number'
+                                          ? item.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 3 })
+                                          : item.quantity}
+                                      </span>
                                     </td>
                                     <td>
                                       {item.price.toLocaleString('pt-BR', {
@@ -781,7 +789,8 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false }
                                 <td>
                                   <input
                                     type="number"
-                                    min="1"
+                                    step="any"
+                                    min="0.001"
                                     className="form-input form-input-sm text-center"
                                     placeholder="Qtd"
                                     value={
@@ -789,15 +798,14 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false }
                                         ? newItemQty[mapping.id]
                                         : 1
                                     }
-                                    onChange={(e) =>
+                                    onChange={(e) => {
+                                      const raw = e.target.value.replace(',', '.');
+                                      const val = parseFloat(raw);
                                       setNewItemQty((prev) => ({
                                         ...prev,
-                                        [mapping.id]: Math.max(
-                                          1,
-                                          parseInt(e.target.value) || 1
-                                        ),
-                                      }))
-                                    }
+                                        [mapping.id]: isNaN(val) ? (raw === '' ? ('' as any) : 0) : val,
+                                      }));
+                                    }}
                                   />
                                 </td>
                                 <td>
@@ -844,11 +852,16 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false }
                                 <td>
                                   <span className="text-xs text-muted">
                                     {(
-                                      (newItemQty[mapping.id] || 1) *
-                                      (newItemPrice[mapping.id] || 0) *
-                                      (newItemMult[mapping.id] !== undefined
-                                        ? newItemMult[mapping.id]
-                                        : 4)
+                                      Math.round(
+                                        (typeof newItemQty[mapping.id] === 'number'
+                                          ? newItemQty[mapping.id]
+                                          : parseFloat(String(newItemQty[mapping.id] || '1').replace(',', '.')) || 1) *
+                                          (newItemPrice[mapping.id] || 0) *
+                                          (newItemMult[mapping.id] !== undefined
+                                            ? newItemMult[mapping.id]
+                                            : 4) *
+                                          100
+                                      ) / 100
                                     ).toLocaleString('pt-BR', {
                                       style: 'currency',
                                       currency: 'BRL',
@@ -861,7 +874,11 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false }
                                     title="Adicionar item ao mapeamento"
                                     onClick={() => {
                                       const desc = newItemDesc[mapping.id]?.trim();
-                                      const qty = newItemQty[mapping.id] || 1;
+                                      const rawQty = newItemQty[mapping.id];
+                                      const qty =
+                                        typeof rawQty === 'number'
+                                          ? rawQty
+                                          : parseFloat(String(rawQty || '1').replace(',', '.')) || 1;
                                       const prc = newItemPrice[mapping.id] || 0;
                                       const mult =
                                         newItemMult[mapping.id] !== undefined
@@ -870,6 +887,10 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false }
 
                                       if (!desc) {
                                         alert('Informe a descrição do item.');
+                                        return;
+                                      }
+                                      if (qty <= 0) {
+                                        alert('Informe uma quantidade válida maior que zero.');
                                         return;
                                       }
                                       if (prc <= 0) {
@@ -895,7 +916,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false }
                                       setNewItemQty((prev) => ({ ...prev, [mapping.id]: 1 }));
                                     }}
                                   >
-                                    <Plus size={14} />
+                                    <Plus size={12} />
                                     <span>Adicionar</span>
                                   </button>
                                 </td>
