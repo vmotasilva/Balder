@@ -28,9 +28,14 @@ import {
   Briefcase,
   TrendingUp,
   Calendar,
+  Flag,
+  CalendarDays,
+  History,
+  RotateCcw,
 } from 'lucide-react';
 import { FinanceEntityModal, type EntityTab } from '../components/FinanceEntityModal';
 import { SalaryAdjustmentModal, type SalaryModalMode } from '../components/SalaryAdjustmentModal';
+import { CheckpointSetupModal } from '../components/CheckpointSetupModal';
 import type { SalaryContract, SalaryAdjustment } from '../types';
 
 export const ProfilePage: React.FC = () => {
@@ -59,13 +64,17 @@ export const ProfilePage: React.FC = () => {
     salaryContracts,
     deleteSalaryContract,
     deleteSalaryAdjustment,
+    checkpoints,
+    activeCheckpoint,
+    activateCheckpoint,
   } = useFinancial();
   const { theme, setTheme } = useTheme();
 
   const [activeSubTab, setActiveSubTab] = useState<
-    'PERFIL' | 'SALARIO' | 'CONTAS' | 'BANCOS' | 'CATEGORIAS' | 'PREFERENCIAS' | 'EXPORTACOES' | 'SEGURANCA'
+    'PERFIL' | 'SALARIO' | 'MARCOS' | 'CONTAS' | 'BANCOS' | 'CATEGORIAS' | 'PREFERENCIAS' | 'EXPORTACOES' | 'SEGURANCA'
   >('PERFIL');
   const [advancedModalOpen, setAdvancedModalOpen] = useState(false);
+  const [checkpointModalOpen, setCheckpointModalOpen] = useState(false);
 
   // Estados de Modal para Salários e Reajustes
   const [salaryModalOpen, setSalaryModalOpen] = useState(false);
@@ -211,6 +220,14 @@ export const ProfilePage: React.FC = () => {
             </button>
 
             <button
+              className={`profile-nav-item ${activeSubTab === 'MARCOS' ? 'active' : ''}`}
+              onClick={() => setActiveSubTab('MARCOS')}
+            >
+              <Flag size={18} />
+              <span>Marcos de Início ({checkpoints.length})</span>
+            </button>
+
+            <button
               className={`profile-nav-item ${activeSubTab === 'CONTAS' ? 'active' : ''}`}
               onClick={() => setActiveSubTab('CONTAS')}
             >
@@ -298,6 +315,174 @@ export const ProfilePage: React.FC = () => {
                   <input type="text" className="form-input" defaultValue="América/São Paulo (GMT-3)" readOnly />
                 </div>
               </div>
+            </div>
+          )}
+
+          {activeSubTab === 'MARCOS' && (
+            <div className="subtab-content animate-fade-in space-y-6">
+              <div className="naturezas-header-row mb-4">
+                <div>
+                  <div className="kicker-badge" style={{ marginBottom: '0.25rem' }}>
+                    <span>PONTO DE PARTIDA & REINÍCIO</span>
+                  </div>
+                  <h3>Marcos de Acompanhamento Financeiro</h3>
+                  <p className="subtab-desc">
+                    Defina a partir de qual data e saldo inicial o Balder contabiliza suas métricas. Se você se desorganizar ou quiser recomeçar, crie um novo marco a qualquer momento sem perder transações passadas.
+                  </p>
+                </div>
+                <button
+                  className="btn btn-primary btn-sm flex items-center gap-2"
+                  onClick={() => setCheckpointModalOpen(true)}
+                >
+                  <Plus size={16} />
+                  <span>{activeCheckpoint ? 'Iniciar Novo Acompanhamento' : 'Definir Marco Inicial'}</span>
+                </button>
+              </div>
+
+              {/* Marco Vigente */}
+              {activeCheckpoint ? (
+                <div className="p-5 rounded-2xl bg-gradient-to-br from-indigo-950/50 via-slate-900/60 to-slate-900/40 border border-indigo-500/30 shadow-xl relative overflow-hidden">
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-500/30 shadow-inner">
+                        <Flag size={24} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-base font-bold text-white">
+                            {activeCheckpoint.label || 'Marco de Acompanhamento'}
+                          </h4>
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold tracking-wide bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                            <CheckCircle2 size={12} />
+                            MARCO ATIVO
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1">
+                          Criado em {new Date(activeCheckpoint.createdAt).toLocaleDateString('pt-BR')} às {new Date(activeCheckpoint.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setCheckpointModalOpen(true)}
+                      className="btn btn-secondary btn-sm flex items-center gap-1.5 text-xs"
+                    >
+                      <RotateCcw size={14} />
+                      <span>Recomeçar Novo Ponto</span>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-5 pt-4 border-t border-slate-800/80">
+                    <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                      <span className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold block mb-1">
+                        Data de Início
+                      </span>
+                      <span className="text-sm font-bold text-slate-100 flex items-center gap-1.5">
+                        <Calendar size={15} className="text-indigo-400" />
+                        {activeCheckpoint.startDate.split('-').reverse().join('/')}
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                      <span className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold block mb-1">
+                        Saldo Inicial em Caixa
+                      </span>
+                      <span className="text-sm font-bold text-emerald-400 flex items-center gap-1.5">
+                        <Wallet size={15} className="text-emerald-400" />
+                        {activeCheckpoint.initialBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                      <span className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold block mb-1">
+                        Tempo de Acompanhamento
+                      </span>
+                      <span className="text-sm font-bold text-cyan-300 flex items-center gap-1.5">
+                        <CalendarDays size={15} className="text-cyan-400" />
+                        {(() => {
+                          const start = new Date(activeCheckpoint.startDate).getTime();
+                          const now = new Date().getTime();
+                          const diffDays = Math.max(0, Math.floor((now - start) / (1000 * 60 * 60 * 24)));
+                          return `${diffDays} ${diffDays === 1 ? 'dia' : 'dias'}`;
+                        })()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-8 rounded-2xl bg-slate-900/40 border border-dashed border-slate-700 text-center flex flex-col items-center justify-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
+                    <Flag size={24} />
+                  </div>
+                  <h4 className="text-sm font-bold text-white">Nenhum marco de início configurado</h4>
+                  <p className="text-xs text-slate-400 max-w-md leading-relaxed">
+                    Definir um marco permite ao Balder saber exatamente em que momento começar a contar suas métricas, além do saldo base que você tinha em mãos no início.
+                  </p>
+                  <button
+                    onClick={() => setCheckpointModalOpen(true)}
+                    className="btn btn-primary btn-sm mt-2 flex items-center gap-2"
+                  >
+                    <Plus size={14} />
+                    <span>Configurar Marco de Início</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Histórico de Marcos Anteriores */}
+              {checkpoints.length > 1 && (
+                <div className="mt-8">
+                  <h4 className="text-sm font-bold text-slate-200 flex items-center gap-2 mb-3">
+                    <History size={16} className="text-slate-400" />
+                    Histórico de Pontos de Partida ({checkpoints.length})
+                  </h4>
+                  <div className="space-y-2.5">
+                    {checkpoints
+                      .slice()
+                      .reverse()
+                      .map((cp) => (
+                        <div
+                          key={cp.id}
+                          className={`p-3.5 rounded-xl border flex items-center justify-between gap-4 transition-all ${
+                            cp.isActive
+                              ? 'bg-indigo-950/20 border-indigo-500/40'
+                              : 'bg-slate-900/50 border-slate-800 hover:border-slate-700'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                              cp.isActive ? 'bg-indigo-500/20 text-indigo-400' : 'bg-slate-800 text-slate-400'
+                            }`}>
+                              <Flag size={16} />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-white">
+                                  {cp.label || `Marco de ${cp.startDate}`}
+                                </span>
+                                {cp.isActive && (
+                                  <span className="text-[10px] font-bold px-2 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300">
+                                    ATUAL
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[11px] text-slate-400">
+                                Início: {cp.startDate.split('-').reverse().join('/')} • Saldo Base: {cp.initialBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                              </span>
+                            </div>
+                          </div>
+
+                          {!cp.isActive && (
+                            <button
+                              onClick={() => activateCheckpoint(cp.id)}
+                              className="btn btn-outline btn-sm text-[11px] py-1 px-3"
+                            >
+                              Reativar
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1920,6 +2105,13 @@ export const ProfilePage: React.FC = () => {
         initialMode={salaryModalMode}
         editContract={salaryEditContract}
         editAdjustment={salaryEditAdjustment}
+      />
+
+      {/* Modal para Marco de Acompanhamento Financeiro */}
+      <CheckpointSetupModal
+        isOpen={checkpointModalOpen}
+        onClose={() => setCheckpointModalOpen(false)}
+        isInitialSetup={!activeCheckpoint}
       />
     </div>
   );

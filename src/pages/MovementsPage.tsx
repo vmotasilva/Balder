@@ -12,6 +12,8 @@ import {
   Banknote,
   Zap,
   Briefcase,
+  Flag,
+  History,
 } from 'lucide-react';
 import type { MovementType } from '../types';
 import { calculatePresentValue, groupLoanMovements } from '../utils/loanMath';
@@ -26,7 +28,9 @@ type TabFilter = 'TODOS' | 'RECEBER' | 'PAGAR' | 'EMPRESTIMO' | 'CARTAO';
 type StatusFilter = 'TODOS' | 'PREVISTA' | 'REALIZADA';
 
 export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementModal }) => {
-  const { movements, salaryContracts, deleteMovement, toggleMovementStatus, exportToCSV } = useFinancial();
+  const { movements, salaryContracts, deleteMovement, toggleMovementStatus, exportToCSV, activeCheckpoint } = useFinancial();
+
+  const [includePreCheckpoint, setIncludePreCheckpoint] = useState(false);
 
   // Movimentos virtuais de salário (projetados a partir dos contratos cadastrados)
   const salaryVirtualMovements = useMemo(
@@ -44,6 +48,11 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('TODOS');
   const [bankFilter, setBankFilter] = useState<string>('TODOS');
   const [searchQuery, setSearchQuery] = useState('');
+
+  const preCheckpointCount = useMemo(() => {
+    if (!activeCheckpoint) return 0;
+    return allMovements.filter((m) => m.dueDate < activeCheckpoint.startDate).length;
+  }, [allMovements, activeCheckpoint]);
 
   // Modal de Simulação e Antecipação de Empréstimos
   const [prepaymentModalOpen, setPrepaymentModalOpen] = useState(false);
@@ -75,9 +84,14 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
     return Math.max(0, Math.round((totalLoanNominal - totalLoanPresentValue) * 100) / 100);
   }, [totalLoanNominal, totalLoanPresentValue]);
 
-  // Filtragem Multidimensional (inclui movimentos virtuais de salário)
+  // Filtragem Multidimensional (inclui movimentos virtuais de salário e filtro de marco)
   const filteredMovements = useMemo(() => {
     return allMovements.filter((item) => {
+      // Marco de Acompanhamento (oculta transações anteriores ao marco por padrão)
+      if (activeCheckpoint && !includePreCheckpoint && item.dueDate < activeCheckpoint.startDate) {
+        return false;
+      }
+
       // Aba
       if (activeTab === 'RECEBER' && item.type !== 'RECEBER') return false;
       if (activeTab === 'PAGAR' && item.type !== 'PAGAR') return false;
@@ -102,7 +116,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
 
       return true;
     });
-  }, [allMovements, activeTab, statusFilter, bankFilter, searchQuery]);
+  }, [allMovements, activeTab, statusFilter, bankFilter, searchQuery, activeCheckpoint, includePreCheckpoint]);
 
   // Totais
   const totalReceber = useMemo(() => {
@@ -311,6 +325,37 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
             />
           </div>
         </div>
+
+        {/* Linha de Contexto do Marco Financeiro */}
+        {activeCheckpoint && (
+          <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 mt-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex-wrap">
+            <div className="flex items-center gap-2 text-slate-300">
+              <Flag size={14} className="text-indigo-400" />
+              <span>
+                Monitorando a partir de <strong>{activeCheckpoint.startDate.split('-').reverse().join('/')}</strong>
+                {activeCheckpoint.label && <span className="text-slate-400"> ({activeCheckpoint.label})</span>}
+              </span>
+            </div>
+            {preCheckpointCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setIncludePreCheckpoint(!includePreCheckpoint)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                  includePreCheckpoint
+                    ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40 shadow-sm'
+                    : 'bg-slate-800/90 text-slate-300 border-slate-700 hover:border-slate-600 hover:text-white'
+                }`}
+              >
+                <History size={13} />
+                <span>
+                  {includePreCheckpoint
+                    ? 'Ocultar histórico anterior'
+                    : `Exibir transações anteriores ao marco (${preCheckpointCount})`}
+                </span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Movements Table */}

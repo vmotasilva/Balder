@@ -26,6 +26,7 @@ import type {
   BankInstitution,
   SalaryContract,
   SalaryAdjustment,
+  FinancialCheckpoint,
 } from '../types';
 import { recognizeImageOCR } from '../services/ocrService';
 import { learnReceiptItemAssociation } from '../services/receiptMemoryService';
@@ -53,6 +54,12 @@ interface FinancialContextType {
   criticalEvents: CriticalEvent[];
   chatHistory: CopilotMessage[];
   natures: ExpenseNature[];
+
+  // Marco de Acompanhamento Financeiro
+  checkpoints: FinancialCheckpoint[];
+  activeCheckpoint: FinancialCheckpoint | null;
+  addCheckpoint: (cp: Omit<FinancialCheckpoint, 'id' | 'createdAt' | 'isActive'>) => void;
+  activateCheckpoint: (id: string) => void;
 
 
   // Métricas Calculadas
@@ -206,6 +213,52 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
     return DEMO_SALARY_CONTRACTS;
   });
+
+  // Marcos de Acompanhamento Financeiro
+  const [checkpoints, setCheckpoints] = useState<FinancialCheckpoint[]>(() => {
+    if (user) {
+      try {
+        const saved = localStorage.getItem(`balder_checkpoints_${user.$id}`);
+        return saved ? JSON.parse(saved) : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  // Checkpoint ativo (o único com isActive = true, ou null se ainda não configurado)
+  const activeCheckpoint = useMemo(
+    () => checkpoints.find((cp) => cp.isActive) ?? null,
+    [checkpoints]
+  );
+
+  // Persistência dos checkpoints
+  useEffect(() => {
+    if (user && !user.isGuest) {
+      localStorage.setItem(`balder_checkpoints_${user.$id}`, JSON.stringify(checkpoints));
+    }
+  }, [checkpoints, user]);
+
+  // Adicionar novo checkpoint (desativa todos os anteriores)
+  const addCheckpoint = (cp: Omit<FinancialCheckpoint, 'id' | 'createdAt' | 'isActive'>) => {
+    const newCp: FinancialCheckpoint = {
+      ...cp,
+      id: `cp_${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      isActive: true,
+    };
+    setCheckpoints((prev) =>
+      [...prev.map((c) => ({ ...c, isActive: false })), newCp]
+    );
+  };
+
+  // Ativar um checkpoint existente pelo ID
+  const activateCheckpoint = (id: string) => {
+    setCheckpoints((prev) =>
+      prev.map((c) => ({ ...c, isActive: c.id === id }))
+    );
+  };
 
   // Movimentações Financeiras
   const [movements, setMovements] = useState<Movement[]>(() => (isCloudUser ? [] : DEMO_MOVEMENTS));
@@ -550,42 +603,49 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return criticalEvents.length > 0 ? criticalEvents[0] : null;
   }, [criticalEvents]);
 
-  // Métricas Calculadas
+
+  // Métricas Calculadas — respeitam o activeCheckpoint quando configurado
   const availableBalance = useMemo(() => {
+    if (activeCheckpoint) {
+      // Saldo = saldo inicial do marco + entradas realizadas - saídas realizadas (após startDate)
+      const startDate = activeCheckpoint.startDate;
+      const realized = movements.filter((m) => m.dueDate >= startDate && m.status === 'REALIZADA');
+      const income  = realized.filter((m) => m.type === 'RECEBER').reduce((s, m) => s + m.amount, 0);
+      const expense = realized.filter((m) => m.type !== 'RECEBER').reduce((s, m) => s + m.amount, 0);
+      return Math.round((activeCheckpoint.initialBalance + income - expense) * 100) / 100;
+    }
+    // Fallback legado: soma de contas correntes/carteira
     return accounts
       .filter((a) => a.type === 'CORRENTE' || a.type === 'CARTEIRA')
       .reduce((acc, cur) => acc + cur.balance, 0);
-  }, [accounts]);
+  }, [activeCheckpoint, movements, accounts]);
 
   const totalNetWorth = useMemo(() => {
+    if (activeCheckpoint) return availableBalance;
     return accounts.reduce((acc, cur) => acc + cur.balance, 0);
-  }, [accounts]);
+  }, [activeCheckpoint, availableBalance, accounts]);
 
   const emergencyReserveAmount = useMemo(() => {
     const res = accounts.filter((a) => a.id === 'acc_reserva' || a.type === 'POUPANCA');
     return res.reduce((acc, cur) => acc + cur.balance, 0);
   }, [accounts]);
 
-  // Projeção dos Próximos 30 Dias
+  // Projeção dos Próximos 30 Dias (filtra por startDate quando há checkpoint)
   const forecast30d = useMemo(() => {
+    const startDate = activeCheckpoint?.startDate ?? '0000-01-01';
     const plannedIncome = movements
-      .filter((m) => m.type === 'RECEBER' && m.status === 'PREVISTA')
+      .filter((m) => m.type === 'RECEBER' && m.status === 'PREVISTA' && m.dueDate >= startDate)
       .reduce((acc, cur) => acc + cur.amount, 0);
 
     const plannedExpenses = movements
-      .filter((m) => (m.type === 'PAGAR' || m.type === 'EMPRESTIMO' || m.type === 'CARTAO') && m.status === 'PREVISTA')
+      .filter((m) => (m.type === 'PAGAR' || m.type === 'EMPRESTIMO' || m.type === 'CARTAO') && m.status === 'PREVISTA' && m.dueDate >= startDate)
       .reduce((acc, cur) => acc + cur.amount, 0);
 
     const net = plannedIncome - plannedExpenses;
     const projectedBalance = availableBalance + net;
 
-    return {
-      income: plannedIncome,
-      expenses: plannedExpenses,
-      net,
-      projectedBalance,
-    };
-  }, [movements, availableBalance]);
+    return { income: plannedIncome, expenses: plannedExpenses, net, projectedBalance };
+  }, [movements, availableBalance, activeCheckpoint]);
 
   const monthlyFreeCashflow = forecast30d.net;
   const emergencyReserveMonths = useMemo(() => {
@@ -595,6 +655,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
     return Number((emergencyReserveAmount / monthlyBurn).toFixed(1));
   }, [emergencyReserveAmount, forecast30d.expenses]);
+
+
 
   // Histórico Conversacional do Forseti (IA)
   const [chatHistory, setChatHistory] = useState<CopilotMessage[]>([
@@ -1968,9 +2030,14 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         criticalEvents,
         chatHistory,
         natures,
+        checkpoints,
+        activeCheckpoint,
+        addCheckpoint,
+        activateCheckpoint,
         totalNetWorth,
 
         availableBalance,
+
         monthlyFreeCashflow,
         emergencyReserveMonths,
         emergencyReserveAmount,
@@ -1988,7 +2055,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         addBank,
         updateBank,
         deleteBank,
-        salaryContracts,
         addSalaryContract,
         updateSalaryContract,
         deleteSalaryContract,

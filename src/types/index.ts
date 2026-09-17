@@ -405,3 +405,16 @@ export interface SalaryContract {
   history: SalaryAdjustment[];  // Histórico cronológico de reajustes
 }
 
+/**
+ * Marco de início de acompanhamento financeiro.
+ * Define a data e o saldo inicial a partir dos quais o sistema contabiliza métricas.
+ * O usuário pode criar novos checkpoints para "recomeçar" o acompanhamento.
+ */
+export interface FinancialCheckpoint {
+  id: string;
+  createdAt: string;       // ISO datetime de quando o marco foi criado
+  startDate: string;       // YYYY-MM-DD — data a partir da qual monitorar
+  initialBalance: number;  // Saldo em caixa nessa data (R$)
+  label?: string;          // Rótulo livre, ex: "Início 2025", "Reset pós-crise"
+  isActive: boolean;       // true = checkpoint vigente (apenas um por vez)
+}
