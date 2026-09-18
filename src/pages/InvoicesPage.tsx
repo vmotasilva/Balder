@@ -46,6 +46,8 @@ export const InvoicesPage: React.FC = () => {
   const [inlineItemNature, setInlineItemNature] = useState<Record<string, string>>({});
   const [inlineItemDesc, setInlineItemDesc] = useState<Record<string, string>>({});
   const [inlineItemAmount, setInlineItemAmount] = useState<Record<string, string>>({});
+  const [inlineItemFinalAmount, setInlineItemFinalAmount] = useState<Record<string, string>>({});
+  const [inlineItemInstallments, setInlineItemInstallments] = useState<Record<string, number>>({});
 
   // Obter todos os movimentos de Cartão de Crédito
   const cardMovements = useMemo(() => {
@@ -225,11 +227,53 @@ export const InvoicesPage: React.FC = () => {
     });
   };
 
+  // Sincronização reativa de valores e parcelas no inline
+  const handleInlineAmountChange = (movementId: string, val: string) => {
+    setInlineItemAmount((prev) => ({ ...prev, [movementId]: val }));
+    const clean = val.replace(/[R$\s]/g, '').trim();
+    const parsed = clean.includes(',') ? parseFloat(clean.replace(/\./g, '').replace(',', '.')) : parseFloat(clean) || 0;
+    const inst = inlineItemInstallments[movementId] || 1;
+    if (parsed > 0) {
+      setInlineItemFinalAmount((prev) => ({ ...prev, [movementId]: (parsed * inst).toFixed(2) }));
+    }
+  };
+
+  const handleInlineFinalAmountChange = (movementId: string, val: string) => {
+    setInlineItemFinalAmount((prev) => ({ ...prev, [movementId]: val }));
+    const clean = val.replace(/[R$\s]/g, '').trim();
+    const parsed = clean.includes(',') ? parseFloat(clean.replace(/\./g, '').replace(',', '.')) : parseFloat(clean) || 0;
+    const inst = inlineItemInstallments[movementId] || 1;
+    if (parsed > 0) {
+      setInlineItemAmount((prev) => ({ ...prev, [movementId]: (parsed / inst).toFixed(2) }));
+    }
+  };
+
+  const handleInlineInstallmentsChange = (movementId: string, inst: number) => {
+    const instCount = Math.max(1, inst || 1);
+    setInlineItemInstallments((prev) => ({ ...prev, [movementId]: instCount }));
+    const rawFinal = inlineItemFinalAmount[movementId];
+    const rawAmount = inlineItemAmount[movementId];
+    if (rawFinal) {
+      const clean = rawFinal.replace(/[R$\s]/g, '').trim();
+      const parsed = clean.includes(',') ? parseFloat(clean.replace(/\./g, '').replace(',', '.')) : parseFloat(clean) || 0;
+      if (parsed > 0) {
+        setInlineItemAmount((prev) => ({ ...prev, [movementId]: (parsed / instCount).toFixed(2) }));
+      }
+    } else if (rawAmount) {
+      const clean = rawAmount.replace(/[R$\s]/g, '').trim();
+      const parsed = clean.includes(',') ? parseFloat(clean.replace(/\./g, '').replace(',', '.')) : parseFloat(clean) || 0;
+      if (parsed > 0) {
+        setInlineItemFinalAmount((prev) => ({ ...prev, [movementId]: (parsed * instCount).toFixed(2) }));
+      }
+    }
+  };
+
   // Adicionar item inline ao detalhamento da fatura
   const handleAddInlineItem = (m: Movement) => {
     const natureId = inlineItemNature[m.id] || (natures[0]?.id ?? 'OUTROS');
     const desc = (inlineItemDesc[m.id] || '').trim();
     const rawAmount = inlineItemAmount[m.id] || '';
+    const instCount = inlineItemInstallments[m.id] || 1;
 
     let parsedAmount = 0;
     const clean = rawAmount.replace(/[R$\s]/g, '').trim();
@@ -245,15 +289,20 @@ export const InvoicesPage: React.FC = () => {
 
     const natObj = natures.find((n) => n.id === natureId);
     const natureName = natureId === 'OUTROS' ? 'Outros' : natObj?.name || 'Natureza';
+    const finalTotal = parsedAmount * instCount;
+    const cleanDesc = desc || (natureId === 'OUTROS' ? 'Gasto avulso' : `Item ${natureName}`);
 
     const currentBreakdown = m.invoiceBreakdown || [];
     const newRow: InvoiceNatureItemBreakdown = {
       id: `breakdown_${Date.now()}`,
       natureId,
       natureName,
-      description: desc || (natureId === 'OUTROS' ? 'Gasto avulso' : `Item ${natureName}`),
+      description: instCount > 1 ? `${cleanDesc} (1/${instCount})` : cleanDesc,
       amount: Math.round(parsedAmount * 100) / 100,
       isAnalyzed: true,
+      installments: instCount,
+      currentInstallment: 1,
+      finalAmount: Math.round(finalTotal * 100) / 100,
     };
 
     const updatedBreakdown = [...currentBreakdown, newRow];
@@ -266,9 +315,73 @@ export const InvoicesPage: React.FC = () => {
       category: unanalyzed > 0.01 ? 'Não Analisada' : 'Fatura de Cartão',
     });
 
+    // Se parcelado, distribui as parcelas futuras 2..instCount nas próximas faturas
+    if (instCount > 1) {
+      const [yearStr, monthStr, dayStr] = m.dueDate.split('-');
+      const baseYear = parseInt(yearStr, 10);
+      const baseMonth = parseInt(monthStr, 10);
+      const baseDay = parseInt(dayStr, 10);
+
+      for (let p = 2; p <= instCount; p++) {
+        const futureDate = new Date(baseYear, baseMonth - 1 + (p - 1), baseDay);
+        const futureDueDate = futureDate.toISOString().split('T')[0];
+        const futureMonthPrefix = futureDueDate.substring(0, 7);
+
+        const targetInvoice = movements.find(
+          (inv) =>
+            inv.id !== m.id &&
+            inv.type === 'CARTAO' &&
+            (inv.bank === m.bank || inv.title.toLowerCase().includes(m.bank.toLowerCase())) &&
+            inv.dueDate.startsWith(futureMonthPrefix)
+        );
+
+        const futureItem: InvoiceNatureItemBreakdown = {
+          id: `breakdown_${newRow.id}_inst_${p}`,
+          natureId,
+          natureName,
+          description: `${cleanDesc} (${p}/${instCount})`,
+          amount: Math.round(parsedAmount * 100) / 100,
+          isAnalyzed: true,
+          installments: instCount,
+          currentInstallment: p,
+          finalAmount: Math.round(finalTotal * 100) / 100,
+        };
+
+        if (targetInvoice) {
+          const currentFutureBreakdown = targetInvoice.invoiceBreakdown || [];
+          const updatedFutureBreakdown = [...currentFutureBreakdown, futureItem];
+          const allocatedFuture = updatedFutureBreakdown.reduce((sum, it) => sum + it.amount, 0);
+          const futureUnanalyzed = Math.max(0, Math.round((targetInvoice.amount - allocatedFuture) * 100) / 100);
+
+          updateMovement(targetInvoice.id, {
+            invoiceBreakdown: updatedFutureBreakdown,
+            unanalyzedAmount: futureUnanalyzed,
+          });
+        } else {
+          const futureMonthLabel = futureDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+          const capMonth = futureMonthLabel.charAt(0).toUpperCase() + futureMonthLabel.slice(1);
+
+          addMovement({
+            title: `Fatura ${m.bank} (${capMonth.split(' ')[0]})`,
+            type: 'CARTAO',
+            amount: Math.round(parsedAmount * 100) / 100,
+            dueDate: futureDueDate,
+            bank: m.bank,
+            status: 'PREVISTA',
+            category: natureName,
+            notes: `Parcelamento programado: ${cleanDesc} (${p}/${instCount})`,
+            invoiceBreakdown: [futureItem],
+            unanalyzedAmount: 0,
+          });
+        }
+      }
+    }
+
     // Limpar campos inline
     setInlineItemDesc((prev) => ({ ...prev, [m.id]: '' }));
     setInlineItemAmount((prev) => ({ ...prev, [m.id]: '' }));
+    setInlineItemFinalAmount((prev) => ({ ...prev, [m.id]: '' }));
+    setInlineItemInstallments((prev) => ({ ...prev, [m.id]: 1 }));
   };
 
   // Excluir item do detalhamento
@@ -761,8 +874,10 @@ export const InvoicesPage: React.FC = () => {
                             <tr>
                               <th className="py-2.5 px-3">Natureza</th>
                               <th className="py-2.5 px-3">Descrição do Item</th>
-                              <th className="py-2.5 px-3 text-right">Valor (R$)</th>
-                              <th className="py-2.5 px-3 text-right">% da Fatura</th>
+                              <th className="py-2.5 px-3 text-center">Parcela(s)</th>
+                              <th className="py-2.5 px-3 text-right">Nesta Fatura (R$)</th>
+                              <th className="py-2.5 px-3 text-right text-purple-300">Valor Final (R$)</th>
+                              <th className="py-2.5 px-3 text-right">% Fatura</th>
                               <th className="py-2.5 px-3 text-center">Ações</th>
                             </tr>
                           </thead>
@@ -770,6 +885,9 @@ export const InvoicesPage: React.FC = () => {
                             {breakdown.map((item) => {
                               const itemPct = m.amount > 0 ? (item.amount / m.amount) * 100 : 0;
                               const isOutros = item.natureId === 'OUTROS';
+                              const inst = item.installments || 1;
+                              const finalVal = item.finalAmount ?? (item.amount * inst);
+
                               return (
                                 <tr key={item.id} className="hover:bg-slate-900/40 transition-colors">
                                   <td className="py-2.5 px-3">
@@ -786,8 +904,20 @@ export const InvoicesPage: React.FC = () => {
                                   <td className="py-2.5 px-3 text-white font-medium">
                                     {item.description}
                                   </td>
+                                  <td className="py-2.5 px-3 text-center">
+                                    {inst > 1 ? (
+                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30" title={`Parcela ${item.currentInstallment || 1} de ${inst}`}>
+                                        {item.currentInstallment || 1}/{inst}
+                                      </span>
+                                    ) : (
+                                      <span className="text-slate-500 text-[11px]">1x (à vista)</span>
+                                    )}
+                                  </td>
                                   <td className="py-2.5 px-3 text-right font-bold text-slate-200">
                                     {fmtBRL(item.amount)}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-right font-semibold text-purple-300">
+                                    {fmtBRL(finalVal)}
                                   </td>
                                   <td className="py-2.5 px-3 text-right text-slate-400">
                                     {itemPct.toFixed(1)}%
@@ -811,7 +941,7 @@ export const InvoicesPage: React.FC = () => {
 
                     {/* Inline Form para adicionar item */}
                     <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-                      <div className="w-full sm:w-48 shrink-0">
+                      <div className="w-full sm:w-40 shrink-0">
                         <select
                           className="w-full py-1.5 px-2.5 text-xs rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-indigo-500"
                           value={inlineItemNature[m.id] || (natures[0]?.id ?? 'OUTROS')}
@@ -832,7 +962,7 @@ export const InvoicesPage: React.FC = () => {
                         <input
                           type="text"
                           className="w-full py-1.5 px-3 text-xs rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                          placeholder="Descrição do item ou gasto..."
+                          placeholder="Descrição do gasto (ex: Tênis, Compras)..."
                           value={inlineItemDesc[m.id] || ''}
                           onChange={(e) =>
                             setInlineItemDesc((prev) => ({ ...prev, [m.id]: e.target.value }))
@@ -840,15 +970,45 @@ export const InvoicesPage: React.FC = () => {
                         />
                       </div>
 
-                      <div className="w-full sm:w-32 shrink-0">
+                      <div className="w-full sm:w-28 shrink-0">
+                        <select
+                          className="w-full py-1.5 px-2 text-xs rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-indigo-500"
+                          value={inlineItemInstallments[m.id] || 1}
+                          onChange={(e) =>
+                            handleInlineInstallmentsChange(m.id, parseInt(e.target.value, 10))
+                          }
+                          title="Número de parcelas"
+                        >
+                          <option value={1}>1x (À vista)</option>
+                          <option value={2}>2x (Nesta e próx.)</option>
+                          <option value={3}>3x</option>
+                          <option value={4}>4x</option>
+                          <option value={5}>5x</option>
+                          <option value={6}>6x</option>
+                          <option value={10}>10x</option>
+                          <option value={12}>12x</option>
+                        </select>
+                      </div>
+
+                      <div className="w-full sm:w-28 shrink-0">
                         <input
                           type="text"
-                          className="w-full py-1.5 px-3 text-xs rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-bold"
-                          placeholder={unallocated > 0 ? `R$ ${unallocated.toFixed(2)}` : 'R$ 0,00'}
+                          className="w-full py-1.5 px-2.5 text-xs rounded-lg bg-slate-800 border border-slate-700 text-cyan-300 placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-bold"
+                          placeholder="Nesta Fatura"
                           value={inlineItemAmount[m.id] || ''}
-                          onChange={(e) =>
-                            setInlineItemAmount((prev) => ({ ...prev, [m.id]: e.target.value }))
-                          }
+                          onChange={(e) => handleInlineAmountChange(m.id, e.target.value)}
+                          title="Valor que entra nesta fatura"
+                        />
+                      </div>
+
+                      <div className="w-full sm:w-28 shrink-0">
+                        <input
+                          type="text"
+                          className="w-full py-1.5 px-2.5 text-xs rounded-lg bg-slate-800 border border-slate-700 text-purple-300 placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-bold"
+                          placeholder="Valor Final"
+                          value={inlineItemFinalAmount[m.id] || ''}
+                          onChange={(e) => handleInlineFinalAmountChange(m.id, e.target.value)}
+                          title="Valor Final total da compra parcelada"
                         />
                       </div>
 

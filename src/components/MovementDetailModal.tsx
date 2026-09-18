@@ -30,7 +30,10 @@ interface ModalBreakdownRow {
   mappingId?: string;     // id do mapeamento
   mappingItemId?: string; // id do item
   description: string;    // Descrição do gasto
-  amountInput: string;    // R$
+  installments: number;   // Quantidade de parcelas (ex: 1, 2, 3...)
+  currentInstallment?: number; // Parcela atual (ex: 1)
+  amountInput: string;    // Valor nesta fatura (R$)
+  finalAmountInput: string; // Valor final total da compra (R$)
 }
 
 const parseBRL = (val: string): number => {
@@ -56,7 +59,9 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
   onOpenPrepaymentSimulator,
 }) => {
   const {
+    movements,
     updateMovement,
+    addMovement,
     deleteMovement,
     accounts,
     cards,
@@ -142,15 +147,22 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
     if (movement.type === 'CARTAO') {
       if (movement.invoiceBreakdown && movement.invoiceBreakdown.length > 0) {
         setBreakdownRows(
-          movement.invoiceBreakdown.map((item) => ({
-            id: item.id,
-            natureId: item.natureId || (item.natureName === 'Outros' ? 'OUTROS' : ''),
-            natureName: item.natureName,
-            mappingId: item.mappingId,
-            mappingItemId: item.mappingItemId,
-            description: item.description,
-            amountInput: String(item.amount),
-          }))
+          movement.invoiceBreakdown.map((item) => {
+            const inst = item.installments || 1;
+            const finalAmt = item.finalAmount ?? (item.amount * inst);
+            return {
+              id: item.id,
+              natureId: item.natureId || (item.natureName === 'Outros' ? 'OUTROS' : ''),
+              natureName: item.natureName,
+              mappingId: item.mappingId,
+              mappingItemId: item.mappingItemId,
+              description: item.description,
+              installments: inst,
+              currentInstallment: item.currentInstallment || 1,
+              amountInput: String(item.amount),
+              finalAmountInput: String(Math.round(finalAmt * 100) / 100),
+            };
+          })
         );
       } else {
         setBreakdownRows([]);
@@ -230,11 +242,14 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
     setBreakdownRows((prev) => [
       ...prev,
       {
-        id: `row_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        id: `row_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
         natureId: '',
         natureName: '',
         description: '',
+        installments: 1,
+        currentInstallment: 1,
         amountInput: '',
+        finalAmountInput: '',
       },
     ]);
   };
@@ -272,13 +287,16 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
         const nat = natures.find((n) => n.id === r.natureId);
         const map = nat?.mappings.find((m) => m.id === mappingId);
         const item = map?.items.find((it) => it.id === mappingItemId);
+        const itemVal = item?.totalValue || 0;
+        const inst = r.installments || 1;
 
         return {
           ...r,
           mappingId,
           mappingItemId,
           description: r.description || item?.description || '',
-          amountInput: r.amountInput || (item?.totalValue ? String(item.totalValue) : ''),
+          amountInput: r.amountInput || (itemVal > 0 ? String(itemVal) : ''),
+          finalAmountInput: r.finalAmountInput || (itemVal > 0 ? String(Math.round(itemVal * inst * 100) / 100) : ''),
         };
       })
     );
@@ -288,8 +306,65 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
     setBreakdownRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, description } : r)));
   };
 
+  const handleBreakdownInstallmentsChange = (rowId: string, installments: number) => {
+    const instCount = Math.max(1, installments || 1);
+    setBreakdownRows((prev) =>
+      prev.map((r) => {
+        if (r.id !== rowId) return r;
+        const currentAmount = parseBRL(r.amountInput);
+        const currentFinal = parseBRL(r.finalAmountInput);
+
+        let updatedAmount = r.amountInput;
+        let updatedFinal = r.finalAmountInput;
+
+        if (currentFinal > 0) {
+          const parcel = Math.round((currentFinal / instCount) * 100) / 100;
+          updatedAmount = parcel > 0 ? String(parcel) : '';
+        } else if (currentAmount > 0) {
+          const total = Math.round((currentAmount * instCount) * 100) / 100;
+          updatedFinal = total > 0 ? String(total) : '';
+        }
+
+        return {
+          ...r,
+          installments: instCount,
+          amountInput: updatedAmount,
+          finalAmountInput: updatedFinal,
+        };
+      })
+    );
+  };
+
   const handleBreakdownAmountChange = (rowId: string, amountInput: string) => {
-    setBreakdownRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, amountInput } : r)));
+    setBreakdownRows((prev) =>
+      prev.map((r) => {
+        if (r.id !== rowId) return r;
+        const num = parseBRL(amountInput);
+        const inst = r.installments || 1;
+        const total = Math.round((num * inst) * 100) / 100;
+        return {
+          ...r,
+          amountInput,
+          finalAmountInput: num > 0 ? String(total) : '',
+        };
+      })
+    );
+  };
+
+  const handleBreakdownFinalAmountChange = (rowId: string, finalAmountInput: string) => {
+    setBreakdownRows((prev) =>
+      prev.map((r) => {
+        if (r.id !== rowId) return r;
+        const total = parseBRL(finalAmountInput);
+        const inst = r.installments || 1;
+        const parcel = Math.round((total / inst) * 100) / 100;
+        return {
+          ...r,
+          finalAmountInput,
+          amountInput: total > 0 ? String(parcel) : '',
+        };
+      })
+    );
   };
 
   const handleAllocateRestToOutros = () => {
@@ -301,7 +376,10 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
         natureId: 'OUTROS',
         natureName: 'Outros',
         description: 'Gastos diversos sem natureza específica',
+        installments: 1,
+        currentInstallment: 1,
         amountInput: String(unanalyzedAmount),
+        finalAmountInput: String(unanalyzedAmount),
       },
     ]);
   };
@@ -353,16 +431,26 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
     if (movement.type === 'CARTAO' && breakdownRows.length > 0) {
       finalBreakdown = breakdownRows
         .filter((r) => parseBRL(r.amountInput) > 0)
-        .map((r) => ({
-          id: r.id,
-          natureId: r.natureId === 'OUTROS' ? undefined : r.natureId,
-          natureName: r.natureName || (r.natureId === 'OUTROS' ? 'Outros' : 'Não Analisada'),
-          mappingId: r.mappingId,
-          mappingItemId: r.mappingItemId,
-          description: r.description || r.natureName || 'Item da Fatura',
-          amount: parseBRL(r.amountInput),
-          isAnalyzed: !!r.natureId,
-        }));
+        .map((r) => {
+          const instCount = r.installments || 1;
+          const currentAmount = parseBRL(r.amountInput);
+          const finalTotal = parseBRL(r.finalAmountInput) || Math.round(currentAmount * instCount * 100) / 100;
+          const cleanDesc = (r.description || r.natureName || 'Item da Fatura').replace(/\s*\(\d+\/\d+\)$/, '');
+
+          return {
+            id: r.id,
+            natureId: r.natureId === 'OUTROS' ? undefined : r.natureId,
+            natureName: r.natureName || (r.natureId === 'OUTROS' ? 'Outros' : 'Não Analisada'),
+            mappingId: r.mappingId,
+            mappingItemId: r.mappingItemId,
+            description: instCount > 1 ? `${cleanDesc} (1/${instCount})` : cleanDesc,
+            amount: currentAmount,
+            isAnalyzed: !!r.natureId,
+            installments: instCount,
+            currentInstallment: 1,
+            finalAmount: finalTotal,
+          };
+        });
 
       const allocatedTotal = finalBreakdown.reduce((sum, it) => sum + it.amount, 0);
       finalUnanalyzed = Math.max(0, Math.round((finalAmount - allocatedTotal) * 100) / 100);
@@ -385,6 +473,84 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
       if (itemsToFulfill.length > 0) {
         markMappingItemsFulfilled(itemsToFulfill);
       }
+
+      // DISTRIBUIÇÃO AUTOMÁTICA NAS PRÓXIMAS FATURAS PARA ITENS PARCELADOS (installments > 1)
+      const baseDueDate = dueDate || movement.dueDate || new Date().toISOString().split('T')[0];
+      const [yearStr, monthStr, dayStr] = baseDueDate.split('-');
+      const baseYear = parseInt(yearStr, 10);
+      const baseMonth = parseInt(monthStr, 10); // 1-12
+      const baseDay = parseInt(dayStr, 10);
+
+      breakdownRows.forEach((r) => {
+        const instCount = r.installments || 1;
+        if (instCount > 1 && parseBRL(r.amountInput) > 0) {
+          const installmentAmount = parseBRL(r.amountInput);
+          const finalTotal = parseBRL(r.finalAmountInput) || Math.round(installmentAmount * instCount * 100) / 100;
+          const cleanDesc = (r.description || r.natureName || 'Item da Fatura').replace(/\s*\(\d+\/\d+\)$/, '');
+
+          for (let p = 2; p <= instCount; p++) {
+            const futureDate = new Date(baseYear, baseMonth - 1 + (p - 1), baseDay);
+            const futureDueDate = futureDate.toISOString().split('T')[0];
+            const futureMonthPrefix = futureDueDate.substring(0, 7);
+
+            const targetInvoice = movements.find(
+              (m) =>
+                m.id !== movement.id &&
+                m.type === 'CARTAO' &&
+                (m.bank === bank || (movement.bank && m.bank === movement.bank) || m.title.toLowerCase().includes(bank.toLowerCase())) &&
+                m.dueDate.startsWith(futureMonthPrefix)
+            );
+
+            const futureItem: InvoiceNatureItemBreakdown = {
+              id: `breakdown_${r.id}_inst_${p}`,
+              natureId: r.natureId === 'OUTROS' ? undefined : r.natureId,
+              natureName: r.natureName || (r.natureId === 'OUTROS' ? 'Outros' : 'Não Analisada'),
+              mappingId: r.mappingId,
+              mappingItemId: r.mappingItemId,
+              description: `${cleanDesc} (${p}/${instCount})`,
+              amount: installmentAmount,
+              isAnalyzed: !!r.natureId,
+              installments: instCount,
+              currentInstallment: p,
+              finalAmount: finalTotal,
+            };
+
+            if (targetInvoice) {
+              const currentFutureBreakdown = targetInvoice.invoiceBreakdown || [];
+              const alreadyExists = currentFutureBreakdown.some(
+                (it) => it.id === futureItem.id || (it.description.includes(cleanDesc) && it.currentInstallment === p)
+              );
+
+              if (!alreadyExists) {
+                const updatedFutureBreakdown = [...currentFutureBreakdown, futureItem];
+                const allocatedFuture = updatedFutureBreakdown.reduce((sum, it) => sum + it.amount, 0);
+                const futureUnanalyzed = Math.max(0, Math.round((targetInvoice.amount - allocatedFuture) * 100) / 100);
+
+                updateMovement(targetInvoice.id, {
+                  invoiceBreakdown: updatedFutureBreakdown,
+                  unanalyzedAmount: futureUnanalyzed,
+                });
+              }
+            } else {
+              const futureMonthLabel = futureDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+              const capMonth = futureMonthLabel.charAt(0).toUpperCase() + futureMonthLabel.slice(1);
+
+              addMovement({
+                title: `Fatura ${bank} (${capMonth.split(' ')[0]})`,
+                type: 'CARTAO',
+                amount: installmentAmount,
+                dueDate: futureDueDate,
+                bank,
+                status: 'PREVISTA',
+                category: r.natureName || 'Fatura de Cartão',
+                notes: `Parcelamento programado: ${cleanDesc} (${p}/${instCount})`,
+                invoiceBreakdown: [futureItem],
+                unanalyzedAmount: 0,
+              });
+            }
+          }
+        }
+      });
     }
 
     // 2. Atualizar movimentação no Balder
@@ -446,7 +612,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
           : '🧾 Detalhes & Liquidação de Despesa'
       }
       subtitle="Ajuste o valor para a realidade que foi efetivamente aplicada e confirme a conciliação financeira."
-      maxWidth={movement.type === 'CARTAO' ? '740px' : '680px'}
+      maxWidth={movement.type === 'CARTAO' ? '880px' : '680px'}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {/* ========================================================================= */}
@@ -797,8 +963,33 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
               )}
             </div>
 
+            {/* Cabeçalho da Tabela de Detalhamento */}
+            {breakdownRows.length > 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '4px 8px',
+                  fontSize: '0.67rem',
+                  fontWeight: 700,
+                  color: 'var(--text-muted)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                <span style={{ width: '135px' }}>Natureza</span>
+                <span style={{ width: '125px' }}>Item do Teto</span>
+                <span style={{ flex: 1, minWidth: '110px' }}>Descrição do Gasto</span>
+                <span style={{ width: '85px', textAlign: 'center' }}>Parcela(s)</span>
+                <span style={{ width: '105px', textAlign: 'right' }}>Nesta Fatura</span>
+                <span style={{ width: '110px', textAlign: 'right', color: '#c084fc' }}>Valor Final</span>
+                <span style={{ width: '28px' }}></span>
+              </div>
+            )}
+
             {/* Lista de Linhas Detalhadas da Fatura */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '220px', overflowY: 'auto', paddingRight: '2px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '240px', overflowY: 'auto', paddingRight: '2px' }}>
               {breakdownRows.length === 0 ? (
                 <div
                   style={{
@@ -816,6 +1007,8 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
                 breakdownRows.map((row) => {
                   const availableMappingItems = row.natureId && row.natureId !== 'OUTROS' ? getMappingItemsForNature(row.natureId) : [];
                   const combinedMappingValue = row.mappingId && row.mappingItemId ? `${row.mappingId}:::${row.mappingItemId}` : '';
+                  const rowInst = row.installments || 1;
+                  const rowAmtNum = parseBRL(row.amountInput);
 
                   return (
                     <div
@@ -824,81 +1017,154 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
                         padding: '0.5rem 0.65rem',
                         borderRadius: '8px',
                         background: 'rgba(255, 255, 255, 0.03)',
-                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        border: rowInst > 1 ? '1px solid rgba(192, 132, 252, 0.25)' : '1px solid rgba(255, 255, 255, 0.08)',
                         display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        flexWrap: 'wrap',
+                        flexDirection: 'column',
+                        gap: '4px',
                       }}
                     >
-                      {/* Natureza */}
-                      <select
-                        className="form-input"
-                        style={{ width: '150px', fontSize: '0.74rem', padding: '3px 6px' }}
-                        value={row.natureId}
-                        onChange={(e) => handleBreakdownNatureChange(row.id, e.target.value)}
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          flexWrap: 'wrap',
+                        }}
                       >
-                        <option value="">Selecione Natureza...</option>
-                        {natures.map((n) => (
-                          <option key={n.id} value={n.id}>
-                            {n.icon || '🏷️'} {n.name}
-                          </option>
-                        ))}
-                        <option value="OUTROS">📦 Outros (Sem Natureza)</option>
-                      </select>
-
-                      {/* Item de Mapeamento (se natureza selecionada) */}
-                      {availableMappingItems.length > 0 && (
+                        {/* Natureza */}
                         <select
                           className="form-input"
-                          style={{ width: '140px', fontSize: '0.74rem', padding: '3px 6px' }}
+                          style={{ width: '135px', fontSize: '0.73rem', padding: '3px 6px' }}
+                          value={row.natureId}
+                          onChange={(e) => handleBreakdownNatureChange(row.id, e.target.value)}
+                        >
+                          <option value="">Selecione Natureza...</option>
+                          {natures.map((n) => (
+                            <option key={n.id} value={n.id}>
+                              {n.icon || '🏷️'} {n.name}
+                            </option>
+                          ))}
+                          <option value="OUTROS">📦 Outros</option>
+                        </select>
+
+                        {/* Item de Mapeamento (se natureza selecionada) */}
+                        <select
+                          className="form-input"
+                          style={{ width: '125px', fontSize: '0.73rem', padding: '3px 6px' }}
                           value={combinedMappingValue}
                           onChange={(e) => handleBreakdownMappingItemChange(row.id, e.target.value)}
+                          disabled={availableMappingItems.length === 0}
                         >
-                          <option value="">Item do Teto...</option>
+                          <option value="">{availableMappingItems.length > 0 ? 'Item do Teto...' : 'Sem teto fixo'}</option>
                           {availableMappingItems.map((it) => (
                             <option key={it.id} value={`${it.mappingId}:::${it.id}`}>
-                              {it.description} ({it.totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
+                              {it.description}
                             </option>
                           ))}
                         </select>
-                      )}
 
-                      {/* Descrição */}
-                      <input
-                        type="text"
-                        placeholder="Descrição do gasto (ex: Compras de Mercado)"
-                        className="form-input"
-                        style={{ flex: 1, minWidth: '130px', fontSize: '0.74rem', padding: '3px 8px' }}
-                        value={row.description}
-                        onChange={(e) => handleBreakdownDescriptionChange(row.id, e.target.value)}
-                      />
-
-                      {/* Valor */}
-                      <div style={{ position: 'relative', width: '105px' }}>
-                        <span style={{ position: 'absolute', left: '6px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.7rem', color: 'var(--accent-cyan)' }}>
-                          R$
-                        </span>
+                        {/* Descrição */}
                         <input
                           type="text"
-                          placeholder="0,00"
+                          placeholder="Descrição do gasto (ex: Compras de Mercado)"
                           className="form-input"
-                          style={{ width: '100%', paddingLeft: '24px', fontSize: '0.74rem', padding: '3px 6px 3px 24px', fontWeight: 600, color: 'var(--accent-cyan)' }}
-                          value={row.amountInput}
-                          onChange={(e) => handleBreakdownAmountChange(row.id, e.target.value)}
+                          style={{ flex: 1, minWidth: '110px', fontSize: '0.73rem', padding: '3px 8px' }}
+                          value={row.description}
+                          onChange={(e) => handleBreakdownDescriptionChange(row.id, e.target.value)}
                         />
+
+                        {/* Parcela(s) */}
+                        <div style={{ width: '85px', position: 'relative' }}>
+                          <select
+                            className="form-input"
+                            style={{
+                              width: '100%',
+                              fontSize: '0.73rem',
+                              padding: '3px 4px',
+                              fontWeight: rowInst > 1 ? 700 : 400,
+                              color: rowInst > 1 ? '#c084fc' : 'inherit',
+                              borderColor: rowInst > 1 ? 'rgba(192, 132, 252, 0.4)' : undefined,
+                              background: rowInst > 1 ? 'rgba(192, 132, 252, 0.08)' : undefined,
+                            }}
+                            value={rowInst}
+                            onChange={(e) => handleBreakdownInstallmentsChange(row.id, parseInt(e.target.value, 10))}
+                            title="Número de parcelas (divide o valor nesta fatura e nas próximas)"
+                          >
+                            <option value={1}>1x (À vista)</option>
+                            <option value={2}>2x (Nesta e próx.)</option>
+                            <option value={3}>3x</option>
+                            <option value={4}>4x</option>
+                            <option value={5}>5x</option>
+                            <option value={6}>6x</option>
+                            <option value={8}>8x</option>
+                            <option value={10}>10x</option>
+                            <option value={12}>12x</option>
+                            <option value={18}>18x</option>
+                            <option value={24}>24x</option>
+                          </select>
+                        </div>
+
+                        {/* Valor Nesta Fatura */}
+                        <div style={{ position: 'relative', width: '105px' }}>
+                          <span style={{ position: 'absolute', left: '6px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.68rem', color: 'var(--accent-cyan)' }}>
+                            R$
+                          </span>
+                          <input
+                            type="text"
+                            placeholder="0,00"
+                            className="form-input"
+                            style={{ width: '100%', paddingLeft: '22px', fontSize: '0.73rem', padding: '3px 4px 3px 22px', fontWeight: 600, color: 'var(--accent-cyan)' }}
+                            value={row.amountInput}
+                            onChange={(e) => handleBreakdownAmountChange(row.id, e.target.value)}
+                            title="Valor da parcela que entra nesta fatura"
+                          />
+                        </div>
+
+                        {/* Valor Final */}
+                        <div style={{ position: 'relative', width: '110px' }}>
+                          <span style={{ position: 'absolute', left: '6px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.68rem', color: '#c084fc' }}>
+                            R$
+                          </span>
+                          <input
+                            type="text"
+                            placeholder="Total"
+                            className="form-input"
+                            style={{
+                              width: '100%',
+                              paddingLeft: '22px',
+                              fontSize: '0.73rem',
+                              padding: '3px 4px 3px 22px',
+                              fontWeight: 600,
+                              color: '#c084fc',
+                              borderColor: rowInst > 1 ? 'rgba(192, 132, 252, 0.35)' : undefined,
+                            }}
+                            value={row.finalAmountInput}
+                            onChange={(e) => handleBreakdownFinalAmountChange(row.id, e.target.value)}
+                            title="Valor Final total da compra parcelada"
+                          />
+                        </div>
+
+                        {/* Remover Linha */}
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-xs text-rose"
+                          style={{ padding: '3px', width: '28px' }}
+                          onClick={() => handleRemoveBreakdownRow(row.id)}
+                          title="Remover este item"
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
 
-                      {/* Remover Linha */}
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-xs text-rose"
-                        style={{ padding: '3px' }}
-                        onClick={() => handleRemoveBreakdownRow(row.id)}
-                        title="Remover este item"
-                      >
-                        <Trash2 size={13} />
-                      </button>
+                      {/* Notificação / Subtítulo explicativo se for parcelado */}
+                      {rowInst > 1 && rowAmtNum > 0 && (
+                        <div style={{ padding: '2px 4px 1px 6px', fontSize: '0.68rem', color: '#c084fc', display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(192, 132, 252, 0.05)', borderRadius: '4px' }}>
+                          <span>↳</span>
+                          <span>
+                            Parcelado em <strong>{rowInst}x</strong>: entra <strong>{rowAmtNum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong> nesta fatura (1/{rowInst}) e o restante de <strong>{((rowInst - 1) * rowAmtNum).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong> divide na(s) próxima(s) fatura(s).
+                          </span>
+                        </div>
+                      )}
                     </div>
                   );
                 })

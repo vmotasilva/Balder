@@ -437,8 +437,11 @@ export interface InvoiceNatureItemBreakdown {
   mappingId?: string;      // ID do mapeamento se houver
   mappingItemId?: string;  // ID do item do mapeamento vinculado se houver
   description: string;     // Descrição do gasto (ex: "Supermercado Semanal", "Farmácia")
-  amount: number;          // Valor em R$
+  amount: number;          // Valor da parcela nesta fatura em R$
   isAnalyzed: boolean;     // true se classificado em natureza ou 'Outros'; false se pendente
+  installments?: number;   // Quantidade total de parcelas (ex: 2x, 3x)
+  currentInstallment?: number; // Parcela atual nesta fatura (ex: 1)
+  finalAmount?: number;    // Valor final total da compra parcelada (ex: R$ 500 para 2x de R$ 250)
 }
 
 export interface CheckpointCardInvoice {
