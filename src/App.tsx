@@ -8,6 +8,7 @@ import { Navbar } from './components/Navbar';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { MovementsPage } from './pages/MovementsPage';
+import { InvoicesPage } from './pages/InvoicesPage';
 import { CopilotPage } from './pages/CopilotPage';
 import { GoalsPage } from './pages/GoalsPage';
 import { ProfilePage } from './pages/ProfilePage';
@@ -105,6 +106,8 @@ export function AppContent() {
           {activeTab === 'MOVIMENTACOES' && (
             <MovementsPage onOpenNewMovementModal={handleOpenNewMovement} />
           )}
+
+          {activeTab === 'FATURAS' && <InvoicesPage />}
 
           {activeTab === 'NATUREZAS' && (
             <NaturezasPage onOpenNewMovementModal={handleOpenNewMovement} />

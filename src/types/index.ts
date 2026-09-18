@@ -22,6 +22,8 @@ export interface Movement {
   natureId?: string;            // ID da Natureza orçamentária vinculada
   mappingId?: string;           // ID do mapeamento vinculado
   mappingItemId?: string;       // ID do item do teto cumprido
+  invoiceBreakdown?: InvoiceNatureItemBreakdown[]; // Detalhamento dos itens da fatura por natureza
+  unanalyzedAmount?: number;    // Saldo restante não analisado da fatura
 }
 
 export type PrepaymentPurpose = 

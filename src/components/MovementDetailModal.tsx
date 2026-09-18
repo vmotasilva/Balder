@@ -9,16 +9,28 @@ import {
   TrendingUp,
   Sparkles,
   Trash2,
+  Plus,
+  AlertTriangle,
 } from 'lucide-react';
 import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
-import type { Movement, MovementStatus } from '../types';
+import type { Movement, MovementStatus, InvoiceNatureItemBreakdown } from '../types';
 
 interface MovementDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   movement: Movement | null;
   onOpenPrepaymentSimulator?: (groupId?: string, movementId?: string) => void;
+}
+
+interface ModalBreakdownRow {
+  id: string;
+  natureId: string;       // id da natureza ou 'OUTROS'
+  natureName: string;     // Nome da natureza ou 'Outros'
+  mappingId?: string;     // id do mapeamento
+  mappingItemId?: string; // id do item
+  description: string;    // Descrição do gasto
+  amountInput: string;    // R$
 }
 
 const parseBRL = (val: string): number => {
@@ -75,9 +87,12 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
   const [salaryDiscountsInput, setSalaryDiscountsInput] = useState('');
   const [salaryAdditionsInput, setSalaryAdditionsInput] = useState('');
 
-  // Estados específicos para PAGAR / CARTAO (Vinculação com Naturezas)
+  // Estados específicos para PAGAR (Vinculação com Naturezas)
   const [selectedNatureId, setSelectedNatureId] = useState('');
   const [selectedMappingItemId, setSelectedMappingItemId] = useState('');
+
+  // Estados específicos para CARTAO (Detalhamento de Itens por Natureza)
+  const [breakdownRows, setBreakdownRows] = useState<ModalBreakdownRow[]>([]);
 
   // Inicializa o modal quando o movement mudar
   useEffect(() => {
@@ -122,6 +137,25 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
 
     setSelectedNatureId(movement.natureId || '');
     setSelectedMappingItemId(movement.mappingItemId || '');
+
+    // Inicializa o detalhamento de fatura se for cartão
+    if (movement.type === 'CARTAO') {
+      if (movement.invoiceBreakdown && movement.invoiceBreakdown.length > 0) {
+        setBreakdownRows(
+          movement.invoiceBreakdown.map((item) => ({
+            id: item.id,
+            natureId: item.natureId || (item.natureName === 'Outros' ? 'OUTROS' : ''),
+            natureName: item.natureName,
+            mappingId: item.mappingId,
+            mappingItemId: item.mappingItemId,
+            description: item.description,
+            amountInput: String(item.amount),
+          }))
+        );
+      } else {
+        setBreakdownRows([]);
+      }
+    }
   }, [movement]);
 
   // Lista consolidada de opções de bancos
@@ -147,6 +181,130 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
   const actualAmountNum = parseBRL(actualAmountInput);
   const diffAmount = Math.round((actualAmountNum - nominalAmount) * 100) / 100;
   const diffPercent = nominalAmount > 0 ? Math.round((diffAmount / nominalAmount) * 1000) / 10 : 0;
+
+  // Cálculos de Detalhamento da Fatura de Cartão
+  const totalAllocatedInNatures = useMemo(() => {
+    return breakdownRows
+      .filter((r) => r.natureId && r.natureId !== 'OUTROS')
+      .reduce((sum, r) => sum + parseBRL(r.amountInput), 0);
+  }, [breakdownRows]);
+
+  const totalAllocatedInOutros = useMemo(() => {
+    return breakdownRows
+      .filter((r) => r.natureId === 'OUTROS')
+      .reduce((sum, r) => sum + parseBRL(r.amountInput), 0);
+  }, [breakdownRows]);
+
+  const totalAllocated = totalAllocatedInNatures + totalAllocatedInOutros;
+  const unanalyzedAmount = Math.max(0, Math.round((actualAmountNum - totalAllocated) * 100) / 100);
+  const isOverAllocated = totalAllocated > actualAmountNum;
+
+  // Helper para itens de mapeamento de uma natureza
+  const getMappingItemsForNature = (natId: string) => {
+    const nat = natures.find((n) => n.id === natId);
+    if (!nat) return [];
+    const list: Array<{
+      id: string;
+      mappingId: string;
+      mappingName: string;
+      description: string;
+      totalValue: number;
+    }> = [];
+
+    (nat.mappings || []).forEach((m) => {
+      (m.items || []).forEach((it) => {
+        list.push({
+          id: it.id,
+          mappingId: m.id,
+          mappingName: m.name,
+          description: it.description,
+          totalValue: it.totalValue,
+        });
+      });
+    });
+    return list;
+  };
+
+  // Manipuladores do detalhamento de fatura
+  const handleAddBreakdownRow = () => {
+    setBreakdownRows((prev) => [
+      ...prev,
+      {
+        id: `row_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        natureId: '',
+        natureName: '',
+        description: '',
+        amountInput: '',
+      },
+    ]);
+  };
+
+  const handleRemoveBreakdownRow = (rowId: string) => {
+    setBreakdownRows((prev) => prev.filter((r) => r.id !== rowId));
+  };
+
+  const handleBreakdownNatureChange = (rowId: string, natureId: string) => {
+    const selectedNat = natures.find((n) => n.id === natureId);
+    const natureName = natureId === 'OUTROS' ? 'Outros' : selectedNat?.name || '';
+
+    setBreakdownRows((prev) =>
+      prev.map((r) => {
+        if (r.id !== rowId) return r;
+        return {
+          ...r,
+          natureId,
+          natureName,
+          mappingId: undefined,
+          mappingItemId: undefined,
+          description: r.description || (natureId === 'OUTROS' ? 'Gastos diversos' : `${selectedNat?.name || ''}`),
+        };
+      })
+    );
+  };
+
+  const handleBreakdownMappingItemChange = (rowId: string, combinedVal: string) => {
+    setBreakdownRows((prev) =>
+      prev.map((r) => {
+        if (r.id !== rowId) return r;
+        if (!combinedVal) return { ...r, mappingId: undefined, mappingItemId: undefined };
+
+        const [mappingId, mappingItemId] = combinedVal.split(':::');
+        const nat = natures.find((n) => n.id === r.natureId);
+        const map = nat?.mappings.find((m) => m.id === mappingId);
+        const item = map?.items.find((it) => it.id === mappingItemId);
+
+        return {
+          ...r,
+          mappingId,
+          mappingItemId,
+          description: r.description || item?.description || '',
+          amountInput: r.amountInput || (item?.totalValue ? String(item.totalValue) : ''),
+        };
+      })
+    );
+  };
+
+  const handleBreakdownDescriptionChange = (rowId: string, description: string) => {
+    setBreakdownRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, description } : r)));
+  };
+
+  const handleBreakdownAmountChange = (rowId: string, amountInput: string) => {
+    setBreakdownRows((prev) => prev.map((r) => (r.id === rowId ? { ...r, amountInput } : r)));
+  };
+
+  const handleAllocateRestToOutros = () => {
+    if (unanalyzedAmount <= 0) return;
+    setBreakdownRows((prev) => [
+      ...prev,
+      {
+        id: `row_outros_${Date.now()}`,
+        natureId: 'OUTROS',
+        natureName: 'Outros',
+        description: 'Gastos diversos sem natureza específica',
+        amountInput: String(unanalyzedAmount),
+      },
+    ]);
+  };
 
   if (!isOpen || !movement) return null;
 
@@ -187,7 +345,49 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
     const updatedStatus = finalStatus || status;
     const finalAmount = actualAmountNum > 0 ? actualAmountNum : nominalAmount;
 
-    // 1. Atualizar movimentação no Balder
+    // 1. Processamento específico de fatura de cartão
+    let finalBreakdown: InvoiceNatureItemBreakdown[] | undefined = undefined;
+    let finalUnanalyzed: number | undefined = undefined;
+    let finalCategory = category;
+
+    if (movement.type === 'CARTAO' && breakdownRows.length > 0) {
+      finalBreakdown = breakdownRows
+        .filter((r) => parseBRL(r.amountInput) > 0)
+        .map((r) => ({
+          id: r.id,
+          natureId: r.natureId === 'OUTROS' ? undefined : r.natureId,
+          natureName: r.natureName || (r.natureId === 'OUTROS' ? 'Outros' : 'Não Analisada'),
+          mappingId: r.mappingId,
+          mappingItemId: r.mappingItemId,
+          description: r.description || r.natureName || 'Item da Fatura',
+          amount: parseBRL(r.amountInput),
+          isAnalyzed: !!r.natureId,
+        }));
+
+      const allocatedTotal = finalBreakdown.reduce((sum, it) => sum + it.amount, 0);
+      finalUnanalyzed = Math.max(0, Math.round((finalAmount - allocatedTotal) * 100) / 100);
+
+      // Se todas as despesas foram analisadas e não sobrou saldo pendente, atualiza a categoria
+      if (finalUnanalyzed === 0 && finalCategory === 'Não Analisada') {
+        finalCategory = 'Fatura Conciliada';
+      }
+
+      // Cumprir itens de mapeamento vinculados no detalhamento
+      const itemsToFulfill = finalBreakdown
+        .filter((it) => it.natureId && it.mappingId && it.mappingItemId)
+        .map((it) => ({
+          natureId: it.natureId!,
+          mappingId: it.mappingId!,
+          itemId: it.mappingItemId!,
+          realizedValue: it.amount,
+        }));
+
+      if (itemsToFulfill.length > 0) {
+        markMappingItemsFulfilled(itemsToFulfill);
+      }
+    }
+
+    // 2. Atualizar movimentação no Balder
     updateMovement(movement.id, {
       title: title.trim() || movement.title,
       amount: finalAmount,
@@ -196,15 +396,17 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
       dueDate,
       paymentDate: updatedStatus === 'REALIZADA' ? paymentDate : undefined,
       bank,
-      category,
+      category: finalCategory,
       status: updatedStatus,
       notes: notes.trim() || undefined,
       adjustmentReason: adjustmentReason.trim() || undefined,
       natureId: selectedNatureId || undefined,
       mappingItemId: selectedMappingItemId || undefined,
+      invoiceBreakdown: finalBreakdown,
+      unanalyzedAmount: finalUnanalyzed,
     });
 
-    // 2. Se for PAGAR e tiver item de mapeamento selecionado, marca como cumprido
+    // 3. Se for PAGAR e tiver item de mapeamento selecionado, marca como cumprido
     if (movement.type === 'PAGAR' && selectedNatureId && selectedMappingItemId && updatedStatus === 'REALIZADA') {
       const nat = natures.find((n) => n.id === selectedNatureId);
       const targetMapping = nat?.mappings.find((m) => (m.items || []).some((it) => it.id === selectedMappingItemId));
@@ -243,8 +445,8 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
           ? '💰 Detalhes & Apuração de Recebimento'
           : '🧾 Detalhes & Liquidação de Despesa'
       }
-      subtitle={`Ajuste o valor para a realidade que foi efetivamente aplicada e confirme a conciliação financeira.`}
-      maxWidth="680px"
+      subtitle="Ajuste o valor para a realidade que foi efetivamente aplicada e confirme a conciliação financeira."
+      maxWidth={movement.type === 'CARTAO' ? '740px' : '680px'}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {/* ========================================================================= */}
@@ -508,69 +710,225 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
         )}
 
         {/* ------------------------------------------------------------------------- */}
-        {/* 2. CARTAO: Fatura, Conciliação por Naturezas e Pagamento Parcial          */}
+        {/* 2. CARTAO: Detalhamento Completo por Natureza e Itens                    */}
         {/* ------------------------------------------------------------------------- */}
         {movement.type === 'CARTAO' && (
           <div
             style={{
               padding: '0.85rem',
-              borderRadius: '10px',
+              borderRadius: '12px',
               background: 'rgba(255, 255, 255, 0.02)',
-              border: '1px solid rgba(168, 85, 247, 0.2)',
+              border: '1px solid rgba(168, 85, 247, 0.25)',
               display: 'flex',
               flexDirection: 'column',
               gap: '0.75rem',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
-              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#c084fc', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <CreditCard size={14} /> Conciliação & Realidade da Fatura do Cartão
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#c084fc', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <CreditCard size={15} /> Detalhamento da Fatura & Composição por Natureza
               </span>
               <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                 Vencimento da fatura no mês seguinte
               </span>
             </div>
 
-            <p style={{ margin: 0, fontSize: '0.74rem', color: 'var(--text-secondary)', lineHeight: '1.35' }}>
-              Ajuste o valor para o total real fechado da fatura ou informe o valor parcial que foi efetivamente pago.
-            </p>
-
-            {/* Seletor Rápido de Natureza se for avulso */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Categoria / Natureza Principal</label>
-                <select
-                  className="form-input"
-                  style={{ fontSize: '0.78rem', padding: '4px 8px' }}
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                >
-                  <option value="Fatura de Cartão">💳 Fatura de Cartão</option>
-                  <option value="Não Analisada">⚠️ Não Analisada</option>
-                  <option value="Outros">📦 Outros</option>
-                  {natures.map((n) => (
-                    <option key={n.id} value={n.name}>
-                      {n.icon || '🏷️'} {n.name}
-                    </option>
-                  ))}
-                </select>
+            {/* Barra de Progresso e Alocação dos Gastos */}
+            <div
+              style={{
+                padding: '0.65rem 0.85rem',
+                borderRadius: '8px',
+                background: 'rgba(15, 23, 42, 0.65)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.45rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.72rem', flexWrap: 'wrap', gap: '6px' }}>
+                <span style={{ color: 'var(--text-muted)' }}>
+                  Total da Fatura: <strong style={{ color: '#fff' }}>{actualAmountNum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: 'var(--accent-cyan)' }}>
+                    Naturezas: {totalAllocatedInNatures.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </span>
+                  <span style={{ color: '#c084fc' }}>
+                    Outros: {totalAllocatedInOutros.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </span>
+                  <span style={{ color: unanalyzedAmount > 0 ? '#fbbf24' : '#34d399', fontWeight: 700 }}>
+                    {unanalyzedAmount > 0 ? `Não Analisada: ${unanalyzedAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : '✓ 100% Analisada'}
+                  </span>
+                </div>
               </div>
 
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Cartão / Banco Emissor</label>
-                <select
-                  className="form-input"
-                  style={{ fontSize: '0.78rem', padding: '4px 8px' }}
-                  value={bank}
-                  onChange={(e) => setBank(e.target.value)}
-                >
-                  {bankOptions.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
+              {/* Barra de Progresso Visual */}
+              <div style={{ width: '100%', height: '6px', borderRadius: '3px', background: 'rgba(255, 255, 255, 0.1)', display: 'flex', overflow: 'hidden' }}>
+                <div
+                  style={{
+                    width: `${actualAmountNum > 0 ? Math.min(100, (totalAllocatedInNatures / actualAmountNum) * 100) : 0}%`,
+                    background: 'var(--accent-cyan)',
+                    transition: 'width 0.2s',
+                  }}
+                  title="Alocado em Naturezas Fixas"
+                />
+                <div
+                  style={{
+                    width: `${actualAmountNum > 0 ? Math.min(100, (totalAllocatedInOutros / actualAmountNum) * 100) : 0}%`,
+                    background: '#c084fc',
+                    transition: 'width 0.2s',
+                  }}
+                  title="Alocado em Outros"
+                />
+                <div
+                  style={{
+                    width: `${actualAmountNum > 0 ? Math.min(100, (unanalyzedAmount / actualAmountNum) * 100) : 0}%`,
+                    background: '#f59e0b',
+                    transition: 'width 0.2s',
+                  }}
+                  title="Não Analisada (Pendente)"
+                />
               </div>
+
+              {isOverAllocated && (
+                <span style={{ fontSize: '0.7rem', color: '#f87171', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <AlertTriangle size={12} /> A soma dos itens detalhados ultrapassa o valor total da fatura.
+                </span>
+              )}
+            </div>
+
+            {/* Lista de Linhas Detalhadas da Fatura */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', maxHeight: '220px', overflowY: 'auto', paddingRight: '2px' }}>
+              {breakdownRows.length === 0 ? (
+                <div
+                  style={{
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    border: '1px dashed rgba(255, 255, 255, 0.15)',
+                    textAlign: 'center',
+                    fontSize: '0.74rem',
+                    color: 'var(--text-muted)',
+                  }}
+                >
+                  Nenhum item destrinchado nesta fatura. Adicione itens abaixo para correlacionar seus gastos com as Naturezas.
+                </div>
+              ) : (
+                breakdownRows.map((row) => {
+                  const availableMappingItems = row.natureId && row.natureId !== 'OUTROS' ? getMappingItemsForNature(row.natureId) : [];
+                  const combinedMappingValue = row.mappingId && row.mappingItemId ? `${row.mappingId}:::${row.mappingItemId}` : '';
+
+                  return (
+                    <div
+                      key={row.id}
+                      style={{
+                        padding: '0.5rem 0.65rem',
+                        borderRadius: '8px',
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        border: '1px solid rgba(255, 255, 255, 0.08)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      {/* Natureza */}
+                      <select
+                        className="form-input"
+                        style={{ width: '150px', fontSize: '0.74rem', padding: '3px 6px' }}
+                        value={row.natureId}
+                        onChange={(e) => handleBreakdownNatureChange(row.id, e.target.value)}
+                      >
+                        <option value="">Selecione Natureza...</option>
+                        {natures.map((n) => (
+                          <option key={n.id} value={n.id}>
+                            {n.icon || '🏷️'} {n.name}
+                          </option>
+                        ))}
+                        <option value="OUTROS">📦 Outros (Sem Natureza)</option>
+                      </select>
+
+                      {/* Item de Mapeamento (se natureza selecionada) */}
+                      {availableMappingItems.length > 0 && (
+                        <select
+                          className="form-input"
+                          style={{ width: '140px', fontSize: '0.74rem', padding: '3px 6px' }}
+                          value={combinedMappingValue}
+                          onChange={(e) => handleBreakdownMappingItemChange(row.id, e.target.value)}
+                        >
+                          <option value="">Item do Teto...</option>
+                          {availableMappingItems.map((it) => (
+                            <option key={it.id} value={`${it.mappingId}:::${it.id}`}>
+                              {it.description} ({it.totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
+                            </option>
+                          ))}
+                        </select>
+                      )}
+
+                      {/* Descrição */}
+                      <input
+                        type="text"
+                        placeholder="Descrição do gasto (ex: Compras de Mercado)"
+                        className="form-input"
+                        style={{ flex: 1, minWidth: '130px', fontSize: '0.74rem', padding: '3px 8px' }}
+                        value={row.description}
+                        onChange={(e) => handleBreakdownDescriptionChange(row.id, e.target.value)}
+                      />
+
+                      {/* Valor */}
+                      <div style={{ position: 'relative', width: '105px' }}>
+                        <span style={{ position: 'absolute', left: '6px', top: '50%', transform: 'translateY(-50%)', fontSize: '0.7rem', color: 'var(--accent-cyan)' }}>
+                          R$
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="0,00"
+                          className="form-input"
+                          style={{ width: '100%', paddingLeft: '24px', fontSize: '0.74rem', padding: '3px 6px 3px 24px', fontWeight: 600, color: 'var(--accent-cyan)' }}
+                          value={row.amountInput}
+                          onChange={(e) => handleBreakdownAmountChange(row.id, e.target.value)}
+                        />
+                      </div>
+
+                      {/* Remover Linha */}
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-xs text-rose"
+                        style={{ padding: '3px' }}
+                        onClick={() => handleRemoveBreakdownRow(row.id)}
+                        title="Remover este item"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Ações Rápidas de Linha da Fatura */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', paddingTop: '0.35rem', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+              <button
+                type="button"
+                className="btn btn-outline btn-xs text-cyan"
+                style={{ fontSize: '0.72rem', padding: '3px 8px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                onClick={handleAddBreakdownRow}
+              >
+                <Plus size={12} />
+                <span>Adicionar Item / Gasto</span>
+              </button>
+
+              {unanalyzedAmount > 0 && (
+                <button
+                  type="button"
+                  className="btn btn-outline btn-xs text-amber"
+                  style={{ fontSize: '0.72rem', padding: '3px 8px', display: 'flex', alignItems: 'center', gap: '4px', borderColor: 'rgba(245, 158, 11, 0.4)' }}
+                  onClick={handleAllocateRestToOutros}
+                  title="Criar uma linha 'Outros' com todo o valor restante não analisado"
+                >
+                  <Sparkles size={12} />
+                  <span>Classificar restante ({unanalyzedAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}) como "Outros"</span>
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -812,7 +1170,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div style={{ position: 'relative' }}>
               <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
-                Valor Real (R$)
+                Valor Total Real da Transação (R$)
               </label>
               <span
                 style={{

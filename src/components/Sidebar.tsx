@@ -2,6 +2,7 @@ import React from 'react';
 import {
   LayoutDashboard,
   ArrowLeftRight,
+  CreditCard,
   Layers,
   Landmark,
   Sparkles,
@@ -13,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-export type TabId = 'DASHBOARD' | 'MOVIMENTACOES' | 'NATUREZAS' | 'EMPRESTIMOS' | 'COPILOT' | 'METAS' | 'PERFIL';
+export type TabId = 'DASHBOARD' | 'MOVIMENTACOES' | 'FATURAS' | 'NATUREZAS' | 'EMPRESTIMOS' | 'COPILOT' | 'METAS' | 'PERFIL';
 
 interface SidebarProps {
   activeTab: TabId;
@@ -50,6 +51,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       label: 'Movimentações',
       subtitle: 'Entradas & Saídas',
       icon: ArrowLeftRight,
+    },
+    {
+      id: 'FATURAS' as TabId,
+      label: 'Faturas',
+      subtitle: 'Cartões & Itens',
+      icon: CreditCard,
+      badge: 'Cartões',
     },
     {
       id: 'NATUREZAS' as TabId,
