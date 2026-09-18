@@ -44,6 +44,7 @@ const parseBRLNumber = (val: string): number => {
 };
 
 // Gera rótulo e data de vencimento precisa para um determinado deslocamento de mês (0 = mês da fatura atual)
+// Regra fundamental: A fatura das compras do mês atual SEMPRE vence no mês seguinte.
 const computeDueDateForMonth = (
   baseStartDate: string,
   targetDueDay: number,
@@ -52,11 +53,9 @@ const computeDueDateForMonth = (
   const parts = (baseStartDate || new Date().toISOString().split('T')[0]).split('-').map(Number);
   const baseYear = parts[0] || new Date().getFullYear();
   const baseMonth = parts[1] || (new Date().getMonth() + 1); // 1-12
-  const baseDay = parts[2] || new Date().getDate();
 
-  // Se o dia inicial já passou do dia de vencimento, a fatura aberta atual vence no mês seguinte
-  const startOffset = baseDay > targetDueDay ? 1 : 0;
-  const effectiveOffset = startOffset + monthOffset;
+  // A fatura com as compras do mês atual vence SEMPRE no mês seguinte (+1)
+  const effectiveOffset = 1 + monthOffset;
 
   const d = new Date(baseYear, baseMonth - 1 + effectiveOffset, 1);
   const y = d.getFullYear();
@@ -69,9 +68,15 @@ const computeDueDateForMonth = (
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
   ];
-  const name = monthNames[m];
-  const labelSuffix = monthOffset === 0 ? ' (Atual)' : ` (Futura ${monthOffset})`;
-  const monthLabel = `${name}/${y}${labelSuffix}`;
+
+  // Competência dos gastos (mês base + monthOffset)
+  const compDate = new Date(baseYear, baseMonth - 1 + monthOffset, 1);
+  const compMonthName = monthNames[compDate.getMonth()];
+  const compYear = compDate.getFullYear();
+  const dueMonthName = monthNames[m];
+
+  const labelSuffix = monthOffset === 0 ? ' (Atual)' : ` (Futura +${monthOffset})`;
+  const monthLabel = `${compMonthName}/${compYear}${labelSuffix} — Vence em ${dueMonthName}`;
 
   return { dueDate, monthLabel };
 };
@@ -1141,20 +1146,25 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                       {currentInvoice && (
                         <div
                           style={{
-                            padding: '0.5rem 0.65rem',
+                            padding: '0.65rem 0.75rem',
                             borderRadius: '8px',
                             background: 'rgba(244, 63, 94, 0.08)',
                             border: '1px solid rgba(244, 63, 94, 0.25)',
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: '0.35rem',
+                            gap: '0.45rem',
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
-                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                              <span>📌</span> Fatura Atual — {currentInvoice.monthLabel}
-                            </span>
-                            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
+                            <div>
+                              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <span>📌</span> Fatura Aberta — {currentInvoice.monthLabel}
+                              </span>
+                              <p style={{ margin: '2px 0 0', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                                Gastos realizados no mês atual que serão pagos na fatura com vencimento no mês seguinte.
+                              </p>
+                            </div>
+                            <span style={{ fontSize: '0.72rem', color: '#fca5a5', background: 'rgba(244, 63, 94, 0.18)', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
                               Vencimento: {currentInvoice.dueDate.split('-').reverse().join('/')}
                             </span>
                           </div>
@@ -1198,8 +1208,8 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                               value={currentInvoice.dueDate}
                               onChange={(e) => handleInvoiceDueDateChange(b.id, currentInvoice.id, e.target.value)}
                               className="form-input"
-                              style={{ width: '130px', fontSize: '0.75rem', padding: '4px 6px' }}
-                              title="Alterar data de vencimento da fatura atual"
+                              style={{ width: '130px', fontSize: '0.78rem', padding: '4px 8px' }}
+                              title="Data de vencimento da fatura no mês seguinte"
                             />
                           </div>
                         </div>
@@ -1549,14 +1559,20 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
           <div
             className="modal-footer-actions"
             style={{
-              marginTop: '0.35rem',
+              position: 'sticky',
+              bottom: 0,
+              background: 'rgba(15, 23, 42, 0.96)',
+              backdropFilter: 'blur(10px)',
+              marginTop: '0.65rem',
               paddingTop: '0.75rem',
+              paddingBottom: '0.25rem',
               borderTop: '1px solid var(--border-default)',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
               flexWrap: 'wrap',
               gap: '0.65rem',
+              zIndex: 10,
             }}
           >
             <button type="button" className="btn btn-outline" onClick={onClose}>
@@ -1893,14 +1909,20 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
           <div
             className="modal-footer-actions"
             style={{
-              marginTop: '0.35rem',
+              position: 'sticky',
+              bottom: 0,
+              background: 'rgba(15, 23, 42, 0.96)',
+              backdropFilter: 'blur(10px)',
+              marginTop: '0.65rem',
               paddingTop: '0.75rem',
+              paddingBottom: '0.25rem',
               borderTop: '1px solid var(--border-default)',
               display: 'flex',
               justifyContent: 'space-between',
               alignItems: 'center',
               flexWrap: 'wrap',
               gap: '0.65rem',
+              zIndex: 10,
             }}
           >
             <button
