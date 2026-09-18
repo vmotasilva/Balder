@@ -115,6 +115,7 @@ interface FinancialContextType {
   // Ações Principais
   addMovement: (movement: Omit<Movement, 'id'>) => void;
   addMultipleMovements: (items: Omit<Movement, 'id'>[]) => void;
+  updateMovement: (id: string, updates: Partial<Movement>) => void;
   deleteMovement: (id: string) => void;
   toggleMovementStatus: (id: string) => void;
   prepayInstallments: (movementIds: string[], discountedAmounts: Record<string, number>, paymentDate: string) => void;
@@ -945,6 +946,29 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           console.error('Erro ao salvar item parcelado no Appwrite:', err)
         );
       });
+    }
+  };
+
+  // Atualizar Movimentação (Ajuste de valor real, vencimento, status, observações)
+  const updateMovement = (id: string, updates: Partial<Movement>) => {
+    setMovements((prev) => {
+      const next = prev.map((m) => (m.id === id ? { ...m, ...updates } : m));
+      if (user && !user.isGuest) {
+        try {
+          localStorage.setItem(`balder_movements_${user.$id}`, JSON.stringify(next));
+        } catch {}
+      } else {
+        try {
+          localStorage.setItem('balder_movements_guest', JSON.stringify(next));
+        } catch {}
+      }
+      return next;
+    });
+
+    if (user && !user.isGuest && !id.startsWith('rec_') && !id.startsWith('pay_') && !id.startsWith('lia_') && !id.startsWith('cc_')) {
+      AppwriteService.updateMovement(id, updates).catch((err) =>
+        console.error('Erro ao atualizar movimentação no Appwrite:', err)
+      );
     }
   };
 
@@ -2576,6 +2600,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         getSalaryForCompetence,
         addMovement,
         addMultipleMovements,
+        updateMovement,
         deleteMovement,
         toggleMovementStatus,
         prepayInstallments,

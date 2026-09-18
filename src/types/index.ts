@@ -15,6 +15,13 @@ export interface Movement {
   installmentsTotal?: number;
   installmentGroupId?: string;
   interestRatePercent?: number; // Taxa nominal ou efetiva mensal do contrato (ex: 2.10% ou 3.03% a.m.)
+  originalAmount?: number;      // Valor nominal previsto original antes do ajuste
+  actualAmount?: number;        // Valor real efetivamente pago ou recebido
+  paymentDate?: string;         // Data efetiva da quitação/crédito (YYYY-MM-DD)
+  adjustmentReason?: string;    // Motivo do ajuste (ex: Desconto antecipação, Juros atraso, Variação consumo, Descontos folha)
+  natureId?: string;            // ID da Natureza orçamentária vinculada
+  mappingId?: string;           // ID do mapeamento vinculado
+  mappingItemId?: string;       // ID do item do teto cumprido
 }
 
 export type PrepaymentPurpose = 

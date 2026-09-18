@@ -20,10 +20,12 @@ import {
   ChevronDown,
   ChevronRight,
   CalendarDays,
+  SlidersHorizontal,
 } from 'lucide-react';
 import type { Movement, MovementType } from '../types';
 import { calculatePresentValue, groupLoanMovements } from '../utils/loanMath';
 import { LoanPrepaymentModal } from '../components/LoanPrepaymentModal';
+import { MovementDetailModal } from '../components/MovementDetailModal';
 import { getSalarySuggestion } from '../utils/salarySuggestion';
 import { getPendingFixedBills, type PendingFixedBill } from '../utils/fixedBillsAlert';
 
@@ -168,6 +170,9 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
   const [prepaymentModalOpen, setPrepaymentModalOpen] = useState(false);
   const [selectedPrepayGroup, setSelectedPrepayGroup] = useState<string | undefined>(undefined);
   const [selectedPrepayMovement, setSelectedPrepayMovement] = useState<string | undefined>(undefined);
+
+  // Modal de Detalhes e Ajuste de Realidade por Tipo de Transação
+  const [selectedMovementForDetail, setSelectedMovementForDetail] = useState<Movement | null>(null);
 
   const handleOpenPrepayment = (groupId?: string, movementId?: string) => {
     setSelectedPrepayGroup(groupId);
@@ -350,12 +355,21 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
     const formattedDueDate = item.dueDate ? item.dueDate.split('-').reverse().join('/') : '-';
 
     return (
-      <tr key={item.id} className={`${isRealized ? 'row-realized' : ''}`}>
+      <tr
+        key={item.id}
+        className={`${isRealized ? 'row-realized' : ''}`}
+        style={{ cursor: 'pointer', transition: 'background 0.15s ease' }}
+        onClick={() => setSelectedMovementForDetail(item)}
+        title="Clique para abrir os detalhes e ajustar o valor real da transação"
+      >
         {/* Toggle Status Checkbox */}
         <td>
           <button
             className={`status-toggle-btn ${isRealized ? 'checked' : ''}`}
-            onClick={() => toggleMovementStatus(item.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleMovementStatus(item.id);
+            }}
             title={isRealized ? 'Marcar como prevista' : 'Confirmar liquidação'}
           >
             {isRealized ? <CheckCircle2 size={18} className="text-emerald" /> : <Clock size={18} className="text-muted" />}
@@ -439,13 +453,31 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
 
         {/* Actions */}
         <td style={{ textAlign: 'center' }}>
-          <button
-            className="delete-action-btn"
-            onClick={() => deleteMovement(item.id)}
-            title="Excluir movimentação"
-          >
-            <Trash2 size={16} />
-          </button>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs text-cyan"
+              style={{ padding: '4px' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedMovementForDetail(item);
+              }}
+              title="Ajustar valor e tratativa da transação"
+            >
+              <SlidersHorizontal size={15} />
+            </button>
+            <button
+              type="button"
+              className="delete-action-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                deleteMovement(item.id);
+              }}
+              title="Excluir movimentação"
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
         </td>
       </tr>
     );
@@ -986,7 +1018,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
                 <th>Vencimento</th>
                 <th>Banco</th>
                 <th style={{ textAlign: 'right' }}>Valor Nominal</th>
-                <th style={{ width: '60px', textAlign: 'center' }}>Ações</th>
+                <th style={{ width: '80px', textAlign: 'center' }}>Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -1076,6 +1108,14 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
         onClose={() => setPrepaymentModalOpen(false)}
         initialGroupId={selectedPrepayGroup}
         initialMovementId={selectedPrepayMovement}
+      />
+
+      {/* Modal de Detalhes & Ajuste Específico por Tipo de Transação */}
+      <MovementDetailModal
+        isOpen={!!selectedMovementForDetail}
+        onClose={() => setSelectedMovementForDetail(null)}
+        movement={selectedMovementForDetail}
+        onOpenPrepaymentSimulator={handleOpenPrepayment}
       />
     </div>
   );
