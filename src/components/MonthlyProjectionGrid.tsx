@@ -288,8 +288,8 @@ export const MonthlyProjectionGrid: React.FC = () => {
         </div>
       </div>
 
-      {/* Dica de Interatividade */}
-      <div className="grid-interactive-tip flex items-center gap-2 mb-2 text-xs px-3 py-2 rounded-lg">
+      {/* Dica de Interatividade (Oculta na Versão Mobile) */}
+      <div className="grid-interactive-tip hide-on-mobile flex items-center gap-2 mb-2 text-xs px-3 py-2 rounded-lg">
         <Info size={14} className="flex-shrink-0" />
         <span>
           <strong>Layout Glanceable:</strong> 6 macro-colunas sem rolagem horizontal ou vertical. Clique em <strong>Total Entradas</strong> ou <strong>Total Saídas</strong> para abrir o modal com cartões, naturezas e datas agrupadas.
