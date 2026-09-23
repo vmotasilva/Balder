@@ -35,10 +35,10 @@
   --accent-indigo: #6366F1;
 
   /* Typography */
-  --text-primary: #F8FAFC;
-  --text-secondary: #94A3B8;
-  --text-muted: #64748B;
-  --text-dim: #475569;
+  --text-primary: #FFFFFF;
+  --text-secondary: #CBD5E1;
+  --text-muted: #94A3B8;
+  --text-dim: #64748B;
 
   /* Font Families */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -103,11 +103,11 @@
   --accent-purple: #7C3AED;
   --accent-indigo: #4F46E5;
 
-  /* Typography */
+  /* Typography (alto contraste para leitura nítida e confortável) */
   --text-primary: #0F172A;
-  --text-secondary: #334155;
-  --text-muted: #64748B;
-  --text-dim: #94A3B8;
+  --text-secondary: #1E293B;
+  --text-muted: #334155;
+  --text-dim: #475569;
 
   /* Elevation & Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);

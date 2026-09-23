@@ -42,7 +42,7 @@ export const GlanceableCurrency: React.FC<{
   return (
     <span className={`font-mono ${className}`}>
       {sign}{prefix}R$ {intPart}
-      <span className="cents-muted text-[0.82em] opacity-60">,{cents}</span>
+      <span className="cents-muted text-[0.85em] opacity-80 font-medium">,{cents}</span>
     </span>
   );
 };

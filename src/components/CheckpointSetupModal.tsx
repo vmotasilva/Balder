@@ -943,14 +943,14 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
               value={startDate}
               onChange={(e) => handleStartDateChange(e.target.value)}
             />
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 500, marginTop: '0.2rem', display: 'block' }}>
               Apenas transações a partir desta data influenciarão o saldo em caixa e fluxo do dashboard.
             </span>
           </div>
 
           {/* Campo 2: Saldo Inicial em Caixa */}
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.3rem' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.84rem', marginBottom: '0.3rem' }}>
               <DollarSign size={14} className="text-emerald" />
               Saldo Total em Caixa nessa Data (R$)
             </label>
@@ -981,7 +981,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                 onChange={(e) => setInitialBalance(e.target.value)}
               />
             </div>
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.2rem', display: 'block' }}>
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 500, marginTop: '0.2rem', display: 'block' }}>
               Valor real disponível em contas e carteira no dia inicial escolhido.
             </span>
           </div>
@@ -991,7 +991,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
             style={{
               borderRadius: '12px',
               border: `1px solid ${hasCreditCardDebt ? 'rgba(244, 63, 94, 0.35)' : 'var(--border-default)'}`,
-              background: hasCreditCardDebt ? 'rgba(244, 63, 94, 0.04)' : 'rgba(255, 255, 255, 0.02)',
+              background: hasCreditCardDebt ? 'rgba(244, 63, 94, 0.04)' : 'var(--bg-card)',
               padding: '0.75rem 0.85rem',
               display: 'flex',
               flexDirection: 'column',
@@ -1010,20 +1010,20 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                     width: '32px',
                     height: '32px',
                     borderRadius: '8px',
-                    background: hasCreditCardDebt ? 'rgba(244, 63, 94, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                    background: hasCreditCardDebt ? 'rgba(244, 63, 94, 0.15)' : 'rgba(56, 189, 248, 0.1)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: hasCreditCardDebt ? '#F43F5E' : 'var(--text-muted)',
+                    color: hasCreditCardDebt ? 'var(--accent-rose)' : 'var(--text-secondary)',
                   }}
                 >
                   <CreditCard size={17} />
                 </div>
                 <div>
-                  <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)', display: 'block' }}>
+                  <span style={{ fontSize: '0.84rem', fontWeight: 700, color: 'var(--text-primary)', display: 'block' }}>
                     Estabelecer Faturas Atuais e Futuras por Banco
                   </span>
-                  <span style={{ fontSize: '0.71rem', color: 'var(--text-muted)' }}>
+                  <span style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
                     {hasCreditCardDebt
                       ? 'Informe as faturas em aberto e futuras de cada banco para descontar do patrimônio e lançar no fluxo'
                       : 'Clique para definir faturas atuais e futuras (Nubank, Itaú, etc.)'}
@@ -1051,13 +1051,13 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                       key={b.id}
                       style={{
                         borderRadius: '10px',
-                        background: 'rgba(15, 23, 42, 0.75)',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border-default)',
                         padding: '0.75rem 0.85rem',
                         display: 'flex',
                         flexDirection: 'column',
                         gap: '0.65rem',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+                        boxShadow: 'var(--shadow-sm)',
                       }}
                     >
                       {/* Topo do Card do Banco */}
@@ -1066,7 +1066,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                           <Building2 size={15} className="text-cyan" style={{ flexShrink: 0 }} />
                           <select
                             className="form-input"
-                            style={{ fontSize: '0.8rem', padding: '4px 8px', flex: 1 }}
+                            style={{ fontSize: '0.82rem', fontWeight: 600, padding: '4px 8px', flex: 1 }}
                             value={b.cardId || (b.cardId === undefined ? 'CUSTOM' : '')}
                             onChange={(e) => handleBankCardChange(b.id, e.target.value)}
                           >
@@ -1081,7 +1081,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                               Dia Venc.:
                             </span>
                             <input
@@ -1091,7 +1091,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                               value={b.dueDay}
                               onChange={(e) => handleDueDayChange(b.id, parseInt(e.target.value, 10))}
                               className="form-input"
-                              style={{ width: '50px', padding: '3px 6px', fontSize: '0.78rem', textAlign: 'center' }}
+                              style={{ width: '50px', padding: '3px 6px', fontSize: '0.8rem', fontWeight: 700, textAlign: 'center' }}
                               title="Dia do vencimento fixo no mês"
                             />
                           </div>
@@ -1124,7 +1124,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                               );
                             }}
                             className="form-input"
-                            style={{ fontSize: '0.78rem', padding: '4px 8px' }}
+                            style={{ fontSize: '0.8rem', padding: '4px 8px' }}
                           />
                           <input
                             type="text"
@@ -1137,7 +1137,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                               );
                             }}
                             className="form-input"
-                            style={{ fontSize: '0.78rem', padding: '4px 8px' }}
+                            style={{ fontSize: '0.8rem', padding: '4px 8px' }}
                           />
                         </div>
                       )}
@@ -1149,7 +1149,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                             padding: '0.65rem 0.75rem',
                             borderRadius: '8px',
                             background: 'rgba(244, 63, 94, 0.08)',
-                            border: '1px solid rgba(244, 63, 94, 0.25)',
+                            border: '1px solid rgba(244, 63, 94, 0.3)',
                             display: 'flex',
                             flexDirection: 'column',
                             gap: '0.45rem',
@@ -1157,14 +1157,14 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                         >
                           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '4px' }}>
                             <div>
-                              <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--accent-rose)', display: 'flex', alignItems: 'center', gap: '5px' }}>
                                 <span>📌</span> Fatura Aberta — {currentInvoice.monthLabel}
                               </span>
-                              <p style={{ margin: '2px 0 0', fontSize: '0.7rem', color: 'var(--text-secondary)' }}>
+                              <p style={{ margin: '2px 0 0', fontSize: '0.74rem', fontWeight: 500, color: 'var(--text-secondary)', lineHeight: '1.3' }}>
                                 Gastos realizados no mês atual que serão pagos na fatura com vencimento no mês seguinte.
                               </p>
                             </div>
-                            <span style={{ fontSize: '0.72rem', color: '#fca5a5', background: 'rgba(244, 63, 94, 0.18)', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
+                            <span style={{ fontSize: '0.74rem', color: 'var(--accent-rose)', background: 'rgba(244, 63, 94, 0.12)', border: '1px solid rgba(244, 63, 94, 0.25)', padding: '2px 8px', borderRadius: '4px', fontWeight: 700 }}>
                               Vencimento: {currentInvoice.dueDate.split('-').reverse().join('/')}
                             </span>
                           </div>
@@ -1178,8 +1178,8 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                                   top: '50%',
                                   transform: 'translateY(-50%)',
                                   fontWeight: 700,
-                                  color: '#f87171',
-                                  fontSize: '0.85rem',
+                                  color: 'var(--accent-rose)',
+                                  fontSize: '0.88rem',
                                 }}
                               >
                                 R$
@@ -1191,8 +1191,8 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                                 style={{
                                   paddingLeft: '34px',
                                   fontWeight: 700,
-                                  color: '#f87171',
-                                  fontSize: '0.95rem',
+                                  color: 'var(--accent-rose)',
+                                  fontSize: '0.98rem',
                                 }}
                                 placeholder="0,00"
                                 value={currentInvoice.amountInput}
@@ -1208,7 +1208,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                               value={currentInvoice.dueDate}
                               onChange={(e) => handleInvoiceDueDateChange(b.id, currentInvoice.id, e.target.value)}
                               className="form-input"
-                              style={{ width: '130px', fontSize: '0.78rem', padding: '4px 8px' }}
+                              style={{ width: '130px', fontSize: '0.8rem', padding: '4px 8px' }}
                               title="Data de vencimento da fatura no mês seguinte"
                             />
                           </div>
@@ -1218,7 +1218,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                       {/* 2. Bloco de FATURAS FUTURAS */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.15rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
-                          <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <CalendarDays size={13} className="text-cyan" />
                             Faturas Futuras ({futureInvoices.length} {futureInvoices.length === 1 ? 'mês' : 'meses'} adicionais)
                           </span>
@@ -1227,7 +1227,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                             <button
                               type="button"
                               className="btn btn-outline btn-xs text-cyan"
-                              style={{ fontSize: '0.7rem', padding: '2px 8px', display: 'flex', alignItems: 'center', gap: '3px' }}
+                              style={{ fontSize: '0.72rem', padding: '2px 8px', display: 'flex', alignItems: 'center', gap: '3px' }}
                               onClick={() => handleAddFutureInvoice(b.id)}
                               title="Adicionar próximo mês de fatura futura"
                             >
@@ -1238,7 +1238,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                             <button
                               type="button"
                               className="btn btn-ghost btn-xs text-amber"
-                              style={{ fontSize: '0.68rem', padding: '2px 6px', display: 'flex', alignItems: 'center', gap: '3px' }}
+                              style={{ fontSize: '0.7rem', padding: '2px 6px', display: 'flex', alignItems: 'center', gap: '3px' }}
                               onClick={() => {
                                 setBankDebts((prev) =>
                                   prev.map((item) =>
@@ -1265,15 +1265,15 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                               display: 'flex',
                               flexDirection: 'column',
                               gap: '0.45rem',
-                              fontSize: '0.72rem',
+                              fontSize: '0.74rem',
                             }}
                           >
-                            <span style={{ fontWeight: 600, color: '#fcd34d' }}>
+                            <span style={{ fontWeight: 700, color: '#f59e0b' }}>
                               ⚡ Gerador Rápido de Parcelas Iguais:
                             </span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                               <div style={{ position: 'relative', width: '130px' }}>
-                                <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', fontWeight: 600, color: '#fcd34d', fontSize: '0.75rem' }}>
+                                <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', fontWeight: 600, color: '#f59e0b', fontSize: '0.75rem' }}>
                                   R$
                                 </span>
                                 <input
@@ -1287,15 +1287,15 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                                     );
                                   }}
                                   className="form-input"
-                                  style={{ paddingLeft: '28px', fontSize: '0.75rem', padding: '3px 6px' }}
+                                  style={{ paddingLeft: '28px', fontSize: '0.78rem', padding: '3px 6px' }}
                                 />
                               </div>
 
                               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <span style={{ color: 'var(--text-muted)' }}>em</span>
+                                <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>em</span>
                                 <select
                                   className="form-input"
-                                  style={{ fontSize: '0.75rem', padding: '3px 6px', width: '70px' }}
+                                  style={{ fontSize: '0.78rem', padding: '3px 6px', width: '70px' }}
                                   value={b.quickInstallments || 3}
                                   onChange={(e) => {
                                     const num = parseInt(e.target.value, 10);
@@ -1315,7 +1315,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                               <button
                                 type="button"
                                 className="btn btn-primary btn-xs"
-                                style={{ fontSize: '0.7rem', padding: '3px 8px' }}
+                                style={{ fontSize: '0.72rem', padding: '3px 8px' }}
                                 onClick={() => handleApplyQuickDivide(b.id)}
                               >
                                 Distribuir
@@ -1323,7 +1323,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                               <button
                                 type="button"
                                 className="btn btn-ghost btn-xs text-muted"
-                                style={{ fontSize: '0.7rem' }}
+                                style={{ fontSize: '0.72rem' }}
                                 onClick={() => {
                                   setBankDebts((prev) =>
                                     prev.map((item) => (item.id === b.id ? { ...item, showQuickDivide: false } : item))
@@ -1342,10 +1342,10 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                             style={{
                               padding: '0.4rem 0.6rem',
                               borderRadius: '6px',
-                              background: 'rgba(255, 255, 255, 0.02)',
-                              border: '1px dashed rgba(255, 255, 255, 0.08)',
-                              fontSize: '0.7rem',
-                              color: 'var(--text-muted)',
+                              background: 'var(--bg-app)',
+                              border: '1px dashed var(--border-default)',
+                              fontSize: '0.74rem',
+                              color: 'var(--text-secondary)',
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'space-between',
@@ -1355,7 +1355,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                             <button
                               type="button"
                               className="btn btn-link btn-xs text-cyan"
-                              style={{ fontSize: '0.7rem', padding: 0 }}
+                              style={{ fontSize: '0.72rem', padding: 0 }}
                               onClick={() => handleAddFutureInvoice(b.id)}
                             >
                               + Adicionar
@@ -1372,16 +1372,16 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                                   gap: '6px',
                                   padding: '0.35rem 0.5rem',
                                   borderRadius: '6px',
-                                  background: 'rgba(255, 255, 255, 0.03)',
-                                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                                  background: 'var(--bg-app)',
+                                  border: '1px solid var(--border-default)',
                                 }}
                               >
                                 <span
                                   style={{
-                                    fontSize: '0.72rem',
+                                    fontSize: '0.74rem',
                                     fontWeight: 600,
                                     color: 'var(--text-primary)',
-                                    width: '135px',
+                                    width: '145px',
                                     flexShrink: 0,
                                     whiteSpace: 'nowrap',
                                     overflow: 'hidden',
@@ -1399,7 +1399,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                                       left: '8px',
                                       top: '50%',
                                       transform: 'translateY(-50%)',
-                                      fontWeight: 600,
+                                      fontWeight: 700,
                                       color: 'var(--accent-cyan)',
                                       fontSize: '0.75rem',
                                     }}
@@ -1411,15 +1411,15 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                                     className="form-input"
                                     style={{
                                       paddingLeft: '28px',
-                                      fontWeight: 600,
+                                      fontWeight: 700,
                                       color: 'var(--accent-cyan)',
-                                      fontSize: '0.8rem',
+                                      fontSize: '0.85rem',
                                       padding: '3px 8px 3px 26px',
                                     }}
                                     placeholder="0,00"
                                     value={inv.amountInput}
                                     onFocus={(e) => {
-                                      if (e.target.value === '0') handleInvoiceAmountChange(b.id, inv.id, '');
+                                      if (e.target.value === '0') handleInvoiceAmountChange(b.id, currentInvoice.id, '');
                                     }}
                                     onChange={(e) => handleInvoiceAmountChange(b.id, inv.id, e.target.value)}
                                   />
@@ -1430,7 +1430,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                                   value={inv.dueDate}
                                   onChange={(e) => handleInvoiceDueDateChange(b.id, inv.id, e.target.value)}
                                   className="form-input"
-                                  style={{ width: '120px', fontSize: '0.72rem', padding: '3px 5px' }}
+                                  style={{ width: '120px', fontSize: '0.74rem', padding: '3px 5px' }}
                                   title="Data de vencimento desta fatura futura"
                                 />
 
@@ -1455,18 +1455,18 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          paddingTop: '0.35rem',
-                          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-                          fontSize: '0.72rem',
+                          paddingTop: '0.4rem',
+                          borderTop: '1px solid var(--border-subtle)',
+                          fontSize: '0.76rem',
                         }}
                       >
-                        <span className="text-muted">
+                        <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
                           Subtotal {b.cardName}:{' '}
-                          <span style={{ color: 'var(--text-secondary)' }}>
+                          <span style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
                             Atual ({b.currentAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}) + Futuras ({b.futureTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
                           </span>
                         </span>
-                        <strong className="text-rose-400 font-mono">
+                        <strong style={{ color: 'var(--accent-rose)', fontWeight: 700, fontFamily: 'monospace', fontSize: '0.85rem' }}>
                           {b.total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                         </strong>
                       </div>
@@ -1481,14 +1481,15 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                   style={{
                     width: '100%',
                     borderStyle: 'dashed',
-                    fontSize: '0.78rem',
-                    padding: '6px 12px',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    padding: '8px 12px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '6px',
                     color: 'var(--accent-cyan)',
-                    borderColor: 'rgba(6, 182, 212, 0.4)',
+                    borderColor: 'var(--accent-cyan)',
                   }}
                   onClick={handleAddBankDebt}
                 >
@@ -1499,33 +1500,37 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                 {/* Card Consolidado Geral de Todas as Faturas */}
                 <div
                   style={{
-                    padding: '0.6rem 0.8rem',
+                    padding: '0.7rem 0.9rem',
                     borderRadius: '8px',
-                    background: 'linear-gradient(135deg, rgba(244, 63, 94, 0.12) 0%, rgba(15, 23, 42, 0.85) 100%)',
-                    border: '1px solid rgba(244, 63, 94, 0.3)',
+                    background: 'linear-gradient(135deg, rgba(244, 63, 94, 0.1) 0%, var(--bg-card-hover) 100%)',
+                    border: '1px solid rgba(244, 63, 94, 0.35)',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '4px',
-                    fontSize: '0.74rem',
+                    gap: '5px',
+                    fontSize: '0.78rem',
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span className="text-muted">Dívida Total Consolidada ({bankDebts.length} {bankDebts.length === 1 ? 'banco' : 'bancos'}, {totalAllInvoicesCount} faturas):</span>
-                    <strong className="text-rose-400 font-bold" style={{ fontSize: '0.9rem' }}>
+                    <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+                      Dívida Total Consolidada ({bankDebts.length} {bankDebts.length === 1 ? 'banco' : 'bancos'}, {totalAllInvoicesCount} faturas):
+                    </span>
+                    <strong style={{ color: 'var(--accent-rose)', fontWeight: 800, fontSize: '0.95rem' }}>
                       {totalAllDebt.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </strong>
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', paddingTop: '3px', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                    <span className="text-muted">Patrimônio Líquido Inicial (Caixa - Dívida Total):</span>
-                    <span style={{ fontWeight: 700, color: netStartingBalance >= 0 ? 'var(--accent-emerald)' : '#F43F5E' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', paddingTop: '4px', borderTop: '1px solid var(--border-subtle)' }}>
+                    <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>
+                      Patrimônio Líquido Inicial (Caixa - Dívida Total):
+                    </span>
+                    <span style={{ fontWeight: 800, color: netStartingBalance >= 0 ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>
                       {netStartingBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </span>
                   </div>
                 </div>
 
                 {/* Checkbox de agendamento das faturas no fluxo */}
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.45rem', cursor: 'pointer', fontSize: '0.73rem', color: 'var(--text-secondary)' }}>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-primary)' }}>
                   <input
                     type="checkbox"
                     checked={launchAsMovement}
@@ -1636,8 +1641,8 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
             style={{
               padding: '0.65rem 0.85rem',
               borderRadius: '10px',
-              background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(15, 23, 42, 0.85) 100%)',
-              border: '1px solid rgba(6, 182, 212, 0.3)',
+              background: 'rgba(6, 182, 212, 0.08)',
+              border: '1px solid rgba(6, 182, 212, 0.25)',
               fontSize: '0.78rem',
               color: 'var(--text-primary)',
               display: 'flex',
@@ -1648,7 +1653,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
             <Sparkles size={16} className="text-cyan" style={{ flexShrink: 0, marginTop: '2px' }} />
             <div>
               <strong style={{ color: 'var(--accent-cyan)' }}>Conciliação de Gastos em Aberto:</strong>
-              <p style={{ margin: '0.15rem 0 0', color: 'var(--text-secondary)', lineHeight: '1.35', fontSize: '0.75rem' }}>
+              <p style={{ margin: '0.15rem 0 0', color: 'var(--text-secondary)', fontWeight: 500, lineHeight: '1.35', fontSize: '0.76rem' }}>
                 As faturas em aberto já cobriram itens das suas naturezas neste mês. Destrinche cada valor abaixo. Tudo o que não for correlacionado pode ser chamado de <strong>"Outros"</strong>, e qualquer diferença restante constará como <strong>"Não Analisada"</strong> até que você a defina.
               </p>
             </div>
@@ -1673,34 +1678,34 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                   key={b.id}
                   style={{
                     borderRadius: '12px',
-                    background: 'rgba(15, 23, 42, 0.8)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-default)',
                     padding: '0.85rem',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '0.65rem',
-                    boxShadow: '0 4px 14px rgba(0,0,0,0.3)',
+                    boxShadow: 'var(--shadow-sm)',
                   }}
                 >
                   {/* Cabeçalho da Fatura do Banco */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <CreditCard size={17} className="text-cyan" />
                       <div>
-                        <strong style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                        <strong style={{ fontSize: '0.92rem', color: 'var(--text-primary)' }}>
                           {b.cardName} ({b.bankName})
                         </strong>
-                        <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block' }}>
+                        <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 500, display: 'block' }}>
                           Vencimento: {b.currentInvoice?.dueDate.split('-').reverse().join('/')}
                         </span>
                       </div>
                     </div>
 
                     <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'block' }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'block' }}>
                         Valor Total da Fatura em Aberto:
                       </span>
-                      <strong className="text-rose-400 font-mono" style={{ fontSize: '1rem' }}>
+                      <strong className="text-rose-400 font-mono" style={{ fontSize: '1rem', color: 'var(--accent-rose)' }}>
                         {b.currentAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </strong>
                     </div>
@@ -1716,15 +1721,15 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                     }}
                   >
                     <div style={{ padding: '6px 8px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
-                      <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.66rem' }}>Em Naturezas:</span>
-                      <strong className="text-emerald-400 font-mono">
+                      <span style={{ color: 'var(--text-secondary)', fontWeight: 600, display: 'block', fontSize: '0.68rem' }}>Em Naturezas:</span>
+                      <strong className="text-emerald-400 font-mono" style={{ color: 'var(--accent-emerald)' }}>
                         {totalAllocatedInNatures.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </strong>
                     </div>
 
                     <div style={{ padding: '6px 8px', borderRadius: '6px', background: 'rgba(6, 182, 212, 0.08)', border: '1px solid rgba(6, 182, 212, 0.25)' }}>
-                      <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.66rem' }}>Em "Outros":</span>
-                      <strong className="text-cyan font-mono">
+                      <span style={{ color: 'var(--text-secondary)', fontWeight: 600, display: 'block', fontSize: '0.68rem' }}>Em "Outros":</span>
+                      <strong className="text-cyan font-mono" style={{ color: 'var(--accent-cyan)' }}>
                         {totalAllocatedInOutros.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </strong>
                     </div>
@@ -1734,13 +1739,13 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                         padding: '6px 8px',
                         borderRadius: '6px',
                         background: unanalyzedAmount > 0 ? 'rgba(245, 158, 11, 0.12)' : 'rgba(255, 255, 255, 0.04)',
-                        border: unanalyzedAmount > 0 ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
+                        border: unanalyzedAmount > 0 ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid var(--border-default)',
                       }}
                     >
-                      <span style={{ color: unanalyzedAmount > 0 ? '#fcd34d' : 'var(--text-muted)', display: 'block', fontSize: '0.66rem', fontWeight: unanalyzedAmount > 0 ? 600 : 400 }}>
+                      <span style={{ color: unanalyzedAmount > 0 ? '#d97706' : 'var(--text-secondary)', display: 'block', fontSize: '0.68rem', fontWeight: 700 }}>
                         {unanalyzedAmount > 0 ? '⚠️ Não Analisada:' : 'Não Analisada:'}
                       </span>
-                      <strong className={unanalyzedAmount > 0 ? 'text-amber font-mono' : 'text-slate-400 font-mono'}>
+                      <strong style={{ color: unanalyzedAmount > 0 ? 'var(--accent-amber)' : 'var(--text-muted)', fontFamily: 'monospace' }}>
                         {unanalyzedAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </strong>
                     </div>
@@ -1784,8 +1789,8 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                             style={{
                               padding: '0.55rem 0.65rem',
                               borderRadius: '8px',
-                              background: 'rgba(255, 255, 255, 0.03)',
-                              border: '1px solid rgba(255, 255, 255, 0.08)',
+                              background: 'var(--bg-app)',
+                              border: '1px solid var(--border-default)',
                               display: 'flex',
                               flexDirection: 'column',
                               gap: '0.4rem',
@@ -1796,7 +1801,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                               {/* Seletor de Natureza */}
                               <select
                                 className="form-input"
-                                style={{ fontSize: '0.76rem', padding: '4px 6px' }}
+                                style={{ fontSize: '0.78rem', fontWeight: 600, padding: '4px 6px' }}
                                 value={row.natureId}
                                 onChange={(e) => handleBreakdownNatureChange(b.id, row.id, e.target.value)}
                               >
@@ -1813,7 +1818,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                               {availableMappingItems.length > 0 && (
                                 <select
                                   className="form-input"
-                                  style={{ fontSize: '0.75rem', padding: '4px 6px' }}
+                                  style={{ fontSize: '0.78rem', padding: '4px 6px' }}
                                   value={combinedMappingValue}
                                   onChange={(e) => handleBreakdownMappingItemChange(b.id, row.id, e.target.value)}
                                 >
@@ -1843,14 +1848,14 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                               <input
                                 type="text"
                                 className="form-input"
-                                style={{ fontSize: '0.76rem', padding: '4px 8px' }}
+                                style={{ fontSize: '0.8rem', padding: '4px 8px' }}
                                 placeholder="Descrição do gasto (ex: Compras de Mercado, Farmácia...)"
                                 value={row.description}
                                 onChange={(e) => handleBreakdownDescriptionChange(b.id, row.id, e.target.value)}
                               />
 
                               <div style={{ position: 'relative' }}>
-                                <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', fontWeight: 600, color: 'var(--accent-emerald)', fontSize: '0.75rem' }}>
+                                <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', fontWeight: 700, color: 'var(--accent-emerald)', fontSize: '0.78rem' }}>
                                   R$
                                 </span>
                                 <input
@@ -1860,7 +1865,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                                     paddingLeft: '28px',
                                     fontWeight: 700,
                                     color: 'var(--accent-emerald)',
-                                    fontSize: '0.82rem',
+                                    fontSize: '0.85rem',
                                     padding: '4px 6px 4px 26px',
                                   }}
                                   placeholder="0,00"
@@ -1876,11 +1881,11 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                   </div>
 
                   {/* Botões de Ação para o Banco */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', paddingTop: '0.35rem', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', paddingTop: '0.35rem', borderTop: '1px solid var(--border-subtle)' }}>
                     <button
                       type="button"
                       className="btn btn-outline btn-xs text-cyan"
-                      style={{ fontSize: '0.72rem', padding: '3px 8px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                      style={{ fontSize: '0.74rem', fontWeight: 600, padding: '3px 8px', display: 'flex', alignItems: 'center', gap: '4px' }}
                       onClick={() => handleAddBreakdownRow(b.id)}
                     >
                       <Plus size={12} />
@@ -1891,7 +1896,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                       <button
                         type="button"
                         className="btn btn-outline btn-xs text-amber"
-                        style={{ fontSize: '0.72rem', padding: '3px 8px', display: 'flex', alignItems: 'center', gap: '4px', borderColor: 'rgba(245, 158, 11, 0.4)' }}
+                        style={{ fontSize: '0.74rem', fontWeight: 600, padding: '3px 8px', display: 'flex', alignItems: 'center', gap: '4px', borderColor: 'rgba(245, 158, 11, 0.4)' }}
                         onClick={() => handleAllocateRestToOutros(b.id, unanalyzedAmount)}
                         title="Criar uma linha 'Outros' com todo o valor restante não analisado"
                       >
@@ -1911,7 +1916,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
             style={{
               position: 'sticky',
               bottom: 0,
-              background: 'rgba(15, 23, 42, 0.96)',
+              background: 'var(--bg-sidebar)',
               backdropFilter: 'blur(10px)',
               marginTop: '0.65rem',
               paddingTop: '0.75rem',
