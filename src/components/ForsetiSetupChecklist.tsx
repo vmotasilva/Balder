@@ -67,7 +67,12 @@ export const ForsetiSetupChecklist: React.FC<ForsetiSetupChecklistProps> = ({
       <div className="checklist-header">
         <div className="checklist-header-left">
           <div className="forseti-avatar-box">
-            <img src="/forseti-avatar.png" alt="Forseti IA" className="forseti-avatar-img" />
+            <img
+              src="/forseti-avatar.png"
+              alt="Forseti IA"
+              className="forseti-avatar-img"
+              style={{ width: 44, height: 44, minWidth: 44, minHeight: 44, objectFit: 'cover', borderRadius: 12 }}
+            />
             <span className="forseti-pulse-dot" />
           </div>
 
