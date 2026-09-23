@@ -1,44 +1,80 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { useTheme } from '../context/ThemeContext';
 import { Plus, Sparkles, Sun, Moon, LayoutGrid } from 'lucide-react';
+import { BalderHubModal } from './BalderHubModal';
 
 interface NavbarProps {
   onOpenNewMovementModal: () => void;
   onOpenSimulationModal: () => void;
   onOpenNavMenu?: () => void;
+  onOpenOnboarding?: (stepIndex?: number) => void;
+  onNavigateToMovements?: () => void;
+  onNavigateToInvoices?: () => void;
+  onNavigateToGoals?: () => void;
+  onNavigateToCopilot?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   onOpenNewMovementModal,
   onOpenSimulationModal,
   onOpenNavMenu,
+  onOpenOnboarding,
+  onNavigateToMovements,
+  onNavigateToInvoices,
+  onNavigateToGoals,
+  onNavigateToCopilot,
 }) => {
-  const { availableBalance, emergencyReserveMonths, nextCriticalEvent } = useFinancial();
+  const {
+    availableBalance,
+    emergencyReserveMonths,
+    nextCriticalEvent,
+    activeCheckpoint,
+    movements,
+    cards,
+    natures,
+  } = useFinancial();
   const { theme, toggleTheme } = useTheme();
+  const [isHubOpen, setIsHubOpen] = useState(false);
+
+  // Indica se há alertas ou calibração pendente para exibir indicador no logo
+  const hasPendingCalibration =
+    !activeCheckpoint ||
+    (movements.filter((m) => m.type === 'CARTAO').length === 0 && cards.length === 0) ||
+    natures.length === 0;
+  const hasHubAlerts = hasPendingCalibration || !!nextCriticalEvent;
 
   return (
-    <header className="app-navbar">
-      <div className="navbar-left">
-        <div className="navbar-brand">
-          <div className="navbar-brand-logo-icon">
-            <img src="/logo-app.png" alt="Balder" className="navbar-brand-logo-img" />
-          </div>
-          <span className="navbar-brand-title">BALDER</span>
-        </div>
-
-        {onOpenNavMenu && (
+    <>
+      <header className="app-navbar">
+        <div className="navbar-left">
+          {/* Botão Interativo do Símbolo do Balder: Abre Get Started & Notificações */}
           <button
             type="button"
-            className="navbar-menu-btn"
-            onClick={onOpenNavMenu}
-            title="Menu de Navegação (Módulos & Telas)"
-            aria-label="Abrir Menu de Navegação"
+            className="navbar-brand-btn"
+            onClick={() => setIsHubOpen(true)}
+            title="Abrir Central Balder: Notificações & Get Started"
+            aria-label="Abrir Central Balder: Notificações & Get Started"
           >
-            <LayoutGrid size={16} className="text-cyan" />
-            <span className="navbar-menu-btn-text">Módulos</span>
+            <div className="navbar-brand-logo-icon">
+              <img src="/logo-app.png" alt="Balder" className="navbar-brand-logo-img" />
+              {hasHubAlerts && <span className="balder-logo-indicator" />}
+            </div>
+            <span className="navbar-brand-title">BALDER</span>
           </button>
-        )}
+
+          {onOpenNavMenu && (
+            <button
+              type="button"
+              className="navbar-menu-btn"
+              onClick={onOpenNavMenu}
+              title="Menu de Navegação (Módulos & Telas)"
+              aria-label="Abrir Menu de Navegação"
+            >
+              <LayoutGrid size={16} className="text-cyan" />
+              <span className="navbar-menu-btn-text">Módulos</span>
+            </button>
+          )}
 
         {nextCriticalEvent && (
           <div className="critical-notice-banner">
@@ -99,5 +135,17 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
       </div>
     </header>
+
+    {/* Modal da Central Balder (Notificações & Acesso Rápido ao Get Started) */}
+    <BalderHubModal
+      isOpen={isHubOpen}
+      onClose={() => setIsHubOpen(false)}
+      onOpenOnboarding={onOpenOnboarding || (() => {})}
+      onNavigateToMovements={onNavigateToMovements}
+      onNavigateToInvoices={onNavigateToInvoices}
+      onNavigateToGoals={onNavigateToGoals}
+      onNavigateToCopilot={onNavigateToCopilot}
+    />
+  </>
   );
 };

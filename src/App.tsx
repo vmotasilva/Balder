@@ -126,6 +126,11 @@ export function AppContent() {
           onOpenNewMovementModal={() => handleOpenNewMovement('PAGAR')}
           onOpenSimulationModal={() => handleOpenSimulation('CARRO')}
           onOpenNavMenu={() => setIsNavMenuOpen(true)}
+          onOpenOnboarding={handleOpenOnboarding}
+          onNavigateToMovements={() => setActiveTab('MOVIMENTACOES')}
+          onNavigateToInvoices={() => setActiveTab('FATURAS')}
+          onNavigateToGoals={() => setActiveTab('METAS')}
+          onNavigateToCopilot={() => setIsCopilotOpen(true)}
         />
 
         <main className="app-content-viewport">
