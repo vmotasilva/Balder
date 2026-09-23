@@ -389,7 +389,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
     <div className="nature-budget-grid-container glass-card animate-fade-in">
       {/* Cabeçalho da Seção */}
       <div className="nature-grid-header">
-        <div className="nature-grid-title-area">
+        <div className="nature-grid-title-area hide-on-mobile">
           <div className="flex items-center gap-2">
             <span className="badge badge-cyan text-xs font-semibold">ORÇAMENTO & NATUREZAS</span>
             <span className="text-xs text-muted">Acompanhamento Mensal</span>

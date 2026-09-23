@@ -6204,10 +6204,11 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     font-size: 12px;
   }
 
-  /* Ocultar títulos, subtextos e card informativo azul da Projeção Orçamentária no mobile conforme solicitado */
+  /* Ocultar títulos, subtextos e cabeçalhos explicativos no mobile conforme solicitado */
   .monthly-projection-heading,
   .monthly-projection-subtext,
   .grid-interactive-tip,
+  .nature-grid-title-area,
   .hide-on-mobile {
     display: none !important;
   }
