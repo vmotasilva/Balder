@@ -10,8 +10,13 @@ import {
   CheckCircle2,
   Flag,
   MapPin,
+  Calendar,
+  Layers,
+  Target,
 } from 'lucide-react';
 import type { SimulationPresetId } from '../types';
+
+export type DashboardTab = 'PROJECAO_MES' | 'PROJECAO_TOTAL' | 'NATUREZAS' | 'METAS';
 import { MonthlyProjectionGrid } from '../components/MonthlyProjectionGrid';
 import { NatureBudgetGrid } from '../components/NatureBudgetGrid';
 import { CheckpointSetupModal } from '../components/CheckpointSetupModal';
@@ -50,11 +55,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   } = useFinancial();
 
   const [isCheckpointModalOpen, setIsCheckpointModalOpen] = useState(false);
-
-  const mainGoal = goals[0];
-  const goalPercent = mainGoal && mainGoal.targetAmount > 0
-    ? Math.min(Math.round((mainGoal.currentAmount / mainGoal.targetAmount) * 100), 100)
-    : 0;
+  const [activeSection, setActiveSection] = useState<DashboardTab>('PROJECAO_MES');
 
   // Aguarda os dados do Supabase antes de renderizar para evitar flash de dados demo
   if (!isDataReady) {
@@ -220,199 +221,284 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       </section>
 
       {/* ============================================================== */}
-      {/* SEÇÃO 2: O QUE VAI ACONTECER (30 DIAS)                         */}
+      {/* SELETOR PRINCIPAL DE SEÇÕES (TABS INTERATIVAS)                 */}
       {/* ============================================================== */}
-      <section className="dashboard-section">
-        <div className="section-title-row">
-          <div className="section-title-left">
-            <span className="badge badge-purple">PROJEÇÃO PROSPECTIVA</span>
-            <h2 className="section-heading">O Que Vai Acontecer</h2>
-          </div>
-          <button className="link-button" onClick={onNavigateToMovements}>
-            Ver todas as movimentações e filtros →
+      <div className="dashboard-tabs-container">
+        <div className="dashboard-tabs-nav" role="tablist" aria-label="Seções do Dashboard">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeSection === 'PROJECAO_MES'}
+            className={`dashboard-tab-btn ${activeSection === 'PROJECAO_MES' ? 'active' : ''}`}
+            onClick={() => setActiveSection('PROJECAO_MES')}
+          >
+            <Calendar size={18} />
+            <span>Projeção do Mês</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeSection === 'PROJECAO_TOTAL'}
+            className={`dashboard-tab-btn ${activeSection === 'PROJECAO_TOTAL' ? 'active' : ''}`}
+            onClick={() => setActiveSection('PROJECAO_TOTAL')}
+          >
+            <TrendingUp size={18} />
+            <span>Projeção Total</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeSection === 'NATUREZAS'}
+            className={`dashboard-tab-btn ${activeSection === 'NATUREZAS' ? 'active' : ''}`}
+            onClick={() => setActiveSection('NATUREZAS')}
+          >
+            <Layers size={18} />
+            <span>Naturezas</span>
+          </button>
+
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeSection === 'METAS'}
+            className={`dashboard-tab-btn ${activeSection === 'METAS' ? 'active' : ''}`}
+            onClick={() => setActiveSection('METAS')}
+          >
+            <Target size={18} />
+            <span>Metas</span>
+            {goals.length > 0 && (
+              <span className="dashboard-tab-badge">{goals.length}</span>
+            )}
           </button>
         </div>
-
-        <div className="cashflow-projection-card glass-card">
-          <div className="projection-grid-4">
-            <div className="projection-col">
-              <div className="proj-label-row">
-                <span className="proj-icon text-emerald">↓</span>
-                <span className="proj-label">A RECEBER</span>
-              </div>
-              <span className="proj-value text-emerald">
-                +{forecast30d.income.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-              </span>
-              <span className="proj-subtext">Salários & Proventos previstos</span>
-            </div>
-
-            <div className="projection-col">
-              <div className="proj-label-row">
-                <span className="proj-icon text-rose">↑</span>
-                <span className="proj-label">A PAGAR (TOTAL)</span>
-              </div>
-              <span className="proj-value text-rose">
-                -{forecast30d.expenses.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-              </span>
-              <span className="proj-subtext">Contas fixas, faturas e empréstimos</span>
-            </div>
-
-            <div className="projection-col">
-              <div className="proj-label-row">
-                <span className="proj-icon text-cyan">±</span>
-                <span className="proj-label">RESULTADO LÍQUIDO 30D</span>
-              </div>
-              <span className={`proj-value ${forecast30d.net >= 0 ? 'text-cyan' : 'text-rose'}`}>
-                {forecast30d.net >= 0 ? '+' : ''}
-                {forecast30d.net.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-              </span>
-              <span className="proj-subtext">Saldo gerado no ciclo</span>
-            </div>
-
-            <div className="projection-col highlighted-col">
-              <div className="proj-label-row">
-                <span className="proj-icon text-amber">🏛️</span>
-                <span className="proj-label">SALDO PROJETADO EM 30 DIAS</span>
-              </div>
-              <span className="proj-value text-white font-bold">
-                {forecast30d.projectedBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-              </span>
-              <span className="proj-subtext">Caixa final estimado com folga</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Grid Duplo: Próximo Evento Crítico + Minhas Metas */}
-      <div className="dashboard-split-grid">
-        {/* ============================================================== */}
-        {/* SEÇÃO 3: PRÓXIMO EVENTO CRÍTICO                                */}
-        {/* ============================================================== */}
-        <section className="dashboard-section flex-1">
-          <div className="section-title-row">
-            <div className="section-title-left">
-              <span className="badge badge-rose">ATENÇÃO IMEDIATA</span>
-              <h2 className="section-heading">Próximo Evento Crítico</h2>
-            </div>
-          </div>
-
-          {nextCriticalEvent ? (
-            <div className="critical-card glass-card">
-              <div className="critical-header">
-                <div className="critical-alert-icon">
-                  <ShieldAlert size={22} className="text-rose" />
-                </div>
-                <div className="critical-details">
-                  <h3 className="critical-title">{nextCriticalEvent.title}</h3>
-                  <span className="critical-entity">Entidade: {nextCriticalEvent.relatedEntity || 'Bancário'}</span>
-                </div>
-                <div className="countdown-pill">
-                  <span className="countdown-num">{nextCriticalEvent.daysRemaining}</span>
-                  <span className="countdown-label">dias restantes</span>
-                </div>
-              </div>
-
-              <div className="critical-amount-row">
-                <span className="critical-amount-label">Valor do Evento:</span>
-                <span className="critical-amount-val text-rose">
-                  {nextCriticalEvent.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                </span>
-              </div>
-
-              <div className="critical-action-box">
-                <span className="action-tag">AÇÃO RECOMENDADA:</span>
-                <p className="action-desc">{nextCriticalEvent.recommendedAction}</p>
-              </div>
-            </div>
-          ) : (
-            <div className="glass-card safe-state-card">
-              <CheckCircle2 size={28} className="text-emerald" />
-              <h4>Nenhum risco financeiro detectado para os próximos 15 dias.</h4>
-              <p>Seu fluxo de caixa está perfeitamente equilibrado.</p>
-            </div>
-          )}
-        </section>
-
-        {/* ============================================================== */}
-        {/* SEÇÃO 4: MINHAS METAS                                          */}
-        {/* ============================================================== */}
-        <section className="dashboard-section flex-1">
-          <div className="section-title-row">
-            <div className="section-title-left">
-              <span className="badge badge-emerald">OBJETIVOS</span>
-              <h2 className="section-heading">Minhas Metas</h2>
-            </div>
-            <button className="link-button" onClick={onNavigateToGoals}>
-              Ver todas as metas →
-            </button>
-          </div>
-
-          {mainGoal ? (
-            <div className="goal-featured-card glass-card">
-              <div className="goal-featured-header">
-                <div className="goal-icon-title">
-                  <span className="goal-symbol">{mainGoal.icon}</span>
-                  <div>
-                    <h3 className="goal-featured-name">{mainGoal.title}</h3>
-                    <span className="goal-category-tag">{mainGoal.category}</span>
-                  </div>
-                </div>
-                <span className="goal-percent-badge">{goalPercent}%</span>
-              </div>
-
-              {/* Progress Bar */}
-              <div className="goal-progress-track">
-                <div className="goal-progress-fill" style={{ width: `${goalPercent}%` }}></div>
-              </div>
-
-              <div className="goal-values-row">
-                <span>
-                  Atual: <strong>{mainGoal.currentAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
-                </span>
-                <span>
-                  Alvo: <strong>{mainGoal.targetAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
-                </span>
-              </div>
-
-              <div className="goal-meta-grid">
-                <div className="goal-meta-item">
-                  <span className="goal-meta-label">APORTE MENSAL</span>
-                  <span className="goal-meta-val text-emerald">
-                    +{mainGoal.monthlyContribution.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês
-                  </span>
-                </div>
-
-                <div className="goal-meta-item">
-                  <span className="goal-meta-label">PREVISÃO ESTIMADA</span>
-                  <span className="goal-meta-val text-cyan">{mainGoal.targetDate}</span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="glass-card safe-state-card" style={{ padding: '24px', textAlign: 'center' }}>
-              <CheckCircle2 size={24} className="text-emerald" style={{ margin: '0 auto 8px' }} />
-              <h4 style={{ fontSize: '13px', marginBottom: '4px' }}>Nenhuma meta cadastrada</h4>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>
-                Defina seus objetivos financeiros e acompanhe a evolução do seu patrimônio.
-              </p>
-            </div>
-          )}
-        </section>
       </div>
 
       {/* ============================================================== */}
-      {/* SEÇÃO NOBRE: GRID DE PROJEÇÃO ORÇAMENTÁRIA MÊS A MÊS          */}
+      {/* CONTEÚDO 1: PROJEÇÃO DO MÊS (30 DIAS + EVENTO CRÍTICO)         */}
       {/* ============================================================== */}
-      <section className="dashboard-section">
-        <MonthlyProjectionGrid />
-      </section>
+      {activeSection === 'PROJECAO_MES' && (
+        <div key="projecao-mes" className="dashboard-tab-content animate-fade-in">
+          {/* Seção O Que Vai Acontecer (30 Dias) */}
+          <section className="dashboard-section">
+            <div className="section-title-row">
+              <div className="section-title-left">
+                <span className="badge badge-purple">PROJEÇÃO PROSPECTIVA</span>
+                <h2 className="section-heading">O Que Vai Acontecer (30 Dias)</h2>
+              </div>
+              <button className="link-button" onClick={onNavigateToMovements}>
+                Ver todas as movimentações e filtros →
+              </button>
+            </div>
+
+            <div className="cashflow-projection-card glass-card">
+              <div className="projection-grid-4">
+                <div className="projection-col">
+                  <div className="proj-label-row">
+                    <span className="proj-icon text-emerald">↓</span>
+                    <span className="proj-label">A RECEBER</span>
+                  </div>
+                  <span className="proj-value text-emerald">
+                    +{forecast30d.income.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </span>
+                  <span className="proj-subtext">Salários & Proventos previstos</span>
+                </div>
+
+                <div className="projection-col">
+                  <div className="proj-label-row">
+                    <span className="proj-icon text-rose">↑</span>
+                    <span className="proj-label">A PAGAR (TOTAL)</span>
+                  </div>
+                  <span className="proj-value text-rose">
+                    -{forecast30d.expenses.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </span>
+                  <span className="proj-subtext">Contas fixas, faturas e empréstimos</span>
+                </div>
+
+                <div className="projection-col">
+                  <div className="proj-label-row">
+                    <span className="proj-icon text-cyan">±</span>
+                    <span className="proj-label">RESULTADO LÍQUIDO 30D</span>
+                  </div>
+                  <span className={`proj-value ${forecast30d.net >= 0 ? 'text-cyan' : 'text-rose'}`}>
+                    {forecast30d.net >= 0 ? '+' : ''}
+                    {forecast30d.net.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </span>
+                  <span className="proj-subtext">Saldo gerado no ciclo</span>
+                </div>
+
+                <div className="projection-col highlighted-col">
+                  <div className="proj-label-row">
+                    <span className="proj-icon text-amber">🏛️</span>
+                    <span className="proj-label">SALDO PROJETADO EM 30 DIAS</span>
+                  </div>
+                  <span className="proj-value text-white font-bold">
+                    {forecast30d.projectedBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </span>
+                  <span className="proj-subtext">Caixa final estimado com folga</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Seção Próximo Evento Crítico */}
+          <section className="dashboard-section">
+            <div className="section-title-row">
+              <div className="section-title-left">
+                <span className="badge badge-rose">ATENÇÃO IMEDIATA</span>
+                <h2 className="section-heading">Próximo Evento Crítico</h2>
+              </div>
+            </div>
+
+            {nextCriticalEvent ? (
+              <div className="critical-card glass-card">
+                <div className="critical-header">
+                  <div className="critical-alert-icon">
+                    <ShieldAlert size={22} className="text-rose" />
+                  </div>
+                  <div className="critical-details">
+                    <h3 className="critical-title">{nextCriticalEvent.title}</h3>
+                    <span className="critical-entity">Entidade: {nextCriticalEvent.relatedEntity || 'Bancário'}</span>
+                  </div>
+                  <div className="countdown-pill">
+                    <span className="countdown-num">{nextCriticalEvent.daysRemaining}</span>
+                    <span className="countdown-label">dias restantes</span>
+                  </div>
+                </div>
+
+                <div className="critical-amount-row">
+                  <span className="critical-amount-label">Valor do Evento:</span>
+                  <span className="critical-amount-val text-rose">
+                    {nextCriticalEvent.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </span>
+                </div>
+
+                <div className="critical-action-box">
+                  <span className="action-tag">AÇÃO RECOMENDADA:</span>
+                  <p className="action-desc">{nextCriticalEvent.recommendedAction}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="glass-card safe-state-card">
+                <CheckCircle2 size={28} className="text-emerald" />
+                <h4>Nenhum risco financeiro detectado para os próximos 15 dias.</h4>
+                <p>Seu fluxo de caixa está perfeitamente equilibrado.</p>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
 
       {/* ============================================================== */}
-      {/* SEÇÃO NOBRE: GRID DE NATUREZAS (PREVISTO vs REALIZADO)         */}
+      {/* CONTEÚDO 2: PROJEÇÃO TOTAL (GRID ORÇAMENTÁRIA MÊS A MÊS)       */}
       {/* ============================================================== */}
-      <section className="dashboard-section">
-        <NatureBudgetGrid onNavigateToNatures={onNavigateToNatures} />
-      </section>
+      {activeSection === 'PROJECAO_TOTAL' && (
+        <div key="projecao-total" className="dashboard-tab-content animate-fade-in">
+          <section className="dashboard-section">
+            <MonthlyProjectionGrid />
+          </section>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* CONTEÚDO 3: NATUREZAS (PREVISTO vs REALIZADO & TETOS)          */}
+      {/* ============================================================== */}
+      {activeSection === 'NATUREZAS' && (
+        <div key="naturezas" className="dashboard-tab-content animate-fade-in">
+          <section className="dashboard-section">
+            <NatureBudgetGrid onNavigateToNatures={onNavigateToNatures} />
+          </section>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* CONTEÚDO 4: METAS                                              */}
+      {/* ============================================================== */}
+      {activeSection === 'METAS' && (
+        <div key="metas" className="dashboard-tab-content animate-fade-in">
+          <section className="dashboard-section">
+            <div className="section-title-row">
+              <div className="section-title-left">
+                <span className="badge badge-emerald">OBJETIVOS</span>
+                <h2 className="section-heading">Minhas Metas</h2>
+              </div>
+              <button className="link-button" onClick={onNavigateToGoals}>
+                Ver todas as metas →
+              </button>
+            </div>
+
+            {goals && goals.length > 0 ? (
+              <div className="goals-cards-grid" style={{ gridTemplateColumns: goals.length === 1 ? '1fr' : 'repeat(auto-fit, minmax(320px, 1fr))' }}>
+                {goals.map((goal) => {
+                  const percent = goal.targetAmount > 0
+                    ? Math.min(Math.round((goal.currentAmount / goal.targetAmount) * 100), 100)
+                    : 0;
+
+                  return (
+                    <div key={goal.id} className="goal-featured-card glass-card">
+                      <div className="goal-featured-header">
+                        <div className="goal-icon-title">
+                          <span className="goal-symbol">{goal.icon}</span>
+                          <div>
+                            <h3 className="goal-featured-name">{goal.title}</h3>
+                            <span className="goal-category-tag">{goal.category}</span>
+                          </div>
+                        </div>
+                        <span className="goal-percent-badge">{percent}%</span>
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="goal-progress-track">
+                        <div className="goal-progress-fill" style={{ width: `${percent}%`, backgroundColor: goal.color || 'var(--accent-emerald)' }}></div>
+                      </div>
+
+                      <div className="goal-values-row">
+                        <span>
+                          Atual: <strong>{goal.currentAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+                        </span>
+                        <span>
+                          Alvo: <strong>{goal.targetAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+                        </span>
+                      </div>
+
+                      <div className="goal-meta-grid">
+                        <div className="goal-meta-item">
+                          <span className="goal-meta-label">APORTE MENSAL</span>
+                          <span className="goal-meta-val text-emerald">
+                            +{goal.monthlyContribution.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês
+                          </span>
+                        </div>
+
+                        <div className="goal-meta-item">
+                          <span className="goal-meta-label">PREVISÃO ESTIMADA</span>
+                          <span className="goal-meta-val text-cyan">{goal.targetDate}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="glass-card safe-state-card" style={{ padding: '36px 24px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                <CheckCircle2 size={32} className="text-emerald" />
+                <h4 style={{ fontSize: '15px', fontWeight: 600, margin: 0 }}>Nenhuma meta cadastrada</h4>
+                <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0, maxWidth: '420px' }}>
+                  Defina seus objetivos financeiros, acompanhe a evolução do seu patrimônio e projete quando atingirá sua independência.
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={onNavigateToGoals}
+                  style={{ marginTop: '8px' }}
+                >
+                  <Target size={16} />
+                  <span>Cadastrar Primeira Meta</span>
+                </button>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
 
 
 
