@@ -1774,44 +1774,188 @@
   color: #64748b;
 }
 
-.copilot-roles-banner {
-  display: flex;
+/* ── Forseti Info Button no Header Desktop ────────────────────────── */
+.forseti-header-info-btn {
+  display: inline-flex;
   align-items: center;
-  padding: 12px 20px;
-  gap: 16px;
+  gap: 7px;
+  padding: 7px 14px;
+  border-radius: var(--radius-pill);
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: var(--accent-cyan);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
   flex-shrink: 0;
 }
 
-.role-item {
+.forseti-header-info-btn:hover {
+  background: rgba(56, 189, 248, 0.16);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
+}
+
+/* ── Topbar Compacta do Chat Forseti (Desktop & Mobile) ──────────── */
+.copilot-chat-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: rgba(15, 23, 42, 0.7);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  flex-shrink: 0;
+}
+
+.copilot-topbar-identity {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex: 1;
+  min-width: 0;
 }
 
-.role-icon {
+.copilot-topbar-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1.5px solid rgba(212, 175, 55, 0.7);
+  flex-shrink: 0;
+  box-shadow: 0 0 8px rgba(212, 175, 55, 0.2);
+}
+
+.copilot-topbar-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.copilot-topbar-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.copilot-topbar-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.copilot-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+  display: inline-block;
+}
+
+.copilot-topbar-sub {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.copilot-info-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: var(--radius-pill);
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  color: var(--accent-cyan);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.copilot-info-icon-btn:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: var(--accent-cyan);
+}
+
+/* ── Modal Pop-up: Como o Forseti Opera ────────────────────────── */
+.copilot-roles-modal {
+  width: 92%;
+  max-width: 480px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-default);
+  border-radius: 16px;
+  padding: 18px 20px;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.copilot-roles-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.forseti-modal-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1.5px solid rgba(212, 175, 55, 0.6);
+  flex-shrink: 0;
+}
+
+.forseti-modal-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.copilot-roles-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.role-modal-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.role-modal-icon {
   font-size: 20px;
+  flex-shrink: 0;
+  margin-top: 2px;
 }
 
-.role-content {
+.role-modal-info {
   display: flex;
   flex-direction: column;
 }
 
-.role-name {
+.role-modal-title {
   font-size: 12px;
   font-weight: 700;
 }
 
-.role-desc {
+.role-modal-desc {
   font-size: 11px;
   color: var(--text-muted);
-}
-
-.role-divider {
-  width: 1px;
-  height: 28px;
-  background: var(--border-default);
+  margin-top: 2px;
+  line-height: 1.4;
 }
 
 .copilot-chat-container {
@@ -2037,51 +2181,160 @@
   transform: scale(1.1);
 }
 
-/* Chat Input Bar & Attach Button */
-.chat-attach-btn {
-  display: inline-flex;
+/* ── Botão '+' Agrupador e Popover de Ações ────────────────────── */
+.chat-plus-menu-wrapper {
+  position: relative;
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 9px 14px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  font-size: 12px;
-  font-weight: 600;
   flex-shrink: 0;
 }
 
-.chat-attach-btn:hover {
-  background: rgba(2, 132, 199, 0.12);
+.chat-plus-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.chat-plus-btn:hover {
+  background: rgba(56, 189, 248, 0.15);
   border-color: var(--accent-cyan);
   color: var(--accent-cyan);
 }
 
-.chat-attach-btn.has-attachment {
-  background: rgba(5, 150, 105, 0.15);
+.chat-plus-btn.active {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.35);
+}
+
+.chat-plus-btn.has-attachment {
   border-color: var(--accent-emerald);
   color: var(--accent-emerald);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+  background: rgba(16, 185, 129, 0.12);
 }
 
-[data-theme="light"] .chat-attach-btn {
-  background: #FFFFFF;
-  border-color: var(--border-default);
-  color: #334155;
+.chat-plus-icon {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-[data-theme="light"] .chat-attach-btn:hover {
-  background: #F0F9FF;
-  border-color: #0284C7;
-  color: #0284C7;
+.chat-plus-icon.is-open {
+  transform: rotate(45deg);
 }
 
-[data-theme="light"] .chat-attach-btn.has-attachment {
-  background: #ECFDF5;
-  border-color: #059669;
-  color: #059669;
+/* Popover flutuante do '+' */
+.chat-plus-popover {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  left: 0;
+  width: 290px;
+  background: rgba(15, 23, 42, 0.96);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  padding: 10px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5), 0 0 16px rgba(56, 189, 248, 0.12);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.plus-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.plus-popover-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.plus-popover-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.plus-group-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  padding: 4px 6px 2px;
+}
+
+.plus-popover-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  text-align: left;
+  transition: all var(--transition-fast);
+  color: var(--text-primary);
+  width: 100%;
+}
+
+.plus-popover-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.plus-popover-item.primary-action {
+  background: rgba(56, 189, 248, 0.08);
+  border-color: rgba(56, 189, 248, 0.2);
+}
+
+.plus-popover-item.primary-action:hover {
+  background: rgba(56, 189, 248, 0.16);
+  border-color: var(--accent-cyan);
+}
+
+.plus-item-icon-box {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.plus-item-text-box {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.plus-item-name {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.plus-item-hint {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-top: 1px;
 }
 
 .chat-messages-feed {
@@ -8271,10 +8524,59 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 }
 
 /* 9. Forseti (Copilot) Chat & OCR Components */
-[data-theme="light"] .copilot-roles-banner {
+[data-theme="light"] .forseti-header-info-btn {
+  background: #F0F9FF !important;
+  border-color: #BAE6FD !important;
+  color: #0284C7 !important;
+}
+
+[data-theme="light"] .copilot-chat-topbar {
   background: #FFFFFF !important;
-  border: 1px solid #E2E8F0 !important;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  border-bottom-color: #E2E8F0 !important;
+}
+
+[data-theme="light"] .copilot-info-icon-btn {
+  background: #F0F9FF !important;
+  border-color: #BAE6FD !important;
+  color: #0284C7 !important;
+}
+
+[data-theme="light"] .copilot-roles-modal {
+  background: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+}
+
+[data-theme="light"] .role-modal-card {
+  background: #F8FAFC !important;
+  border-color: #E2E8F0 !important;
+}
+
+[data-theme="light"] .chat-plus-btn {
+  background: #F8FAFC !important;
+  border-color: #CBD5E1 !important;
+  color: #0F172A !important;
+}
+
+[data-theme="light"] .chat-plus-btn:hover,
+[data-theme="light"] .chat-plus-btn.active {
+  background: #F0F9FF !important;
+  border-color: #0284C7 !important;
+  color: #0284C7 !important;
+}
+
+[data-theme="light"] .chat-plus-popover {
+  background: #FFFFFF !important;
+  border-color: #CBD5E1 !important;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.12), 0 0 16px rgba(2, 132, 199, 0.08) !important;
+}
+
+[data-theme="light"] .plus-popover-item:hover {
+  background: #F1F5F9 !important;
+}
+
+[data-theme="light"] .plus-popover-item.primary-action {
+  background: #F0F9FF !important;
+  border-color: #BAE6FD !important;
 }
 
 [data-theme="light"] .copilot-chat-container {

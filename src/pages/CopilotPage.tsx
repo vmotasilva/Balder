@@ -1,19 +1,43 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { ReceiptReconciliationCard } from '../components/ReceiptReconciliationCard';
-import { Send, Sparkles, User, Image as ImageIcon, X, Paperclip, UploadCloud } from 'lucide-react';
+import { Send, Sparkles, User, Image as ImageIcon, X, Paperclip, UploadCloud, Info, Plus } from 'lucide-react';
 
 export const CopilotPage: React.FC = () => {
   const { chatHistory, sendMessageToCopilot, respondToCopilotOption, reconcileReceiptData, natures } = useFinancial();
   const [inputQuery, setInputQuery] = useState('');
   const [attachedImage, setAttachedImage] = useState<{ url: string; name: string } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [showRolesModal, setShowRolesModal] = useState(false);
+  const [showPlusMenu, setShowPlusMenu] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const plusMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory, attachedImage]);
+
+  // Fechar popover do '+' e modal ao clicar fora ou pressionar Escape
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (plusMenuRef.current && !plusMenuRef.current.contains(e.target as Node)) {
+        setShowPlusMenu(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowPlusMenu(false);
+        setShowRolesModal(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   // Suporte a Colar Imagem da Área de Transferência (Ctrl+V)
   useEffect(() => {
@@ -116,7 +140,7 @@ export const CopilotPage: React.FC = () => {
 
   return (
     <div className="page-container copilot-page animate-fade-in">
-      {/* Header */}
+      {/* Header (Desktop) */}
       <div className="page-header forseti-page-header">
         <div className="forseti-header-identity">
           <div className="forseti-header-avatar">
@@ -130,37 +154,15 @@ export const CopilotPage: React.FC = () => {
             <p className="page-subtitle">Comando em linguagem natural, leitura de comprovantes com OCR e conciliação determinística</p>
           </div>
         </div>
-      </div>
-
-      {/* 3 Active Operational Roles Banner */}
-      <div className="copilot-roles-banner glass-card">
-        <div className="role-item">
-          <span className="role-icon">💡</span>
-          <div className="role-content">
-            <span className="role-name text-cyan">Assistente Financeiro</span>
-            <span className="role-desc">Explica cenários, projeta horizontes e calcula viabilidade</span>
-          </div>
-        </div>
-
-        <div className="role-divider"></div>
-
-        <div className="role-item">
-          <span className="role-icon">⚡</span>
-          <div className="role-content">
-            <span className="role-name text-emerald">Assistente Operacional</span>
-            <span className="role-desc">Cadastra e liquida movimentações em linguagem natural</span>
-          </div>
-        </div>
-
-        <div className="role-divider"></div>
-
-        <div className="role-item">
-          <span className="role-icon">🔍</span>
-          <div className="role-content">
-            <span className="role-name text-amber">Auditor Determinístico</span>
-            <span className="role-desc">Audita desvios de saldo e interpreta comprovantes via OCR</span>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => setShowRolesModal(true)}
+          className="forseti-header-info-btn cursor-pointer"
+          title="Ver como o Forseti opera (3 papéis)..."
+        >
+          <Info size={15} className="text-cyan-400" />
+          <span>Como o Forseti opera</span>
+        </button>
       </div>
 
       {/* Chat Container */}
@@ -170,6 +172,31 @@ export const CopilotPage: React.FC = () => {
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
+        {/* Topbar compacta do chat com status e botão de informação (essencial para mobile e desktop) */}
+        <div className="copilot-chat-topbar">
+          <div className="copilot-topbar-identity">
+            <div className="copilot-topbar-avatar">
+              <img src="/forseti-avatar.png" alt="Forseti" />
+            </div>
+            <div className="copilot-topbar-info">
+              <div className="flex items-center gap-1.5">
+                <span className="copilot-topbar-name">BALDER Forseti</span>
+                <span className="copilot-status-dot" title="Forseti Operacional Online" />
+              </div>
+              <span className="copilot-topbar-sub">Patrono da conciliação e auditoria financeira</span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowRolesModal(true)}
+            className="copilot-info-icon-btn cursor-pointer"
+            title="Como o Forseti opera (3 papéis)..."
+          >
+            <Info size={15} />
+            <span className="copilot-info-btn-text">Como opera</span>
+          </button>
+        </div>
         {/* Overlay para Drag & Drop */}
         {isDragging && (
           <div className="drag-drop-overlay animate-fade-in">
@@ -305,28 +332,6 @@ export const CopilotPage: React.FC = () => {
 
         {/* ── Bottom Input Zone ────────────────────────────────── */}
         <div className="chat-bottom-zone">
-          {/* Quick Action Chips — ocultos quando há OCR ativo não conciliado */}
-          {!hasActiveOcr && (
-            <div className="chat-quick-chips-bar">
-              <div className="chips-scroll">
-                {quickChips.map((chip, idx) => (
-                  <button
-                    key={idx}
-                    className={`quick-chip-btn ${chip.includes('Anexar') ? 'highlight-attach-chip' : ''}`}
-                    onClick={() => handleChipClick(chip)}
-                  >
-                    {chip.includes('Anexar') ? (
-                      <ImageIcon size={13} className="text-cyan" />
-                    ) : (
-                      <Sparkles size={12} className="text-cyan" />
-                    )}
-                    <span>{chip}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Preview do Anexo antes de Enviar */}
           {attachedImage && (
             <div className="chat-attachment-preview-bar animate-fade-in">
@@ -353,7 +358,7 @@ export const CopilotPage: React.FC = () => {
             </div>
           )}
 
-          {/* Input Bar */}
+          {/* Input Bar com Botão '+' Unificado para Anexos e Ações */}
           <form onSubmit={handleSend} className="chat-input-bar">
             {/* Hidden File Input */}
             <input
@@ -364,16 +369,81 @@ export const CopilotPage: React.FC = () => {
               style={{ display: 'none' }}
             />
 
-            {/* Botão de Anexo de Imagem */}
-            <button
-              type="button"
-              className={`chat-attach-btn ${attachedImage ? 'has-attachment' : ''}`}
-              onClick={() => fileInputRef.current?.click()}
-              title="Anexar comprovante, fatura ou cupom fiscal (imagem)"
-            >
-              <ImageIcon size={18} />
-              <span className="attach-btn-label">Anexar</span>
-            </button>
+            {/* Botão '+' Agrupador de Anexos e Ações Rápidas */}
+            <div className="chat-plus-menu-wrapper" ref={plusMenuRef}>
+              <button
+                type="button"
+                className={`chat-plus-btn ${showPlusMenu ? 'active' : ''} ${attachedImage ? 'has-attachment' : ''}`}
+                onClick={() => setShowPlusMenu(!showPlusMenu)}
+                title="Anexar comprovante ou selecionar ação rápida (+)"
+              >
+                <Plus size={20} className={`chat-plus-icon ${showPlusMenu ? 'is-open' : ''}`} />
+              </button>
+
+              {/* Popover flutuante com Anexos e Comandos Rápidos */}
+              {showPlusMenu && (
+                <div className="chat-plus-popover animate-scale-up">
+                  <div className="plus-popover-header">
+                    <span className="plus-popover-title">Anexos & Ações Rápidas</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowPlusMenu(false)}
+                      className="text-muted hover:text-primary p-0.5 cursor-pointer"
+                      title="Fechar menu"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+
+                  {/* Anexar Comprovante / Cupom (OCR) */}
+                  <div className="plus-popover-group">
+                    <button
+                      type="button"
+                      className="plus-popover-item primary-action cursor-pointer"
+                      onClick={() => {
+                        setShowPlusMenu(false);
+                        fileInputRef.current?.click();
+                      }}
+                    >
+                      <div className="plus-item-icon-box bg-cyan-500/15 text-cyan-400">
+                        <ImageIcon size={17} />
+                      </div>
+                      <div className="plus-item-text-box">
+                        <strong className="plus-item-name">Anexar Comprovante / Cupom</strong>
+                        <span className="plus-item-hint">Foto ou imagem para leitura com Forseti OCR</span>
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Sugestões de Ações e Comandos Rápidos (ocultos quando há OCR ativo não conciliado) */}
+                  {!hasActiveOcr && (
+                    <div className="plus-popover-group">
+                      <span className="plus-group-label">Sugestões de Comandos</span>
+                      {quickChips
+                        .filter((chip) => !chip.includes('Anexar'))
+                        .map((chip, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            className="plus-popover-item cursor-pointer"
+                            onClick={() => {
+                              setShowPlusMenu(false);
+                              handleSend(undefined, chip);
+                            }}
+                          >
+                            <div className="plus-item-icon-box bg-amber-500/10 text-amber-400">
+                              <Sparkles size={13} />
+                            </div>
+                            <div className="plus-item-text-box">
+                              <span className="plus-item-name text-xs">{chip}</span>
+                            </div>
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             <input
               type="text"
@@ -381,7 +451,7 @@ export const CopilotPage: React.FC = () => {
               placeholder={
                 attachedImage
                   ? "Adicione uma instrução sobre o comprovante (ou clique em Enviar)..."
-                  : "Digite algo ou anexe uma foto de comprovante/cupom fiscal (Ctrl+V para colar)..."
+                  : "Digite algo ou anexe com '+' (Ctrl+V para colar)..."
               }
               value={inputQuery}
               onChange={(e) => setInputQuery(e.target.value)}
@@ -393,11 +463,83 @@ export const CopilotPage: React.FC = () => {
               disabled={!inputQuery.trim() && !attachedImage}
             >
               <Send size={16} />
-              <span>Enviar</span>
+              <span className="send-btn-label">Enviar</span>
             </button>
           </form>
         </div>
       </div>
+
+      {/* Modal Popup Informativo: Como o Forseti Opera (3 Papéis) */}
+      {showRolesModal && (
+        <div className="modal-backdrop animate-fade-in" onClick={() => setShowRolesModal(false)}>
+          <div
+            className="glass-card copilot-roles-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="copilot-roles-modal-header">
+              <div className="flex items-center gap-2.5">
+                <div className="forseti-modal-avatar">
+                  <img src="/forseti-avatar.png" alt="Forseti" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-primary">Como o Forseti opera</h3>
+                  <p className="text-xs text-muted">Inteligência Operacional, Conciliação e Auditoria</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRolesModal(false)}
+                className="text-muted hover:text-primary p-1 cursor-pointer"
+                title="Fechar"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="copilot-roles-modal-body">
+              <div className="role-modal-card">
+                <span className="role-modal-icon">💡</span>
+                <div className="role-modal-info">
+                  <span className="role-modal-title text-cyan">Assistente Financeiro</span>
+                  <p className="role-modal-desc">
+                    Explica cenários futuros, projeta horizontes de liquidez e calcula a viabilidade de compras e decisões estratégicas.
+                  </p>
+                </div>
+              </div>
+
+              <div className="role-modal-card">
+                <span className="role-modal-icon">⚡</span>
+                <div className="role-modal-info">
+                  <span className="role-modal-title text-emerald">Assistente Operacional</span>
+                  <p className="role-modal-desc">
+                    Cadastra, liquida e programa movimentações em linguagem natural diretamente no fluxo de caixa.
+                  </p>
+                </div>
+              </div>
+
+              <div className="role-modal-card">
+                <span className="role-modal-icon">🔍</span>
+                <div className="role-modal-info">
+                  <span className="role-modal-title text-amber">Auditor Determinístico & OCR</span>
+                  <p className="role-modal-desc">
+                    Audita desvios de saldo, identifica inconsistências e extrai dados de comprovantes e cupons fiscais via OCR.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="copilot-roles-modal-footer">
+              <button
+                type="button"
+                className="btn btn-primary text-xs py-2 px-4 w-full justify-center"
+                onClick={() => setShowRolesModal(false)}
+              >
+                Entendi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
