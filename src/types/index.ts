@@ -271,6 +271,8 @@ export interface CopilotMessage {
   timestamp: string;
   attachmentUrl?: string;
   attachmentName?: string;
+  attachmentSize?: string;
+  isEphemeralPurged?: boolean;
   actionBadge?: string;
   suggestedFollowUps?: string[];
   parsedEntry?: Partial<Movement>;

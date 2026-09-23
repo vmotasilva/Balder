@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { ReceiptReconciliationCard } from '../components/ReceiptReconciliationCard';
-import { Send, Sparkles, User, Image as ImageIcon, X, Paperclip, UploadCloud, Info, Plus, ArrowLeft } from 'lucide-react';
+import { Send, Sparkles, User, Image as ImageIcon, X, Paperclip, UploadCloud, Info, Plus, ArrowLeft, ShieldCheck } from 'lucide-react';
 import type { TabId } from '../components/Sidebar';
 
 export interface CopilotPageProps {
@@ -28,7 +28,7 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
 }) => {
   const { chatHistory, sendMessageToCopilot, respondToCopilotOption, reconcileReceiptData, natures } = useFinancial();
   const [inputQuery, setInputQuery] = useState('');
-  const [attachedImage, setAttachedImage] = useState<{ url: string; name: string } | null>(null);
+  const [attachedImage, setAttachedImage] = useState<{ url: string; name: string; size?: string; revoke?: () => void } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [showRolesModal, setShowRolesModal] = useState(false);
   const [showPlusMenu, setShowPlusMenu] = useState(false);
@@ -94,17 +94,25 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const result = e.target?.result as string;
-      if (result) {
-        setAttachedImage({
-          url: result,
-          name: file.name || 'comprovante_anexo.png',
-        });
-      }
-    };
-    reader.readAsDataURL(file);
+    // Cria ObjectURL efêmero no navegador para leitura rápida sem sobrecarregar memória com base64
+    const tempUrl = URL.createObjectURL(file);
+    const sizeFormatted = file.size > 1024 * 1024
+      ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+      : `${Math.round(file.size / 1024)} KB`;
+
+    setAttachedImage({
+      url: tempUrl,
+      name: file.name || 'comprovante_anexo.png',
+      size: sizeFormatted,
+      revoke: () => URL.revokeObjectURL(tempUrl),
+    });
+  };
+
+  const handleRemoveAttachedImage = () => {
+    if (attachedImage?.revoke) {
+      attachedImage.revoke();
+    }
+    setAttachedImage(null);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -267,18 +275,32 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
                     )}
                   </div>
 
-                  {/* Anexo de Imagem na Mensagem do Usuário */}
-                  {msg.attachmentUrl && (
+                  {/* Anexo de Imagem ou Notificação de Espaço Temporário Liberado */}
+                  {(msg.attachmentUrl || msg.isEphemeralPurged) && (
                     <div className="message-attachment-card animate-fade-in">
                       <div className="attachment-thumb-wrap">
-                        <img src={msg.attachmentUrl} alt={msg.attachmentName || 'Comprovante Anexo'} className="message-attachment-img" />
+                        {msg.attachmentUrl ? (
+                          <img src={msg.attachmentUrl} alt={msg.attachmentName || 'Comprovante Anexo'} className="message-attachment-img" />
+                        ) : (
+                          <div className="attachment-purged-thumb flex items-center justify-center w-full h-full bg-emerald-500/10 text-emerald-400">
+                            <ShieldCheck size={18} />
+                          </div>
+                        )}
                       </div>
                       <div className="attachment-card-info">
                         <div className="attachment-card-name-row">
                           <Paperclip size={13} className="text-cyan" />
                           <span className="attachment-filename">{msg.attachmentName || 'Comprovante Anexo'}</span>
+                          {msg.attachmentSize && <span className="text-[10px] text-muted">({msg.attachmentSize})</span>}
                         </div>
-                        <span className="attachment-ocr-badge">Processado com Forseti OCR</span>
+                        {msg.isEphemeralPurged ? (
+                          <span className="attachment-purged-badge flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                            Espaço temporário liberado com sucesso (0 KB em disco)
+                          </span>
+                        ) : (
+                          <span className="attachment-ocr-badge">Processando no buffer temporário...</span>
+                        )}
                       </div>
                     </div>
                   )}
@@ -380,15 +402,19 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
                   <div className="preview-filename-row">
                     <Paperclip size={13} className="text-cyan" />
                     <span className="preview-filename-text">{attachedImage.name}</span>
+                    {attachedImage.size && <span className="text-[10px] text-muted">({attachedImage.size})</span>}
                   </div>
-                  <span className="preview-status-tag">Pronto para Interpretação e Leitura OCR</span>
+                  <span className="preview-status-tag flex items-center gap-1 text-[11px] text-cyan-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                    Espaço temporário • Auto-liberação imediata após OCR
+                  </span>
                 </div>
               </div>
               <button
                 type="button"
                 className="preview-remove-btn"
-                onClick={() => setAttachedImage(null)}
-                title="Remover anexo"
+                onClick={handleRemoveAttachedImage}
+                title="Remover anexo e liberar espaço"
               >
                 <X size={15} />
               </button>
@@ -447,7 +473,7 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
                       </div>
                       <div className="plus-item-text-box">
                         <strong className="plus-item-name">Anexar Comprovante / Cupom</strong>
-                        <span className="plus-item-hint">Foto ou imagem para leitura com Forseti OCR</span>
+                        <span className="plus-item-hint">Foto para leitura com Forseti OCR (espaço temporário auto-liberado)</span>
                       </div>
                     </button>
                   </div>

@@ -124,7 +124,7 @@ interface FinancialContextType {
   runSimulation: (preset: SimulationPresetId) => SimulationScenario;
   simulateCustomFutureScenario: (input: CustomScenarioInput) => FutureScenarioResult;
   applyScenarioToBudget: (result: FutureScenarioResult) => void;
-  sendMessageToCopilot: (query: string, attachment?: { url: string; name: string }) => void;
+  sendMessageToCopilot: (query: string, attachment?: { url: string; name: string; size?: string; revoke?: () => void }) => void;
   respondToCopilotOption: (messageId: string, option: CopilotInteractiveOption) => void;
   reconcileReceiptData: (messageId: string, data: ReceiptReconciliationData) => void;
   exportToCSV: () => void;
@@ -1313,8 +1313,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     alert(`Cenário Efetivado no Balder!\n\nForam gerados os registros correspondentes no seu fluxo de caixa:\n• Injeção de R$ ${result.input.principalAmount.toLocaleString('pt-BR')}\n• Programação da parcela de R$ ${result.computedMonthlyPayment.toLocaleString('pt-BR')}/mês a partir de ${nextMonthStr}.`);
   };
 
-  // Motor Conversacional Inteligente do Forseti (IA)
-  const sendMessageToCopilot = (query: string, attachment?: { url: string; name: string }) => {
+  // Motor Conversacional Inteligente do Forseti (IA) com Retenção Efêmera / Temporária
+  const sendMessageToCopilot = (query: string, attachment?: { url: string; name: string; size?: string; revoke?: () => void }) => {
     const trimmed = query.trim();
     if (!trimmed && !attachment) return;
 
@@ -1325,15 +1325,17 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       timestamp: 'Agora',
       attachmentUrl: attachment?.url,
       attachmentName: attachment?.name,
+      attachmentSize: attachment?.size,
+      isEphemeralPurged: false,
     };
 
-    // 0. Processamento de Imagem Anexada (Visão Computacional / OCR com Forseti)
+    // 0. Processamento de Imagem Anexada (Visão Computacional / OCR com Forseti em Espaço Temporário)
     if (attachment) {
       const loadingId = `ast_loading_${Date.now()}`;
       const loadingMessage: CopilotMessage = {
         id: loadingId,
         role: 'assistant',
-        content: '🔍 **Forseti OCR em execução...** Processando pixels da imagem, identificando estabelecimento e decodificando valores fiscais...',
+        content: '🔍 **Forseti OCR em execução...** Processando pixels da imagem em buffer temporário, identificando estabelecimento e decodificando valores fiscais...',
         timestamp: 'Agora',
         actionBadge: 'VISÃO COMPUTACIONAL OCR',
       };
@@ -1342,6 +1344,22 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       // Execução do pipeline de OCR e visão determinística
       recognizeImageOCR(attachment.url, trimmed).then((ocrResult) => {
+        // Imediatamente libera o arquivo do espaço temporário (memória / blob)
+        if (attachment.revoke) {
+          attachment.revoke();
+        } else if (attachment.url.startsWith('blob:')) {
+          URL.revokeObjectURL(attachment.url);
+        }
+
+        // Atualiza a mensagem do usuário no histórico para remover a imagem pesada da memória
+        setChatHistory((prev) =>
+          prev.map((msg) =>
+            msg.id === userMessage.id
+              ? { ...msg, attachmentUrl: undefined, isEphemeralPurged: true }
+              : msg
+          )
+        );
+
         const ocrItemsText = ocrResult.detectedItems && ocrResult.detectedItems.length > 0
           ? `\n• **Itens / Produtos Reconhecidos:** ${ocrResult.detectedItems.join(', ')}`
           : '';
@@ -1434,7 +1452,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           options: dynamicOptions,
         };
 
-        const ocrText = `📄 **Interpretação de Imagem / Comprovante (Forseti OCR):**\n\nAnalisei o anexo **"${attachment.name}"** através da visão determinística do Balder:\n\n• **Tipo de Registro:** Cupom Fiscal / NFC-e\n• **Favorecido / Estabelecimento:** **${ocrResult.detectedStore}**\n• **Data do Documento:** ${ocrResult.detectedDate.split('-').reverse().join('/')} (Competência Atual)\n• **Valor Reconhecido:** **${ocrResult.detectedAmountFormatted}**${ocrResult.isEstimatedAmount ? ' *(estimado)*' : ''}${paymentMethodDetails}\n• **Natureza Orçamentária Sugerida:** **${ocrResult.detectedCategory}** (${ocrResult.detectedSubcategory || 'Geral'})${ocrItemsText}\n• **Status Orçamentário:** Despesa compatível com o teto previsto para a semana.\n\nComo você deseja lançar ou conciliar essa despesa no seu fluxo de caixa?`;
+        const ocrText = `📄 **Interpretação de Imagem / Comprovante (Forseti OCR):**\n\nAnalisei o anexo **"${attachment.name}"** através da visão determinística do Balder:\n\n• **Tipo de Registro:** Cupom Fiscal / NFC-e\n• **Favorecido / Estabelecimento:** **${ocrResult.detectedStore}**\n• **Data do Documento:** ${ocrResult.detectedDate.split('-').reverse().join('/')} (Competência Atual)\n• **Valor Reconhecido:** **${ocrResult.detectedAmountFormatted}**${ocrResult.isEstimatedAmount ? ' *(estimado)*' : ''}${paymentMethodDetails}\n• **Natureza Orçamentária Sugerida:** **${ocrResult.detectedCategory}** (${ocrResult.detectedSubcategory || 'Geral'})${ocrItemsText}\n• **Status Orçamentário:** Despesa compatível com o teto previsto para a semana.\n• 🔒 **Espaço Temporário Liberado:** O arquivo da imagem foi processado em buffer temporário e **descartado imediatamente** da memória (0 bytes retidos no armazenamento).\n\nComo você deseja lançar ou conciliar essa despesa no seu fluxo de caixa?`;
 
         const receiptReconciliation: ReceiptReconciliationData = {
           id: `rec_${Date.now()}`,
