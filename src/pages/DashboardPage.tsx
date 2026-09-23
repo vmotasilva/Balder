@@ -20,7 +20,6 @@ import { MonthlyProjectionGrid } from '../components/MonthlyProjectionGrid';
 import { NatureBudgetGrid } from '../components/NatureBudgetGrid';
 import { CheckpointSetupModal } from '../components/CheckpointSetupModal';
 import { QuickActionsDropdown } from '../components/QuickActionsDropdown';
-import { ForsetiSetupChecklist } from '../components/ForsetiSetupChecklist';
 
 interface DashboardPageProps {
   onNavigateToMovements: () => void;
@@ -41,7 +40,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onNavigateToNatures,
   onOpenSimulation,
   onOpenPrepayment,
-  onOpenOnboarding,
 }) => {
   const {
     isDataReady,
@@ -111,19 +109,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <span>Consultar Forseti</span>
           </button>
         </div>
-      </div>
-
-      {/* Card de Pendências da Forseti / Calibração Inicial do Sistema */}
-      <div className="mb-6">
-        <ForsetiSetupChecklist
-          onOpenOnboarding={(step) => {
-            if (onOpenOnboarding) {
-              onOpenOnboarding(step);
-            } else {
-              setIsCheckpointModalOpen(true);
-            }
-          }}
-        />
       </div>
 
       {/* ============================================================== */}
