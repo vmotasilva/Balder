@@ -18,7 +18,9 @@ import {
   BookOpen,
   ListChecks,
   Layers,
+  Briefcase,
 } from 'lucide-react';
+import type { SalaryContractType } from '../types';
 
 interface GetStartedOnboardingProps {
   isOpen: boolean;
@@ -96,12 +98,13 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
     addNature,
     natures,
     activeCheckpoint,
+    addSalaryContract,
   } = useFinancial();
 
   const [currentStep, setCurrentStep] = useState<number>(initialStep);
 
   // -------------------------------------------------------------
-  // PASSO 1: Ponto de Partida
+  // PASSO 1: Ponto de Partida & Configuração de Salário
   // -------------------------------------------------------------
   const todayStr = new Date().toISOString().split('T')[0];
   const firstDayOfMonthStr = `${todayStr.substring(0, 7)}-01`;
@@ -114,21 +117,130 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
   );
   const [mainBankName, setMainBankName] = useState<string>('Nubank');
 
+  // Estados de Salário / Remuneração Principal
+  const [hasSalary, setHasSalary] = useState<boolean>(true);
+  const [salaryAmount, setSalaryAmount] = useState<string>('');
+  const [salaryEmployer, setSalaryEmployer] = useState<string>('Empresa / Empregador Principal');
+  const [salaryRole, setSalaryRole] = useState<string>('Remuneração Principal');
+  const [salaryPayDay, setSalaryPayDay] = useState<number>(5);
+  const [salaryContractType, setSalaryContractType] = useState<SalaryContractType>('CLT');
+
   // -------------------------------------------------------------
-  // PASSO 2: Faturas de Cartão em Aberto (Atual & Futura)
+  // PASSO 2: Faturas de Cartão em Aberto (Atual & Múltiplas Futuras por Banco)
   // -------------------------------------------------------------
+  interface FutureInvoiceEntry {
+    id: string;
+    monthOffset: number; // 1 = próximo mês (+1), 2 = daqui a 2 meses (+2), etc.
+    amount: string;
+  }
+
   const [hasCards, setHasCards] = useState<boolean>(true);
   const [cardName, setCardName] = useState('Cartão Principal');
   const [cardBank, setCardBank] = useState('Nubank');
   const [cardDueDay, setCardDueDay] = useState(10);
   const [currentInvoiceAmount, setCurrentInvoiceAmount] = useState<string>('');
-  const [futureInvoiceAmount, setFutureInvoiceAmount] = useState<string>('');
+  
+  // Lista de faturas futuras para o Cartão 1
+  const [card1FutureInvoices, setCard1FutureInvoices] = useState<FutureInvoiceEntry[]>([
+    { id: 'c1_fut_1', monthOffset: 1, amount: '' },
+  ]);
+
+  // Cartão 2 Opcional
   const [hasSecondCard, setHasSecondCard] = useState<boolean>(false);
   const [secondCardName, setSecondCardName] = useState('Segundo Cartão');
   const [secondCardBank, setSecondCardBank] = useState('Inter');
   const [secondCardDueDay, setSecondCardDueDay] = useState(20);
   const [secondCurrentInvoice, setSecondCurrentInvoice] = useState<string>('');
-  const [secondFutureInvoice, setSecondFutureInvoice] = useState<string>('');
+  
+  // Lista de faturas futuras para o Cartão 2
+  const [card2FutureInvoices, setCard2FutureInvoices] = useState<FutureInvoiceEntry[]>([
+    { id: 'c2_fut_1', monthOffset: 1, amount: '' },
+  ]);
+
+  // Helpers de competência e vencimento
+  const getMonthInfo = (baseDateStr: string, offset: number) => {
+    try {
+      const [y, m] = baseDateStr.split('-').map(Number);
+      const targetDate = new Date(y, m - 1 + offset, 1);
+      const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      const fullMonths = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      ];
+      return {
+        short: `${months[targetDate.getMonth()]}/${targetDate.getFullYear()}`,
+        full: `${fullMonths[targetDate.getMonth()]} de ${targetDate.getFullYear()}`,
+        monthName: fullMonths[targetDate.getMonth()],
+        year: targetDate.getFullYear(),
+        month: targetDate.getMonth() + 1,
+      };
+    } catch {
+      return { short: `Mês +${offset}`, full: `Mês +${offset}`, monthName: `Mês +${offset}`, year: 2026, month: 1 };
+    }
+  };
+
+  const getMonthDueDate = (baseDateStr: string, offset: number, dueDay: number) => {
+    try {
+      const [y, m] = baseDateStr.split('-').map(Number);
+      const targetDate = new Date(y, m - 1 + offset, 1);
+      const year = targetDate.getFullYear();
+      const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+      const safeDay = Math.min(Math.max(1, dueDay), 28);
+      return `${year}-${month}-${String(safeDay).padStart(2, '0')}`;
+    } catch {
+      return `${baseDateStr.substring(0, 7)}-${String(dueDay).padStart(2, '0')}`;
+    }
+  };
+
+  // Gerenciadores de Faturas Futuras do Cartão 1
+  const getNextCard1Offset = () => {
+    return card1FutureInvoices.length > 0
+      ? Math.max(...card1FutureInvoices.map((f) => f.monthOffset)) + 1
+      : 1;
+  };
+
+  const handleAddCard1FutureInvoice = () => {
+    const nextOffset = getNextCard1Offset();
+    setCard1FutureInvoices((prev) => [
+      ...prev,
+      { id: `c1_fut_${Date.now()}_${nextOffset}`, monthOffset: nextOffset, amount: '' },
+    ]);
+  };
+
+  const handleRemoveCard1FutureInvoice = (id: string) => {
+    setCard1FutureInvoices((prev) => prev.filter((f) => f.id !== id));
+  };
+
+  const handleUpdateCard1FutureInvoice = (id: string, amount: string) => {
+    setCard1FutureInvoices((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, amount } : f))
+    );
+  };
+
+  // Gerenciadores de Faturas Futuras do Cartão 2
+  const getNextCard2Offset = () => {
+    return card2FutureInvoices.length > 0
+      ? Math.max(...card2FutureInvoices.map((f) => f.monthOffset)) + 1
+      : 1;
+  };
+
+  const handleAddCard2FutureInvoice = () => {
+    const nextOffset = getNextCard2Offset();
+    setCard2FutureInvoices((prev) => [
+      ...prev,
+      { id: `c2_fut_${Date.now()}_${nextOffset}`, monthOffset: nextOffset, amount: '' },
+    ]);
+  };
+
+  const handleRemoveCard2FutureInvoice = (id: string) => {
+    setCard2FutureInvoices((prev) => prev.filter((f) => f.id !== id));
+  };
+
+  const handleUpdateCard2FutureInvoice = (id: string, amount: string) => {
+    setCard2FutureInvoices((prev) =>
+      prev.map((f) => (f.id === id ? { ...f, amount } : f))
+    );
+  };
 
   // -------------------------------------------------------------
   // PASSO 3: Naturezas & Tetos de Gastos
@@ -249,16 +361,22 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
     try {
       const parsedBalance = parseNumber(initialBalance);
       const parsedCurrentInv = parseNumber(currentInvoiceAmount);
-      const parsedFutureInv = parseNumber(futureInvoiceAmount);
+      const card1FutTotal = card1FutureInvoices.reduce(
+        (acc, f) => acc + parseNumber(f.amount),
+        0
+      );
 
       const parsedSecondCurr = parseNumber(secondCurrentInvoice);
-      const parsedSecondFut = parseNumber(secondFutureInvoice);
+      const card2FutTotal = card2FutureInvoices.reduce(
+        (acc, f) => acc + parseNumber(f.amount),
+        0
+      );
 
       const totalCardDebt =
-        (hasCards ? parsedCurrentInv + parsedFutureInv : 0) +
-        (hasSecondCard ? parsedSecondCurr + parsedSecondFut : 0);
+        (hasCards ? parsedCurrentInv + card1FutTotal : 0) +
+        (hasSecondCard ? parsedSecondCurr + card2FutTotal : 0);
 
-      // 1. Cria ou Atualiza o Checkpoint (Ponto de Partida)
+      // 1. Cria ou Atualiza o Checkpoint (Ponto de Partida) com faturas detalhadas
       addCheckpoint({
         label: `Marco Inicial (${startDate.split('-').reverse().join('/')})`,
         startDate: startDate || firstDayOfMonthStr,
@@ -274,20 +392,26 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                 cardName: cardName || 'Cartão Principal',
                 dueDay: cardDueDay,
                 invoices: [
-                  {
-                    monthIndex: 0,
-                    monthLabel: 'Fatura Atual (Em Aberto)',
-                    dueDate: `${startDate.substring(0, 7)}-${String(cardDueDay).padStart(2, '0')}`,
-                    amount: parsedCurrentInv,
-                  },
-                  {
-                    monthIndex: 1,
-                    monthLabel: 'Fatura Futura (Comprometida)',
-                    dueDate: `${startDate.substring(0, 7)}-${String(cardDueDay).padStart(2, '0')}`,
-                    amount: parsedFutureInv,
-                  },
+                  ...(parsedCurrentInv > 0
+                    ? [
+                        {
+                          monthIndex: 0,
+                          monthLabel: `Fatura Atual (${getMonthInfo(startDate, 0).short})`,
+                          dueDate: getMonthDueDate(startDate, 0, cardDueDay),
+                          amount: parsedCurrentInv,
+                        },
+                      ]
+                    : []),
+                  ...card1FutureInvoices
+                    .filter((f) => parseNumber(f.amount) > 0)
+                    .map((f) => ({
+                      monthIndex: f.monthOffset,
+                      monthLabel: `Fatura Futura (+${f.monthOffset}m - ${getMonthInfo(startDate, f.monthOffset).short})`,
+                      dueDate: getMonthDueDate(startDate, f.monthOffset, cardDueDay),
+                      amount: parseNumber(f.amount),
+                    })),
                 ],
-                totalDebt: parsedCurrentInv + parsedFutureInv,
+                totalDebt: parsedCurrentInv + card1FutTotal,
               },
               ...(hasSecondCard
                 ? [
@@ -297,20 +421,26 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                       cardName: secondCardName || 'Segundo Cartão',
                       dueDay: secondCardDueDay,
                       invoices: [
-                        {
-                          monthIndex: 0,
-                          monthLabel: 'Fatura Atual',
-                          dueDate: `${startDate.substring(0, 7)}-${String(secondCardDueDay).padStart(2, '0')}`,
-                          amount: parsedSecondCurr,
-                        },
-                        {
-                          monthIndex: 1,
-                          monthLabel: 'Fatura Futura',
-                          dueDate: `${startDate.substring(0, 7)}-${String(secondCardDueDay).padStart(2, '0')}`,
-                          amount: parsedSecondFut,
-                        },
+                        ...(parsedSecondCurr > 0
+                          ? [
+                              {
+                                monthIndex: 0,
+                                monthLabel: `Fatura Atual (${getMonthInfo(startDate, 0).short})`,
+                                dueDate: getMonthDueDate(startDate, 0, secondCardDueDay),
+                                amount: parsedSecondCurr,
+                              },
+                            ]
+                          : []),
+                        ...card2FutureInvoices
+                          .filter((f) => parseNumber(f.amount) > 0)
+                          .map((f) => ({
+                            monthIndex: f.monthOffset,
+                            monthLabel: `Fatura Futura (+${f.monthOffset}m - ${getMonthInfo(startDate, f.monthOffset).short})`,
+                            dueDate: getMonthDueDate(startDate, f.monthOffset, secondCardDueDay),
+                            amount: parseNumber(f.amount),
+                          })),
                       ],
-                      totalDebt: parsedSecondCurr + parsedSecondFut,
+                      totalDebt: parsedSecondCurr + card2FutTotal,
                     },
                   ]
                 : []),
@@ -330,13 +460,13 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
         });
       }
 
-      // 3. Cadastra o(s) Cartão(ões) de Crédito se informado
+      // 3. Cadastra o(s) Cartão(ões) de Crédito e todas as faturas (atual e futuras)
       if (hasCards) {
         addCard({
           name: cardName || 'Cartão Principal',
           bank: cardBank || 'Nubank',
           brand: 'MASTERCARD',
-          limitTotal: Math.max(5000, (parsedCurrentInv + parsedFutureInv) * 1.5),
+          limitTotal: Math.max(5000, (parsedCurrentInv + card1FutTotal) * 1.5),
           closingDay: Math.max(1, cardDueDay - 7),
           dueDay: cardDueDay,
           color: '#8b5cf6',
@@ -347,38 +477,101 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
           addMovement({
             title: `Fatura ${cardName || 'Cartão'} (Atual)`,
             amount: parsedCurrentInv,
-            dueDate: `${startDate.substring(0, 7)}-${String(cardDueDay).padStart(2, '0')}`,
+            dueDate: getMonthDueDate(startDate, 0, cardDueDay),
             type: 'CARTAO',
             status: 'PREVISTA',
             category: 'Fatura de Cartão',
             bank: cardBank,
           });
         }
+
+        // Adiciona movimentos previstos para as múltiplas faturas futuras do mesmo banco
+        card1FutureInvoices.forEach((fut) => {
+          const futAmt = parseNumber(fut.amount);
+          if (futAmt > 0) {
+            const mInfo = getMonthInfo(startDate, fut.monthOffset);
+            addMovement({
+              title: `Fatura ${cardName || 'Cartão'} (${mInfo.short})`,
+              amount: futAmt,
+              dueDate: getMonthDueDate(startDate, fut.monthOffset, cardDueDay),
+              type: 'CARTAO',
+              status: 'PREVISTA',
+              category: 'Fatura de Cartão',
+              bank: cardBank,
+            });
+          }
+        });
       }
 
-      if (hasSecondCard && parsedSecondCurr > 0) {
+      if (hasSecondCard && (parsedSecondCurr > 0 || card2FutTotal > 0)) {
         addCard({
           name: secondCardName || 'Segundo Cartão',
           bank: secondCardBank || 'Inter',
           brand: 'VISA',
-          limitTotal: Math.max(4000, (parsedSecondCurr + parsedSecondFut) * 1.5),
+          limitTotal: Math.max(4000, (parsedSecondCurr + card2FutTotal) * 1.5),
           closingDay: Math.max(1, secondCardDueDay - 7),
           dueDay: secondCardDueDay,
           color: '#f59e0b',
         });
 
-        addMovement({
-          title: `Fatura ${secondCardName} (Atual)`,
-          amount: parsedSecondCurr,
-          dueDate: `${startDate.substring(0, 7)}-${String(secondCardDueDay).padStart(2, '0')}`,
-          type: 'CARTAO',
-          status: 'PREVISTA',
-          category: 'Fatura de Cartão',
-          bank: secondCardBank,
+        if (parsedSecondCurr > 0) {
+          addMovement({
+            title: `Fatura ${secondCardName} (Atual)`,
+            amount: parsedSecondCurr,
+            dueDate: getMonthDueDate(startDate, 0, secondCardDueDay),
+            type: 'CARTAO',
+            status: 'PREVISTA',
+            category: 'Fatura de Cartão',
+            bank: secondCardBank,
+          });
+        }
+
+        card2FutureInvoices.forEach((fut) => {
+          const futAmt = parseNumber(fut.amount);
+          if (futAmt > 0) {
+            const mInfo = getMonthInfo(startDate, fut.monthOffset);
+            addMovement({
+              title: `Fatura ${secondCardName} (${mInfo.short})`,
+              amount: futAmt,
+              dueDate: getMonthDueDate(startDate, fut.monthOffset, secondCardDueDay),
+              type: 'CARTAO',
+              status: 'PREVISTA',
+              category: 'Fatura de Cartão',
+              bank: secondCardBank,
+            });
+          }
         });
       }
 
-      // 4. Salva as Naturezas selecionadas com seus tetos e mapeamentos
+      // 4. Salva a Configuração do Salário / Remuneração Principal
+      const parsedSalary = parseNumber(salaryAmount);
+      if (hasSalary && parsedSalary > 0) {
+        addSalaryContract({
+          employer: salaryEmployer.trim() || 'Empregador Principal',
+          role: salaryRole.trim() || 'Remuneração Principal',
+          contractType: salaryContractType,
+          paymentSchedule: 'UNICO',
+          paymentDay: Math.min(Math.max(1, salaryPayDay), 31),
+          currentGrossAmount: parsedSalary,
+          currentNetAmount: parsedSalary,
+          receivingBankName: mainBankName,
+          startDate: startDate || firstDayOfMonthStr,
+          isActive: true,
+        });
+
+        // Adiciona movimento de receita prevista para o mês inicial
+        addMovement({
+          title: `Salário: ${salaryEmployer.trim() || 'Remuneração Principal'}`,
+          amount: parsedSalary,
+          dueDate: getMonthDueDate(startDate, 0, salaryPayDay),
+          type: 'RECEBER',
+          status: 'PREVISTA',
+          category: 'Salário',
+          bank: mainBankName,
+        });
+      }
+
+      // 5. Salva as Naturezas selecionadas com seus tetos e mapeamentos
       if (natures.length === 0 && selectedNatures.length > 0) {
         selectedNatures.forEach((nat, idx) => {
           const suggestedMappings = autoLoadMappings
@@ -559,6 +752,120 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                 </div>
               </div>
 
+              {/* Card de Configuração de Salário / Remuneração Principal */}
+              <div className="onboarding-form-card glass-card mt-3">
+                <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                  <div className="flex items-center gap-2">
+                    <Briefcase size={16} className="text-emerald" />
+                    <span className="font-bold text-sm text-slate-200">
+                      Remuneração & Salário Mensal
+                    </span>
+                    <span className="badge-pill badge-pill-emerald text-[10px]">Essencial para DRE</span>
+                  </div>
+                  <label className="flex items-center gap-2 text-xs text-muted cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={hasSalary}
+                      onChange={(e) => setHasSalary(e.target.checked)}
+                    />
+                    <span>Recebo salário / renda fixa</span>
+                  </label>
+                </div>
+
+                {hasSalary ? (
+                  <>
+                    <div className="form-grid-2">
+                      <div className="form-group">
+                        <label className="flex items-center gap-1.5 font-semibold text-xs text-slate-300">
+                          <DollarSign size={14} className="text-emerald" />
+                          <span>Salário Líquido Mensal (R$):</span>
+                        </label>
+                        <input
+                          type="text"
+                          className="form-input text-base font-bold text-emerald"
+                          placeholder="Ex: 4.500,00"
+                          value={salaryAmount}
+                          onChange={(e) => setSalaryAmount(e.target.value)}
+                        />
+                        <span className="text-[11px] text-muted">
+                          Valor que cai na conta todo mês (livre de descontos).
+                        </span>
+                      </div>
+
+                      <div className="form-group">
+                        <label className="flex items-center gap-1.5 font-semibold text-xs text-slate-300">
+                          <Calendar size={14} className="text-cyan" />
+                          <span>Dia do Pagamento no Mês:</span>
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="31"
+                          className="form-input"
+                          value={salaryPayDay}
+                          onChange={(e) => setSalaryPayDay(Number(e.target.value))}
+                        />
+                        <span className="text-[11px] text-muted">
+                          Ex: dia 5 ou dia 1 (data em que o valor é creditado).
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="form-grid-3 mt-2">
+                      <div className="form-group">
+                        <label className="flex items-center gap-1.5 font-semibold text-xs text-slate-300">
+                          <Building2 size={14} className="text-slate-400" />
+                          <span>Empresa / Fonte:</span>
+                        </label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="Ex: Empresa Principal"
+                          value={salaryEmployer}
+                          onChange={(e) => setSalaryEmployer(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="flex items-center gap-1.5 font-semibold text-xs text-slate-300">
+                          <span>Cargo / Função:</span>
+                        </label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          placeholder="Ex: Especialista, Gestor"
+                          value={salaryRole}
+                          onChange={(e) => setSalaryRole(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label className="flex items-center gap-1.5 font-semibold text-xs text-slate-300">
+                          <span>Regime de Contrato:</span>
+                        </label>
+                        <select
+                          className="form-input text-xs"
+                          value={salaryContractType}
+                          onChange={(e) => setSalaryContractType(e.target.value as SalaryContractType)}
+                        >
+                          <option value="CLT">CLT (Carteira Assinada)</option>
+                          <option value="PJ">PJ (Pessoa Jurídica)</option>
+                          <option value="PRO_LABORE">Pró-Labore (Empresário)</option>
+                          <option value="CONCURSO">Concurso / Servidor Público</option>
+                          <option value="AUTONOMO">Autônomo / Liberal</option>
+                          <option value="ESTAGIO">Estágio / Bolsa</option>
+                          <option value="OUTRO">Outro / Benefício</option>
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="p-3 rounded-xl bg-white/5 text-center text-xs text-slate-400">
+                    Você optou por não cadastrar remuneração fixa. Suas receitas serão lançadas de forma avulsa quando ocorrerem.
+                  </div>
+                )}
+              </div>
+
               {/* Botões de Ação do Passo 1 */}
               <div className="onboarding-step-actions">
                 <button
@@ -595,12 +902,12 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                   parceladas e faturas não provisionadas são o principal motivo de surpresas no
                   final do mês.
                 </p>
-                <p className="mt-2 text-xs text-slate-400">
-                  Informe o valor da fatura que vence neste mês (atual) e o valor aproximado já
-                  comprometido para o próximo mês (futura).
+                <p className="mt-2 text-xs text-slate-300">
+                  Informe o valor da fatura que vence neste mês (atual) e <strong>quantas faturas dos meses futuros</strong> desejar para o mesmo banco (Mês +1, Mês +2, Mês +3...), garantindo projeção contínua e precisa.
                 </p>
               </div>
 
+              {/* Card de Faturas do Cartão 1 */}
               <div className="onboarding-form-card glass-card">
                 <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/5">
                   <div className="flex items-center gap-2">
@@ -624,7 +931,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                     <div className="form-grid-3">
                       <div className="form-group">
                         <label className="text-xs text-slate-300 font-medium">
-                          Nome do Cartão / Banco:
+                          Nome do Cartão:
                         </label>
                         <input
                           type="text"
@@ -649,7 +956,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                       </div>
                       <div className="form-group">
                         <label className="text-xs text-slate-300 font-medium">
-                          Instituição:
+                          Instituição / Banco:
                         </label>
                         <input
                           type="text"
@@ -660,104 +967,244 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                       </div>
                     </div>
 
-                    <div className="form-grid-2 mt-3">
-                      <div className="form-group">
-                        <label className="text-xs text-amber-300 font-semibold flex items-center gap-1">
-                          <span>Fatura Atual em Aberto (R$):</span>
+                    {/* Fatura Atual (Mês Corrente) */}
+                    <div className="form-group mt-3 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs text-amber-300 font-bold flex items-center gap-1.5">
+                          <span>Fatura Atual em Aberto — {getMonthInfo(startDate, 0).short}:</span>
                         </label>
-                        <input
-                          type="text"
-                          className="form-input text-base font-bold text-amber-400"
-                          placeholder="Ex: 1.250,00"
-                          value={currentInvoiceAmount}
-                          onChange={(e) => setCurrentInvoiceAmount(e.target.value)}
-                        />
-                        <span className="text-[10px] text-muted">
-                          Gastos que vencem na próxima data de vencimento.
+                        <span className="text-[11px] text-amber-300/80 font-medium">
+                          Vence em {getMonthDueDate(startDate, 0, cardDueDay).split('-').reverse().join('/')}
                         </span>
                       </div>
-
-                      <div className="form-group">
-                        <label className="text-xs text-cyan-300 font-semibold flex items-center gap-1">
-                          <span>Fatura Futura Prevista (R$):</span>
-                        </label>
-                        <input
-                          type="text"
-                          className="form-input text-base font-bold text-cyan-400"
-                          placeholder="Ex: 840,00"
-                          value={futureInvoiceAmount}
-                          onChange={(e) => setFutureInvoiceAmount(e.target.value)}
-                        />
-                        <span className="text-[10px] text-muted">
-                          Parcelas de compras já feitas para o mês seguinte.
-                        </span>
-                      </div>
+                      <input
+                        type="text"
+                        className="form-input text-base font-bold text-amber-400"
+                        placeholder="Ex: 1.250,00"
+                        value={currentInvoiceAmount}
+                        onChange={(e) => setCurrentInvoiceAmount(e.target.value)}
+                      />
+                      <span className="text-[10px] text-muted mt-1 block">
+                        Gastos já fechados ou em processamento para a próxima data de vencimento.
+                      </span>
                     </div>
 
-                    {/* Adicionar Segundo Cartão Opcional */}
+                    {/* Faturas dos Meses Futuros deste mesmo banco */}
+                    <div className="mt-3.5 pt-3 border-t border-white/10">
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <span className="font-bold text-xs text-cyan-300 flex items-center gap-1.5">
+                            <Sparkles size={13} className="text-cyan" />
+                            <span>Faturas dos Meses Futuros ({cardBank || 'Mesmo Banco'}):</span>
+                          </span>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Compras parceladas já compromissadas para os próximos meses neste cartão.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 mt-2.5">
+                        {card1FutureInvoices.map((fut) => {
+                          const mInfo = getMonthInfo(startDate, fut.monthOffset);
+                          const dueDateFmt = getMonthDueDate(startDate, fut.monthOffset, cardDueDay).split('-').reverse().join('/');
+                          return (
+                            <div
+                              key={fut.id}
+                              className="flex items-center gap-2.5 p-2 rounded-xl bg-white/[0.03] border border-white/10"
+                            >
+                              <div className="min-w-[140px] sm:min-w-[170px]">
+                                <span className="badge-pill badge-pill-cyan text-[11px] font-bold">
+                                  Mês +{fut.monthOffset} ({mInfo.short})
+                                </span>
+                                <span className="block text-[10px] text-slate-400 mt-0.5">
+                                  Venc: {dueDateFmt}
+                                </span>
+                              </div>
+
+                              <div className="flex-1">
+                                <input
+                                  type="text"
+                                  className="form-input text-sm font-bold text-cyan-300"
+                                  placeholder={`Valor fatura ${mInfo.short} (R$)`}
+                                  value={fut.amount}
+                                  onChange={(e) => handleUpdateCard1FutureInvoice(fut.id, e.target.value)}
+                                />
+                              </div>
+
+                              {card1FutureInvoices.length > 1 && (
+                                <button
+                                  type="button"
+                                  className="p-1.5 rounded-lg text-rose-400 hover:bg-rose-500/10 cursor-pointer transition-colors"
+                                  title="Remover esta fatura futura"
+                                  onClick={() => handleRemoveCard1FutureInvoice(fut.id)}
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm mt-2.5 flex items-center gap-1.5 text-xs text-cyan-300 border-cyan/30 hover:border-cyan hover:bg-cyan/10 cursor-pointer"
+                        onClick={handleAddCard1FutureInvoice}
+                      >
+                        <Plus size={13} />
+                        <span>
+                          Adicionar Fatura para Mês +{getNextCard1Offset()} ({getMonthInfo(startDate, getNextCard1Offset()).short})
+                        </span>
+                      </button>
+                    </div>
+
+                    {/* Segundo Cartão Opcional */}
                     {!hasSecondCard ? (
                       <button
                         type="button"
-                        className="btn btn-outline btn-sm mt-3 flex items-center gap-1.5 text-xs"
+                        className="btn btn-outline btn-sm mt-4 flex items-center gap-1.5 text-xs"
                         onClick={() => setHasSecondCard(true)}
                       >
                         <Plus size={13} />
-                        <span>Adicionar Outro Cartão de Crédito</span>
+                        <span>Adicionar Outro Cartão / Banco</span>
                       </button>
                     ) : (
                       <div className="mt-4 pt-3 border-t border-white/10">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="font-bold text-xs text-slate-300">
-                            Cartão de Crédito 2
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <CreditCard size={15} className="text-amber-400" />
+                            <span className="font-bold text-xs text-slate-200">
+                              Cartão de Crédito 2
+                            </span>
+                          </div>
                           <button
                             type="button"
                             className="text-rose-400 hover:text-rose-300 text-xs flex items-center gap-1 cursor-pointer"
                             onClick={() => setHasSecondCard(false)}
                           >
                             <Trash2 size={12} />
-                            <span>Remover</span>
+                            <span>Remover Cartão 2</span>
                           </button>
                         </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+
+                        <div className="form-grid-3">
+                          <div className="form-group">
+                            <label className="text-xs text-slate-300 font-medium">
+                              Nome do Cartão 2:
+                            </label>
+                            <input
+                              type="text"
+                              className="form-input text-xs"
+                              value={secondCardName}
+                              onChange={(e) => setSecondCardName(e.target.value)}
+                              placeholder="Nome Cartão 2"
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label className="text-xs text-slate-300 font-medium">
+                              Dia Vencimento:
+                            </label>
+                            <input
+                              type="number"
+                              min="1"
+                              max="31"
+                              className="form-input text-xs"
+                              value={secondCardDueDay}
+                              onChange={(e) => setSecondCardDueDay(Number(e.target.value))}
+                            />
+                          </div>
+                          <div className="form-group">
+                            <label className="text-xs text-slate-300 font-medium">
+                              Banco / Instituição:
+                            </label>
+                            <input
+                              type="text"
+                              className="form-input text-xs"
+                              value={secondCardBank}
+                              onChange={(e) => setSecondCardBank(e.target.value)}
+                              placeholder="Banco (ex: Inter)"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Fatura Atual Cartão 2 */}
+                        <div className="form-group mt-2.5 p-2.5 rounded-xl bg-amber-500/5 border border-amber-500/20">
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-xs text-amber-300 font-bold flex items-center gap-1">
+                              <span>Fatura Atual Cartão 2 — {getMonthInfo(startDate, 0).short}:</span>
+                            </label>
+                            <span className="text-[10px] text-amber-300/80">
+                              Venc: {getMonthDueDate(startDate, 0, secondCardDueDay).split('-').reverse().join('/')}
+                            </span>
+                          </div>
                           <input
                             type="text"
-                            className="form-input text-xs"
-                            value={secondCardName}
-                            onChange={(e) => setSecondCardName(e.target.value)}
-                            placeholder="Nome Cartão 2"
-                          />
-                          <input
-                            type="text"
-                            className="form-input text-xs"
-                            value={secondCardBank}
-                            onChange={(e) => setSecondCardBank(e.target.value)}
-                            placeholder="Banco (ex: Inter)"
-                          />
-                          <input
-                            type="number"
-                            min="1"
-                            max="31"
-                            className="form-input text-xs"
-                            value={secondCardDueDay}
-                            onChange={(e) => setSecondCardDueDay(Number(e.target.value))}
-                            placeholder="Dia Venc."
-                            title="Dia do Vencimento"
-                          />
-                          <input
-                            type="text"
-                            className="form-input text-xs"
-                            placeholder="Fatura Atual R$"
+                            className="form-input text-sm font-bold text-amber-400"
+                            placeholder="Ex: 850,00"
                             value={secondCurrentInvoice}
                             onChange={(e) => setSecondCurrentInvoice(e.target.value)}
                           />
-                          <input
-                            type="text"
-                            className="form-input text-xs"
-                            placeholder="Fatura Futura R$"
-                            value={secondFutureInvoice}
-                            onChange={(e) => setSecondFutureInvoice(e.target.value)}
-                          />
+                        </div>
+
+                        {/* Faturas Futuras Cartão 2 */}
+                        <div className="mt-3 pt-2.5 border-t border-white/5">
+                          <span className="font-bold text-[11px] text-cyan-300 block mb-1.5">
+                            Faturas Futuras do Cartão 2 ({secondCardBank || 'Banco'}):
+                          </span>
+
+                          <div className="space-y-2">
+                            {card2FutureInvoices.map((fut) => {
+                              const mInfo = getMonthInfo(startDate, fut.monthOffset);
+                              const dueDateFmt = getMonthDueDate(startDate, fut.monthOffset, secondCardDueDay).split('-').reverse().join('/');
+                              return (
+                                <div
+                                  key={fut.id}
+                                  className="flex items-center gap-2 p-1.5 rounded-lg bg-white/[0.02] border border-white/5"
+                                >
+                                  <div className="min-w-[130px] sm:min-w-[150px]">
+                                    <span className="badge-pill badge-pill-cyan text-[10px] font-bold">
+                                      +{fut.monthOffset}m ({mInfo.short})
+                                    </span>
+                                    <span className="block text-[9px] text-slate-400">
+                                      Venc: {dueDateFmt}
+                                    </span>
+                                  </div>
+
+                                  <div className="flex-1">
+                                    <input
+                                      type="text"
+                                      className="form-input text-xs font-semibold text-cyan-300"
+                                      placeholder={`Fatura ${mInfo.short} (R$)`}
+                                      value={fut.amount}
+                                      onChange={(e) => handleUpdateCard2FutureInvoice(fut.id, e.target.value)}
+                                    />
+                                  </div>
+
+                                  {card2FutureInvoices.length > 1 && (
+                                    <button
+                                      type="button"
+                                      className="p-1 text-rose-400 hover:bg-rose-500/10 cursor-pointer"
+                                      title="Remover fatura futura"
+                                      onClick={() => handleRemoveCard2FutureInvoice(fut.id)}
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <button
+                            type="button"
+                            className="btn btn-outline btn-sm mt-2 flex items-center gap-1 text-[11px] text-cyan-300 border-cyan/30 cursor-pointer"
+                            onClick={handleAddCard2FutureInvoice}
+                          >
+                            <Plus size={12} />
+                            <span>
+                              Adicionar Fatura Mês +{getNextCard2Offset()} ({getMonthInfo(startDate, getNextCard2Offset()).short})
+                            </span>
+                          </button>
                         </div>
                       </div>
                     )}
@@ -1073,6 +1520,12 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                   <Flag size={14} className="text-cyan" />
                   <span>Ponto de Partida Ativo</span>
                 </div>
+                {hasSalary && parseNumber(salaryAmount) > 0 && (
+                  <div className="summary-chip">
+                    <Briefcase size={14} className="text-emerald" />
+                    <span>Salário Configurado</span>
+                  </div>
+                )}
                 <div className="summary-chip">
                   <CreditCard size={14} className="text-purple-400" />
                   <span>Faturas Provisionadas</span>
