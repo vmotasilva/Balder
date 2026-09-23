@@ -250,7 +250,7 @@ export const NatureModal: React.FC<NatureModalProps> = ({
             gap: '14px',
             padding: '12px 16px',
             borderRadius: '12px',
-            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(15, 23, 42, 0.6) 100%)',
+            background: 'var(--bg-card)',
             border: `1px solid ${color}40`,
             borderLeft: `5px solid ${color}`,
             transition: 'all 0.2s ease',
@@ -279,7 +279,7 @@ export const NatureModal: React.FC<NatureModalProps> = ({
                 style={{
                   fontSize: '1.05rem',
                   fontWeight: 700,
-                  color: '#FFFFFF',
+                  color: 'var(--text-primary)',
                   letterSpacing: '-0.01em',
                 }}
               >

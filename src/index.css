@@ -414,3 +414,63 @@ button {
   box-shadow: 0 4px 16px rgba(2, 132, 199, 0.4);
 }
 
+/* ==============================================================
+   GARANTIA GLOBAL DE CONTRASTE NO TEMA CLARO:
+   Eliminação sistemática de fontes brancas em fundos claros
+   ============================================================== */
+[data-theme="light"] .text-white,
+[data-theme="light"] .text-slate-50,
+[data-theme="light"] .text-slate-100,
+[data-theme="light"] .text-slate-200 {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="light"] .text-slate-300,
+[data-theme="light"] .text-slate-400 {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="light"] .text-slate-500 {
+  color: var(--text-muted) !important;
+}
+
+/* Títulos, parágrafos e spans estruturais no tema claro */
+[data-theme="light"] h1,
+[data-theme="light"] h2,
+[data-theme="light"] h3,
+[data-theme="light"] h4,
+[data-theme="light"] h5,
+[data-theme="light"] h6 {
+  color: var(--text-primary);
+}
+
+/* Inputs, formulários e placeholders */
+[data-theme="light"] input,
+[data-theme="light"] select,
+[data-theme="light"] textarea {
+  color: var(--text-primary);
+}
+
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+/* Preservar texto branco ESTRITAMENTE em botões com fundo sólido colorido/escuro */
+[data-theme="light"] .btn-primary,
+[data-theme="light"] .btn-primary *,
+[data-theme="light"] .btn-success,
+[data-theme="light"] .btn-success *,
+[data-theme="light"] .btn-danger,
+[data-theme="light"] .btn-danger *,
+[data-theme="light"] .btn-rose,
+[data-theme="light"] .btn-rose *,
+[data-theme="light"] .user-avatar,
+[data-theme="light"] .horizon-filter-pills .pill-btn.active,
+[data-theme="light"] .mobile-nav-orb-btn,
+[data-theme="light"] .mobile-nav-orb-btn * {
+  color: #FFFFFF !important;
+}
+
+

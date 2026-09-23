@@ -119,7 +119,7 @@ export const MappingModal: React.FC<MappingModalProps> = ({
             gap: '14px',
             padding: '12px 16px',
             borderRadius: '12px',
-            background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(15, 23, 42, 0.6) 100%)',
+            background: 'var(--bg-card)',
             border: `1px solid ${natureColor}40`,
             borderLeft: `5px solid ${natureColor}`,
             transition: 'all 0.2s ease',
@@ -148,7 +148,7 @@ export const MappingModal: React.FC<MappingModalProps> = ({
                 style={{
                   fontSize: '1.02rem',
                   fontWeight: 700,
-                  color: '#FFFFFF',
+                  color: 'var(--text-primary)',
                 }}
               >
                 {name.trim() || 'Nome do Mapeamento'}

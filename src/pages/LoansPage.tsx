@@ -1417,7 +1417,7 @@ export const LoansPage: React.FC = () => {
                 }}
               >
                 <div>
-                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#fff', margin: 0 }}>
+                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
                     Seus Contratos de Financiamento
                   </h3>
                   <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>

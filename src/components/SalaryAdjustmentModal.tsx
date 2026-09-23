@@ -1020,7 +1020,7 @@ export const SalaryAdjustmentModal: React.FC<SalaryAdjustmentModalProps> = ({
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                       <span style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>Total Líquido Base:</span>
-                      <strong style={{ color: '#fff' }}>
+                      <strong style={{ color: 'var(--text-primary)' }}>
                         {currentNetVal > 0
                           ? currentNetVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
                           : 'R$ 0,00'}

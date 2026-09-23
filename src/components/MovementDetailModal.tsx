@@ -713,8 +713,8 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
                   padding: '2px 6px',
                   background: 'transparent',
                   borderColor: 'transparent',
-                  color: '#fff',
-                  borderBottom: '1px dashed rgba(255, 255, 255, 0.25)',
+                  color: 'var(--text-primary)',
+                  borderBottom: '1px dashed var(--border-default)',
                 }}
                 title="Clique para editar o título da transação"
               />
@@ -913,7 +913,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.72rem', flexWrap: 'wrap', gap: '6px' }}>
                 <span style={{ color: 'var(--text-muted)' }}>
-                  Total da Fatura: <strong style={{ color: '#fff' }}>{actualAmountNum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+                  Total da Fatura: <strong style={{ color: 'var(--text-primary)' }}>{actualAmountNum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
                 </span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ color: 'var(--accent-cyan)' }}>
@@ -1382,7 +1382,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
             <div>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#fff' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                 Valor Real Aplicado / Praticado
               </span>
               <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)' }}>

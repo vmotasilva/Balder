@@ -549,7 +549,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
                   Previsto para o Dia {salarySuggestion.dueDay}
                 </span>
               </div>
-              <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff', margin: 0 }}>
+              <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
                 Você já recebeu o salário de {salarySuggestion.contract?.employer}?
               </h4>
               <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.25rem 0' }}>
@@ -661,7 +661,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
                         Vencimento no Dia {bill.dayOfMonth} ({bill.dueDate.split('-').reverse().join('/')})
                       </span>
                     </div>
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#fff', margin: 0 }}>
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
                       Você já efetuou o pagamento de {bill.mappingName} ({bill.natureName})?
                     </h4>
                     <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.25rem 0' }}>

@@ -349,7 +349,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                         Vencimento fixo no Dia {bill.dayOfMonth} ({bill.dueDate.split('-').reverse().join('/')})
                       </span>
                     </div>
-                    <h4 style={{ fontSize: '0.98rem', fontWeight: 700, color: '#fff', margin: 0 }}>
+                    <h4 style={{ fontSize: '0.98rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
                       Você já efetuou o pagamento de {bill.mappingName} ({bill.natureName})?
                     </h4>
                     <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '0.25rem 0' }}>
