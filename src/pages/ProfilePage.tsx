@@ -34,6 +34,11 @@ import {
   CalendarDays,
   History,
   RotateCcw,
+  Crown,
+  Sparkles,
+  Zap,
+  Receipt,
+  X,
 } from 'lucide-react';
 import { FinanceEntityModal, type EntityTab } from '../components/FinanceEntityModal';
 import { SalaryAdjustmentModal, type SalaryModalMode } from '../components/SalaryAdjustmentModal';
@@ -76,8 +81,10 @@ export const ProfilePage: React.FC = () => {
   const { theme, setTheme } = useTheme();
 
   const [activeSubTab, setActiveSubTab] = useState<
-    'PERFIL' | 'SALARIO' | 'MARCOS' | 'CONTAS' | 'BANCOS' | 'CATEGORIAS' | 'PREFERENCIAS' | 'EXPORTACOES' | 'SEGURANCA'
+    'PERFIL' | 'ASSINATURA' | 'SALARIO' | 'MARCOS' | 'CONTAS' | 'BANCOS' | 'CATEGORIAS' | 'PREFERENCIAS' | 'EXPORTACOES' | 'SEGURANCA'
   >('PERFIL');
+  const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'YEARLY'>('MONTHLY');
+  const [subscriptionSuccessMsg, setSubscriptionSuccessMsg] = useState<string | null>(null);
   const [advancedModalOpen, setAdvancedModalOpen] = useState(false);
   const [checkpointModalOpen, setCheckpointModalOpen] = useState(false);
 
@@ -207,6 +214,7 @@ export const ProfilePage: React.FC = () => {
   // Itens de navegação do perfil correspondentes ao card principal (Imagem 2)
   const PROFILE_NAV_ITEMS = [
     { id: 'PERFIL' as const, label: 'Perfil & Dados Pessoais', icon: User, count: null },
+    { id: 'ASSINATURA' as const, label: 'Plano & Assinatura', icon: Crown, count: 'PRO' },
     { id: 'SALARIO' as const, label: 'Remuneração & Salário', icon: Briefcase, count: salaryContracts.length },
     { id: 'MARCOS' as const, label: 'Marcos de Início', icon: Flag, count: checkpoints.length },
     { id: 'CONTAS' as const, label: 'Contas & Meios', icon: CreditCard, count: accounts.length + cards.length },
@@ -266,7 +274,15 @@ export const ProfilePage: React.FC = () => {
             <div className="profile-user-text">
               <h3>Vinicius Mota</h3>
               <span className="profile-user-email">vinicius@balder.internal</span>
-              <span className="badge badge-emerald mt-1 profile-beta-badge">ASSINANTE BETA PRO</span>
+              <button
+                type="button"
+                className="badge badge-emerald mt-1 profile-beta-badge flex items-center gap-1 cursor-pointer"
+                onClick={() => setActiveSubTab('ASSINATURA')}
+                title="Clique para gerenciar sua assinatura e faturamento"
+              >
+                <Crown size={12} className="text-amber" />
+                <span>ASSINANTE BETA PRO</span>
+              </button>
             </div>
           </div>
 
@@ -393,6 +409,414 @@ export const ProfilePage: React.FC = () => {
                   <label>Fuso Horário</label>
                   <input type="text" className="form-input" defaultValue="América/São Paulo (GMT-3)" readOnly />
                 </div>
+              </div>
+
+              {/* Seção Resumida de Assinatura no Perfil */}
+              <div className="profile-subscription-summary-card">
+                <div className="profile-sub-header-flex">
+                  <div className="flex items-center gap-3">
+                    <div className="profile-sub-icon-box">
+                      <Crown size={22} className="text-amber" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="profile-sub-title">Plano Balder Pro</h4>
+                        <span className="profile-sub-status-badge">
+                          <span className="profile-sub-pulse-dot" />
+                          ATIVO
+                        </span>
+                      </div>
+                      <p className="profile-sub-meta">
+                        Assinatura Mensal • Próxima renovação em <strong>23/10/2026</strong> (R$ 29,90)
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm flex items-center gap-1.5"
+                    onClick={() => setActiveSubTab('ASSINATURA')}
+                  >
+                    <span>Gerenciar Assinatura</span>
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+
+                <div className="profile-sub-chips-row">
+                  <div className="profile-sub-chip">
+                    <Sparkles size={13} className="text-cyan" />
+                    <span>Forseti IA com OCR Ilimitado</span>
+                  </div>
+                  <div className="profile-sub-chip">
+                    <Zap size={13} className="text-emerald" />
+                    <span>Multi-Device (Web + App Android)</span>
+                  </div>
+                  <div className="profile-sub-chip">
+                    <ShieldCheck size={13} className="text-purple" />
+                    <span>Nuvem Criptografada Supabase</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeSubTab === 'ASSINATURA' && (
+            <div className="subtab-content animate-fade-in space-y-6">
+              {/* Header com Toggle de Ciclo */}
+              <div className="naturezas-header-row mb-4">
+                <div>
+                  <div className="kicker-badge" style={{ marginBottom: '0.25rem' }}>
+                    <span>PLANO & FATURAMENTO</span>
+                  </div>
+                  <h3>Assinatura & Recursos Premium</h3>
+                  <p className="subtab-desc">
+                    Gerencie seu plano Balder, ciclo de cobrança, faturas e métodos de pagamento.
+                  </p>
+                </div>
+
+                <div className="subscription-billing-toggle">
+                  <button
+                    type="button"
+                    className={`sub-toggle-btn ${billingCycle === 'MONTHLY' ? 'active' : ''}`}
+                    onClick={() => setBillingCycle('MONTHLY')}
+                  >
+                    Mensal
+                  </button>
+                  <button
+                    type="button"
+                    className={`sub-toggle-btn ${billingCycle === 'YEARLY' ? 'active' : ''}`}
+                    onClick={() => setBillingCycle('YEARLY')}
+                  >
+                    <span>Anual</span>
+                    <span className="sub-save-badge">Economize 33%</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Toast de Feedback */}
+              {subscriptionSuccessMsg && (
+                <div className="subscription-toast-msg animate-fade-in">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 size={16} className="text-emerald shrink-0" />
+                    <span>{subscriptionSuccessMsg}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSubscriptionSuccessMsg(null)}
+                    className="subscription-toast-close"
+                    aria-label="Fechar mensagem"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+
+              {/* Spotlight: Plano Ativo Vigente */}
+              <div className="subscription-active-spotlight">
+                <div className="sub-spotlight-top">
+                  <div className="flex items-center gap-2">
+                    <span className="sub-spotlight-badge">
+                      <span className="sub-pulse-dot" />
+                      PLANO ATIVO: BALDER PRO
+                    </span>
+                    <span className="badge badge-emerald text-[10px]">MEMBRO FUNDADOR</span>
+                  </div>
+                  <span className="sub-spotlight-renewal">Renovação automática em 23/10/2026</span>
+                </div>
+
+                <div className="sub-spotlight-body">
+                  <div className="sub-spotlight-info">
+                    <div className="sub-spotlight-icon-circle">
+                      <Crown size={30} className="text-amber" />
+                    </div>
+                    <div>
+                      <h4 className="sub-spotlight-title">Balder Pro — Ciclo {billingCycle === 'MONTHLY' ? 'Mensal' : 'Anual'}</h4>
+                      <p className="sub-spotlight-desc">
+                        {billingCycle === 'MONTHLY'
+                          ? 'R$ 29,90 por mês • Cobrança automática no cartão •••• 4028'
+                          : 'R$ 238,80 por ano (equivalente a R$ 19,90/mês) • 2 meses grátis'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="sub-spotlight-actions">
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      onClick={() => {
+                        const newCycle = billingCycle === 'MONTHLY' ? 'YEARLY' : 'MONTHLY';
+                        setBillingCycle(newCycle);
+                        setSubscriptionSuccessMsg(
+                          newCycle === 'YEARLY'
+                            ? 'Ciclo Anual selecionado! Economia de 33% aplicada.'
+                            : 'Ciclo Mensal selecionado.'
+                        );
+                      }}
+                    >
+                      Alternar para {billingCycle === 'MONTHLY' ? 'Anual (-33%)' : 'Mensal'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm flex items-center gap-1.5"
+                      onClick={() => setSubscriptionSuccessMsg('Você já está desfrutando de todos os recursos do Balder Pro.')}
+                    >
+                      <CheckCircle2 size={15} />
+                      <span>Plano em Dia</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Grid de Benefícios do Plano Ativo */}
+                <div className="sub-spotlight-perks-grid">
+                  <div className="sub-spotlight-perk">
+                    <CheckCircle2 size={16} className="text-emerald shrink-0" />
+                    <span>Forseti IA com Leitura OCR de Comprovantes Ilimitada</span>
+                  </div>
+                  <div className="sub-spotlight-perk">
+                    <CheckCircle2 size={16} className="text-emerald shrink-0" />
+                    <span>Multi-tenant & Criptografia Segura Supabase RLS</span>
+                  </div>
+                  <div className="sub-spotlight-perk">
+                    <CheckCircle2 size={16} className="text-emerald shrink-0" />
+                    <span>Sincronização com App Nativo Android (.APK)</span>
+                  </div>
+                  <div className="sub-spotlight-perk">
+                    <CheckCircle2 size={16} className="text-emerald shrink-0" />
+                    <span>Simuladores PRICE / SAC & Gestão Inteligente de Dívidas</span>
+                  </div>
+                  <div className="sub-spotlight-perk">
+                    <CheckCircle2 size={16} className="text-emerald shrink-0" />
+                    <span>Contas, Cartões, Naturezas e Mapeamentos Ilimitados</span>
+                  </div>
+                  <div className="sub-spotlight-perk">
+                    <CheckCircle2 size={16} className="text-emerald shrink-0" />
+                    <span>Exportações Automatizadas em Formato Excel e CSV</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid Comparativo de Planos */}
+              <div className="subscription-tiers-grid">
+                {/* Plano Free */}
+                <div className="sub-tier-card glass-card">
+                  <div className="sub-tier-header">
+                    <span className="sub-tier-name">Starter</span>
+                    <div className="sub-tier-price-row">
+                      <span className="sub-tier-price">R$ 0</span>
+                      <span className="sub-tier-freq">/mês</span>
+                    </div>
+                    <p className="sub-tier-desc">Controle financeiro essencial para uso individual básico.</p>
+                  </div>
+
+                  <ul className="sub-tier-features">
+                    <li><Check size={14} className="text-slate-400" /> Até 2 contas bancárias</li>
+                    <li><Check size={14} className="text-slate-400" /> Até 1 cartão de crédito</li>
+                    <li><Check size={14} className="text-slate-400" /> Histórico limitado a 90 dias</li>
+                    <li className="opacity-40"><X size={14} /> Sem Forseti IA OCR</li>
+                    <li className="opacity-40"><X size={14} /> Sem simulações avançadas de dívidas</li>
+                  </ul>
+
+                  <div className="sub-tier-footer">
+                    <button type="button" className="btn btn-secondary w-full text-xs" disabled>
+                      Plano Gratuito
+                    </button>
+                  </div>
+                </div>
+
+                {/* Plano Pro (Atual) */}
+                <div className="sub-tier-card glass-card sub-tier-pro">
+                  <div className="sub-tier-featured-tag">SEU PLANO ATUAL</div>
+                  <div className="sub-tier-header">
+                    <div className="flex items-center gap-1.5 text-cyan font-bold">
+                      <Crown size={16} />
+                      <span className="sub-tier-name text-cyan">Balder Pro</span>
+                    </div>
+                    <div className="sub-tier-price-row">
+                      <span className="sub-tier-price text-cyan">
+                        {billingCycle === 'MONTHLY' ? 'R$ 29,90' : 'R$ 19,90'}
+                      </span>
+                      <span className="sub-tier-freq">/mês</span>
+                    </div>
+                    <p className="sub-tier-desc">
+                      {billingCycle === 'MONTHLY' ? 'Faturamento mensal recorrente' : 'Faturado anualmente (R$ 238,80/ano)'}
+                    </p>
+                  </div>
+
+                  <ul className="sub-tier-features">
+                    <li><Check size={14} className="text-cyan" /> Contas e cartões ilimitados</li>
+                    <li><Check size={14} className="text-cyan" /> Forseti IA com OCR ilimitado</li>
+                    <li><Check size={14} className="text-cyan" /> Multi-dispositivos (Web + App Android)</li>
+                    <li><Check size={14} className="text-cyan" /> Simuladores PRICE / SAC de Dívidas</li>
+                    <li><Check size={14} className="text-cyan" /> Exportações completas CSV e Excel</li>
+                    <li><Check size={14} className="text-cyan" /> Suporte com canal prioritário</li>
+                  </ul>
+
+                  <div className="sub-tier-footer">
+                    <button type="button" className="btn btn-primary w-full text-xs flex items-center justify-center gap-1.5" disabled>
+                      <Check size={14} />
+                      <span>Plano Vigente Ativo</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Plano Founder Lifetime */}
+                <div className="sub-tier-card glass-card sub-tier-founder">
+                  <div className="sub-tier-founder-tag">VITALÍCIO • 14 VAGAS</div>
+                  <div className="sub-tier-header">
+                    <div className="flex items-center gap-1.5 text-amber font-bold">
+                      <Sparkles size={16} />
+                      <span className="sub-tier-name text-amber">Founder Lifetime</span>
+                    </div>
+                    <div className="sub-tier-price-row">
+                      <span className="sub-tier-price text-amber">R$ 497</span>
+                      <span className="sub-tier-freq">único</span>
+                    </div>
+                    <p className="sub-tier-desc">Acesso vitalício irrestrito sem nenhuma cobrança futura.</p>
+                  </div>
+
+                  <ul className="sub-tier-features">
+                    <li><Check size={14} className="text-amber" /> Todos os recursos Pro para sempre</li>
+                    <li><Check size={14} className="text-amber" /> Sem mensalidades ou anuidades</li>
+                    <li><Check size={14} className="text-amber" /> Badge dourado de Membro Fundador</li>
+                    <li><Check size={14} className="text-amber" /> Acesso antecipado a novas IAs financeiras</li>
+                    <li><Check size={14} className="text-amber" /> Grupo VIP e contato com os fundadores</li>
+                  </ul>
+
+                  <div className="sub-tier-footer">
+                    <button
+                      type="button"
+                      className="btn btn-amber w-full text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                      onClick={() => setSubscriptionSuccessMsg('Upgrade para Founder Lifetime solicitado! Redirecionando para o checkout seguro...')}
+                    >
+                      <Sparkles size={14} />
+                      <span>Garantir Vaga Vitalícia</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Informações de Pagamento & Faturas */}
+              <div className="sub-billing-details-grid">
+                {/* Cartão de Crédito Cadastrado */}
+                <div className="sub-payment-card glass-card">
+                  <div className="sub-card-title-row">
+                    <div className="flex items-center gap-2">
+                      <CreditCard size={18} className="text-cyan" />
+                      <h4 className="text-sm font-bold text-white">Método de Pagamento</h4>
+                    </div>
+                    <span className="badge badge-emerald text-[10px]">PADRÃO</span>
+                  </div>
+
+                  <div className="sub-cc-info-box">
+                    <div className="flex items-center gap-3">
+                      <div className="sub-cc-brand">MC</div>
+                      <div>
+                        <p className="sub-cc-name">Mastercard Platinum</p>
+                        <p className="sub-cc-number">•••• •••• •••• 4028 • Expira em 08/2029</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-xs"
+                      onClick={() => setSubscriptionSuccessMsg('Modal para atualização de cartão acionado.')}
+                    >
+                      Atualizar
+                    </button>
+                  </div>
+
+                  <p className="text-[11px] text-muted mt-3">
+                    Cobranças processadas com segurança com criptografia de ponta a ponta (PCI-DSS Compliant).
+                  </p>
+                </div>
+
+                {/* Histórico Recente de Faturas */}
+                <div className="sub-invoices-card glass-card">
+                  <div className="sub-card-title-row">
+                    <div className="flex items-center gap-2">
+                      <Receipt size={18} className="text-emerald" />
+                      <h4 className="text-sm font-bold text-white">Histórico de Faturas</h4>
+                    </div>
+                    <span className="text-[11px] text-muted">3 recibos disponíveis</span>
+                  </div>
+
+                  <div className="sub-invoices-list">
+                    <div className="sub-invoice-item">
+                      <div>
+                        <p className="sub-invoice-date">23/09/2026</p>
+                        <p className="sub-invoice-plan">Balder Pro Mensal</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="sub-invoice-value">R$ 29,90</span>
+                        <span className="badge badge-emerald text-[10px]">PAGO</span>
+                        <button
+                          type="button"
+                          className="sub-invoice-dl-btn"
+                          onClick={() => setSubscriptionSuccessMsg('Download da fatura de 23/09/2026 iniciado.')}
+                          title="Baixar comprovante fiscal em PDF"
+                        >
+                          <Download size={13} />
+                          <span>PDF</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="sub-invoice-item">
+                      <div>
+                        <p className="sub-invoice-date">23/08/2026</p>
+                        <p className="sub-invoice-plan">Balder Pro Mensal</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="sub-invoice-value">R$ 29,90</span>
+                        <span className="badge badge-emerald text-[10px]">PAGO</span>
+                        <button
+                          type="button"
+                          className="sub-invoice-dl-btn"
+                          onClick={() => setSubscriptionSuccessMsg('Download da fatura de 23/08/2026 iniciado.')}
+                          title="Baixar comprovante fiscal em PDF"
+                        >
+                          <Download size={13} />
+                          <span>PDF</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="sub-invoice-item">
+                      <div>
+                        <p className="sub-invoice-date">23/07/2026</p>
+                        <p className="sub-invoice-plan">Balder Pro Mensal</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="sub-invoice-value">R$ 29,90</span>
+                        <span className="badge badge-emerald text-[10px]">PAGO</span>
+                        <button
+                          type="button"
+                          className="sub-invoice-dl-btn"
+                          onClick={() => setSubscriptionSuccessMsg('Download da fatura de 23/07/2026 iniciado.')}
+                          title="Baixar comprovante fiscal em PDF"
+                        >
+                          <Download size={13} />
+                          <span>PDF</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Informações de Cancelamento / Garantia */}
+              <div className="sub-guarantee-box">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck size={16} className="text-cyan shrink-0" />
+                  <span className="text-xs text-slate-300">
+                    Garantia incondicional de 14 dias com reembolso integral. Você pode cancelar sua assinatura a qualquer momento com apenas 1 clique nas configurações.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="sub-cancel-link"
+                  onClick={() => setSubscriptionSuccessMsg('Opções de pausa ou cancelamento abertas.')}
+                >
+                  Pausar ou cancelar assinatura
+                </button>
               </div>
             </div>
           )}

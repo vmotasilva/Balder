@@ -13686,3 +13686,666 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   border-top-color: #e2e8f0;
 }
 
+/* ==========================================================================
+   Subscription & Billing Section (Sessão de Assinatura no Perfil)
+   ========================================================================== */
+
+/* Summary card on Profile page */
+.profile-subscription-summary-card {
+  margin-top: 1.5rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(14, 165, 233, 0.06) 100%);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25);
+}
+
+.profile-sub-header-flex {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.profile-sub-icon-box {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.profile-sub-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary, #f8fafc);
+  margin: 0;
+}
+
+.profile-sub-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34d399;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.profile-sub-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #34d399;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.profile-sub-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+  margin: 2px 0 0 0;
+}
+
+.profile-sub-chips-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.profile-sub-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.72rem;
+  color: var(--text-secondary, #cbd5e1);
+}
+
+/* Subscription Subtab: Billing Cycle Toggle */
+.subscription-billing-toggle {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 4px;
+  border-radius: 12px;
+  gap: 4px;
+}
+
+.sub-toggle-btn {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted, #94a3b8);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.sub-toggle-btn.active {
+  background: var(--accent-cyan, #06b6d4);
+  color: #04131d;
+  box-shadow: 0 2px 8px rgba(6, 182, 212, 0.3);
+}
+
+.sub-save-badge {
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #10b981;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* Toast Message */
+.subscription-toast-msg {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34d399;
+  font-size: 0.78rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.subscription-toast-close {
+  background: transparent;
+  border: none;
+  color: #34d399;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.subscription-toast-close:hover {
+  opacity: 1;
+}
+
+/* Active Plan Spotlight */
+.subscription-active-spotlight {
+  padding: 1.5rem;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(16, 185, 129, 0.08) 50%, rgba(15, 23, 42, 0.6) 100%);
+  border: 1px solid rgba(6, 182, 212, 0.3);
+  box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+
+.sub-spotlight-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 1.25rem;
+}
+
+.sub-spotlight-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #34d399;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.sub-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #34d399;
+  animation: pulse 1.8s infinite;
+}
+
+.sub-spotlight-renewal {
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.sub-spotlight-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sub-spotlight-info {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.sub-spotlight-icon-circle {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sub-spotlight-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary, #f8fafc);
+  margin: 0;
+}
+
+.sub-spotlight-desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary, #cbd5e1);
+  margin: 3px 0 0 0;
+}
+
+.sub-spotlight-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sub-spotlight-perks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+  margin-top: 1.25rem;
+}
+
+.sub-spotlight-perk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--text-secondary, #cbd5e1);
+}
+
+/* Comparison Tiers Grid */
+.subscription-tiers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+.sub-tier-card {
+  padding: 1.5rem;
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: transform 0.25s, box-shadow 0.25s, border-color 0.25s;
+}
+
+.sub-tier-card:hover {
+  transform: translateY(-3px);
+}
+
+.sub-tier-pro {
+  border: 1.5px solid rgba(6, 182, 212, 0.5);
+  box-shadow: 0 10px 30px rgba(6, 182, 212, 0.15);
+  background: linear-gradient(180deg, rgba(6, 182, 212, 0.08) 0%, rgba(15, 23, 42, 0.8) 100%);
+}
+
+.sub-tier-founder {
+  border: 1.5px solid rgba(245, 158, 11, 0.5);
+  box-shadow: 0 10px 30px rgba(245, 158, 11, 0.15);
+  background: linear-gradient(180deg, rgba(245, 158, 11, 0.08) 0%, rgba(15, 23, 42, 0.8) 100%);
+}
+
+.sub-tier-featured-tag {
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent-cyan, #06b6d4);
+  color: #04131d;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.sub-tier-founder-tag {
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #ffffff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+}
+
+.sub-tier-header {
+  margin-bottom: 1.25rem;
+}
+
+.sub-tier-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted, #94a3b8);
+}
+
+.sub-tier-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin: 8px 0 4px 0;
+}
+
+.sub-tier-price {
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: var(--text-primary, #f8fafc);
+  letter-spacing: -0.02em;
+}
+
+.sub-tier-freq {
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.sub-tier-desc {
+  font-size: 0.75rem;
+  color: var(--text-secondary, #cbd5e1);
+  min-height: 2.2rem;
+  margin: 0;
+}
+
+.sub-tier-features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.5rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  font-size: 0.78rem;
+  color: var(--text-secondary, #cbd5e1);
+  flex: 1;
+}
+
+.sub-tier-features li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sub-tier-footer {
+  margin-top: auto;
+}
+
+/* Amber button */
+.btn-amber {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-amber:hover {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+  box-shadow: 0 6px 18px rgba(245, 158, 11, 0.5);
+  transform: translateY(-1px);
+  color: #ffffff;
+}
+
+/* Billing & Payment details grid */
+.sub-billing-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.25rem;
+  margin-top: 1.5rem;
+}
+
+.sub-payment-card,
+.sub-invoices-card {
+  padding: 1.25rem 1.5rem;
+  border-radius: 16px;
+}
+
+.sub-card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.sub-cc-info-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sub-cc-brand {
+  width: 40px;
+  height: 28px;
+  border-radius: 6px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #f59e0b;
+  font-weight: 800;
+  font-size: 0.68rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sub-cc-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-primary, #f8fafc);
+  margin: 0;
+}
+
+.sub-cc-number {
+  font-size: 0.72rem;
+  color: var(--text-muted, #94a3b8);
+  margin: 2px 0 0 0;
+}
+
+.sub-invoices-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sub-invoice-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.sub-invoice-date {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-primary, #f8fafc);
+  margin: 0;
+}
+
+.sub-invoice-plan {
+  font-size: 0.68rem;
+  color: var(--text-muted, #94a3b8);
+  margin: 1px 0 0 0;
+}
+
+.sub-invoice-value {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #34d399;
+}
+
+.sub-invoice-dl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  color: var(--accent-cyan, #06b6d4);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.sub-invoice-dl-btn:hover {
+  background: rgba(6, 182, 212, 0.15);
+  text-decoration: underline;
+}
+
+/* Guarantee / Cancellation Box */
+.sub-guarantee-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  margin-top: 1.5rem;
+}
+
+.sub-cancel-link {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.72rem;
+  text-decoration: underline;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.sub-cancel-link:hover {
+  color: #ef4444;
+}
+
+/* Light Theme Overrides for Subscription */
+[data-theme="light"] .profile-subscription-summary-card {
+  background: linear-gradient(135deg, #fffbeb 0%, #f0fdf4 100%);
+  border-color: #fde68a;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .profile-sub-title {
+  color: #0f172a;
+}
+
+[data-theme="light"] .profile-sub-meta {
+  color: #64748b;
+}
+
+[data-theme="light"] .profile-sub-chip {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  color: #334155;
+}
+
+[data-theme="light"] .subscription-billing-toggle {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+[data-theme="light"] .sub-toggle-btn {
+  color: #64748b;
+}
+
+[data-theme="light"] .sub-toggle-btn.active {
+  background: #0284c7;
+  color: #ffffff;
+}
+
+[data-theme="light"] .subscription-active-spotlight {
+  background: linear-gradient(135deg, #f0fdf4 0%, #f8fafc 100%);
+  border-color: #86efac;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.06);
+}
+
+[data-theme="light"] .sub-spotlight-title {
+  color: #0f172a;
+}
+
+[data-theme="light"] .sub-spotlight-desc {
+  color: #475569;
+}
+
+[data-theme="light"] .sub-spotlight-perk {
+  color: #334155;
+}
+
+[data-theme="light"] .sub-spotlight-renewal {
+  color: #64748b;
+}
+
+[data-theme="light"] .sub-tier-card {
+  background: #ffffff;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .sub-tier-pro {
+  background: linear-gradient(180deg, #f0f9ff 0%, #ffffff 100%);
+  border-color: #38bdf8;
+}
+
+[data-theme="light"] .sub-tier-founder {
+  background: linear-gradient(180deg, #fffbeb 0%, #ffffff 100%);
+  border-color: #f59e0b;
+}
+
+[data-theme="light"] .sub-tier-price {
+  color: #0f172a;
+}
+
+[data-theme="light"] .sub-tier-desc,
+[data-theme="light"] .sub-tier-features {
+  color: #475569;
+}
+
+[data-theme="light"] .sub-payment-card,
+[data-theme="light"] .sub-invoices-card {
+  background: #ffffff;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .sub-cc-info-box,
+[data-theme="light"] .sub-invoice-item {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .sub-cc-name,
+[data-theme="light"] .sub-invoice-date {
+  color: #0f172a;
+}
+
+[data-theme="light"] .sub-cc-number,
+[data-theme="light"] .sub-invoice-plan {
+  color: #64748b;
+}
+
+[data-theme="light"] .sub-guarantee-box {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .sub-guarantee-box span {
+  color: #475569;
+}
+
