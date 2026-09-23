@@ -1908,6 +1908,136 @@
   flex-shrink: 0;
 }
 
+/* ============================================================== */
+/* POP-UP MODAL DA FORSETI (SOBREPOSIÇÃO DA TELA ATIVA)           */
+/* ============================================================== */
+.copilot-popup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.copilot-popup-window {
+  width: 100%;
+  max-width: 900px;
+  height: 88vh;
+  max-height: 850px;
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-card);
+  box-shadow: 0 25px 70px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  position: relative;
+}
+
+.copilot-popup-window .copilot-page {
+  height: 100% !important;
+  max-height: 100% !important;
+}
+
+.copilot-popup-window .copilot-chat-container {
+  height: 100% !important;
+  max-height: 100% !important;
+  border-radius: 20px;
+}
+
+@media (max-width: 768px) {
+  .copilot-popup-overlay {
+    padding: 0;
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .copilot-popup-window {
+    width: 100%;
+    max-width: 100%;
+    height: 100%;
+    max-height: 100dvh;
+    border-radius: 0;
+    border: none;
+  }
+
+  .copilot-popup-window .copilot-chat-container {
+    border-radius: 0;
+  }
+}
+
+/* Botão de Voltar ao lado do Ícone da Forseti */
+.copilot-back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  flex-shrink: 0;
+}
+
+.copilot-back-btn:hover {
+  background: rgba(6, 182, 212, 0.22);
+  color: var(--accent-cyan);
+  border-color: rgba(6, 182, 212, 0.45);
+  transform: scale(1.06);
+}
+
+.copilot-back-btn:active {
+  transform: scale(0.94);
+}
+
+.copilot-screen-context-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  background: rgba(6, 182, 212, 0.12);
+  border: 1px solid rgba(6, 182, 212, 0.28);
+  color: var(--accent-cyan);
+  white-space: nowrap;
+}
+
+.copilot-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.copilot-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.copilot-close-btn:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--accent-rose);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
 .copilot-topbar-identity {
   display: flex;
   align-items: center;
@@ -8625,6 +8755,47 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 [data-theme="light"] .critical-notice-banner .notice-text,
 [data-theme="light"] .critical-notice-banner strong {
   color: #991B1B !important;
+}
+
+/* Copilot Popup - Light Theme */
+[data-theme="light"] .copilot-popup-overlay {
+  background: rgba(15, 23, 42, 0.4);
+}
+
+[data-theme="light"] .copilot-popup-window {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.25);
+}
+
+[data-theme="light"] .copilot-back-btn {
+  background: #F1F5F9;
+  border-color: #CBD5E1;
+  color: #334155;
+}
+
+[data-theme="light"] .copilot-back-btn:hover {
+  background: #E0F2FE;
+  color: #0284C7;
+  border-color: #BAE6FD;
+}
+
+[data-theme="light"] .copilot-screen-context-badge {
+  background: #ECFEFF;
+  border-color: #A5F3FC;
+  color: #0891B2;
+}
+
+[data-theme="light"] .copilot-close-btn {
+  background: #F1F5F9;
+  border-color: #E2E8F0;
+  color: #64748B;
+}
+
+[data-theme="light"] .copilot-close-btn:hover {
+  background: #FEE2E2;
+  color: #DC2626;
+  border-color: #FECACA;
 }
 
 /* 1. Dashboard: Próximo Evento Crítico */

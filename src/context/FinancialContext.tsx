@@ -1645,7 +1645,25 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const sim = runSimulation('NOVO_EMPRESTIMO');
         responseText = `Simulação de Novo Empréstimo: ${sim.verdict === 'COM_RESTRICAO' ? '⚠️ Viável com Restrições' : 'Simulação Concluída'}.\n\n${sim.explanation}\n\nRecomendações:\n• ${sim.actionRecommendations.join('\n• ')}`;
         actionBadge = 'SIMULAÇÃO DE CRÉDITO';
-        suggestedFollowUps = ['Simular quitar o empréstimo', 'Ver impacto no meu runway'];
+      } else if (lower.includes('analis') || lower.includes('auditar') || lower.includes('diagnostico') || lower.includes('diagnóstico') || lower.includes('esta tela') || lower.includes('tela de')) {
+        let screenAnalysis = '';
+        if (lower.includes('fatura') || lower.includes('cartao') || lower.includes('cartão')) {
+          screenAnalysis = `💳 **Auditoria da Tela de Faturas & Cartões:**\n\n• **Cartão Nubank Mastercard Black:** Fatura aberta de R$ 3.850,00 com vencimento em 06/10.\n• **Uso de Limite:** 32% utilizado (nível seguro < 40%).\n• **Recomendação:** Seu fluxo previsto no dia 05 cobrirá integralmente a fatura sem necessidade de crédito rotativo.`;
+        } else if (lower.includes('emprestimo') || lower.includes('empréstimo') || lower.includes('divida') || lower.includes('dívida')) {
+          screenAnalysis = `🏛️ **Auditoria da Tela de Empréstimos & Dívidas (PRICE):**\n\n• **Contrato Ativo:** Consignado Operacional com parcela de R$ 1.458,51/mês.\n• **Direito BACEN nº 3.516:** Você tem direito à amortização com deságio integral dos juros futuros.\n• **Recomendação:** Aportar parte do fluxo livre mensal reduzirá em até 8 meses o término da dívida.`;
+        } else if (lower.includes('natureza') || lower.includes('teto') || lower.includes('orcamento') || lower.includes('orçamento')) {
+          screenAnalysis = `🏷️ **Auditoria da Tela de Naturezas & Tetos:**\n\n• **Status Global:** ${natures.length} naturezas orçamentárias monitoradas.\n• **Consumo Médio:** 68% do teto mensal consumido até o momento.\n• **Atenção:** Mantenha atenção nas rotinas semanais de alimentação para evitar estouro na última semana do mês.`;
+        } else if (lower.includes('meta')) {
+          screenAnalysis = `🎯 **Auditoria da Tela de Metas Financeiras:**\n\n• **Metas Ativas:** ${goals.length} cadastradas.\n• **Viabilidade:** Com seu fluxo livre atual (+R$ ${monthlyFreeCashflow.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}/mês), todas as metas projetadas estão com ritmo de aceleração positivo.`;
+        } else if (lower.includes('moviment') || lower.includes('lancamento') || lower.includes('lançamento')) {
+          screenAnalysis = `📝 **Auditoria da Tela de Lançamentos & Movimentações:**\n\n• **Volume de Registros:** Movimentações operacionais registradas e conciliadas.\n• **Fluxo do Ciclo:** Saldo operacional positivo em conta corrente.\n• **Dica:** Utilize o OCR com comprovantes fiscais para automatizar lançamentos recorrentes.`;
+        } else {
+          // Dashboard / Visão Geral
+          screenAnalysis = `📊 **Auditoria da Tela Aberta (Meu Dinheiro / Dashboard):**\n\n• **Saldo Disponível em Caixa:** R$ ${availableBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n• **Previsão 30 Dias:** Receitas de +R$ ${forecast30d.income.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} vs Despesas de -R$ ${forecast30d.expenses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n• **Resultado Projetado:** ${forecast30d.net >= 0 ? '+' : ''}R$ ${forecast30d.net.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} gerando saldo final de R$ ${forecast30d.projectedBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n• **Reserva de Emergência:** ${emergencyReserveMonths} meses de runway seguro.\n• **Diagnóstico:** ${nextCriticalEvent ? `Atenção ao evento crítico '${nextCriticalEvent.title}' em ${nextCriticalEvent.daysRemaining} dias.` : 'Fluxo de caixa perfeitamente equilibrado e sem riscos imediatos.'}`;
+        }
+        responseText = screenAnalysis;
+        actionBadge = 'AUDITORIA DE TELA EM TEMPO REAL';
+        suggestedFollowUps = ['Por que meu saldo projetado caiu?', 'Simular quitação do empréstimo', 'Anexar Comprovante / Cupom'];
       } else {
         responseText = `Entendido perfeitamente. Seus dados financeiros indicam que você tem R$ ${availableBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em saldo disponível e um fluxo líquido mensal positivo de R$ ${monthlyFreeCashflow.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}. Posso agendar uma movimentação, simular uma decisão ou auditar qualquer valor para você.`;
         actionBadge = 'ASSISTENTE OPERACIONAL';

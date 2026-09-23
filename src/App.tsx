@@ -42,6 +42,7 @@ export function ProtectedApp() {
 
 export function AppContent() {
   const [activeTab, setActiveTab] = useState<TabId>('DASHBOARD');
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isNavMenuOpen, setIsNavMenuOpen] = useState(false);
 
@@ -55,6 +56,15 @@ export function AppContent() {
   const [simulationMode, setSimulationMode] = useState<'PRESETS' | 'STUDIO'>('PRESETS');
 
   const [prepaymentModalOpen, setPrepaymentModalOpen] = useState(false);
+
+  const handleSelectTab = (tab: TabId) => {
+    if (tab === 'COPILOT') {
+      setIsCopilotOpen(true);
+    } else {
+      setActiveTab(tab);
+      setIsCopilotOpen(false);
+    }
+  };
 
   const handleOpenNewMovement = (
     type: MovementType = 'PAGAR',
@@ -78,8 +88,8 @@ export function AppContent() {
     <div className="app-shell">
       {/* Sidebar Navigation */}
       <Sidebar
-        activeTab={activeTab}
-        onSelectTab={(tab) => setActiveTab(tab)}
+        activeTab={isCopilotOpen ? 'COPILOT' : activeTab}
+        onSelectTab={handleSelectTab}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         isOpen={isNavMenuOpen}
@@ -94,12 +104,12 @@ export function AppContent() {
           onOpenNavMenu={() => setIsNavMenuOpen(true)}
         />
 
-        <main className={`app-content-viewport ${activeTab === 'COPILOT' ? 'viewport-copilot' : ''}`}>
-          {activeTab === 'DASHBOARD' && (
+        <main className="app-content-viewport">
+          {(activeTab === 'DASHBOARD' || activeTab === 'COPILOT') && (
             <DashboardPage
               onNavigateToMovements={() => setActiveTab('MOVIMENTACOES')}
               onNavigateToGoals={() => setActiveTab('METAS')}
-              onNavigateToCopilot={() => setActiveTab('COPILOT')}
+              onNavigateToCopilot={() => setIsCopilotOpen(true)}
               onNavigateToLoans={() => setActiveTab('EMPRESTIMOS')}
               onNavigateToNatures={() => setActiveTab('NATUREZAS')}
               onOpenSimulation={handleOpenSimulation}
@@ -119,13 +129,32 @@ export function AppContent() {
 
           {activeTab === 'EMPRESTIMOS' && <LoansPage />}
 
-          {activeTab === 'COPILOT' && <CopilotPage />}
-
           {activeTab === 'METAS' && <GoalsPage />}
 
           {activeTab === 'PERFIL' && <ProfilePage />}
         </main>
       </div>
+
+      {/* Pop-up Modal da Forseti sobrepondo a tela atual */}
+      {isCopilotOpen && (
+        <div
+          className="copilot-popup-overlay animate-fade-in"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Forseti - Assistente e Auditor Financeiro"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsCopilotOpen(false);
+          }}
+        >
+          <div className="copilot-popup-window glass-card">
+            <CopilotPage
+              onBack={() => setIsCopilotOpen(false)}
+              activeScreen={activeTab === 'COPILOT' ? 'DASHBOARD' : activeTab}
+              isPopup={true}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Global Modals */}
       <NewMovementModal

@@ -1,9 +1,31 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { ReceiptReconciliationCard } from '../components/ReceiptReconciliationCard';
-import { Send, Sparkles, User, Image as ImageIcon, X, Paperclip, UploadCloud, Info, Plus } from 'lucide-react';
+import { Send, Sparkles, User, Image as ImageIcon, X, Paperclip, UploadCloud, Info, Plus, ArrowLeft } from 'lucide-react';
+import type { TabId } from '../components/Sidebar';
 
-export const CopilotPage: React.FC = () => {
+export interface CopilotPageProps {
+  onBack?: () => void;
+  activeScreen?: TabId;
+  isPopup?: boolean;
+}
+
+const SCREEN_NAMES: Record<TabId, string> = {
+  DASHBOARD: 'Meu Dinheiro (Dashboard)',
+  MOVIMENTACOES: 'Lançamentos & Movimentações',
+  FATURAS: 'Faturas de Cartão',
+  NATUREZAS: 'Naturezas & Tetos',
+  EMPRESTIMOS: 'Empréstimos (PRICE)',
+  METAS: 'Metas Financeiras',
+  PERFIL: 'Perfil & Configurações',
+  COPILOT: 'Forseti IA',
+};
+
+export const CopilotPage: React.FC<CopilotPageProps> = ({
+  onBack,
+  activeScreen = 'DASHBOARD',
+  isPopup = false,
+}) => {
   const { chatHistory, sendMessageToCopilot, respondToCopilotOption, reconcileReceiptData, natures } = useFinancial();
   const [inputQuery, setInputQuery] = useState('');
   const [attachedImage, setAttachedImage] = useState<{ url: string; name: string } | null>(null);
@@ -27,8 +49,13 @@ export const CopilotPage: React.FC = () => {
     };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setShowPlusMenu(false);
-        setShowRolesModal(false);
+        if (showRolesModal) {
+          setShowRolesModal(false);
+        } else if (showPlusMenu) {
+          setShowPlusMenu(false);
+        } else if (onBack) {
+          onBack();
+        }
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -37,7 +64,7 @@ export const CopilotPage: React.FC = () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [showRolesModal, showPlusMenu, onBack]);
 
   // Suporte a Colar Imagem da Área de Transferência (Ctrl+V)
   useEffect(() => {
@@ -117,7 +144,11 @@ export const CopilotPage: React.FC = () => {
     setAttachedImage(null);
   };
 
+  const screenTitle = SCREEN_NAMES[activeScreen] || 'Meu Dinheiro';
+  const screenShortTitle = screenTitle.split(' ')[0];
+
   const quickChips = [
+    `🔍 Analisar esta tela (${screenShortTitle})`,
     '📸 Anexar Comprovante / Cupom',
     'Receberei R$ 8.500 dia 5.',
     'Paguei R$ 320 no mercado.',
@@ -129,6 +160,8 @@ export const CopilotPage: React.FC = () => {
   const handleChipClick = (chip: string) => {
     if (chip.includes('Anexar Comprovante')) {
       fileInputRef.current?.click();
+    } else if (chip.startsWith('🔍 Analisar esta tela')) {
+      handleSend(undefined, `Forseti, analise a tela de ${screenTitle} aberta no Balder agora e me dê um diagnóstico.`);
     } else {
       handleSend(undefined, chip);
     }
@@ -139,7 +172,7 @@ export const CopilotPage: React.FC = () => {
   const hasActiveOcr = !!(lastAssistantMsg?.receiptReconciliation && !lastAssistantMsg.receiptReconciliation.isReconciled);
 
   return (
-    <div className="page-container copilot-page animate-fade-in">
+    <div className={`page-container copilot-page animate-fade-in ${isPopup ? 'is-popup-mode' : ''}`}>
       {/* Chat Container em Tela Cheia */}
       <div
         className={`copilot-chat-container ${isDragging ? 'is-dragging-file' : ''}`}
@@ -147,30 +180,59 @@ export const CopilotPage: React.FC = () => {
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {/* Topbar compacta do chat com status e botão de informação (essencial para mobile e desktop) */}
+        {/* Topbar compacta do chat com status, botão voltar ao lado do avatar, e fechar */}
         <div className="copilot-chat-topbar">
           <div className="copilot-topbar-identity">
+            {onBack && (
+              <button
+                type="button"
+                className="copilot-back-btn"
+                onClick={onBack}
+                title="Voltar para a tela anterior"
+                aria-label="Voltar para a tela anterior"
+              >
+                <ArrowLeft size={18} />
+              </button>
+            )}
             <div className="copilot-topbar-avatar">
               <img src="/forseti-avatar.png" alt="Forseti" />
             </div>
             <div className="copilot-topbar-info">
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="copilot-topbar-name">BALDER Forseti</span>
                 <span className="copilot-status-dot" title="Forseti Operacional Online" />
+                {screenTitle && (
+                  <span className="copilot-screen-context-badge">
+                    👁️ {screenTitle}
+                  </span>
+                )}
               </div>
               <span className="copilot-topbar-sub">Patrono da conciliação e auditoria financeira</span>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowRolesModal(true)}
-            className="copilot-info-icon-btn cursor-pointer"
-            title="Como o Forseti opera (3 papéis)..."
-          >
-            <Info size={15} />
-            <span className="copilot-info-btn-text">Como opera</span>
-          </button>
+          <div className="copilot-topbar-actions">
+            <button
+              type="button"
+              onClick={() => setShowRolesModal(true)}
+              className="copilot-info-icon-btn cursor-pointer"
+              title="Como o Forseti opera (3 papéis)..."
+            >
+              <Info size={15} />
+              <span className="copilot-info-btn-text">Como opera</span>
+            </button>
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="copilot-close-btn cursor-pointer"
+                title="Fechar Forseti e voltar à tela"
+                aria-label="Fechar Forseti"
+              >
+                <X size={17} />
+              </button>
+            )}
+          </div>
         </div>
         {/* Overlay para Drag & Drop */}
         {isDragging && (
