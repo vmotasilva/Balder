@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import {
   Wallet,
@@ -6,6 +6,7 @@ import {
   ShieldAlert,
   Sparkles,
   ArrowUpRight,
+  ArrowDownRight,
   Clock,
   CheckCircle2,
   MapPin,
@@ -56,6 +57,26 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   const [isCheckpointModalOpen, setIsCheckpointModalOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<DashboardTab>('PROJECAO_MES');
+
+  // Cálculo real do crescimento patrimonial relativo ao marco inicial (evita exibir dados estáticos/falsos)
+  const netWorthGrowth = useMemo(() => {
+    if (
+      !activeCheckpoint ||
+      activeCheckpoint.initialNetWorth === undefined ||
+      activeCheckpoint.initialNetWorth <= 0 ||
+      totalNetWorth === 0
+    ) {
+      return null;
+    }
+    const diff = totalNetWorth - activeCheckpoint.initialNetWorth;
+    if (Math.abs(diff) < 0.01) return null;
+    const pct = (diff / activeCheckpoint.initialNetWorth) * 100;
+    return {
+      diff,
+      pct,
+      isPositive: diff >= 0,
+    };
+  }, [activeCheckpoint, totalNetWorth]);
 
   // Aguarda os dados do Supabase antes de renderizar para evitar flash de dados demo
   if (!isDataReady) {
@@ -131,9 +152,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 {totalNetWorth.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </span>
               <div className="stat-card-footer">
-                <span className="trend-pill trend-up">
-                  <ArrowUpRight size={13} /> +4.2% este mês
-                </span>
+                {netWorthGrowth && (
+                  <span className={`trend-pill ${netWorthGrowth.isPositive ? 'trend-up' : 'trend-down'}`}>
+                    {netWorthGrowth.isPositive ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
+                    {netWorthGrowth.isPositive ? '+' : ''}{netWorthGrowth.pct.toFixed(1)}% este mês
+                  </span>
+                )}
                 <span className="stat-subtext">
                   {activeCheckpoint && activeCheckpoint.initialNetWorth !== undefined
                     ? 'Ancorado no Marco'
@@ -199,7 +223,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 <span className="stat-unit">({emergencyReserveAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})</span>
               </span>
               <div className="stat-card-footer">
-                <span className="trend-pill trend-safe">✓ Nível Seguro &gt; 6m</span>
+                {emergencyReserveMonths >= 6 ? (
+                  <span className="trend-pill trend-safe">✓ Nível Seguro &gt; 6m</span>
+                ) : emergencyReserveMonths > 0 ? (
+                  <span className="trend-pill trend-warning">⚠️ {emergencyReserveMonths}m de cobertura</span>
+                ) : (
+                  <span className="stat-subtext">Sem reserva configurada</span>
+                )}
               </div>
             </div>
           </div>
