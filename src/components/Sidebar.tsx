@@ -14,6 +14,7 @@ import {
   LayoutGrid,
   X,
   Check,
+  Settings,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -112,15 +113,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: Target,
       badge: 'Price',
     },
-    {
-      id: 'PERFIL' as TabId,
-      label: 'Perfil',
-      subtitle: 'Configurações & Contas',
-      icon: UserCheck,
-    },
   ];
 
-  const activeItem = navItems.find((item) => item.id === activeTab) || navItems[0];
+  const activeItem = navItems.find((item) => item.id === activeTab) || {
+    id: 'PERFIL' as TabId,
+    label: 'Perfil',
+    subtitle: 'Configurações & Contas',
+    icon: UserCheck,
+  };
 
   return (
     <>
@@ -189,22 +189,52 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {!collapsed && <span>Recolher Barra</span>}
           </button>
 
-          {!collapsed && (
-            <div className="user-profile-widget" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+          {collapsed ? (
+            <button
+              type="button"
+              className={`user-avatar-collapsed-btn ${activeTab === 'PERFIL' ? 'active-profile' : ''}`}
+              onClick={() => onSelectTab('PERFIL')}
+              title="Acessar Perfil & Configurações"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '4px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto',
+              }}
+            >
+              <div className="user-avatar" style={{ boxShadow: activeTab === 'PERFIL' ? '0 0 10px var(--accent-cyan)' : 'none' }}>
+                <span>{userInitials}</span>
+              </div>
+            </button>
+          ) : (
+            <div className={`user-profile-widget ${activeTab === 'PERFIL' ? 'active-profile' : ''}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+              <button
+                type="button"
+                className="user-profile-btn"
+                onClick={() => onSelectTab('PERFIL')}
+                title="Acessar Configurações do Perfil"
+              >
                 <div className="user-avatar">
                   <span>{userInitials}</span>
                 </div>
                 <div className="user-info" style={{ overflow: 'hidden' }}>
-                  <span className="user-name" style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', display: 'block' }}>
-                    {user?.name || 'Vinicius Mota'}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span className="user-name" style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', display: 'block' }}>
+                      {user?.name || 'Vinicius Mota'}
+                    </span>
+                    <Settings size={12} className="text-cyan" style={{ opacity: 0.8 }} />
+                  </div>
                   <span className="user-workspace">
-                    {user?.isGuest ? 'Modo Demo Local' : 'Supabase Cloud'}
+                    {activeTab === 'PERFIL' ? '⚙️ Configurações Ativas' : (user?.isGuest ? 'Modo Demo • Perfil' : 'Configurações da Conta')}
                   </span>
                 </div>
-              </div>
+              </button>
               <button
+                type="button"
                 onClick={logout}
                 title="Sair da Conta"
                 style={{
@@ -218,6 +248,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   alignItems: 'center',
                   justifyContent: 'center',
                   transition: 'color 0.2s',
+                  flexShrink: 0,
                 }}
                 onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
                 onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted, #94a3b8)')}
@@ -324,17 +355,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {/* User Profile & Logout Footer */}
             <div className="mobile-nav-sheet-footer">
-              <div className="mobile-nav-user-info">
-                <div className="user-avatar">
+              <button
+                type="button"
+                className={`mobile-nav-user-btn ${activeTab === 'PERFIL' ? 'active' : ''}`}
+                onClick={() => {
+                  onSelectTab('PERFIL');
+                  setIsMobileMenuOpen(false);
+                }}
+                title="Acessar Configurações do Perfil"
+              >
+                <div className="user-avatar" style={{ boxShadow: activeTab === 'PERFIL' ? '0 0 10px var(--accent-cyan)' : 'none' }}>
                   <span>{userInitials}</span>
                 </div>
                 <div className="user-info">
-                  <span className="user-name">{user?.name || 'Vinicius Mota'}</span>
+                  <div className="user-name-row">
+                    <span className="user-name">{user?.name || 'Vinicius Mota'}</span>
+                    <span className="user-settings-badge">
+                      <Settings size={11} />
+                      <span>Configurações</span>
+                    </span>
+                  </div>
                   <span className="user-workspace">
-                    {user?.isGuest ? 'Modo Demo Local' : 'Supabase Cloud'}
+                    {activeTab === 'PERFIL' ? '⚙️ Configurações Ativas' : (user?.isGuest ? 'Modo Demo • Perfil' : 'Meu Perfil & Parâmetros')}
                   </span>
                 </div>
-              </div>
+              </button>
               <button
                 type="button"
                 className="mobile-nav-logout-btn"

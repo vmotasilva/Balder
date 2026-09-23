@@ -226,6 +226,39 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.user-profile-widget.active-profile {
+  border-color: var(--accent-cyan);
+  background: rgba(56, 189, 248, 0.08);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.15);
+}
+
+.user-profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+  transition: opacity 0.2s;
+}
+
+.user-profile-btn:hover .user-name {
+  color: var(--accent-cyan);
+}
+
+.user-avatar-collapsed-btn {
+  transition: transform 0.2s;
+}
+
+.user-avatar-collapsed-btn:hover {
+  transform: scale(1.08);
 }
 
 .user-avatar {
@@ -4812,11 +4845,72 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     flex-shrink: 0;
   }
 
-  .mobile-nav-user-info {
+  .mobile-nav-user-btn {
     display: flex;
     align-items: center;
     gap: 10px;
-    overflow: hidden;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 6px 10px;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    flex: 1;
+    min-width: 0;
+    margin-right: 8px;
+  }
+
+  .mobile-nav-user-btn:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: var(--border-default);
+  }
+
+  .mobile-nav-user-btn:active {
+    transform: scale(0.97);
+  }
+
+  .mobile-nav-user-btn.active {
+    background: rgba(56, 189, 248, 0.12);
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 14px rgba(56, 189, 248, 0.2);
+  }
+
+  [data-theme="light"] .mobile-nav-user-btn {
+    background: rgba(0, 0, 0, 0.02);
+    border-color: var(--border-default);
+  }
+
+  [data-theme="light"] .mobile-nav-user-btn:hover {
+    background: rgba(0, 0, 0, 0.05);
+  }
+
+  [data-theme="light"] .mobile-nav-user-btn.active {
+    background: rgba(2, 132, 199, 0.1);
+    border-color: var(--accent-cyan);
+  }
+
+  .user-name-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .user-settings-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent-cyan);
+    background: rgba(56, 189, 248, 0.12);
+    padding: 2px 6px;
+    border-radius: 6px;
+  }
+
+  /* Faz o 7º item (Metas) ocupar as 2 colunas harmoniosamente */
+  .mobile-nav-grid > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
   }
 
   .mobile-nav-logout-btn {
