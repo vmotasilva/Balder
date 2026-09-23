@@ -6044,8 +6044,10 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     left: 0;
     right: 0;
     top: auto;
+    height: auto;
     max-height: 96vh;
     max-height: 96dvh;
+    overflow: hidden;
     border-radius: 24px 24px 0 0;
     box-shadow: 0 -14px 44px rgba(0, 0, 0, 0.55), 0 0 1px rgba(255, 255, 255, 0.1);
   }
@@ -6069,6 +6071,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     max-height: 96vh;
     max-height: 96dvh;
     height: auto;
+    overflow: hidden;
   }
 
   .mobile-nav-drag-handle {
@@ -6092,7 +6095,14 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   }
 
   .mobile-nav-scroll-area {
-    padding: 8px 12px 4px;
+    padding: 6px 12px 2px;
+    overflow-y: hidden !important;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .mobile-nav-scroll-area::-webkit-scrollbar {
+    display: none;
   }
 
   .mobile-nav-grid {
