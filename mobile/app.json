@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Balder",
+    "slug": "balder-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.balder.financial"
+    },
+    "android": {
+      "package": "com.balder.financial",
+      "adaptiveIcon": {
+        "backgroundColor": "#0B0F17",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

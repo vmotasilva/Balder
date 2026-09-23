@@ -52,7 +52,7 @@ export const LoginPage: React.FC = () => {
         {/* Security badge */}
         <div className="login-security-badge">
           <Shield size={14} className="security-icon" />
-          <span>Multi-tenant Isolado • Dados Criptografados no Appwrite</span>
+          <span>Multi-tenant Isolado • Dados Criptografados no Supabase (RLS)</span>
         </div>
 
         {/* Primary Action: Google OAuth */}
@@ -149,7 +149,7 @@ export const LoginPage: React.FC = () => {
               className="btn-text-switch"
               onClick={() => { setMode('REGISTER'); setErrorMsg(''); }}
             >
-              Não tem uma conta? <strong>Cadastre-se no Appwrite</strong>
+              Não tem uma conta? <strong>Cadastre-se no Supabase</strong>
             </button>
           ) : (
             <button 

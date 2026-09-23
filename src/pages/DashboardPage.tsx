@@ -61,7 +61,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     ? Math.min(Math.round((mainGoal.currentAmount / mainGoal.targetAmount) * 100), 100)
     : 0;
 
-  // Aguarda os dados do Appwrite antes de renderizar para evitar flash de dados demo
+  // Aguarda os dados do Supabase antes de renderizar para evitar flash de dados demo
   if (!isDataReady) {
     return (
       <div className="page-container animate-fade-in" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', flexDirection: 'column', gap: '1rem' }}>

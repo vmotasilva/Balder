@@ -333,7 +333,7 @@ export function buildMonthlyProjectionGrid(
 
 /**
  * Gera movimentos VIRTUAIS (previstos) a partir dos contratos de salário cadastrados.
- * Esses movimentos não existem no Appwrite — são projetados para exibição na tela
+ * Esses movimentos não existem no Supabase — são projetados para exibição na tela
  * de Movimentações → Receber → Previstas.
  *
  * Geração: mês atual + próximos 11 meses (12 meses no total).

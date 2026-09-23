@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
-import { AppwriteService } from '../services/appwriteService';
+import { SupabaseService } from '../services/supabaseService';
 import { useAuth } from './AuthContext';
 import type {
   Movement,
@@ -44,7 +44,7 @@ import {
 
 interface FinancialContextType {
   // Estado
-  isDataReady: boolean;   // true quando dados do Appwrite (ou DEMO) já foram carregados
+  isDataReady: boolean;   // true quando dados do Supabase (ou DEMO) já foram carregados
   accounts: BankAccount[];
   cards: CreditCardItem[];
   paymentMethods: PaymentMethodItem[];
@@ -154,7 +154,7 @@ const FinancialContext = createContext<FinancialContextType | undefined>(undefin
 export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
 
-  // Se o usuário está autenticado na nuvem via Appwrite, a fonte de verdade é a sua conta real
+  // Se o usuário está autenticado na nuvem via Supabase, a fonte de verdade é a sua conta real
   const isCloudUser = !!user && !user.isGuest;
 
   // Flag que indica se os dados já foram carregados da nuvem.
@@ -803,7 +803,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     },
   ]);
 
-  // Sincronização inicial com Appwrite
+  // Sincronização inicial com Supabase
   useEffect(() => {
     if (!user || user.isGuest) {
       setAccounts(DEMO_ACCOUNTS);
@@ -822,9 +822,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     async function loadCloudData() {
       try {
         const [cloudMovements, cloudNatures, cloudGoals] = await Promise.all([
-          AppwriteService.getMovements(),
-          AppwriteService.getNatures(),
-          AppwriteService.getGoals(),
+          SupabaseService.getMovements(),
+          SupabaseService.getNatures(),
+          SupabaseService.getGoals(),
         ]);
         if (isMounted) {
           // Em ambiente autenticado na nuvem, mescla com cache local para resguardar mapeamentos recém-criados
@@ -846,7 +846,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                     localNat.mappings.length > 0
                   ) {
                     if (user && !user.isGuest && !cNat.id.startsWith('nat_')) {
-                      AppwriteService.updateNature(cNat.id, { mappings: localNat.mappings }).catch(console.error);
+                      SupabaseService.updateNature(cNat.id, { mappings: localNat.mappings }).catch(console.error);
                     }
                     return { ...cNat, mappings: localNat.mappings };
                   }
@@ -897,7 +897,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           setIsDataReady(true);
         }
       } catch (err) {
-        console.error('Erro ao sincronizar com Appwrite:', err);
+        console.error('Erro ao sincronizar com Supabase:', err);
         // Mesmo em erro, libera o render para não travar a tela
         if (isMounted) setIsDataReady(true);
       }
@@ -919,7 +919,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setMovements((prev) => [newMovement, ...prev]);
 
     if (user && !user.isGuest) {
-      AppwriteService.addMovement(item)
+      SupabaseService.addMovement(item)
         .then((created) => {
           if (created) {
             setMovements((prev) =>
@@ -927,7 +927,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             );
           }
         })
-        .catch((err) => console.error('Erro ao persistir no Appwrite:', err));
+        .catch((err) => console.error('Erro ao persistir no Supabase:', err));
     }
   };
 
@@ -942,8 +942,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     if (user && !user.isGuest) {
       items.forEach((item) => {
-        AppwriteService.addMovement(item).catch((err) =>
-          console.error('Erro ao salvar item parcelado no Appwrite:', err)
+        SupabaseService.addMovement(item).catch((err) =>
+          console.error('Erro ao salvar item parcelado no Supabase:', err)
         );
       });
     }
@@ -966,8 +966,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
 
     if (user && !user.isGuest && !id.startsWith('rec_') && !id.startsWith('pay_') && !id.startsWith('lia_') && !id.startsWith('cc_')) {
-      AppwriteService.updateMovement(id, updates).catch((err) =>
-        console.error('Erro ao atualizar movimentação no Appwrite:', err)
+      SupabaseService.updateMovement(id, updates).catch((err) =>
+        console.error('Erro ao atualizar movimentação no Supabase:', err)
       );
     }
   };
@@ -976,8 +976,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const deleteMovement = (id: string) => {
     setMovements((prev) => prev.filter((m) => m.id !== id));
     if (user && !user.isGuest && !id.startsWith('rec_') && !id.startsWith('pay_') && !id.startsWith('lia_') && !id.startsWith('cc_')) {
-      AppwriteService.deleteMovement(id).catch((err) =>
-        console.error('Erro ao excluir no Appwrite:', err)
+      SupabaseService.deleteMovement(id).catch((err) =>
+        console.error('Erro ao excluir no Supabase:', err)
       );
     }
   };
@@ -999,8 +999,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     );
 
     if (user && !user.isGuest && !id.startsWith('rec_') && !id.startsWith('pay_') && !id.startsWith('lia_') && !id.startsWith('cc_')) {
-      AppwriteService.updateMovement(id, { status: nextStatus }).catch((err) =>
-        console.error('Erro ao atualizar status no Appwrite:', err)
+      SupabaseService.updateMovement(id, { status: nextStatus }).catch((err) =>
+        console.error('Erro ao atualizar status no Supabase:', err)
       );
     }
   };
@@ -1035,21 +1035,21 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const tempId = `goal_${Date.now()}`;
     setGoals((prev) => [...prev, { ...item, id: tempId }]);
     if (user && !user.isGuest) {
-      AppwriteService.addGoal(item)
+      SupabaseService.addGoal(item)
         .then((created) => {
           if (created) {
             setGoals((prev) => prev.map((g) => (g.id === tempId ? { ...g, id: created.id } : g)));
           }
         })
-        .catch((err) => console.error('Erro ao adicionar meta no Appwrite:', err));
+        .catch((err) => console.error('Erro ao adicionar meta no Supabase:', err));
     }
   };
 
   const updateGoal = (id: string, updates: Partial<Goal>) => {
     setGoals((prev) => prev.map((g) => (g.id === id ? { ...g, ...updates } : g)));
     if (user && !user.isGuest) {
-      AppwriteService.updateGoal(id, updates).catch((err) =>
-        console.error('Erro ao atualizar meta no Appwrite:', err)
+      SupabaseService.updateGoal(id, updates).catch((err) =>
+        console.error('Erro ao atualizar meta no Supabase:', err)
       );
     }
   };
@@ -1910,7 +1910,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // NATUREZAS & MAPEAMENTOS DE GASTOS FIXOS
   // ==========================================
 
-  // Sincronização centralizada de Naturezas (Appwrite Cloud + localStorage)
+  // Sincronização centralizada de Naturezas (Supabase Cloud + localStorage)
   const saveNaturesData = (
     updatedNatures: ExpenseNature[],
     modifiedNatureId?: string,
@@ -1931,8 +1931,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           overCeilingJustification: targetNat.overCeilingJustification,
           justificationHistory: targetNat.justificationHistory,
         };
-        AppwriteService.updateNature(targetNat.id, payload).catch((err) =>
-          console.error(`Erro ao sincronizar natureza ${targetNat.id} no Appwrite:`, err)
+        SupabaseService.updateNature(targetNat.id, payload).catch((err) =>
+          console.error(`Erro ao sincronizar natureza ${targetNat.id} no Supabase:`, err)
         );
       }
     }
@@ -1955,7 +1955,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
 
     if (user && !user.isGuest) {
-      AppwriteService.addNature(newNature)
+      SupabaseService.addNature(newNature)
         .then((created) => {
           if (created) {
             setNatures((prev) => {
@@ -1963,7 +1963,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                 if (nat.id === tempId) {
                   const updated = { ...nat, id: created.id };
                   if (updated.mappings && updated.mappings.length > 0) {
-                    AppwriteService.updateNature(created.id, { mappings: updated.mappings }).catch(console.error);
+                    SupabaseService.updateNature(created.id, { mappings: updated.mappings }).catch(console.error);
                   }
                   return updated;
                 }
@@ -1974,7 +1974,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             });
           }
         })
-        .catch((err) => console.error('Erro ao criar natureza no Appwrite:', err));
+        .catch((err) => console.error('Erro ao criar natureza no Supabase:', err));
     }
   };
 
@@ -2003,8 +2003,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return next;
     });
     if (user && !user.isGuest && !id.startsWith('nat_')) {
-      AppwriteService.deleteNature(id).catch((err) =>
-        console.error('Erro ao excluir natureza no Appwrite:', err)
+      SupabaseService.deleteNature(id).catch((err) =>
+        console.error('Erro ao excluir natureza no Supabase:', err)
       );
     }
   };

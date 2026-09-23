@@ -171,7 +171,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {user?.name || 'Vinicius Mota'}
                 </span>
                 <span className="user-workspace">
-                  {user?.isGuest ? 'Modo Demo Local' : 'Appwrite Cloud'}
+                  {user?.isGuest ? 'Modo Demo Local' : 'Supabase Cloud'}
                 </span>
               </div>
             </div>

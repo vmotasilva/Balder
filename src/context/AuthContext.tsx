@@ -1,9 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { OAuthProvider } from 'appwrite';
-import { account } from '../lib/appwrite';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export interface AppUser {
-  $id: string;
+  $id: string; // Mapeado a partir de user.id do Supabase para total compatibilidade retroativa
   name: string;
   email: string;
   isGuest?: boolean;
@@ -12,11 +11,11 @@ export interface AppUser {
 interface AuthContextType {
   user: AppUser | null;
   isLoading: boolean;
-  loginWithGoogle: () => void;
+  loginWithGoogle: () => Promise<void>;
   loginWithEmail: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   registerWithEmail: (email: string, pass: string, name: string) => Promise<{ success: boolean; error?: string }>;
   continueAsGuest: () => void;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,18 +26,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     checkSession();
+
+    if (!isSupabaseConfigured) {
+      return;
+    }
+
+    // Escuta mudanças de autenticação no Supabase em tempo real
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser({
+          $id: session.user.id,
+          name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Usuário',
+          email: session.user.email || '',
+          isGuest: false,
+        });
+        sessionStorage.removeItem('balder_guest_user');
+      } else {
+        // Se deslogou no Supabase, verifica se há modo convidado ativo
+        const guest = sessionStorage.getItem('balder_guest_user');
+        if (guest) {
+          try {
+            setUser(JSON.parse(guest));
+          } catch {
+            setUser(null);
+          }
+        } else {
+          setUser(null);
+        }
+      }
+      setIsLoading(false);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const checkSession = async () => {
     try {
-      const currentAccount = await account.get();
-      setUser({
-        $id: currentAccount.$id,
-        name: currentAccount.name || currentAccount.email,
-        email: currentAccount.email,
-      });
-    } catch (error) {
-      // Check if guest was active in sessionStorage
+      if (isSupabaseConfigured) {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (session?.user && !error) {
+          setUser({
+            $id: session.user.id,
+            name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Usuário',
+            email: session.user.email || '',
+            isGuest: false,
+          });
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Verifica se convidado estava ativo no sessionStorage
       const guest = sessionStorage.getItem('balder_guest_user');
       if (guest) {
         try {
@@ -49,27 +89,57 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         setUser(null);
       }
+    } catch {
+      setUser(null);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const loginWithGoogle = () => {
+  const loginWithGoogle = async () => {
+    if (!isSupabaseConfigured) {
+      console.warn('[Supabase] Credenciais não configuradas. Usando modo convidado.');
+      continueAsGuest();
+      return;
+    }
+
     const currentUrl = window.location.origin;
-    account.createOAuth2Session(OAuthProvider.Google, currentUrl, currentUrl);
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: currentUrl,
+      },
+    });
   };
 
   const loginWithEmail = async (email: string, pass: string) => {
-    try {
-      await account.createEmailPasswordSession(email, pass);
-      const current = await account.get();
-      const mappedUser: AppUser = {
-        $id: current.$id,
-        name: current.name || current.email,
-        email: current.email,
+    if (!isSupabaseConfigured) {
+      return {
+        success: false,
+        error: 'Supabase não configurado. Por favor, adicione as chaves no arquivo .env ou continue como Convidado.',
       };
-      setUser(mappedUser);
-      sessionStorage.removeItem('balder_guest_user');
+    }
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: pass,
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      if (data.user) {
+        setUser({
+          $id: data.user.id,
+          name: data.user.user_metadata?.name || data.user.email?.split('@')[0] || 'Usuário',
+          email: data.user.email || '',
+          isGuest: false,
+        });
+        sessionStorage.removeItem('balder_guest_user');
+      }
+
       return { success: true };
     } catch (e: any) {
       return { success: false, error: e?.message || 'Falha na autenticação' };
@@ -77,9 +147,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const registerWithEmail = async (email: string, pass: string, name: string) => {
+    if (!isSupabaseConfigured) {
+      return {
+        success: false,
+        error: 'Supabase não configurado. Adicione as chaves no arquivo .env.',
+      };
+    }
+
     try {
-      await account.create('unique()', email, pass, name);
-      return await loginWithEmail(email, pass);
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: pass,
+        options: {
+          data: {
+            name,
+          },
+        },
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      if (data.session && data.user) {
+        setUser({
+          $id: data.user.id,
+          name: data.user.user_metadata?.name || name || data.user.email?.split('@')[0] || 'Usuário',
+          email: data.user.email || '',
+          isGuest: false,
+        });
+        sessionStorage.removeItem('balder_guest_user');
+      }
+
+      return { success: true };
     } catch (e: any) {
       return { success: false, error: e?.message || 'Falha no cadastro' };
     }
@@ -98,8 +198,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = async () => {
     try {
-      if (!user?.isGuest) {
-        await account.deleteSession('current');
+      if (!user?.isGuest && isSupabaseConfigured) {
+        await supabase.auth.signOut();
       }
     } catch (error) {
       console.error('Logout error', error);
