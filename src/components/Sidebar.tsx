@@ -100,13 +100,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: 'Price',
     },
     {
-      id: 'COPILOT' as TabId,
-      label: 'Forseti',
-      subtitle: 'Assistente & Auditor',
-      icon: Sparkles,
-      badge: 'IA',
-    },
-    {
       id: 'METAS' as TabId,
       label: 'Metas',
       subtitle: 'Objetivos & Sonhos',
@@ -115,12 +108,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
   ];
 
-  const activeItem = navItems.find((item) => item.id === activeTab) || {
-    id: 'PERFIL' as TabId,
-    label: 'Perfil',
-    subtitle: 'Configurações & Contas',
-    icon: UserCheck,
-  };
+  const activeItem = navItems.find((item) => item.id === activeTab) || 
+    (activeTab === 'COPILOT' 
+      ? { id: 'COPILOT' as TabId, label: 'Forseti IA', subtitle: 'Assistente & Auditor', icon: Sparkles, badge: 'IA' }
+      : { id: 'PERFIL' as TabId, label: 'Perfil', subtitle: 'Configurações & Contas', icon: UserCheck }
+    );
 
   return (
     <>
@@ -178,8 +170,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </ul>
         </nav>
 
-        {/* Footer / User Profile & Collapse Toggle */}
+        {/* Footer / User Profile, Forseti IA & Collapse Toggle */}
         <div className="sidebar-footer">
+          {/* Destaque Especial: Forseti IA na Sidebar Desktop */}
+          <button
+            type="button"
+            className={`desktop-sidebar-forseti-btn ${activeTab === 'COPILOT' ? 'active' : ''}`}
+            onClick={() => onSelectTab('COPILOT')}
+            title="Forseti — Assistente & Auditor IA"
+          >
+            <div className="forseti-btn-avatar">
+              <img src="/forseti-avatar.png" alt="Forseti IA" className="forseti-btn-avatar-img" />
+              <span className="forseti-pulse-dot" />
+            </div>
+            {!collapsed && (
+              <div className="forseti-btn-info">
+                <div className="forseti-btn-title-row">
+                  <span className="forseti-btn-title">Forseti IA</span>
+                  <span className="forseti-badge-ia">AUDITOR</span>
+                </div>
+                <span className="forseti-btn-sub">Assistente & Auditor IA</span>
+              </div>
+            )}
+          </button>
+
           <button
             className="collapse-toggle-btn"
             onClick={onToggleCollapse}
@@ -229,7 +243,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <Settings size={12} className="text-cyan" style={{ opacity: 0.8 }} />
                   </div>
                   <span className="user-workspace">
-                    {activeTab === 'PERFIL' ? '⚙️ Configurações Ativas' : (user?.isGuest ? 'Modo Demo • Perfil' : 'Configurações da Conta')}
+                    {activeTab === 'PERFIL' ? '⚙️ Configurações Ativas' : 'Meu Perfil'}
                   </span>
                 </div>
               </button>
@@ -353,8 +367,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
             </div>
 
-            {/* User Profile & Logout Footer */}
+            {/* User Profile, Forseti IA & Logout Footer */}
             <div className="mobile-nav-sheet-footer">
+              {/* Perfil do Usuário */}
               <button
                 type="button"
                 className={`mobile-nav-user-btn ${activeTab === 'PERFIL' ? 'active' : ''}`}
@@ -368,18 +383,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <span>{userInitials}</span>
                 </div>
                 <div className="user-info">
-                  <div className="user-name-row">
-                    <span className="user-name">{user?.name || 'Vinicius Mota'}</span>
-                    <span className="user-settings-badge">
-                      <Settings size={11} />
-                      <span>Configurações</span>
-                    </span>
-                  </div>
-                  <span className="user-workspace">
-                    {activeTab === 'PERFIL' ? '⚙️ Configurações Ativas' : (user?.isGuest ? 'Modo Demo • Perfil' : 'Meu Perfil & Parâmetros')}
-                  </span>
+                  <span className="user-name">{user?.name || 'Vinicius Mota'}</span>
+                  <span className="user-role-label">Meu Perfil</span>
                 </div>
               </button>
+
+              {/* Destaque Especial: Forseti IA */}
+              <button
+                type="button"
+                className={`mobile-nav-forseti-btn ${activeTab === 'COPILOT' ? 'active' : ''}`}
+                onClick={() => {
+                  onSelectTab('COPILOT');
+                  setIsMobileMenuOpen(false);
+                }}
+                title="Abrir Forseti — Assistente & Auditor IA"
+              >
+                <div className="forseti-btn-avatar">
+                  <img src="/forseti-avatar.png" alt="Forseti IA" className="forseti-btn-avatar-img" />
+                  <span className="forseti-pulse-dot" />
+                </div>
+                <div className="forseti-btn-info">
+                  <div className="forseti-btn-title-row">
+                    <span className="forseti-btn-title">Forseti</span>
+                    <span className="forseti-badge-ia">IA</span>
+                  </div>
+                  <span className="forseti-btn-sub">Auditor</span>
+                </div>
+              </button>
+
+              {/* Botão Sair */}
               <button
                 type="button"
                 className="mobile-nav-logout-btn"
@@ -388,9 +420,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   logout();
                 }}
                 title="Sair da Conta"
+                aria-label="Sair da Conta"
               >
                 <LogOut size={16} />
-                <span>Sair</span>
+                <span className="logout-text">Sair</span>
               </button>
             </div>
           </div>

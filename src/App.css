@@ -261,6 +261,52 @@
   transform: scale(1.08);
 }
 
+/* Destaque Especial: Forseti IA na Sidebar Desktop */
+.desktop-sidebar-forseti-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.08), rgba(168, 85, 247, 0.12));
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.08);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.desktop-sidebar-forseti-btn:hover {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.16), rgba(168, 85, 247, 0.22));
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.2);
+  transform: translateY(-1px);
+}
+
+.desktop-sidebar-forseti-btn.active {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.22), rgba(168, 85, 247, 0.28));
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.35);
+}
+
+[data-theme="light"] .desktop-sidebar-forseti-btn {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.06), rgba(147, 51, 234, 0.08));
+  border-color: rgba(2, 132, 199, 0.25);
+}
+
+[data-theme="light"] .desktop-sidebar-forseti-btn:hover {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.12), rgba(147, 51, 234, 0.14));
+  border-color: #0284c7;
+}
+
+[data-theme="light"] .desktop-sidebar-forseti-btn.active {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.16), rgba(147, 51, 234, 0.18));
+  border-color: #0284c7;
+}
+
 .user-avatar {
   display: flex;
   align-items: center;
@@ -4834,12 +4880,13 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     justify-content: center;
   }
 
-  /* Rodapé com Informações do Usuário & Logout */
+  /* Rodapé com Informações do Usuário, Forseti IA & Logout */
   .mobile-nav-sheet-footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 18px calc(86px + env(safe-area-inset-bottom, 0px));
+    gap: 8px;
+    padding: 12px 14px calc(86px + env(safe-area-inset-bottom, 0px));
     border-top: 1px solid var(--border-subtle);
     background: var(--bg-sidebar);
     flex-shrink: 0;
@@ -4848,17 +4895,17 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   .mobile-nav-user-btn {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--border-subtle);
     border-radius: 12px;
-    padding: 6px 10px;
+    padding: 6px 8px;
     text-align: left;
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    flex: 1;
+    flex: 1.1;
     min-width: 0;
-    margin-right: 8px;
+    overflow: hidden;
   }
 
   .mobile-nav-user-btn:hover {
@@ -4890,48 +4937,174 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     border-color: var(--accent-cyan);
   }
 
-  .user-name-row {
+  .mobile-nav-user-btn .user-name {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+  }
+
+  .user-role-label {
+    font-size: 10px;
+    color: var(--accent-cyan);
+    font-weight: 600;
+    display: block;
+    line-height: 1.2;
+  }
+
+  /* Botão de Destaque Exclusivo: Forseti IA */
+  .mobile-nav-forseti-btn {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 7px;
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(168, 85, 247, 0.15));
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.15);
+    border-radius: 12px;
+    padding: 6px 9px;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    flex: 1;
+    min-width: 0;
+    position: relative;
+    overflow: hidden;
   }
 
-  .user-settings-badge {
-    display: inline-flex;
+  .mobile-nav-forseti-btn:hover {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(168, 85, 247, 0.25));
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.3);
+    transform: translateY(-1px);
+  }
+
+  .mobile-nav-forseti-btn:active {
+    transform: scale(0.97);
+  }
+
+  .mobile-nav-forseti-btn.active {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(168, 85, 247, 0.3));
+    border-color: #38bdf8;
+    box-shadow: 0 0 18px rgba(56, 189, 248, 0.4);
+  }
+
+  [data-theme="light"] .mobile-nav-forseti-btn {
+    background: linear-gradient(135deg, rgba(2, 132, 199, 0.08), rgba(147, 51, 234, 0.09));
+    border: 1px solid rgba(2, 132, 199, 0.3);
+    box-shadow: 0 2px 8px rgba(2, 132, 199, 0.1);
+  }
+
+  [data-theme="light"] .mobile-nav-forseti-btn:hover {
+    background: linear-gradient(135deg, rgba(2, 132, 199, 0.14), rgba(147, 51, 234, 0.16));
+    border-color: #0284c7;
+  }
+
+  [data-theme="light"] .mobile-nav-forseti-btn.active {
+    background: linear-gradient(135deg, rgba(2, 132, 199, 0.18), rgba(147, 51, 234, 0.2));
+    border-color: #0284c7;
+    box-shadow: 0 0 14px rgba(2, 132, 199, 0.25);
+  }
+
+  .forseti-btn-avatar {
+    position: relative;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .forseti-btn-avatar-img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1.5px solid rgba(212, 175, 55, 0.8);
+    box-shadow: 0 0 8px rgba(212, 175, 55, 0.3);
+  }
+
+  .forseti-pulse-dot {
+    position: absolute;
+    bottom: -1px;
+    right: -1px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #10b981;
+    border: 1.5px solid var(--bg-sidebar);
+    box-shadow: 0 0 6px #10b981;
+    animation: forsetiPulse 2s infinite;
+  }
+
+  @keyframes forsetiPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.2); }
+  }
+
+  .forseti-btn-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .forseti-btn-title-row {
+    display: flex;
     align-items: center;
-    gap: 3px;
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--accent-cyan);
-    background: rgba(56, 189, 248, 0.12);
-    padding: 2px 6px;
-    border-radius: 6px;
+    gap: 4px;
   }
 
-  /* Faz o 7º item (Metas) ocupar as 2 colunas harmoniosamente */
-  .mobile-nav-grid > :last-child:nth-child(odd) {
-    grid-column: 1 / -1;
+  .forseti-btn-title {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--text-primary);
+    white-space: nowrap;
+  }
+
+  .forseti-badge-ia {
+    font-size: 8px;
+    font-weight: 800;
+    padding: 1px 4px;
+    border-radius: 4px;
+    background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+    color: #ffffff;
+    letter-spacing: 0.04em;
+  }
+
+  .forseti-btn-sub {
+    font-size: 9.5px;
+    color: var(--accent-cyan);
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .mobile-nav-logout-btn {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 14px;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 10px;
     border-radius: 10px;
     background: rgba(239, 68, 68, 0.1);
     border: 1px solid rgba(239, 68, 68, 0.25);
     color: #ef4444;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     cursor: pointer;
     transition: all 0.2s;
+    flex-shrink: 0;
   }
 
   .mobile-nav-logout-btn:active {
     transform: scale(0.95);
     background: rgba(239, 68, 68, 0.2);
   }
+
+
 
   /* Navbar responsiva no mobile */
   .app-navbar {
