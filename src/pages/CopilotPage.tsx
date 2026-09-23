@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { ReceiptReconciliationCard } from '../components/ReceiptReconciliationCard';
-import { Send, Sparkles, User, Image as ImageIcon, X, Paperclip, UploadCloud, Info, Plus, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { Send, Sparkles, User, Image as ImageIcon, X, Paperclip, UploadCloud, Info, Plus, ArrowLeft, ArrowRight, ShieldCheck } from 'lucide-react';
 import type { TabId } from '../components/Sidebar';
 
 export interface CopilotPageProps {
   onBack?: () => void;
   activeScreen?: TabId;
   isPopup?: boolean;
+  onOpenOnboarding?: (stepIndex?: number) => void;
 }
 
 const SCREEN_NAMES: Record<TabId, string> = {
@@ -25,8 +26,9 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
   onBack,
   activeScreen = 'DASHBOARD',
   isPopup = false,
+  onOpenOnboarding,
 }) => {
-  const { chatHistory, sendMessageToCopilot, respondToCopilotOption, reconcileReceiptData, natures } = useFinancial();
+  const { chatHistory, sendMessageToCopilot, respondToCopilotOption, reconcileReceiptData, natures, activeCheckpoint, movements } = useFinancial();
   const [inputQuery, setInputQuery] = useState('');
   const [attachedImage, setAttachedImage] = useState<{ url: string; name: string; size?: string; revoke?: () => void } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -253,6 +255,30 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
 
         {/* Messages Feed */}
         <div className="chat-messages-feed">
+          {(!activeCheckpoint || movements.filter(m => m.type === 'CARTAO').length === 0 || natures.length === 0) && (
+            <div className="copilot-pending-calibration-notice animate-fade-in">
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} className="text-amber" />
+                <strong className="text-xs text-amber-300">
+                  Calibração Inicial Recomendada pela Forseti
+                </strong>
+              </div>
+              <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                Olá! Notei que seu Balder ainda tem etapas de calibração pendentes ({!activeCheckpoint ? 'Ponto de Partida, ' : ''}{movements.filter(m => m.type === 'CARTAO').length === 0 ? 'Faturas em Aberto, ' : ''}{natures.length === 0 ? 'Naturezas Orçamentárias' : ''}). Recomendo concluirmos esses 3 passos para que minhas auditorias de fluxo e projeções de 30 dias sejam exatas.
+              </p>
+              {onOpenOnboarding && (
+                <button
+                  type="button"
+                  className="btn btn-primary btn-xs mt-2.5 flex items-center gap-1.5 cursor-pointer"
+                  onClick={() => onOpenOnboarding(!activeCheckpoint ? 1 : movements.filter(m => m.type === 'CARTAO').length === 0 ? 2 : 3)}
+                >
+                  <span>Iniciar Calibração com a Forseti</span>
+                  <ArrowRight size={13} />
+                </button>
+              )}
+            </div>
+          )}
+
           {chatHistory.map((msg) => {
             const isUser = msg.role === 'user';
 

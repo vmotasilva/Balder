@@ -8,7 +8,6 @@ import {
   ArrowUpRight,
   Clock,
   CheckCircle2,
-  Flag,
   MapPin,
   Calendar,
   Layers,
@@ -21,6 +20,7 @@ import { MonthlyProjectionGrid } from '../components/MonthlyProjectionGrid';
 import { NatureBudgetGrid } from '../components/NatureBudgetGrid';
 import { CheckpointSetupModal } from '../components/CheckpointSetupModal';
 import { QuickActionsDropdown } from '../components/QuickActionsDropdown';
+import { ForsetiSetupChecklist } from '../components/ForsetiSetupChecklist';
 
 interface DashboardPageProps {
   onNavigateToMovements: () => void;
@@ -30,6 +30,7 @@ interface DashboardPageProps {
   onNavigateToNatures?: () => void;
   onOpenSimulation: (preset?: SimulationPresetId, mode?: 'PRESETS' | 'STUDIO') => void;
   onOpenPrepayment?: () => void;
+  onOpenOnboarding?: (stepIndex?: number) => void;
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
@@ -40,6 +41,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onNavigateToNatures,
   onOpenSimulation,
   onOpenPrepayment,
+  onOpenOnboarding,
 }) => {
   const {
     isDataReady,
@@ -111,19 +113,18 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
       </div>
 
-      {/* Botão de Ponto de Partida: Aparece apenas se NÃO houver marco definido */}
-      {!activeCheckpoint && (
-        <div className="mb-5 flex items-center">
-          <button
-            type="button"
-            onClick={() => setIsCheckpointModalOpen(true)}
-            className="btn btn-primary text-xs py-2 px-4 shadow-lg flex items-center gap-2 cursor-pointer"
-          >
-            <Flag size={14} />
-            <span>Definir Ponto de Partida</span>
-          </button>
-        </div>
-      )}
+      {/* Card de Pendências da Forseti / Calibração Inicial do Sistema */}
+      <div className="mb-6">
+        <ForsetiSetupChecklist
+          onOpenOnboarding={(step) => {
+            if (onOpenOnboarding) {
+              onOpenOnboarding(step);
+            } else {
+              setIsCheckpointModalOpen(true);
+            }
+          }}
+        />
+      </div>
 
       {/* ============================================================== */}
       {/* SEÇÃO 1: COMO ESTOU                                            */}

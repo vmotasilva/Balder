@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
-import { FinancialProvider } from './context/FinancialContext';
+import { FinancialProvider, useFinancial } from './context/FinancialContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sidebar } from './components/Sidebar';
 import type { TabId } from './components/Sidebar';
@@ -17,6 +17,7 @@ import { LoansPage } from './pages/LoansPage';
 import { NewMovementModal } from './components/NewMovementModal';
 import { SimulationModal } from './components/SimulationModal';
 import { LoanPrepaymentModal } from './components/LoanPrepaymentModal';
+import { GetStartedOnboarding } from './components/GetStartedOnboarding';
 import type { Movement, MovementType, SimulationPresetId } from './types';
 import './App.css';
 
@@ -41,10 +42,16 @@ export function ProtectedApp() {
 }
 
 export function AppContent() {
+  const { user } = useAuth();
+  const { isDataReady, activeCheckpoint } = useFinancial();
   const [activeTab, setActiveTab] = useState<TabId>('DASHBOARD');
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isNavMenuOpen, setIsNavMenuOpen] = useState(false);
+
+  // Onboarding Get Started State
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  const [onboardingInitialStep, setOnboardingInitialStep] = useState(1);
 
   // Global Modals State
   const [newMovementModalOpen, setNewMovementModalOpen] = useState(false);
@@ -56,6 +63,23 @@ export function AppContent() {
   const [simulationMode, setSimulationMode] = useState<'PRESETS' | 'STUDIO'>('PRESETS');
 
   const [prepaymentModalOpen, setPrepaymentModalOpen] = useState(false);
+
+  // Auto-disparo do Get Started na primeira sessão do usuário sem checkpoint
+  useEffect(() => {
+    if (!isDataReady || !user) return;
+    const isCompleted = localStorage.getItem(`balder_onboarding_completed_${user.$id}`);
+    const isDismissed = sessionStorage.getItem('balder_onboarding_dismissed');
+
+    if (!isCompleted && !isDismissed && !activeCheckpoint) {
+      setIsOnboardingOpen(true);
+      setOnboardingInitialStep(1);
+    }
+  }, [isDataReady, user, activeCheckpoint]);
+
+  const handleOpenOnboarding = (step = 1) => {
+    setOnboardingInitialStep(step);
+    setIsOnboardingOpen(true);
+  };
 
   const handleSelectTab = (tab: TabId) => {
     if (tab === 'COPILOT') {
@@ -114,6 +138,7 @@ export function AppContent() {
               onNavigateToNatures={() => setActiveTab('NATUREZAS')}
               onOpenSimulation={handleOpenSimulation}
               onOpenPrepayment={() => setPrepaymentModalOpen(true)}
+              onOpenOnboarding={handleOpenOnboarding}
             />
           )}
 
@@ -151,12 +176,23 @@ export function AppContent() {
               onBack={() => setIsCopilotOpen(false)}
               activeScreen={activeTab === 'COPILOT' ? 'DASHBOARD' : activeTab}
               isPopup={true}
+              onOpenOnboarding={handleOpenOnboarding}
             />
           </div>
         </div>
       )}
 
       {/* Global Modals */}
+      <GetStartedOnboarding
+        isOpen={isOnboardingOpen}
+        initialStep={onboardingInitialStep}
+        onClose={() => {
+          setIsOnboardingOpen(false);
+          sessionStorage.setItem('balder_onboarding_dismissed', 'true');
+        }}
+        onComplete={() => setIsOnboardingOpen(false)}
+      />
+
       <NewMovementModal
         isOpen={newMovementModalOpen}
         onClose={() => {
