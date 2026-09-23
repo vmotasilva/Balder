@@ -26,6 +26,11 @@ import {
   Clock,
   ChevronRight,
   ShieldCheck,
+  Zap,
+  ChevronDown,
+  Car,
+  Home,
+  Sliders,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { useFinancial } from '../context/FinancialContext';
@@ -51,6 +56,8 @@ export const DashboardScreen: React.FC = () => {
     toggleMovementStatus,
     activeCheckpoint,
   } = useFinancial();
+
+  const [isQuickActionsOpen, setIsQuickActionsOpen] = React.useState(false);
 
   // Próximos vencimentos pendentes primeiro
   const sortedMovements = [...movements].sort((a, b) => {
@@ -175,6 +182,126 @@ export const DashboardScreen: React.FC = () => {
               <Text style={styles.shortcutText}>Salários & Renda</Text>
             </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Dropdown Ações Rápidas & Simulações */}
+        <View style={styles.quickActionsContainer}>
+          <TouchableOpacity
+            style={styles.quickActionsButton}
+            onPress={() => setIsQuickActionsOpen(!isQuickActionsOpen)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.quickActionsButtonLeft}>
+              <View style={styles.quickActionsIconBox}>
+                <Zap size={18} color="#F59E0B" />
+              </View>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Text style={styles.quickActionsButtonTitle}>Ações Rápidas & Simulações</Text>
+                <Text style={styles.quickActionsButtonSubtitle}>
+                  Cenários futuros, empréstimos e aquisições
+                </Text>
+              </View>
+            </View>
+            <ChevronDown
+              size={18}
+              color={theme.colors.textMuted}
+              style={{ transform: [{ rotate: isQuickActionsOpen ? '180deg' : '0deg' }] }}
+            />
+          </TouchableOpacity>
+
+          {isQuickActionsOpen && (
+            <View style={styles.quickActionsMenu}>
+              <TouchableOpacity
+                style={styles.quickActionItem}
+                onPress={() => navigation.navigate('Copilot')}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.quickActionItemIcon, { backgroundColor: 'rgba(6, 182, 212, 0.15)' }]}>
+                  <Sliders size={18} color="#06B6D4" />
+                </View>
+                <View style={styles.quickActionItemText}>
+                  <Text style={styles.quickActionItemTitle}>Simulador de Cenários Futuros</Text>
+                  <Text style={styles.quickActionItemDesc}>Estúdio e projeções com inteligência artificial</Text>
+                </View>
+                <ChevronRight size={16} color={theme.colors.textMuted} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.quickActionItem}
+                onPress={() => navigation.navigate('Loans')}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.quickActionItemIcon, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+                  <CheckCircle2 size={18} color="#10B981" />
+                </View>
+                <View style={styles.quickActionItemText}>
+                  <Text style={styles.quickActionItemTitle}>Quitar / Antecipar Empréstimo</Text>
+                  <Text style={styles.quickActionItemDesc}>Deságio a valor presente (Res. BACEN 3.516)</Text>
+                </View>
+                <ChevronRight size={16} color={theme.colors.textMuted} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.quickActionItem}
+                onPress={() => navigation.navigate('Loans')}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.quickActionItemIcon, { backgroundColor: 'rgba(6, 182, 212, 0.15)' }]}>
+                  <Landmark size={18} color="#06B6D4" />
+                </View>
+                <View style={styles.quickActionItemText}>
+                  <Text style={styles.quickActionItemTitle}>Novo Empréstimo (PRICE)</Text>
+                  <Text style={styles.quickActionItemDesc}>Simulador oficial com cronograma de parcelas</Text>
+                </View>
+                <ChevronRight size={16} color={theme.colors.textMuted} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.quickActionItem}
+                onPress={() => navigation.navigate('Loans')}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.quickActionItemIcon, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
+                  <CreditCard size={18} color="#F59E0B" />
+                </View>
+                <View style={styles.quickActionItemText}>
+                  <Text style={styles.quickActionItemTitle}>Novo Financiamento</Text>
+                  <Text style={styles.quickActionItemDesc}>Comprometimento de renda e limite de margem</Text>
+                </View>
+                <ChevronRight size={16} color={theme.colors.textMuted} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.quickActionItem}
+                onPress={() => navigation.navigate('Copilot')}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.quickActionItemIcon, { backgroundColor: 'rgba(56, 189, 248, 0.15)' }]}>
+                  <Car size={18} color="#38BDF8" />
+                </View>
+                <View style={styles.quickActionItemText}>
+                  <Text style={styles.quickActionItemTitle}>Comprar Carro</Text>
+                  <Text style={styles.quickActionItemDesc}>Simular entrada, parcelas e impacto na liquidez</Text>
+                </View>
+                <ChevronRight size={16} color={theme.colors.textMuted} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.quickActionItem}
+                onPress={() => navigation.navigate('Loans')}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.quickActionItemIcon, { backgroundColor: 'rgba(168, 85, 247, 0.15)' }]}>
+                  <Home size={18} color="#A855F7" />
+                </View>
+                <View style={styles.quickActionItemText}>
+                  <Text style={styles.quickActionItemTitle}>Comprar Imóvel</Text>
+                  <Text style={styles.quickActionItemDesc}>Avaliar entrada e amortização SAC de longo prazo</Text>
+                </View>
+                <ChevronRight size={16} color={theme.colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
         {/* Seção Contas Bancárias */}
@@ -536,5 +663,80 @@ const styles = StyleSheet.create({
   statusPillText: {
     fontSize: 10,
     fontWeight: '600',
+  },
+  quickActionsContainer: {
+    marginHorizontal: 16,
+    marginBottom: 20,
+    backgroundColor: theme.colors.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.25)',
+    overflow: 'hidden',
+  },
+  quickActionsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 14,
+  },
+  quickActionsButtonLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  quickActionsIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  quickActionsButtonTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  quickActionsButtonSubtitle: {
+    fontSize: 11,
+    color: theme.colors.textMuted,
+    marginTop: 2,
+  },
+  quickActionsMenu: {
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.06)',
+    gap: 6,
+  },
+  quickActionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+  },
+  quickActionItemIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  quickActionItemText: {
+    flex: 1,
+    marginRight: 8,
+  },
+  quickActionItemTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  quickActionItemDesc: {
+    fontSize: 10,
+    color: theme.colors.textMuted,
+    marginTop: 2,
   },
 });

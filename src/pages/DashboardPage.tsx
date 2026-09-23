@@ -7,20 +7,16 @@ import {
   Sparkles,
   ArrowUpRight,
   Clock,
-  Car,
   CheckCircle2,
-  CreditCard,
-  Home,
-  Banknote,
-  Sliders,
-  ArrowRight,
   Flag,
   MapPin,
+  Zap,
 } from 'lucide-react';
 import type { SimulationPresetId } from '../types';
 import { MonthlyProjectionGrid } from '../components/MonthlyProjectionGrid';
 import { NatureBudgetGrid } from '../components/NatureBudgetGrid';
 import { CheckpointSetupModal } from '../components/CheckpointSetupModal';
+import { QuickActionsDropdown } from '../components/QuickActionsDropdown';
 
 interface DashboardPageProps {
   onNavigateToMovements: () => void;
@@ -98,7 +94,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           <p className="page-subtitle">Sua visão consolidada de patrimônio, liquidez imediata e futuro projetado</p>
         </div>
 
-        <div className="page-header-actions">
+        <div className="page-header-actions flex items-center gap-2">
+          <QuickActionsDropdown
+            onOpenSimulation={onOpenSimulation}
+            onNavigateToLoans={onNavigateToLoans}
+            onOpenPrepayment={onOpenPrepayment}
+            size="sm"
+          />
           <button className="btn btn-secondary" onClick={onNavigateToCopilot}>
             <Sparkles size={16} className="text-cyan" />
             <span>Consultar Forseti</span>
@@ -433,100 +435,39 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       </section>
 
       {/* ============================================================== */}
-      {/* SEÇÃO 4: SIMULAÇÃO DE CENÁRIOS E DECISÕES                      */}
+      {/* SEÇÃO 4: SIMULAÇÃO DE CENÁRIOS E DECISÕES (AÇÕES RÁPIDAS)      */}
       {/* ============================================================== */}
       <section className="dashboard-section">
-        <div className="section-title-row">
-          <div className="section-title-left">
-            <span className="badge badge-amber">TOMADA DE DECISÃO</span>
-            <h2 className="section-heading">Simulador de Cenários & Decisões</h2>
+        <div className="glass-card quick-actions-panel p-4 md:p-6 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500/20 via-cyan-500/20 to-indigo-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/10">
+              <Zap size={22} className="text-amber-400 fill-amber-400/20" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="badge badge-amber text-[10px] uppercase font-bold tracking-wider">
+                  TOMADA DE DECISÃO
+                </span>
+                <span className="text-xs text-muted">Simulações & Planejamento</span>
+              </div>
+              <h3 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
+                Simulador de Cenários Futuros & Ações Rápidas
+              </h3>
+              <p className="text-xs text-muted mt-0.5 max-w-xl">
+                Simule compra de bens (carro/imóvel), contratação de empréstimos, quitação antecipada com deságio e estúdio avançado de cenários futuros.
+              </p>
+            </div>
           </div>
-          <span className="section-help-text">Simule antes de contratar para proteger sua reserva e projetar seu fluxo</span>
-        </div>
 
-        {/* Featured Advanced Studio Banner */}
-        <div
-          className="studio-promo-banner glass-card"
-          onClick={() => onOpenSimulation(undefined, 'STUDIO')}
-        >
-          <div className="studio-promo-glow"></div>
-          <div className="studio-promo-content">
-            <div className="studio-promo-badge">
-              <Sliders size={14} className="text-cyan" />
-              <span>ESTÚDIO AVANÇADO DE CRÉDITO & COMPORTAMENTO</span>
-            </div>
-            <h3 className="studio-promo-title">Simulador de Cenários Futuros</h3>
-            <p className="studio-promo-desc">
-              Simule a contratação de empréstimos e financiamentos, direcione o destino do capital (quitar dívidas caras, investir ou adquirir bens) e configure contrapartidas comportamentais com projeção de 12 meses.
-            </p>
+          <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+            <QuickActionsDropdown
+              onOpenSimulation={onOpenSimulation}
+              onNavigateToLoans={onNavigateToLoans}
+              onOpenPrepayment={onOpenPrepayment}
+              buttonLabel="Ações Rápidas"
+              size="lg"
+            />
           </div>
-          <button type="button" className="btn btn-primary btn-sm studio-promo-action">
-            <span>Abrir Estúdio Completo</span>
-            <ArrowRight size={16} />
-          </button>
-        </div>
-
-        <div className="simulations-shortcuts-grid">
-          <button className="sim-shortcut-card glass-card" onClick={() => onOpenSimulation('CARRO')}>
-            <div className="sim-shortcut-icon">
-              <Car size={24} className="text-cyan" />
-            </div>
-            <div className="sim-shortcut-info">
-              <h4>Comprar Carro</h4>
-              <p>Simular entrada, parcelamento e impacto na reserva</p>
-            </div>
-            <span className="sim-arrow">→</span>
-          </button>
-
-          <button
-            className="sim-shortcut-card glass-card"
-            onClick={() => (onNavigateToLoans ? onNavigateToLoans() : onOpenPrepayment ? onOpenPrepayment() : onOpenSimulation('QUITAR_DIVIDA'))}
-          >
-            <div className="sim-shortcut-icon">
-              <CheckCircle2 size={24} className="text-emerald" />
-            </div>
-            <div className="sim-shortcut-info">
-              <h4>Quitar / Antecipar Empréstimo</h4>
-              <p>Deságio de juros a valor presente & tabela price oficial</p>
-            </div>
-            <span className="sim-arrow">→</span>
-          </button>
-
-          <button
-            className="sim-shortcut-card glass-card"
-            onClick={() => (onNavigateToLoans ? onNavigateToLoans() : onOpenSimulation('NOVO_EMPRESTIMO'))}
-          >
-            <div className="sim-shortcut-icon">
-              <Banknote size={24} className="text-cyan" />
-            </div>
-            <div className="sim-shortcut-info">
-              <h4>Novo Empréstimo</h4>
-              <p>Simulador Price, Pró-rata e Cronograma de Parcelas</p>
-            </div>
-            <span className="sim-arrow">→</span>
-          </button>
-
-          <button className="sim-shortcut-card glass-card" onClick={() => onOpenSimulation('FINANCIAMENTO')}>
-            <div className="sim-shortcut-icon">
-              <CreditCard size={24} className="text-amber" />
-            </div>
-            <div className="sim-shortcut-info">
-              <h4>Novo Financiamento</h4>
-              <p>Verificar comprometimento de renda e limite seguro</p>
-            </div>
-            <span className="sim-arrow">→</span>
-          </button>
-
-          <button className="sim-shortcut-card glass-card" onClick={() => onOpenSimulation('IMOVEL')}>
-            <div className="sim-shortcut-icon">
-              <Home size={24} className="text-purple" />
-            </div>
-            <div className="sim-shortcut-info">
-              <h4>Comprar Imóvel</h4>
-              <p>Avaliar viabilidade de entrada alta e parcelas SAC</p>
-            </div>
-            <span className="sim-arrow">→</span>
-          </button>
         </div>
       </section>
 

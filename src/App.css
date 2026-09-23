@@ -4600,6 +4600,133 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 }
 
 /* ==========================================================================
+   DROPDOWN DE AÇÕES RÁPIDAS (SIMULAÇÕES & CENÁRIOS)
+   ========================================================================== */
+
+.quick-actions-dropdown-container {
+  position: relative;
+  display: inline-block;
+}
+
+.quick-actions-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 330px;
+  max-width: 92vw;
+  background: rgba(15, 23, 42, 0.96) !important;
+  backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(56, 189, 248, 0.3) !important;
+  border-radius: 16px !important;
+  padding: 8px !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6), 0 0 24px rgba(56, 189, 248, 0.15) !important;
+  z-index: 1000 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+}
+
+.quick-actions-menu-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 8px 12px 6px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  margin-bottom: 4px !important;
+}
+
+.quick-actions-menu-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  max-height: 420px !important;
+  overflow-y: auto !important;
+}
+
+.quick-action-item {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 10px 12px !important;
+  border-radius: 10px !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  transition: all 0.18s ease !important;
+  color: var(--text-primary) !important;
+  text-decoration: none !important;
+}
+
+.quick-action-item:hover {
+  background: rgba(56, 189, 248, 0.1) !important;
+  border-color: rgba(56, 189, 248, 0.25) !important;
+  transform: translateX(2px) !important;
+}
+
+.quick-action-item:hover .quick-action-arrow {
+  color: var(--accent-cyan) !important;
+  transform: translateX(3px) !important;
+}
+
+.quick-action-icon-box {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 10px !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+
+.quick-action-title {
+  color: var(--text-primary) !important;
+}
+
+.quick-action-arrow {
+  transition: transform 0.18s ease, color 0.18s ease !important;
+}
+
+.quick-actions-panel {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(8, 14, 26, 0.9) 100%) !important;
+  border: 1px solid rgba(245, 158, 11, 0.25) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25) !important;
+}
+
+/* Modo Claro */
+[data-theme="light"] .quick-actions-menu {
+  background: #ffffff !important;
+  border-color: #bae6fd !important;
+  box-shadow: 0 16px 40px rgba(2, 132, 199, 0.15), 0 4px 12px rgba(0, 0, 0, 0.06) !important;
+}
+
+[data-theme="light"] .quick-actions-menu-header {
+  border-bottom-color: #e2e8f0 !important;
+}
+
+[data-theme="light"] .quick-action-item {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .quick-action-item:hover {
+  background: #f0f9ff !important;
+  border-color: #bae6fd !important;
+}
+
+[data-theme="light"] .quick-action-icon-box {
+  background: #f1f5f9 !important;
+}
+
+[data-theme="light"] .quick-action-title {
+  color: #0f172a !important;
+}
+
+[data-theme="light"] .quick-actions-panel {
+  background: #ffffff !important;
+  border-color: #fde68a !important;
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.08) !important;
+}
+
+/* ==========================================================================
    LOAN & CREDIT AUDIT STYLES (SIMULADOR DE EMPRÉSTIMOS COM 10 CAMPOS)
    ========================================================================== */
 
