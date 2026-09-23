@@ -2,16 +2,13 @@ import React, { useState, useMemo } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import {
   Sparkles,
-  Flag,
   CreditCard,
-  Layers,
   CheckCircle2,
   AlertTriangle,
   Clock,
   ArrowRight,
   X,
   Bell,
-  Check,
   Calendar,
   Wallet,
   Target,
@@ -294,7 +291,7 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
                 <span className="badge-pill badge-pill-cyan">Hub & Alertas</span>
               </div>
               <p className="hub-subtitle">
-                Acesse o Get Started e monitore as notificações do seu sistema
+                Monitore os alertas, calibrações e auditorias do seu sistema
               </p>
             </div>
           </div>
@@ -314,72 +311,6 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
 
         {/* Hub Content Body */}
         <div className="balder-hub-body">
-          {/* Card em Destaque: Get Started / Ponto de Partida com a Forseti */}
-          <div className="hub-get-started-card glass-card">
-            <div className="hub-gs-top">
-              <div className="hub-gs-avatar-box">
-                <img src="/forseti-avatar.png" alt="Forseti IA" />
-                <span className="forseti-pulse-dot" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h4 className="hub-gs-title">Get Started com a Forseti</h4>
-                  <span
-                    className={`badge-pill ${
-                      isCalibrationComplete ? 'badge-pill-emerald' : 'badge-pill-amber'
-                    }`}
-                  >
-                    {isCalibrationComplete
-                      ? '100% Calibrado'
-                      : `${completedSteps} de 3 Concluídos`}
-                  </span>
-                </div>
-                <p className="hub-gs-desc">
-                  {isCalibrationComplete
-                    ? 'Seu ponto de partida, faturas e naturezas com mapeamentos de rotinas estão alinhados. Clique abaixo caso queira recalibrar ou ajustar valores iniciais.'
-                    : 'Defina seu Ponto de Partida, faturas em aberto e cadastre naturezas com mapeamentos de rotinas de compras com a Forseti.'}
-                </p>
-              </div>
-            </div>
-
-            {/* Progresso dos 3 Pilares */}
-            <div className="hub-pillars-row">
-              <div className={`hub-pillar-chip ${hasCheckpoint ? 'done' : 'pending'}`}>
-                <Flag size={12} />
-                <span>1. Ponto de Partida</span>
-                {hasCheckpoint ? <Check size={12} className="text-emerald" /> : <Clock size={12} className="text-amber" />}
-              </div>
-
-              <div className={`hub-pillar-chip ${hasInvoices ? 'done' : 'pending'}`}>
-                <CreditCard size={12} />
-                <span>2. Faturas em Aberto</span>
-                {hasInvoices ? <Check size={12} className="text-emerald" /> : <Clock size={12} className="text-amber" />}
-              </div>
-
-              <div className={`hub-pillar-chip ${hasNatures ? 'done' : 'pending'}`}>
-                <Layers size={12} />
-                <span>3. Naturezas & Mapeamentos</span>
-                {hasNatures ? <Check size={12} className="text-emerald" /> : <Clock size={12} className="text-amber" />}
-              </div>
-            </div>
-
-            {/* Ação de Abertura do Get Started */}
-            <div className="hub-gs-action">
-              <button
-                type="button"
-                className="btn btn-primary w-full flex items-center justify-center gap-2 py-2.5 font-bold text-xs cursor-pointer shadow-md"
-                onClick={() => {
-                  onClose();
-                  onOpenOnboarding(!hasCheckpoint ? 1 : !hasInvoices ? 2 : 3);
-                }}
-              >
-                <Sparkles size={15} className="text-amber-300" />
-                <span>{isCalibrationComplete ? 'Recalibrar Sistema / Ponto de Partida' : 'Iniciar Calibração no Get Started'}</span>
-                <ArrowRight size={15} />
-              </button>
-            </div>
-          </div>
-
           {/* Seção de Notificações Inteligentes */}
           <div className="hub-notifications-section">
             <div className="hub-notif-header">
