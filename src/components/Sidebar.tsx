@@ -64,7 +64,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     .join('')
     .toUpperCase();
 
-  const navItems = [
+  const desktopNavItems = [
     {
       id: 'DASHBOARD' as TabId,
       label: 'Dashboard',
@@ -100,6 +100,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: 'Price',
     },
     {
+      id: 'COPILOT' as TabId,
+      label: 'Forseti',
+      subtitle: 'Assistente & Auditor',
+      icon: Sparkles,
+      badge: 'IA',
+    },
+    {
       id: 'METAS' as TabId,
       label: 'Metas',
       subtitle: 'Objetivos & Sonhos',
@@ -108,11 +115,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
   ];
 
-  const activeItem = navItems.find((item) => item.id === activeTab) || 
-    (activeTab === 'COPILOT' 
-      ? { id: 'COPILOT' as TabId, label: 'Forseti IA', subtitle: 'Assistente & Auditor', icon: Sparkles, badge: 'IA' }
-      : { id: 'PERFIL' as TabId, label: 'Perfil', subtitle: 'Configurações & Contas', icon: UserCheck }
-    );
+  // No menu mobile sheet, Forseti fica em destaque ao lado do perfil no rodapé,
+  // permitindo que os 6 módulos fiquem em uma grade 2x3 equilibrada.
+  const mobileNavGridItems = desktopNavItems.filter((item) => item.id !== 'COPILOT');
+
+  const activeItem = desktopNavItems.find((item) => item.id === activeTab) || {
+    id: 'PERFIL' as TabId,
+    label: 'Perfil',
+    subtitle: 'Configurações & Contas',
+    icon: UserCheck,
+  };
 
   return (
     <>
@@ -136,7 +148,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {!collapsed && <span className="nav-section-label">NAVEGAÇÃO PRINCIPAL</span>}
 
           <ul className="nav-list">
-            {navItems.map((item) => {
+            {desktopNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
 
@@ -170,30 +182,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </ul>
         </nav>
 
-        {/* Footer / User Profile, Forseti IA & Collapse Toggle */}
+        {/* Footer / User Profile & Collapse Toggle */}
         <div className="sidebar-footer">
-          {/* Destaque Especial: Forseti IA na Sidebar Desktop */}
-          <button
-            type="button"
-            className={`desktop-sidebar-forseti-btn ${activeTab === 'COPILOT' ? 'active' : ''}`}
-            onClick={() => onSelectTab('COPILOT')}
-            title="Forseti — Assistente & Auditor IA"
-          >
-            <div className="forseti-btn-avatar">
-              <img src="/forseti-avatar.png" alt="Forseti IA" className="forseti-btn-avatar-img" />
-              <span className="forseti-pulse-dot" />
-            </div>
-            {!collapsed && (
-              <div className="forseti-btn-info">
-                <div className="forseti-btn-title-row">
-                  <span className="forseti-btn-title">Forseti IA</span>
-                  <span className="forseti-badge-ia">AUDITOR</span>
-                </div>
-                <span className="forseti-btn-sub">Assistente & Auditor IA</span>
-              </div>
-            )}
-          </button>
-
           <button
             className="collapse-toggle-btn"
             onClick={onToggleCollapse}
@@ -328,7 +318,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {/* Scrollable 2-Column Grid of 8 Navigation Options */}
             <div className="mobile-nav-scroll-area">
               <div className="mobile-nav-grid">
-                {navItems.map((item) => {
+                {mobileNavGridItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = activeTab === item.id;
 

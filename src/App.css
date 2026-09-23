@@ -261,51 +261,7 @@
   transform: scale(1.08);
 }
 
-/* Destaque Especial: Forseti IA na Sidebar Desktop */
-.desktop-sidebar-forseti-btn {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 10px;
-  border-radius: var(--radius-md);
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.08), rgba(168, 85, 247, 0.12));
-  border: 1px solid rgba(56, 189, 248, 0.25);
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.08);
-  cursor: pointer;
-  text-align: left;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  position: relative;
-  overflow: hidden;
-}
 
-.desktop-sidebar-forseti-btn:hover {
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.16), rgba(168, 85, 247, 0.22));
-  border-color: var(--accent-cyan);
-  box-shadow: 0 0 16px rgba(56, 189, 248, 0.2);
-  transform: translateY(-1px);
-}
-
-.desktop-sidebar-forseti-btn.active {
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.22), rgba(168, 85, 247, 0.28));
-  border-color: var(--accent-cyan);
-  box-shadow: 0 0 18px rgba(56, 189, 248, 0.35);
-}
-
-[data-theme="light"] .desktop-sidebar-forseti-btn {
-  background: linear-gradient(135deg, rgba(2, 132, 199, 0.06), rgba(147, 51, 234, 0.08));
-  border-color: rgba(2, 132, 199, 0.25);
-}
-
-[data-theme="light"] .desktop-sidebar-forseti-btn:hover {
-  background: linear-gradient(135deg, rgba(2, 132, 199, 0.12), rgba(147, 51, 234, 0.14));
-  border-color: #0284c7;
-}
-
-[data-theme="light"] .desktop-sidebar-forseti-btn.active {
-  background: linear-gradient(135deg, rgba(2, 132, 199, 0.16), rgba(147, 51, 234, 0.18));
-  border-color: #0284c7;
-}
 
 .user-avatar {
   display: flex;
