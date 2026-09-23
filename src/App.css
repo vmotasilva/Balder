@@ -5541,7 +5541,51 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 
 /* Ocultação de títulos e subtítulos de cabeçalho na versão mobile */
 @media (max-width: 768px) {
-  /* Dashboard: oculta título Meu Dinheiro, subtítulo e kicker badge no celular */
+  /* Regra universal: oculta título, subtítulo e kicker badge em todas as páginas */
+  .page-header .page-title,
+  .page-header .page-subtitle,
+  .page-header .kicker-badge,
+  .page-title,
+  .page-subtitle {
+    display: none !important;
+  }
+
+  /* Oculta o contêiner de título/subtítulo no cabeçalho em todas as páginas */
+  .page-header > div:first-child:not(.page-header-actions):not(.loans-nav-tabs),
+  .dashboard-header-title-box,
+  .movements-header-title-box,
+  .forseti-header-identity {
+    display: none !important;
+  }
+
+  /* Ajuste no espaçamento do cabeçalho no mobile */
+  .page-header {
+    margin-bottom: 12px !important;
+    padding-bottom: 0 !important;
+  }
+
+  /* Se a página não tiver botões/ações (ex: Meu Perfil, Forseti Copilot), remove o espaço vazio */
+  .page-header:not(:has(.page-header-actions)):not(:has(.loans-nav-tabs)),
+  .forseti-page-header {
+    display: none !important;
+  }
+
+  /* Ações de cabeçalho universais no mobile (Invoices, Naturezas, Goals, Movements, Dashboard) */
+  .page-header-actions {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  .page-header-actions .btn {
+    flex: 1 !important;
+    justify-content: center !important;
+    padding: 8px 12px !important;
+    font-size: 12px !important;
+  }
+
+  /* Dashboard específico */
   .dashboard-page-title,
   .dashboard-page-subtitle,
   .dashboard-header-title-box .kicker-badge,
@@ -5580,7 +5624,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     font-size: 12px !important;
   }
 
-  /* Ocultação do título e subtítulo de Minhas Movimentações na versão mobile */
+  /* Movimentações específico */
   .movements-page-title,
   .movements-page-subtitle,
   .movements-header-title-box .kicker-badge {
@@ -5603,6 +5647,27 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     justify-content: center !important;
     padding: 8px 12px !important;
     font-size: 12px !important;
+  }
+
+  /* Sessão de Empréstimos & Financiamentos no mobile */
+  .loans-page .page-header {
+    margin-bottom: 12px !important;
+    padding-bottom: 0 !important;
+  }
+
+  .loans-nav-tabs {
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 6px !important;
+  }
+
+  .loans-nav-tabs .tab-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 8px 6px !important;
+    font-size: 11px !important;
+    white-space: nowrap !important;
   }
 }
 
