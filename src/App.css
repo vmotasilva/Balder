@@ -4599,12 +4599,27 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   background: rgba(15, 23, 42, 0.75);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
-  padding: 14px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  transition: all 0.2s ease;
+  gap: 8px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.projection-mobile-card.is-collapsed {
+  padding: 10px 12px;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.projection-mobile-card.is-collapsed:hover {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.projection-mobile-card.is-collapsed:active {
+  transform: scale(0.995);
 }
 
 .projection-mobile-card.card-deficit {
@@ -4627,6 +4642,68 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.proj-card-toggle-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.proj-card-header:hover .proj-card-toggle-icon {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* Faixa de Métricas Compactas (Versão Recolhida - Siglas e Valores) */
+.proj-collapsed-metrics-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding-top: 2px;
+}
+
+.proj-micro-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 7px;
+  padding: 3px 6px;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.proj-micro-badge .proj-sigla {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding-right: 4px;
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-muted);
+}
+
+.proj-micro-badge .proj-val {
+  font-size: 11px;
+}
+
+.proj-expanded-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
 }
 
 .proj-card-competence-badge {
@@ -4784,6 +4861,32 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   background: #ffffff;
   border-color: #e2e8f0;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .projection-mobile-card.is-collapsed:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+[data-theme="light"] .proj-card-toggle-icon {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+  color: #475569;
+}
+
+[data-theme="light"] .proj-card-header:hover .proj-card-toggle-icon {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+[data-theme="light"] .proj-micro-badge {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .proj-micro-badge .proj-sigla {
+  border-right-color: #cbd5e1;
+  color: #475569;
 }
 
 [data-theme="light"] .projection-mobile-card.current-month-card {

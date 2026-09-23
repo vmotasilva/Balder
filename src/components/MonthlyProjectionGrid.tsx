@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useFinancial } from '../context/FinancialContext';
-import { Download, Info, Lock, CheckCircle2, ArrowRight } from 'lucide-react';
+import { Download, Info, Lock, CheckCircle2, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
 import type { MonthlyGridProjectionRow } from '../types';
 import { GridCellDetailModal } from './GridCellDetailModal';
@@ -88,6 +88,29 @@ export const MonthlyProjectionGrid: React.FC = () => {
 
   // Estado para o modal de fechamento financeiro da competência
   const [closingModalRow, setClosingModalRow] = useState<MonthlyGridProjectionRow | null>(null);
+
+  // Estado para controlar quais competências estão expandidas na visão mobile em cards (recolhidas por padrão)
+  const [expandedMonthKeys, setExpandedMonthKeys] = useState<Set<string>>(() => new Set());
+
+  const toggleMonthExpanded = (monthKey: string) => {
+    setExpandedMonthKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(monthKey)) {
+        next.delete(monthKey);
+      } else {
+        next.add(monthKey);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleAll = () => {
+    if (expandedMonthKeys.size > 0) {
+      setExpandedMonthKeys(new Set());
+    } else {
+      setExpandedMonthKeys(new Set(displayedRows.map((r) => r.monthKey)));
+    }
+  };
 
   const handleOpenCell = (
     row: MonthlyGridProjectionRow,
@@ -473,22 +496,49 @@ export const MonthlyProjectionGrid: React.FC = () => {
         </table>
       </div>
 
-      {/* Lista de Cards da Projeção Orçamentária (Versão Mobile em Cards) */}
+      {/* Lista de Cards da Projeção Orçamentária (Versão Mobile em Cards com Modo Recolhido) */}
       <div className="projection-cards-mobile-view">
+        {/* Barra de controle superior dos cards mobile */}
+        <div className="proj-mobile-list-header flex items-center justify-between px-1 mb-1">
+          <span className="text-[11px] font-semibold text-secondary">
+            {displayedRows.length} competências ({selectedYear === 'ALL' ? 'Todos' : selectedYear})
+          </span>
+          <button
+            type="button"
+            onClick={handleToggleAll}
+            className="text-[11px] font-semibold text-cyan hover:underline flex items-center gap-1 cursor-pointer bg-transparent border-0 p-0"
+          >
+            {expandedMonthKeys.size > 0 ? 'Recolher Todos' : 'Expandir Todos'}
+          </button>
+        </div>
+
         {displayedRows.map((row) => {
           const totalIncome = row.salary + row.extrasTotal + row.loanReceived;
           const totalExpense = row.creditCardTotal + row.fixedCostMapped + row.variableCost + row.loanPayment;
           const isCurrentMonth = row.monthKey === currentMonthKey;
           const isSurplus = row.monthNet >= 0;
           const barPercent = Math.min(Math.round((Math.abs(row.monthNet) / maxAbsNet) * 100), 100);
+          const isExpanded = expandedMonthKeys.has(row.monthKey);
 
           return (
             <div
               key={row.monthKey}
-              className={`projection-mobile-card ${isCurrentMonth ? 'current-month-card' : ''} ${row.isDeficit ? 'card-deficit' : 'card-surplus'}`}
+              className={`projection-mobile-card ${isExpanded ? 'is-expanded' : 'is-collapsed'} ${isCurrentMonth ? 'current-month-card' : ''} ${row.isDeficit ? 'card-deficit' : 'card-surplus'}`}
+              onClick={() => {
+                if (!isExpanded) {
+                  toggleMonthExpanded(row.monthKey);
+                }
+              }}
             >
-              {/* Card Header: Competência, Badges e Botão Fechamento */}
-              <div className="proj-card-header">
+              {/* Card Header: Competência, Badges, Botão Fechamento e Ícone de Expansão */}
+              <div
+                className="proj-card-header"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleMonthExpanded(row.monthKey);
+                }}
+                title={isExpanded ? 'Toque para recolher' : 'Toque para abrir detalhes'}
+              >
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="proj-card-competence-badge">
                     <span className="font-bold">{row.formattedCompetence}</span>
@@ -501,7 +551,7 @@ export const MonthlyProjectionGrid: React.FC = () => {
                   )}
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   {row.isClosed ? (
                     <button
                       type="button"
@@ -529,107 +579,157 @@ export const MonthlyProjectionGrid: React.FC = () => {
                       <span>Fechar</span>
                     </button>
                   )}
+
+                  <div
+                    className="proj-card-toggle-icon"
+                    title={isExpanded ? 'Recolher detalhes' : 'Abrir detalhes'}
+                  >
+                    {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                  </div>
                 </div>
               </div>
 
-              {/* Grid 2x2 com os Valores Financeiros Principais */}
-              <div className="proj-card-metrics-grid">
-                {/* Saldo Inicial */}
-                <div
-                  className="proj-card-metric-box cursor-pointer"
-                  onClick={() =>
-                    handleOpenCell(row, 'accumulated', 'Saldo Inicial do Ciclo', row.initialBalance || 0)
-                  }
-                  title="Toque para ver o saldo inicial"
-                >
-                  <span className="proj-metric-label">Saldo Inicial</span>
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <GlanceableCurrency value={row.initialBalance} className="font-semibold text-xs" />
-                    {row.isClosed && <CheckCircle2 className="w-3 h-3 text-emerald-400 flex-shrink-0" />}
+              {/* Versão Recolhida (Siglas e Valores Compactos) */}
+              {!isExpanded && (
+                <div className="proj-collapsed-metrics-row animate-fade-in">
+                  <div className="proj-micro-badge" title="Saldo Inicial">
+                    <span className="proj-sigla">SI</span>
+                    <GlanceableCurrency value={row.initialBalance} className="proj-val text-secondary font-semibold" />
                   </div>
-                </div>
-
-                {/* Entradas */}
-                <div
-                  className="proj-card-metric-box cursor-pointer"
-                  onClick={() =>
-                    handleOpenCell(row, 'totalIncome', 'Detalhamento de Entradas (Receitas)', totalIncome)
-                  }
-                  title="Toque para detalhar entradas"
-                >
-                  <span className="proj-metric-label text-emerald">Entradas (Receitas)</span>
-                  <div className="mt-0.5">
-                    <GlanceableCurrency value={totalIncome} isPositivePrefix={true} className="text-emerald font-bold text-xs" />
+                  <div className="proj-micro-badge" title="Entradas (Receitas)">
+                    <span className="proj-sigla text-emerald">ENT</span>
+                    <GlanceableCurrency value={totalIncome} isPositivePrefix={true} className="proj-val text-emerald font-bold" />
                   </div>
-                </div>
-
-                {/* Saídas */}
-                <div
-                  className="proj-card-metric-box cursor-pointer"
-                  onClick={() =>
-                    handleOpenCell(row, 'totalExpense', 'Detalhamento de Saídas (Despesas)', totalExpense)
-                  }
-                  title="Toque para detalhar saídas"
-                >
-                  <span className="proj-metric-label text-rose">Saídas (Despesas)</span>
-                  <div className="mt-0.5">
-                    <GlanceableCurrency value={totalExpense} prefix="-" className="text-rose font-bold text-xs" />
+                  <div className="proj-micro-badge" title="Saídas (Despesas)">
+                    <span className="proj-sigla text-rose">SAÍ</span>
+                    <GlanceableCurrency value={totalExpense} prefix="-" className="proj-val text-rose font-bold" />
                   </div>
-                </div>
-
-                {/* Resultado Líquido */}
-                <div
-                  className="proj-card-metric-box cursor-pointer"
-                  onClick={() =>
-                    handleOpenCell(row, 'monthNet', 'Resultado Líquido do Mês (Entradas - Saídas)', row.monthNet)
-                  }
-                  title="Toque para detalhar o resultado do mês"
-                >
-                  <span className="proj-metric-label">Resultado (Mês)</span>
-                  <div className="flex items-center justify-between gap-1 w-full mt-0.5">
+                  <div className="proj-micro-badge" title="Resultado (Mês)">
+                    <span className={`proj-sigla ${isSurplus ? 'text-emerald' : 'text-rose'}`}>RES</span>
                     <GlanceableCurrency
                       value={row.monthNet}
                       isPositivePrefix={true}
-                      className={`font-bold text-xs ${isSurplus ? 'text-emerald' : 'text-rose'}`}
+                      className={`proj-val font-bold ${isSurplus ? 'text-emerald' : 'text-rose'}`}
                     />
-                    <div className="mini-result-track flex-shrink-0">
-                      <div
-                        className={`mini-result-fill ${isSurplus ? 'surplus' : 'deficit'}`}
-                        style={{ width: `${Math.max(barPercent, 12)}%` }}
-                      />
-                    </div>
+                  </div>
+                  <div className="proj-micro-badge" title="Saldo Acumulado">
+                    <span className={`proj-sigla ${row.accumulatedBalance < 0 ? 'text-rose' : 'text-amber'}`}>ACUM</span>
+                    <GlanceableCurrency
+                      value={row.accumulatedBalance}
+                      className={`proj-val font-bold ${row.accumulatedBalance < 0 ? 'text-rose' : 'val-surplus-gold'}`}
+                    />
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Barra Inferior do Card: Saldo Acumulado & Botão DRE */}
-              <div
-                className="proj-card-footer cursor-pointer"
-                onClick={() =>
-                  handleOpenCell(row, 'accumulated', 'Saldo Acumulado Projetado', row.accumulatedBalance)
-                }
-              >
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-muted font-medium">Saldo Acumulado:</span>
-                  <GlanceableCurrency
-                    value={row.accumulatedBalance}
-                    className={`font-bold text-sm ${row.accumulatedBalance < 0 ? 'text-rose' : 'val-surplus-gold'}`}
-                  />
+              {/* Versão Expandida (Detalhamento Completo) */}
+              {isExpanded && (
+                <div className="proj-expanded-details animate-fade-in">
+                  {/* Grid 2x2 com os Valores Financeiros Principais */}
+                  <div className="proj-card-metrics-grid">
+                    {/* Saldo Inicial */}
+                    <div
+                      className="proj-card-metric-box cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenCell(row, 'accumulated', 'Saldo Inicial do Ciclo', row.initialBalance || 0);
+                      }}
+                      title="Toque para ver o saldo inicial"
+                    >
+                      <span className="proj-metric-label">Saldo Inicial</span>
+                      <div className="flex items-center gap-1 mt-0.5">
+                        <GlanceableCurrency value={row.initialBalance} className="font-semibold text-xs" />
+                        {row.isClosed && <CheckCircle2 className="w-3 h-3 text-emerald-400 flex-shrink-0" />}
+                      </div>
+                    </div>
+
+                    {/* Entradas */}
+                    <div
+                      className="proj-card-metric-box cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenCell(row, 'totalIncome', 'Detalhamento de Entradas (Receitas)', totalIncome);
+                      }}
+                      title="Toque para detalhar entradas"
+                    >
+                      <span className="proj-metric-label text-emerald">Entradas (Receitas)</span>
+                      <div className="mt-0.5">
+                        <GlanceableCurrency value={totalIncome} isPositivePrefix={true} className="text-emerald font-bold text-xs" />
+                      </div>
+                    </div>
+
+                    {/* Saídas */}
+                    <div
+                      className="proj-card-metric-box cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenCell(row, 'totalExpense', 'Detalhamento de Saídas (Despesas)', totalExpense);
+                      }}
+                      title="Toque para detalhar saídas"
+                    >
+                      <span className="proj-metric-label text-rose">Saídas (Despesas)</span>
+                      <div className="mt-0.5">
+                        <GlanceableCurrency value={totalExpense} prefix="-" className="text-rose font-bold text-xs" />
+                      </div>
+                    </div>
+
+                    {/* Resultado Líquido */}
+                    <div
+                      className="proj-card-metric-box cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenCell(row, 'monthNet', 'Resultado Líquido do Mês (Entradas - Saídas)', row.monthNet);
+                      }}
+                      title="Toque para detalhar o resultado do mês"
+                    >
+                      <span className="proj-metric-label">Resultado (Mês)</span>
+                      <div className="flex items-center justify-between gap-1 w-full mt-0.5">
+                        <GlanceableCurrency
+                          value={row.monthNet}
+                          isPositivePrefix={true}
+                          className={`font-bold text-xs ${isSurplus ? 'text-emerald' : 'text-rose'}`}
+                        />
+                        <div className="mini-result-track flex-shrink-0">
+                          <div
+                            className={`mini-result-fill ${isSurplus ? 'surplus' : 'deficit'}`}
+                            style={{ width: `${Math.max(barPercent, 12)}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Barra Inferior do Card: Saldo Acumulado & Botão DRE */}
+                  <div
+                    className="proj-card-footer cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenCell(row, 'accumulated', 'Saldo Acumulado Projetado', row.accumulatedBalance);
+                    }}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-muted font-medium">Saldo Acumulado:</span>
+                      <GlanceableCurrency
+                        value={row.accumulatedBalance}
+                        className={`font-bold text-sm ${row.accumulatedBalance < 0 ? 'text-rose' : 'val-surplus-gold'}`}
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      className="proj-card-dre-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenCell(row, 'monthNet', `DRE Resumo: ${row.competenceLabel}`, row.monthNet);
+                      }}
+                      title="Ver demonstrativo completo"
+                    >
+                      <span>Ver DRE</span>
+                      <ArrowRight size={12} />
+                    </button>
+                  </div>
                 </div>
-
-                <button
-                  type="button"
-                  className="proj-card-dre-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleOpenCell(row, 'monthNet', `DRE Resumo: ${row.competenceLabel}`, row.monthNet);
-                  }}
-                  title="Ver demonstrativo completo"
-                >
-                  <span>Ver DRE</span>
-                  <ArrowRight size={12} />
-                </button>
-              </div>
+              )}
             </div>
           );
         })}
