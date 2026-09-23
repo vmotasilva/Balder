@@ -25,6 +25,8 @@ interface SidebarProps {
   onSelectTab: (tab: TabId) => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -32,19 +34,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onSelectTab,
   collapsed,
   onToggleCollapse,
+  isOpen,
+  onOpenChange,
 }) => {
   const { user, logout } = useAuth();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
 
-  // Escuta tecla Escape e trava scroll do body quando menu mobile está aberto
+  const isMenuOpen = isOpen !== undefined ? isOpen : internalOpen;
+  const setIsMenuOpen = (open: boolean) => {
+    if (onOpenChange) {
+      onOpenChange(open);
+    }
+    setInternalOpen(open);
+  };
+
+  // Escuta tecla Escape e trava scroll do body quando menu está aberto
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setIsMobileMenuOpen(false);
+        setIsMenuOpen(false);
       }
     };
 
-    if (isMobileMenuOpen) {
+    if (isMenuOpen) {
       window.addEventListener('keydown', handleKeyDown);
       document.body.style.overflow = 'hidden';
     } else {
@@ -55,7 +67,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       window.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = '';
     };
-  }, [isMobileMenuOpen]);
+  }, [isMenuOpen]);
 
   const userInitials = (user?.name || 'VM')
     .split(' ')
@@ -269,13 +281,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Floating Circular Trigger Button */}
         <button
           type="button"
-          className={`mobile-nav-orb-btn ${isMobileMenuOpen ? 'open' : ''}`}
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          aria-label={isMobileMenuOpen ? 'Fechar Menu de Navegação' : 'Abrir Menu de Navegação'}
+          className={`mobile-nav-orb-btn ${isMenuOpen ? 'open' : ''}`}
+          onClick={() => setIsMenuOpen(!isMenuOpen)}
+          aria-label={isMenuOpen ? 'Fechar Menu de Navegação' : 'Abrir Menu de Navegação'}
           title="Menu de Navegação"
         >
           <div className="mobile-nav-orb-inner">
-            {isMobileMenuOpen ? (
+            {isMenuOpen ? (
               <X size={26} className="mobile-nav-orb-icon icon-close" />
             ) : (
               <LayoutGrid size={24} className="mobile-nav-orb-icon icon-menu" />
@@ -285,16 +297,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
 
         {/* Backdrop Overlay */}
-        {isMobileMenuOpen && (
+        {isMenuOpen && (
           <div
             className="mobile-nav-backdrop"
-            onClick={() => setIsMobileMenuOpen(false)}
+            onClick={() => setIsMenuOpen(false)}
             aria-hidden="true"
           />
         )}
 
         {/* Navigation Sheet / Modal */}
-        <div className={`mobile-nav-sheet ${isMobileMenuOpen ? 'open' : ''}`}>
+        <div className={`mobile-nav-sheet ${isMenuOpen ? 'open' : ''}`}>
           <div className="mobile-nav-sheet-content">
             {/* Grabber indicator */}
             <div className="mobile-nav-drag-handle" />
@@ -309,9 +321,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
               </div>
 
-              <div className="mobile-nav-sheet-active-pill">
-                <span className="mobile-nav-active-dot" />
-                <span>{activeItem.label}</span>
+              <div className="mobile-nav-sheet-actions">
+                <div className="mobile-nav-sheet-active-pill">
+                  <span className="mobile-nav-active-dot" />
+                  <span>{activeItem.label}</span>
+                </div>
+                <button
+                  type="button"
+                  className="mobile-nav-close-btn"
+                  onClick={() => setIsMenuOpen(false)}
+                  title="Fechar Menu"
+                  aria-label="Fechar Menu"
+                >
+                  <X size={16} />
+                </button>
               </div>
             </div>
 
@@ -329,7 +352,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       className={`mobile-nav-card ${isActive ? 'active' : ''}`}
                       onClick={() => {
                         onSelectTab(item.id);
-                        setIsMobileMenuOpen(false);
+                        setIsMenuOpen(false);
                       }}
                     >
                       <div className="mobile-nav-card-icon-box">
@@ -365,7 +388,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 className={`mobile-nav-user-btn ${activeTab === 'PERFIL' ? 'active' : ''}`}
                 onClick={() => {
                   onSelectTab('PERFIL');
-                  setIsMobileMenuOpen(false);
+                  setIsMenuOpen(false);
                 }}
                 title="Acessar Configurações do Perfil"
               >
@@ -384,7 +407,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 className={`mobile-nav-forseti-btn ${activeTab === 'COPILOT' ? 'active' : ''}`}
                 onClick={() => {
                   onSelectTab('COPILOT');
-                  setIsMobileMenuOpen(false);
+                  setIsMenuOpen(false);
                 }}
                 title="Abrir Forseti — Assistente & Auditor IA"
               >
@@ -406,7 +429,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 type="button"
                 className="mobile-nav-logout-btn"
                 onClick={() => {
-                  setIsMobileMenuOpen(false);
+                  setIsMenuOpen(false);
                   logout();
                 }}
                 title="Sair da Conta"

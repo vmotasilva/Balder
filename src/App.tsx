@@ -43,6 +43,7 @@ export function ProtectedApp() {
 export function AppContent() {
   const [activeTab, setActiveTab] = useState<TabId>('DASHBOARD');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isNavMenuOpen, setIsNavMenuOpen] = useState(false);
 
   // Global Modals State
   const [newMovementModalOpen, setNewMovementModalOpen] = useState(false);
@@ -81,6 +82,8 @@ export function AppContent() {
         onSelectTab={(tab) => setActiveTab(tab)}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        isOpen={isNavMenuOpen}
+        onOpenChange={setIsNavMenuOpen}
       />
 
       {/* Main Content Layout */}
@@ -88,6 +91,7 @@ export function AppContent() {
         <Navbar
           onOpenNewMovementModal={() => handleOpenNewMovement('PAGAR')}
           onOpenSimulationModal={() => handleOpenSimulation('CARRO')}
+          onOpenNavMenu={() => setIsNavMenuOpen(true)}
         />
 
         <main className="app-content-viewport">

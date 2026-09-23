@@ -1,20 +1,45 @@
 import React from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { useTheme } from '../context/ThemeContext';
-import { Plus, Sparkles, Sun, Moon } from 'lucide-react';
+import { Plus, Sparkles, Sun, Moon, LayoutGrid } from 'lucide-react';
 
 interface NavbarProps {
   onOpenNewMovementModal: () => void;
   onOpenSimulationModal: () => void;
+  onOpenNavMenu?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onOpenNewMovementModal, onOpenSimulationModal }) => {
+export const Navbar: React.FC<NavbarProps> = ({
+  onOpenNewMovementModal,
+  onOpenSimulationModal,
+  onOpenNavMenu,
+}) => {
   const { availableBalance, emergencyReserveMonths, nextCriticalEvent } = useFinancial();
   const { theme, toggleTheme } = useTheme();
 
   return (
     <header className="app-navbar">
       <div className="navbar-left">
+        <div className="navbar-brand">
+          <div className="navbar-brand-logo-icon">
+            <img src="/logo-app.png" alt="Balder" className="navbar-brand-logo-img" />
+          </div>
+          <span className="navbar-brand-title">BALDER</span>
+        </div>
+
+        {onOpenNavMenu && (
+          <button
+            type="button"
+            className="navbar-menu-btn"
+            onClick={onOpenNavMenu}
+            title="Menu de Navegação (Módulos & Telas)"
+            aria-label="Abrir Menu de Navegação"
+          >
+            <LayoutGrid size={16} className="text-cyan" />
+            <span className="navbar-menu-btn-text">Módulos</span>
+          </button>
+        )}
+
         <div className="system-pill">
           <div className="pulsing-dot"></div>
           <span className="system-status-text">BALDER SYSTEM ACTIVE</span>
