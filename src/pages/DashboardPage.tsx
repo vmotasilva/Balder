@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   Flag,
   MapPin,
-  Zap,
 } from 'lucide-react';
 import type { SimulationPresetId } from '../types';
 import { MonthlyProjectionGrid } from '../components/MonthlyProjectionGrid';
@@ -421,43 +420,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         <NatureBudgetGrid onNavigateToNatures={onNavigateToNatures} />
       </section>
 
-      {/* ============================================================== */}
-      {/* SEÇÃO 4: SIMULAÇÃO DE CENÁRIOS E DECISÕES (AÇÕES RÁPIDAS)      */}
-      {/* ============================================================== */}
-      <section className="dashboard-section">
-        <div className="glass-card quick-actions-panel p-4 md:p-6 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500/20 via-cyan-500/20 to-indigo-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/10">
-              <Zap size={22} className="text-amber-400 fill-amber-400/20" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="badge badge-amber text-[10px] uppercase font-bold tracking-wider">
-                  TOMADA DE DECISÃO
-                </span>
-                <span className="text-xs text-muted">Simulações & Planejamento</span>
-              </div>
-              <h3 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
-                Simulador de Cenários Futuros & Ações Rápidas
-              </h3>
-              <p className="text-xs text-muted mt-0.5 max-w-xl">
-                Simule compra de bens (carro/imóvel), contratação de empréstimos, quitação antecipada com deságio e estúdio avançado de cenários futuros.
-              </p>
-            </div>
-          </div>
 
-          <div className="flex items-center gap-3 w-full md:w-auto justify-end">
-            <QuickActionsDropdown
-              onOpenSimulation={onOpenSimulation}
-              onNavigateToLoans={onNavigateToLoans}
-              onOpenPrepayment={onOpenPrepayment}
-              onOpenCheckpoint={() => setIsCheckpointModalOpen(true)}
-              buttonLabel="Ações Rápidas"
-              size="lg"
-            />
-          </div>
-        </div>
-      </section>
 
       {/* Modal de Configuração do Marco de Acompanhamento */}
       <CheckpointSetupModal

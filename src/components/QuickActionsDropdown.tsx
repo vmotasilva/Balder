@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Zap,
   Sliders,
@@ -54,33 +55,41 @@ export const QuickActionsDropdown: React.FC<QuickActionsDropdownProps> = ({
     };
   }, [isOpen]);
 
-  const items = [
-    ...(onOpenCheckpoint
-      ? [
-          {
-            id: 'checkpoint',
-            title: 'Definir Ponto de Partida',
-            subtitle: 'Calibrar data de início, saldos em contas e faturas abertas',
-            badge: 'Ponto de Partida',
-            badgeClass: 'badge-purple',
-            icon: <Flag size={18} className="text-purple-400" />,
-            onClick: () => {
-              setIsOpen(false);
-              onOpenCheckpoint();
-            },
-          },
-        ]
-      : []),
+  const decisionSimulations = [
     {
-      id: 'studio',
-      title: 'Simulador de Cenários Futuros',
-      subtitle: 'Estúdio avançado de crédito, amortizações e projeção de 12 meses',
-      badge: 'Estúdio',
+      id: 'carro',
+      title: 'Comprar Carro',
+      subtitle: 'Simular entrada, parcelamento e impacto na reserva de emergência',
+      icon: <Car size={18} className="text-sky-400" />,
+      badge: 'Aquisição',
       badgeClass: 'badge-cyan',
-      icon: <Sliders size={18} className="text-cyan-400" />,
       onClick: () => {
         setIsOpen(false);
-        onOpenSimulation(undefined, 'STUDIO');
+        onOpenSimulation('CARRO');
+      },
+    },
+    {
+      id: 'imovel',
+      title: 'Comprar Imóvel',
+      subtitle: 'Avaliar viabilidade de entrada alta e parcelamento SAC/Price',
+      icon: <Home size={18} className="text-purple-400" />,
+      badge: 'Patrimônio',
+      badgeClass: 'badge-purple',
+      onClick: () => {
+        setIsOpen(false);
+        onOpenSimulation('IMOVEL');
+      },
+    },
+    {
+      id: 'financiamento',
+      title: 'Novo Financiamento',
+      subtitle: 'Verificar comprometimento de renda e margem segura da parcela',
+      badge: 'Margem',
+      badgeClass: 'badge-amber',
+      icon: <CreditCard size={18} className="text-amber-400" />,
+      onClick: () => {
+        setIsOpen(false);
+        onOpenSimulation('FINANCIAMENTO');
       },
     },
     {
@@ -117,38 +126,6 @@ export const QuickActionsDropdown: React.FC<QuickActionsDropdownProps> = ({
         }
       },
     },
-    {
-      id: 'financiamento',
-      title: 'Novo Financiamento',
-      subtitle: 'Verificar comprometimento de renda e limite seguro de parcela',
-      badge: 'Margem',
-      badgeClass: 'badge-amber',
-      icon: <CreditCard size={18} className="text-amber-400" />,
-      onClick: () => {
-        setIsOpen(false);
-        onOpenSimulation('FINANCIAMENTO');
-      },
-    },
-    {
-      id: 'carro',
-      title: 'Comprar Carro',
-      subtitle: 'Simular entrada, parcelamento e impacto na reserva de emergência',
-      icon: <Car size={18} className="text-sky-400" />,
-      onClick: () => {
-        setIsOpen(false);
-        onOpenSimulation('CARRO');
-      },
-    },
-    {
-      id: 'imovel',
-      title: 'Comprar Imóvel',
-      subtitle: 'Avaliar viabilidade de entrada alta e parcelamento SAC',
-      icon: <Home size={18} className="text-purple-400" />,
-      onClick: () => {
-        setIsOpen(false);
-        onOpenSimulation('IMOVEL');
-      },
-    },
   ];
 
   const sizeClasses = {
@@ -169,78 +146,159 @@ export const QuickActionsDropdown: React.FC<QuickActionsDropdownProps> = ({
         <span>{buttonLabel}</span>
       </button>
 
-      {/* Pop-up Modal de Ações Rápidas (Substituindo o antigo dropdown absoluto) */}
-      {isOpen && (
-        <div
-          className="quick-actions-popup-backdrop"
-          onClick={() => setIsOpen(false)}
-        >
+      {/* Pop-up Modal de Ações Rápidas renderizado diretamente no body (Portal Viewport) */}
+      {isOpen &&
+        createPortal(
           <div
-            className="quick-actions-popup-dialog glass-card animate-fade-in"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
+            className="quick-actions-popup-backdrop"
+            onClick={() => setIsOpen(false)}
           >
-            {/* Cabeçalho do Pop-up */}
-            <div className="quick-actions-popup-header">
-              <div className="flex items-center gap-2.5">
-                <div className="quick-actions-header-icon-box">
-                  <Zap size={18} className="text-amber-400 fill-amber-400" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="quick-actions-popup-title font-bold text-base">Ações Rápidas</h3>
-                    <span className="badge badge-amber text-[10px] px-2 py-0.5">
-                      {items.length} Ações
-                    </span>
+            <div
+              className="quick-actions-popup-dialog"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+            >
+              {/* Cabeçalho do Pop-up */}
+              <div className="quick-actions-popup-header">
+                <div className="flex items-center gap-2.5">
+                  <div className="quick-actions-header-icon-box">
+                    <Zap size={18} className="text-amber-400 fill-amber-400" />
                   </div>
-                  <span className="quick-actions-popup-subtitle text-xs text-muted block mt-0.5">
-                    Atalhos diretos para tomada de decisão e simulações
-                  </span>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="quick-actions-popup-close"
-                onClick={() => setIsOpen(false)}
-                title="Fechar (Esc)"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Lista de Ações do Pop-up */}
-            <div className="quick-actions-popup-body">
-              {items.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className="quick-action-card cursor-pointer text-left w-full"
-                  onClick={item.onClick}
-                >
-                  <div className="quick-action-icon-box">{item.icon}</div>
-                  <div className="quick-action-text flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="quick-action-title font-bold text-xs md:text-sm">
-                        {item.title}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="quick-actions-popup-title font-bold text-base">
+                        Ações Rápidas & Decisão
+                      </h3>
+                      <span className="badge badge-amber text-[10px] px-2 py-0.5">
+                        Tomada de Decisão
                       </span>
-                      {item.badge && (
-                        <span className={`badge ${item.badgeClass} text-[9px] px-1.5 py-0.5`}>
-                          {item.badge}
-                        </span>
-                      )}
                     </div>
-                    <span className="quick-action-subtitle text-[11px] text-muted block mt-0.5">
-                      {item.subtitle}
+                    <span className="quick-actions-popup-subtitle text-xs text-muted block mt-0.5">
+                      Simuladores, amortizações e atalhos estratégicos
                     </span>
                   </div>
-                  <ArrowRight size={15} className="quick-action-arrow text-muted flex-shrink-0" />
+                </div>
+                <button
+                  type="button"
+                  className="quick-actions-popup-close"
+                  onClick={() => setIsOpen(false)}
+                  title="Fechar (Esc)"
+                  aria-label="Fechar"
+                >
+                  <X size={18} />
                 </button>
-              ))}
+              </div>
+
+              {/* Corpo com Destaque de Tomada de Decisão & Lista de Ações */}
+              <div className="quick-actions-popup-body">
+                {/* Hero: Simulador de Cenários Futuros & Tomada de Decisão */}
+                <div className="quick-actions-decision-hero">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="quick-actions-hero-icon-box">
+                        <Sliders size={20} className="text-cyan-400" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className="badge badge-amber text-[9.5px] uppercase font-bold tracking-wider">
+                            TOMADA DE DECISÃO
+                          </span>
+                          <span className="text-[11px] text-muted">Estúdio 12 Meses</span>
+                        </div>
+                        <h4 className="text-sm font-bold text-white">
+                          Simulador de Cenários Futuros
+                        </h4>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5 shrink-0"
+                      onClick={() => {
+                        setIsOpen(false);
+                        onOpenSimulation(undefined, 'STUDIO');
+                      }}
+                    >
+                      <span>Abrir Estúdio</span>
+                      <ArrowRight size={13} />
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-muted mt-2 leading-relaxed">
+                    Simule compra de bens (carro/imóvel), contratação de empréstimos, quitação antecipada com deságio e estúdio avançado de cenários futuros.
+                  </p>
+                </div>
+
+                {/* Seção 1: Simulações Específicas de Bens & Crédito */}
+                <span className="quick-actions-section-title">
+                  SIMULAÇÕES DE COMPRAS & CRÉDITO
+                </span>
+
+                {decisionSimulations.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="quick-action-card cursor-pointer text-left w-full"
+                    onClick={item.onClick}
+                  >
+                    <div className="quick-action-icon-box">{item.icon}</div>
+                    <div className="quick-action-text flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="quick-action-title font-bold text-xs md:text-sm">
+                          {item.title}
+                        </span>
+                        {item.badge && (
+                          <span className={`badge ${item.badgeClass} text-[9px] px-1.5 py-0.5`}>
+                            {item.badge}
+                          </span>
+                        )}
+                      </div>
+                      <span className="quick-action-subtitle text-[11px] text-muted block mt-0.5">
+                        {item.subtitle}
+                      </span>
+                    </div>
+                    <ArrowRight size={15} className="quick-action-arrow text-muted flex-shrink-0" />
+                  </button>
+                ))}
+
+                {/* Seção 2: Ponto de Partida (se disponível) */}
+                {onOpenCheckpoint && (
+                  <>
+                    <span className="quick-actions-section-title mt-2">
+                      CALIBRAÇÃO DO SISTEMA
+                    </span>
+                    <button
+                      type="button"
+                      className="quick-action-card cursor-pointer text-left w-full"
+                      onClick={() => {
+                        setIsOpen(false);
+                        onOpenCheckpoint();
+                      }}
+                    >
+                      <div className="quick-action-icon-box">
+                        <Flag size={18} className="text-purple-400" />
+                      </div>
+                      <div className="quick-action-text flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="quick-action-title font-bold text-xs md:text-sm">
+                            Definir Ponto de Partida
+                          </span>
+                          <span className="badge badge-purple text-[9px] px-1.5 py-0.5">
+                            Marco Inicial
+                          </span>
+                        </div>
+                        <span className="quick-action-subtitle text-[11px] text-muted block mt-0.5">
+                          Calibrar data de início, saldos em contas e faturas abertas
+                        </span>
+                      </div>
+                      <ArrowRight size={15} className="quick-action-arrow text-muted flex-shrink-0" />
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 };
