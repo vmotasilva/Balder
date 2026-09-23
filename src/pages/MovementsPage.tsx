@@ -18,6 +18,11 @@ import {
   ChevronRight,
   CalendarDays,
   SlidersHorizontal,
+  Layers,
+  TrendingUp,
+  TrendingDown,
+  Building2,
+  CreditCard,
 } from 'lucide-react';
 import type { Movement, MovementType } from '../types';
 import { calculatePresentValue, groupLoanMovements } from '../utils/loanMath';
@@ -163,6 +168,20 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
     if (!activeCheckpoint) return 0;
     return allMovements.filter((m) => m.dueDate < activeCheckpoint.startDate).length;
   }, [allMovements, activeCheckpoint]);
+
+  // Contagem específica para cada botão de aba
+  const tabCounts = useMemo(() => {
+    const base = activeCheckpoint && !includePreCheckpoint
+      ? allMovements.filter((m) => m.dueDate >= activeCheckpoint.startDate)
+      : allMovements;
+    return {
+      TODOS: base.length,
+      RECEBER: base.filter((m) => m.type === 'RECEBER').length,
+      PAGAR: base.filter((m) => m.type === 'PAGAR').length,
+      EMPRESTIMO: base.filter((m) => m.type === 'EMPRESTIMO').length,
+      CARTAO: base.filter((m) => m.type === 'CARTAO').length,
+    };
+  }, [allMovements, activeCheckpoint, includePreCheckpoint]);
 
   // Modal de Simulação e Antecipação de Empréstimos
   const [prepaymentModalOpen, setPrepaymentModalOpen] = useState(false);
@@ -744,57 +763,8 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
         onOpenNewMovementModal={onOpenNewMovementModal}
       />
 
-      {/* BANNER EXECUTIVO QUANDO A ABA FOR EMPRÉSTIMO */}
-      {activeTab === 'EMPRESTIMO' && loanGroups.length > 0 && (
-        <div className="loan-portfolio-banner glass-card animate-fade-in mb-4">
-          <div className="loan-portfolio-info">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="badge badge-amber text-xs">RESUMO DE CRÉDITOS ATIVOS</span>
-              <span className="text-xs text-muted">Resolução BACEN nº 3.516 (Deságio a Valor Presente)</span>
-            </div>
-            <h3 className="text-lg font-bold text-white">Carteira de Empréstimos & Oportunidade de Quitação</h3>
-            <p className="text-xs text-secondary mt-1">
-              Você possui <strong>{loanGroups.reduce((acc, g) => acc + g.openInstallments.length, 0)} parcelas futuras</strong> ativas.
-              Ao antecipar parcelas, todos os juros futuros não decorridos são deduzidos por lei.
-            </p>
-          </div>
-
-          <div className="loan-portfolio-kpis">
-            <div className="portfolio-kpi-item">
-              <span className="portfolio-kpi-label">Saldo Devedor Nominal</span>
-              <strong className="portfolio-kpi-val text-white">
-                {totalLoanNominal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-              </strong>
-            </div>
-
-            <div className="portfolio-kpi-item">
-              <span className="portfolio-kpi-label">Se Quitado Hoje</span>
-              <strong className="portfolio-kpi-val text-cyan">
-                {totalLoanPresentValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-              </strong>
-            </div>
-
-            <div className="portfolio-kpi-item">
-              <span className="portfolio-kpi-label">Economia Imediata</span>
-              <strong className="portfolio-kpi-val text-emerald">
-                +{totalLoanImmediateSavings.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-              </strong>
-            </div>
-
-            <button
-              type="button"
-              className="btn btn-primary btn-sm portfolio-cta-btn"
-              onClick={() => handleOpenPrepayment()}
-            >
-              <Zap size={15} />
-              <span>Simular Antecipação</span>
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Summary KPI Pills */}
-      <div className="movements-kpi-row">
+      <div className="movements-kpi-row mb-4">
         <div className="kpi-pill glass-card">
           <span className="kpi-pill-label">A receber</span>
           <span className="kpi-pill-val text-emerald">
@@ -818,26 +788,148 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
         </div>
       </div>
 
-      {/* Filter Controls */}
+      {/* Card de Abas e Filtros de Movimentações */}
       <div className="movements-filter-panel glass-card">
-        {/* View Tabs */}
-        <div className="filter-view-tabs">
-          <button className={`view-tab ${activeTab === 'TODOS' ? 'active' : ''}`} onClick={() => setActiveTab('TODOS')}>
-            Visão Geral
+        {/* 1. Botões das Abas de Visão */}
+        <div className="movements-tab-buttons-grid">
+          <button
+            type="button"
+            className={`movements-tab-btn tab-btn-todos ${activeTab === 'TODOS' ? 'active' : ''}`}
+            onClick={() => setActiveTab('TODOS')}
+            title="Ver todas as movimentações consolidadas"
+          >
+            <Layers size={14} className="tab-btn-icon" />
+            <span className="tab-btn-text">Visão Geral</span>
+            {tabCounts.TODOS > 0 && <span className="tab-btn-badge">{tabCounts.TODOS}</span>}
           </button>
-          <button className={`view-tab ${activeTab === 'RECEBER' ? 'active' : ''}`} onClick={() => setActiveTab('RECEBER')}>
-            Receber
+
+          <button
+            type="button"
+            className={`movements-tab-btn tab-btn-receber ${activeTab === 'RECEBER' ? 'active' : ''}`}
+            onClick={() => setActiveTab('RECEBER')}
+            title="Ver entradas e valores a receber"
+          >
+            <TrendingUp size={14} className="tab-btn-icon text-emerald" />
+            <span className="tab-btn-text">Receber</span>
+            {tabCounts.RECEBER > 0 && <span className="tab-btn-badge badge-emerald">{tabCounts.RECEBER}</span>}
           </button>
-          <button className={`view-tab ${activeTab === 'PAGAR' ? 'active' : ''}`} onClick={() => setActiveTab('PAGAR')}>
-            Pagar
+
+          <button
+            type="button"
+            className={`movements-tab-btn tab-btn-pagar ${activeTab === 'PAGAR' ? 'active' : ''}`}
+            onClick={() => setActiveTab('PAGAR')}
+            title="Ver saídas, custos e valores a pagar"
+          >
+            <TrendingDown size={14} className="tab-btn-icon text-rose" />
+            <span className="tab-btn-text">Pagar</span>
+            {tabCounts.PAGAR > 0 && <span className="tab-btn-badge badge-rose">{tabCounts.PAGAR}</span>}
           </button>
-          <button className={`view-tab ${activeTab === 'EMPRESTIMO' ? 'active' : ''}`} onClick={() => setActiveTab('EMPRESTIMO')}>
-            Empréstimos {loanGroups.length > 0 && `(${loanGroups.reduce((acc, g) => acc + g.openInstallments.length, 0)})`}
+
+          <button
+            type="button"
+            className={`movements-tab-btn tab-btn-emprestimo ${activeTab === 'EMPRESTIMO' ? 'active' : ''}`}
+            onClick={() => setActiveTab('EMPRESTIMO')}
+            title="Ver contratos de dívidas e parcelas de empréstimo"
+          >
+            <Building2 size={14} className="tab-btn-icon text-amber" />
+            <span className="tab-btn-text">Empréstimos</span>
+            {tabCounts.EMPRESTIMO > 0 && <span className="tab-btn-badge badge-amber">{tabCounts.EMPRESTIMO}</span>}
           </button>
-          <button className={`view-tab ${activeTab === 'CARTAO' ? 'active' : ''}`} onClick={() => setActiveTab('CARTAO')}>
-            Cartões
+
+          <button
+            type="button"
+            className={`movements-tab-btn tab-btn-cartao ${activeTab === 'CARTAO' ? 'active' : ''}`}
+            onClick={() => setActiveTab('CARTAO')}
+            title="Ver faturas e compras parceladas de cartão"
+          >
+            <CreditCard size={14} className="tab-btn-icon text-purple" />
+            <span className="tab-btn-text">Cartões</span>
+            {tabCounts.CARTAO > 0 && <span className="tab-btn-badge badge-purple">{tabCounts.CARTAO}</span>}
           </button>
         </div>
+
+        {/* 2. Informação Específica da Aba Selecionada */}
+        <div className="movements-tab-specific-info">
+          {activeTab === 'TODOS' && (
+            <div className="tab-info-chip">
+              <Layers size={13} className="text-cyan flex-shrink-0" />
+              <span>Visão Geral: <strong>{filteredMovements.length}</strong> movimentações listadas</span>
+            </div>
+          )}
+          {activeTab === 'RECEBER' && (
+            <div className="tab-info-chip">
+              <TrendingUp size={13} className="text-emerald flex-shrink-0" />
+              <span>Receitas filtradas: <strong>+{totalReceber.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong> ({tabCounts.RECEBER} lançamentos)</span>
+            </div>
+          )}
+          {activeTab === 'PAGAR' && (
+            <div className="tab-info-chip">
+              <TrendingDown size={13} className="text-rose flex-shrink-0" />
+              <span>Despesas filtradas: <strong>-{totalPagar.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong> ({tabCounts.PAGAR} lançamentos)</span>
+            </div>
+          )}
+          {activeTab === 'EMPRESTIMO' && (
+            <div className="tab-info-chip">
+              <Building2 size={13} className="text-amber flex-shrink-0" />
+              <span>Créditos & Empréstimos: <strong>{loanGroups.length} contratos</strong> ({tabCounts.EMPRESTIMO} parcelas ativas)</span>
+            </div>
+          )}
+          {activeTab === 'CARTAO' && (
+            <div className="tab-info-chip">
+              <CreditCard size={13} className="text-purple flex-shrink-0" />
+              <span>Faturas & Cartões: <strong>{tabCounts.CARTAO}</strong> compras e parcelas mapeadas</span>
+            </div>
+          )}
+        </div>
+
+        {/* 3. Informação Específica de Empréstimos (quando ativa) */}
+        {activeTab === 'EMPRESTIMO' && loanGroups.length > 0 && (
+          <div className="loan-portfolio-banner glass-card animate-fade-in mt-1 mb-1">
+            <div className="loan-portfolio-info">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="badge badge-amber text-xs">RESUMO DE CRÉDITOS ATIVOS</span>
+                <span className="text-xs text-muted">Resolução BACEN nº 3.516 (Deságio a Valor Presente)</span>
+              </div>
+              <h3 className="text-lg font-bold text-white">Carteira de Empréstimos & Oportunidade de Quitação</h3>
+              <p className="text-xs text-secondary mt-1">
+                Você possui <strong>{loanGroups.reduce((acc, g) => acc + g.openInstallments.length, 0)} parcelas futuras</strong> ativas.
+                Ao antecipar parcelas, todos os juros futuros não decorridos são deduzidos por lei.
+              </p>
+            </div>
+
+            <div className="loan-portfolio-kpis">
+              <div className="portfolio-kpi-item">
+                <span className="portfolio-kpi-label">Saldo Devedor Nominal</span>
+                <strong className="portfolio-kpi-val text-white">
+                  {totalLoanNominal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </strong>
+              </div>
+
+              <div className="portfolio-kpi-item">
+                <span className="portfolio-kpi-label">Se Quitado Hoje</span>
+                <strong className="portfolio-kpi-val text-cyan">
+                  {totalLoanPresentValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </strong>
+              </div>
+
+              <div className="portfolio-kpi-item">
+                <span className="portfolio-kpi-label">Economia Imediata</span>
+                <strong className="portfolio-kpi-val text-emerald">
+                  +{totalLoanImmediateSavings.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </strong>
+              </div>
+
+              <button
+                type="button"
+                className="btn btn-primary btn-sm portfolio-cta-btn"
+                onClick={() => handleOpenPrepayment()}
+              >
+                <Zap size={15} />
+                <span>Simular Antecipação</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Secondary Filter Controls Row */}
         <div className="filter-controls-row">
