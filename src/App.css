@@ -4261,6 +4261,342 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     flex-direction: column;
     align-items: flex-start;
   }
+
+  /* ==========================================================================
+     PROJEÇÃO ORÇAMENTÁRIA & GRID DE NATUREZAS ADAPTADOS EM CARDS NO MOBILE
+     ========================================================================== */
+  /* Oculta as tabelas desktop e exibe as listas de cards no mobile */
+  .projection-table-desktop-view,
+  .nature-table-desktop-view {
+    display: none !important;
+  }
+
+  .projection-cards-mobile-view,
+  .nature-cards-mobile-view {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    width: 100% !important;
+  }
+
+  /* Ajustes de Cabeçalho da Projeção Orçamentária no Mobile */
+  .grid-section-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+
+  .grid-header-actions {
+    width: 100% !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .horizon-filter-pills {
+    overflow-x: auto !important;
+    max-width: 100% !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-bottom: 2px !important;
+    scrollbar-width: none !important;
+  }
+
+  .horizon-filter-pills::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .grid-summary-kpis-row {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 8px !important;
+  }
+
+  .grid-interactive-tip {
+    font-size: 11px !important;
+    padding: 8px 10px !important;
+  }
+
+  /* Ajustes de Cabeçalho do Grid de Naturezas no Mobile */
+  .nature-grid-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+
+  .nature-grid-controls {
+    width: 100% !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  .nature-search-wrap {
+    width: 100% !important;
+    flex: 1 1 100% !important;
+  }
+
+  .nature-grid-kpis-bar {
+    overflow-x: auto !important;
+    max-width: 100% !important;
+    padding-bottom: 6px !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+
+  .nature-grid-kpis-bar::-webkit-scrollbar {
+    display: none !important;
+  }
+}
+
+/* ==========================================================================
+   ESTILOS DE CARDS RESPONSIVOS (PROJEÇÃO ORÇAMENTÁRIA & NATUREZAS)
+   ========================================================================== */
+
+/* Padrão Desktop: Oculta a visualização em cards */
+.projection-cards-mobile-view,
+.nature-cards-mobile-view {
+  display: none;
+}
+
+.projection-table-desktop-view,
+.nature-table-desktop-view {
+  display: block;
+}
+
+/* Card Individual da Projeção Orçamentária */
+.projection-mobile-card {
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.projection-mobile-card.card-deficit {
+  border-left: 4px solid #ef4444;
+}
+
+.projection-mobile-card.card-surplus {
+  border-left: 4px solid #10b981;
+}
+
+.projection-mobile-card.current-month-card {
+  border-left: 4px solid #06b6d4;
+  border-color: rgba(6, 182, 212, 0.5);
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.12) 0%, rgba(15, 23, 42, 0.85) 100%);
+  box-shadow: 0 0 16px rgba(6, 182, 212, 0.15);
+}
+
+.proj-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.proj-card-competence-badge {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.proj-card-competence-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.proj-card-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.proj-card-metric-box {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  transition: background 0.15s ease;
+}
+
+.proj-card-metric-box:active {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.proj-metric-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+
+.proj-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.proj-card-dre-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-cyan);
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  padding: 4px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.proj-card-dre-btn:hover {
+  background: rgba(56, 189, 248, 0.2);
+}
+
+.proj-mobile-totals-card {
+  background: rgba(11, 19, 36, 0.85);
+  border: 1.5px solid rgba(245, 158, 11, 0.35);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+/* Card Individual de Naturezas */
+.nature-mobile-card {
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.nature-mobile-card:active {
+  transform: scale(0.99);
+}
+
+.nature-mobile-card.card-attention-rose {
+  border-left: 4px solid #ef4444;
+  border-color: rgba(244, 63, 94, 0.4);
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.08) 0%, rgba(15, 23, 42, 0.85) 100%);
+}
+
+.nature-mobile-card.card-attention-amber {
+  border-left: 4px solid #f59e0b;
+  border-color: rgba(245, 158, 11, 0.35);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.06) 0%, rgba(15, 23, 42, 0.85) 100%);
+}
+
+.nature-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.nature-card-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.nature-card-metric-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.nature-card-metric-label {
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}
+
+.nature-card-metric-val {
+  font-size: 11.5px;
+  margin-top: 1px;
+}
+
+.nature-mobile-totals-card {
+  background: rgba(11, 19, 36, 0.85);
+  border: 1.5px solid rgba(56, 189, 248, 0.3);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+/* Modo Claro para Cards Mobile */
+[data-theme="light"] .projection-mobile-card,
+[data-theme="light"] .nature-mobile-card {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .projection-mobile-card.current-month-card {
+  background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
+  border-color: #38bdf8;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.15);
+}
+
+[data-theme="light"] .nature-mobile-card.card-attention-rose {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  border-left: 4px solid #dc2626;
+}
+
+[data-theme="light"] .nature-mobile-card.card-attention-amber {
+  background: #fffbeb;
+  border-color: #fde68a;
+  border-left: 4px solid #d97706;
+}
+
+[data-theme="light"] .proj-card-metrics-grid,
+[data-theme="light"] .nature-card-metrics-grid {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .proj-card-metric-box {
+  background: #ffffff;
+  border: 1px solid #f1f5f9;
+}
+
+[data-theme="light"] .proj-card-footer {
+  border-top-color: #e2e8f0;
+}
+
+[data-theme="light"] .proj-mobile-totals-card {
+  background: #fffbeb;
+  border-color: #fcd34d;
+}
+
+[data-theme="light"] .nature-mobile-totals-card {
+  background: #f0fdf4;
+  border-color: #86efac;
 }
 
 /* ==========================================================================

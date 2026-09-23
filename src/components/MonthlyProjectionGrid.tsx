@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useFinancial } from '../context/FinancialContext';
-import { Download, Info, Lock, CheckCircle2 } from 'lucide-react';
+import { Download, Info, Lock, CheckCircle2, ArrowRight } from 'lucide-react';
 import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
 import type { MonthlyGridProjectionRow } from '../types';
 import { GridCellDetailModal } from './GridCellDetailModal';
@@ -273,8 +273,8 @@ export const MonthlyProjectionGrid: React.FC = () => {
         </span>
       </div>
 
-      {/* Tabela Glanceable em 100% de Largura (Sem Barra de Rolagem) */}
-      <div className="projection-table-glanceable-wrapper">
+      {/* Tabela Glanceable em 100% de Largura (Desktop) */}
+      <div className="projection-table-glanceable-wrapper projection-table-desktop-view">
         <table className="projection-glanceable-grid">
           <thead>
             <tr>
@@ -471,6 +471,202 @@ export const MonthlyProjectionGrid: React.FC = () => {
             </tr>
           </tfoot>
         </table>
+      </div>
+
+      {/* Lista de Cards da Projeção Orçamentária (Versão Mobile em Cards) */}
+      <div className="projection-cards-mobile-view">
+        {displayedRows.map((row) => {
+          const totalIncome = row.salary + row.extrasTotal + row.loanReceived;
+          const totalExpense = row.creditCardTotal + row.fixedCostMapped + row.variableCost + row.loanPayment;
+          const isCurrentMonth = row.monthKey === currentMonthKey;
+          const isSurplus = row.monthNet >= 0;
+          const barPercent = Math.min(Math.round((Math.abs(row.monthNet) / maxAbsNet) * 100), 100);
+
+          return (
+            <div
+              key={row.monthKey}
+              className={`projection-mobile-card ${isCurrentMonth ? 'current-month-card' : ''} ${row.isDeficit ? 'card-deficit' : 'card-surplus'}`}
+            >
+              {/* Card Header: Competência, Badges e Botão Fechamento */}
+              <div className="proj-card-header">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="proj-card-competence-badge">
+                    <span className="font-bold">{row.formattedCompetence}</span>
+                    <span className="proj-card-competence-label">{row.competenceLabel}</span>
+                  </div>
+                  {isCurrentMonth && (
+                    <span className="current-month-pill" title="Competência em andamento no Balder">
+                      Atual
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  {row.isClosed ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setClosingModalRow(row);
+                      }}
+                      className="px-2 py-1 text-[11px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg flex items-center gap-1"
+                      title="Competência Fechada — Toque para gerenciar"
+                    >
+                      <Lock className="w-3 h-3" />
+                      <span>Fechado</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setClosingModalRow(row);
+                      }}
+                      className="px-2 py-1 text-[11px] font-medium text-slate-300 hover:text-white bg-slate-800/80 border border-slate-700 rounded-lg flex items-center gap-1"
+                      title="Toque para fechar este mês"
+                    >
+                      <Lock className="w-3 h-3 opacity-60" />
+                      <span>Fechar</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Grid 2x2 com os Valores Financeiros Principais */}
+              <div className="proj-card-metrics-grid">
+                {/* Saldo Inicial */}
+                <div
+                  className="proj-card-metric-box cursor-pointer"
+                  onClick={() =>
+                    handleOpenCell(row, 'accumulated', 'Saldo Inicial do Ciclo', row.initialBalance || 0)
+                  }
+                  title="Toque para ver o saldo inicial"
+                >
+                  <span className="proj-metric-label">Saldo Inicial</span>
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <GlanceableCurrency value={row.initialBalance} className="font-semibold text-xs" />
+                    {row.isClosed && <CheckCircle2 className="w-3 h-3 text-emerald-400 flex-shrink-0" />}
+                  </div>
+                </div>
+
+                {/* Entradas */}
+                <div
+                  className="proj-card-metric-box cursor-pointer"
+                  onClick={() =>
+                    handleOpenCell(row, 'totalIncome', 'Detalhamento de Entradas (Receitas)', totalIncome)
+                  }
+                  title="Toque para detalhar entradas"
+                >
+                  <span className="proj-metric-label text-emerald">Entradas (Receitas)</span>
+                  <div className="mt-0.5">
+                    <GlanceableCurrency value={totalIncome} isPositivePrefix={true} className="text-emerald font-bold text-xs" />
+                  </div>
+                </div>
+
+                {/* Saídas */}
+                <div
+                  className="proj-card-metric-box cursor-pointer"
+                  onClick={() =>
+                    handleOpenCell(row, 'totalExpense', 'Detalhamento de Saídas (Despesas)', totalExpense)
+                  }
+                  title="Toque para detalhar saídas"
+                >
+                  <span className="proj-metric-label text-rose">Saídas (Despesas)</span>
+                  <div className="mt-0.5">
+                    <GlanceableCurrency value={totalExpense} prefix="-" className="text-rose font-bold text-xs" />
+                  </div>
+                </div>
+
+                {/* Resultado Líquido */}
+                <div
+                  className="proj-card-metric-box cursor-pointer"
+                  onClick={() =>
+                    handleOpenCell(row, 'monthNet', 'Resultado Líquido do Mês (Entradas - Saídas)', row.monthNet)
+                  }
+                  title="Toque para detalhar o resultado do mês"
+                >
+                  <span className="proj-metric-label">Resultado (Mês)</span>
+                  <div className="flex items-center justify-between gap-1 w-full mt-0.5">
+                    <GlanceableCurrency
+                      value={row.monthNet}
+                      isPositivePrefix={true}
+                      className={`font-bold text-xs ${isSurplus ? 'text-emerald' : 'text-rose'}`}
+                    />
+                    <div className="mini-result-track flex-shrink-0">
+                      <div
+                        className={`mini-result-fill ${isSurplus ? 'surplus' : 'deficit'}`}
+                        style={{ width: `${Math.max(barPercent, 12)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Barra Inferior do Card: Saldo Acumulado & Botão DRE */}
+              <div
+                className="proj-card-footer cursor-pointer"
+                onClick={() =>
+                  handleOpenCell(row, 'accumulated', 'Saldo Acumulado Projetado', row.accumulatedBalance)
+                }
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-muted font-medium">Saldo Acumulado:</span>
+                  <GlanceableCurrency
+                    value={row.accumulatedBalance}
+                    className={`font-bold text-sm ${row.accumulatedBalance < 0 ? 'text-rose' : 'val-surplus-gold'}`}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  className="proj-card-dre-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenCell(row, 'monthNet', `DRE Resumo: ${row.competenceLabel}`, row.monthNet);
+                  }}
+                  title="Ver demonstrativo completo"
+                >
+                  <span>Ver DRE</span>
+                  <ArrowRight size={12} />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Card de Totais Consolidados no Mobile */}
+        <div className="proj-mobile-totals-card">
+          <div className="flex items-center justify-between pb-2 border-b border-border/40">
+            <span className="text-xs font-bold uppercase tracking-wider text-primary">Totais Consolidados</span>
+            <span className="badge badge-cyan text-[10px]">{displayedRows.length} meses</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <div>
+              <span className="text-[10px] text-muted block">Total Entradas</span>
+              <GlanceableCurrency value={totals.totalIncome} isPositivePrefix={true} className="text-emerald font-bold text-xs" />
+            </div>
+            <div>
+              <span className="text-[10px] text-muted block">Total Saídas</span>
+              <GlanceableCurrency value={totals.totalExpense} prefix="-" className="text-rose font-bold text-xs" />
+            </div>
+            <div>
+              <span className="text-[10px] text-muted block">Resultado Líquido</span>
+              <GlanceableCurrency
+                value={totals.monthNet}
+                isPositivePrefix={true}
+                className={`font-bold text-xs ${totals.monthNet >= 0 ? 'text-emerald' : 'text-rose'}`}
+              />
+            </div>
+            <div>
+              <span className="text-[10px] text-muted block">Saldo Final Projetado</span>
+              <GlanceableCurrency
+                value={lastAccumulatedBalance}
+                className={`font-bold text-xs ${lastAccumulatedBalance >= 0 ? 'text-amber' : 'text-rose'}`}
+              />
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Pop-up Modal de Detalhamento da Célula Clicada */}
