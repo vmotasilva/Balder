@@ -1,9 +1,9 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Shield, ArrowRight, Sparkles } from 'lucide-react';
+import { Shield } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
-  const { loginWithGoogle, continueAsGuest } = useAuth();
+  const { loginWithGoogle } = useAuth();
 
   return (
     <div className="login-screen-wrapper">
@@ -90,24 +90,6 @@ export const LoginPage: React.FC = () => {
             </svg>
             <span>Continuar com Microsoft</span>
             <span style={{ fontSize: '10px', background: 'rgba(255, 255, 255, 0.1)', padding: '2px 6px', borderRadius: '10px', marginLeft: 'auto' }}>Em breve</span>
-          </button>
-        </div>
-
-        <div className="login-divider" style={{ margin: '1.5rem 0 1rem' }}>
-          <span>ou</span>
-        </div>
-
-        {/* Quick Demo Bypass */}
-        <div className="login-demo-bypass">
-          <button 
-            type="button" 
-            className="btn-demo-quick-access"
-            onClick={continueAsGuest}
-            title="Acessa o sistema instantaneamente para testes locais"
-          >
-            <Sparkles size={16} />
-            <span>Explorar em Modo Demonstração (Local)</span>
-            <ArrowRight size={14} />
           </button>
         </div>
       </div>
