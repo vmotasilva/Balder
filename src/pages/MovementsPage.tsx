@@ -506,13 +506,13 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
   return (
     <div className="page-container animate-fade-in">
       {/* Header */}
-      <div className="page-header">
-        <div>
+      <div className="page-header movements-page-header">
+        <div className="movements-header-title-box">
           <div className="kicker-badge">
             <span>CENTRAL OPERACIONAL</span>
           </div>
-          <h1 className="page-title">Minhas Movimentações</h1>
-          <p className="page-subtitle">Acompanhe entradas, saídas, parcelas de empréstimos e faturas de cartão</p>
+          <h1 className="page-title movements-page-title">Minhas Movimentações</h1>
+          <p className="page-subtitle movements-page-subtitle">Acompanhe entradas, saídas, parcelas de empréstimos e faturas de cartão</p>
         </div>
 
         <div className="page-header-actions">
