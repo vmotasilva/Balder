@@ -128,13 +128,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       {/* SEÇÃO 1: COMO ESTOU                                            */}
       {/* ============================================================== */}
       <section className="dashboard-section">
-        <div className="section-title-row">
-          <div className="section-title-left">
-            <span className="badge badge-cyan">SITUAÇÃO ATUAL</span>
-            <h2 className="section-heading">Como Estou</h2>
-          </div>
-          <span className="section-help-text">Atualizado em tempo real com conciliação bancária</span>
-        </div>
+
 
         <div className="metrics-grid-4">
           {/* Card 1: Patrimônio Líquido */}
