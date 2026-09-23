@@ -2374,16 +2374,18 @@
 .chat-message-row {
   display: flex;
   gap: 12px;
-  max-width: 80%;
+  max-width: 88%;
 }
 
 .message-user {
   align-self: flex-end;
   flex-direction: row-reverse;
+  max-width: 84%;
 }
 
 .message-assistant {
   align-self: flex-start;
+  max-width: 92%;
 }
 
 .message-avatar {
@@ -2421,6 +2423,10 @@
   border-radius: var(--radius-lg);
   background: var(--bg-card-elevated);
   border: 1px solid var(--border-default);
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .message-user .message-bubble {
@@ -5641,6 +5647,33 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     overflow: hidden !important;
     height: calc(100vh - var(--navbar-height)) !important;
     height: calc(100dvh - var(--navbar-height)) !important;
+  }
+
+  .chat-messages-feed {
+    padding: 14px 10px !important;
+    gap: 12px !important;
+  }
+
+  .chat-message-row {
+    gap: 8px !important;
+    max-width: 98% !important;
+  }
+
+  .message-assistant {
+    max-width: 98% !important;
+  }
+
+  .message-user {
+    max-width: 90% !important;
+  }
+
+  .message-assistant .message-avatar {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  .message-bubble {
+    padding: 12px 14px !important;
   }
 
   .metrics-grid-4, .projection-grid-4, .simulations-shortcuts-grid, .goals-cards-grid {
