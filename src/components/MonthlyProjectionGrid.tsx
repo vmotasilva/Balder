@@ -203,7 +203,7 @@ export const MonthlyProjectionGrid: React.FC = () => {
     <div className="monthly-projection-grid-container glass-card animate-fade-in mt-6">
       {/* Header com Título & Filtro por Ano */}
       <div className="grid-section-header">
-        <div>
+        <div className="grid-header-title-col hide-on-mobile">
           <div className="flex items-center gap-2 mb-1">
             <span className="badge badge-cyan text-xs">VISÃO GERAL GLANCEABLE</span>
             <span className="text-xs text-muted">Fluxo de Caixa Macro</span>
