@@ -140,34 +140,9 @@ export const CopilotPage: React.FC = () => {
 
   return (
     <div className="page-container copilot-page animate-fade-in">
-      {/* Header (Desktop) */}
-      <div className="page-header forseti-page-header">
-        <div className="forseti-header-identity">
-          <div className="forseti-header-avatar">
-            <img src="/forseti-avatar.png" alt="Forseti" className="forseti-header-avatar-img" />
-          </div>
-          <div>
-            <div className="kicker-badge">
-              <span>INTELIGÊNCIA OPERACIONAL & CONCILIAÇÃO</span>
-            </div>
-            <h1 className="page-title">Forseti <span className="forseti-title-sub">— Assistente & Auditor IA</span></h1>
-            <p className="page-subtitle">Comando em linguagem natural, leitura de comprovantes com OCR e conciliação determinística</p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowRolesModal(true)}
-          className="forseti-header-info-btn cursor-pointer"
-          title="Ver como o Forseti opera (3 papéis)..."
-        >
-          <Info size={15} className="text-cyan-400" />
-          <span>Como o Forseti opera</span>
-        </button>
-      </div>
-
-      {/* Chat Container */}
+      {/* Chat Container em Tela Cheia */}
       <div
-        className={`copilot-chat-container glass-card ${isDragging ? 'is-dragging-file' : ''}`}
+        className={`copilot-chat-container ${isDragging ? 'is-dragging-file' : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}

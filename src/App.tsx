@@ -94,7 +94,7 @@ export function AppContent() {
           onOpenNavMenu={() => setIsNavMenuOpen(true)}
         />
 
-        <main className="app-content-viewport">
+        <main className={`app-content-viewport ${activeTab === 'COPILOT' ? 'viewport-copilot' : ''}`}>
           {activeTab === 'DASHBOARD' && (
             <DashboardPage
               onNavigateToMovements={() => setActiveTab('MOVIMENTACOES')}

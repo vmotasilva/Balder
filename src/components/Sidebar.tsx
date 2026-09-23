@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   LayoutDashboard,
   ArrowLeftRight,
@@ -47,6 +47,135 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }
     setInternalOpen(open);
   };
+
+  // Posição flutuante móvel do botão de navegação com persistência em localStorage
+  const [orbPosition, setOrbPosition] = useState<{ x: number; y: number } | null>(() => {
+    try {
+      const saved = localStorage.getItem('balder_orb_pos');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
+          const clampedX = Math.min(Math.max(8, parsed.x), (window.innerWidth || 400) - 64);
+          const clampedY = Math.min(Math.max(8, parsed.y), (window.innerHeight || 700) - 64);
+          return { x: clampedX, y: clampedY };
+        }
+      }
+    } catch {
+      // fallback
+    }
+    return null;
+  });
+
+  const [isDraggingOrb, setIsDraggingOrb] = useState(false);
+  const dragStartRef = useRef<{ startX: number; startY: number; initX: number; initY: number } | null>(null);
+  const isMovedRef = useRef(false);
+  const orbBtnRef = useRef<HTMLButtonElement>(null);
+
+  const handleOrbPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0) return; // Apenas clique com botão principal / toque
+
+    const btn = orbBtnRef.current;
+    if (!btn) return;
+
+    const rect = btn.getBoundingClientRect();
+    dragStartRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initX: orbPosition ? orbPosition.x : rect.left,
+      initY: orbPosition ? orbPosition.y : rect.top,
+    };
+    isMovedRef.current = false;
+    btn.setPointerCapture(e.pointerId);
+  };
+
+  const handleOrbPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!dragStartRef.current) return;
+
+    const deltaX = e.clientX - dragStartRef.current.startX;
+    const deltaY = e.clientY - dragStartRef.current.startY;
+
+    if (!isMovedRef.current && Math.hypot(deltaX, deltaY) > 6) {
+      isMovedRef.current = true;
+      setIsDraggingOrb(true);
+    }
+
+    if (isMovedRef.current) {
+      const btnSize = 56;
+      const margin = 8;
+      const maxX = (window.innerWidth || 400) - btnSize - margin;
+      const maxY = (window.innerHeight || 700) - btnSize - margin;
+
+      let nextX = dragStartRef.current.initX + deltaX;
+      let nextY = dragStartRef.current.initY + deltaY;
+
+      nextX = Math.max(margin, Math.min(maxX, nextX));
+      nextY = Math.max(margin, Math.min(maxY, nextY));
+
+      setOrbPosition({ x: nextX, y: nextY });
+    }
+  };
+
+  const handleOrbPointerUp = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!dragStartRef.current) return;
+
+    const btn = orbBtnRef.current;
+    if (btn && btn.hasPointerCapture(e.pointerId)) {
+      btn.releasePointerCapture(e.pointerId);
+    }
+
+    if (isMovedRef.current) {
+      setOrbPosition((current) => {
+        if (current) {
+          try {
+            localStorage.setItem('balder_orb_pos', JSON.stringify(current));
+          } catch {
+            // ignore
+          }
+        }
+        return current;
+      });
+    }
+
+    setIsDraggingOrb(false);
+    setTimeout(() => {
+      isMovedRef.current = false;
+      dragStartRef.current = null;
+    }, 60);
+  };
+
+  const handleOrbPointerCancel = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const btn = orbBtnRef.current;
+    if (btn && btn.hasPointerCapture(e.pointerId)) {
+      btn.releasePointerCapture(e.pointerId);
+    }
+    setIsDraggingOrb(false);
+    isMovedRef.current = false;
+    dragStartRef.current = null;
+  };
+
+  const handleOrbClick = () => {
+    if (isMovedRef.current) return;
+    setIsMenuOpen(!isMenuOpen);
+  };
+
+  // Re-garante que o botão permaneça na tela se a janela for redimensionada
+  useEffect(() => {
+    const handleResize = () => {
+      setOrbPosition((prev) => {
+        if (!prev) return null;
+        const btnSize = 56;
+        const margin = 8;
+        const maxX = window.innerWidth - btnSize - margin;
+        const maxY = window.innerHeight - btnSize - margin;
+        if (maxX <= margin || maxY <= margin) return prev;
+        const clampedX = Math.max(margin, Math.min(maxX, prev.x));
+        const clampedY = Math.max(margin, Math.min(maxY, prev.y));
+        return { x: clampedX, y: clampedY };
+      });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Escuta tecla Escape e trava scroll do body quando menu está aberto
   useEffect(() => {
@@ -278,13 +407,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Mobile Floating Circular Navigation Button & Fluid Options Sheet */}
       <div className="mobile-nav-root">
-        {/* Floating Circular Trigger Button */}
+        {/* Floating Circular Trigger Button (Móvel / Arrastável) */}
         <button
+          ref={orbBtnRef}
           type="button"
-          className={`mobile-nav-orb-btn ${isMenuOpen ? 'open' : ''}`}
-          onClick={() => setIsMenuOpen(!isMenuOpen)}
-          aria-label={isMenuOpen ? 'Fechar Menu de Navegação' : 'Abrir Menu de Navegação'}
-          title="Menu de Navegação"
+          className={`mobile-nav-orb-btn ${isMenuOpen ? 'open' : ''} ${isDraggingOrb ? 'is-dragging' : ''}`}
+          onClick={handleOrbClick}
+          onPointerDown={handleOrbPointerDown}
+          onPointerMove={handleOrbPointerMove}
+          onPointerUp={handleOrbPointerUp}
+          onPointerCancel={handleOrbPointerCancel}
+          style={
+            orbPosition
+              ? {
+                  left: `${orbPosition.x}px`,
+                  top: `${orbPosition.y}px`,
+                  bottom: 'auto',
+                  right: 'auto',
+                  transform: isDraggingOrb ? 'scale(1.12)' : isMenuOpen ? 'rotate(90deg)' : 'none',
+                }
+              : undefined
+          }
+          aria-label={isMenuOpen ? 'Fechar Menu de Navegação' : 'Abrir Menu de Navegação (Arraste para mover)'}
+          title="Menu de Navegação (Pressione e arraste para posicionar onde desejar)"
         >
           <div className="mobile-nav-orb-inner">
             {isMenuOpen ? (

@@ -1715,16 +1715,33 @@
   font-size: 40px;
 }
 
-/* Copilot Chat Layout */
+/* Copilot Chat Layout - Modo Tela Cheia Sem Barra de Rolagem Externa */
+.app-content-viewport.viewport-copilot {
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  height: calc(100vh - var(--navbar-height)) !important;
+  height: calc(100dvh - var(--navbar-height)) !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.page-container.copilot-page,
 .copilot-page {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - var(--navbar-height) - 48px);
-  gap: 16px;
-  overflow: hidden;
+  flex: 1;
+  height: 100% !important;
+  max-height: 100% !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  overflow: hidden !important;
 }
 
-/* ── Forseti Page Header com Avatar ────────────────────────── */
+/* ── Forseti Page Header com Avatar (legado mantido se reutilizado) ────────── */
 .forseti-page-header {
   padding-bottom: 0 !important;
 }
@@ -1962,8 +1979,16 @@
   display: flex;
   flex-direction: column;
   flex: 1;
+  height: 100%;
+  width: 100%;
   min-height: 0;
   padding: 0;
+  margin: 0;
+  border-radius: 0 !important;
+  border: none !important;
+  border-top: 1px solid var(--border-subtle) !important;
+  box-shadow: none !important;
+  background: var(--bg-card);
   overflow: hidden;
   position: relative;
 }
@@ -4842,7 +4867,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   box-shadow: 0 0 12px rgba(2, 132, 199, 0.25);
 }
 
-/* Botão Circular Flutuante (FAB) de Navegação */
+/* Botão Circular Flutuante (FAB) de Navegação - Móvel & Arrastável */
 .mobile-nav-orb-btn {
   position: fixed;
   width: 56px;
@@ -4854,12 +4879,25 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
   box-shadow: 0 10px 28px -4px rgba(2, 132, 199, 0.55), 0 4px 12px rgba(0, 0, 0, 0.35);
   z-index: 10002;
   transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), background 0.28s, box-shadow 0.28s, border-color 0.28s;
   outline: none;
   -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-nav-orb-btn:active {
+  cursor: grabbing;
+}
+
+.mobile-nav-orb-btn.is-dragging {
+  cursor: grabbing !important;
+  transition: none !important;
+  box-shadow: 0 18px 40px rgba(2, 132, 199, 0.75), 0 0 24px rgba(6, 182, 212, 0.6) !important;
 }
 
 .mobile-nav-orb-btn.open {
@@ -5524,16 +5562,17 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 
   .mobile-nav-orb-btn {
     bottom: calc(20px + env(safe-area-inset-bottom, 0px));
-    left: 50%;
-    transform: translateX(-50%);
+    right: 20px;
+    left: auto;
+    transform: none;
   }
 
   .mobile-nav-orb-btn:active {
-    transform: translateX(-50%) scale(0.92);
+    transform: scale(0.92);
   }
 
   .mobile-nav-orb-btn.open {
-    transform: translateX(-50%) rotate(90deg);
+    transform: rotate(90deg);
   }
 
   .mobile-nav-sheet-footer {
@@ -5594,6 +5633,14 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     padding: 14px 14px 76px 14px !important;
     overflow-y: auto !important;
     -webkit-overflow-scrolling: touch !important;
+  }
+
+  .app-content-viewport.viewport-copilot {
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    height: calc(100vh - var(--navbar-height)) !important;
+    height: calc(100dvh - var(--navbar-height)) !important;
   }
 
   .metrics-grid-4, .projection-grid-4, .simulations-shortcuts-grid, .goals-cards-grid {
