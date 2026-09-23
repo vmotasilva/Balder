@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { useTheme } from '../context/ThemeContext';
 import {
@@ -204,6 +204,44 @@ export const ProfilePage: React.FC = () => {
     return `${months[mIndex] || m} de ${y}`;
   };
 
+  // Itens de navegação do perfil correspondentes ao card principal (Imagem 2)
+  const PROFILE_NAV_ITEMS = [
+    { id: 'PERFIL' as const, label: 'Perfil & Dados Pessoais', icon: User, count: null },
+    { id: 'SALARIO' as const, label: 'Remuneração & Salário', icon: Briefcase, count: salaryContracts.length },
+    { id: 'MARCOS' as const, label: 'Marcos de Início', icon: Flag, count: checkpoints.length },
+    { id: 'CONTAS' as const, label: 'Contas & Meios', icon: CreditCard, count: accounts.length + cards.length },
+    { id: 'BANCOS' as const, label: 'Bancos & Instituições', icon: Building, count: banks.length },
+    { id: 'CATEGORIAS' as const, label: 'Naturezas & Categorias', icon: Tag, count: null },
+    { id: 'PREFERENCIAS' as const, label: 'Preferências de Exibição', icon: Sliders, count: null },
+    { id: 'EXPORTACOES' as const, label: 'Exportações (Excel & CSV)', icon: FileSpreadsheet, count: null },
+    { id: 'SEGURANCA' as const, label: 'Segurança & Criptografia', icon: ShieldCheck, count: null },
+  ];
+
+  const [mobileDropdownOpen, setMobileDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setMobileDropdownOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMobileDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
+
+  const currentNavItem = PROFILE_NAV_ITEMS.find((item) => item.id === activeSubTab) || PROFILE_NAV_ITEMS[0];
+  const CurrentNavIcon = currentNavItem.icon;
+
   return (
     <div className="page-container animate-fade-in">
       {/* Header */}
@@ -219,93 +257,106 @@ export const ProfilePage: React.FC = () => {
 
       {/* Profile Layout with Nav Tabs */}
       <div className="profile-layout-grid">
-        {/* Left Side Menu */}
+        {/* Left Side Menu / Mobile Header Card */}
         <div className="profile-nav-card glass-card">
           <div className="profile-user-summary">
             <div className="profile-avatar-large">
               <span>VM</span>
             </div>
-            <h3>Vinicius Mota</h3>
-            <span className="profile-user-email">vinicius@balder.internal</span>
-            <span className="badge badge-emerald mt-2">ASSINANTE BETA PRO</span>
+            <div className="profile-user-text">
+              <h3>Vinicius Mota</h3>
+              <span className="profile-user-email">vinicius@balder.internal</span>
+              <span className="badge badge-emerald mt-1 profile-beta-badge">ASSINANTE BETA PRO</span>
+            </div>
           </div>
 
-          <div className="profile-nav-list">
+          {/* Botão Drop-Down Móvel com os itens do card principal */}
+          <div className="profile-mobile-dropdown-wrapper" ref={dropdownRef}>
+            <label className="profile-dropdown-label">Seção do Perfil:</label>
             <button
-              className={`profile-nav-item ${activeSubTab === 'PERFIL' ? 'active' : ''}`}
-              onClick={() => setActiveSubTab('PERFIL')}
+              type="button"
+              className={`profile-dropdown-btn ${mobileDropdownOpen ? 'active' : ''}`}
+              onClick={() => setMobileDropdownOpen(!mobileDropdownOpen)}
+              aria-label="Selecionar seção do perfil"
             >
-              <User size={18} />
-              <span>Perfil & Dados Pessoais</span>
+              <div className="profile-dropdown-btn-left">
+                <CurrentNavIcon size={18} className="text-cyan shrink-0" />
+                <span className="profile-dropdown-btn-text">
+                  {currentNavItem.label} {currentNavItem.count !== null ? `(${currentNavItem.count})` : ''}
+                </span>
+              </div>
+              <ChevronDown
+                size={18}
+                className={`profile-dropdown-chevron ${mobileDropdownOpen ? 'rotate-180' : ''}`}
+              />
             </button>
 
-            <button
-              className={`profile-nav-item ${activeSubTab === 'SALARIO' ? 'active' : ''}`}
-              onClick={() => setActiveSubTab('SALARIO')}
-            >
-              <Briefcase size={18} />
-              <span>Remuneração & Salário ({salaryContracts.length})</span>
-            </button>
+            {mobileDropdownOpen && (
+              <div className="profile-dropdown-menu animate-fade-in">
+                {PROFILE_NAV_ITEMS.map((item) => {
+                  const Icon = item.icon;
+                  const isSelected = activeSubTab === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`profile-dropdown-menu-item ${isSelected ? 'active' : ''}`}
+                      onClick={() => {
+                        setActiveSubTab(item.id);
+                        setMobileDropdownOpen(false);
+                      }}
+                    >
+                      <div className="profile-dropdown-menu-item-left">
+                        <Icon size={17} className={isSelected ? 'text-cyan' : 'text-muted'} />
+                        <span className="profile-dropdown-menu-item-title">
+                          {item.label} {item.count !== null ? `(${item.count})` : ''}
+                        </span>
+                      </div>
+                      {isSelected && <Check size={16} className="text-cyan shrink-0" />}
+                    </button>
+                  );
+                })}
 
-            <button
-              className={`profile-nav-item ${activeSubTab === 'MARCOS' ? 'active' : ''}`}
-              onClick={() => setActiveSubTab('MARCOS')}
-            >
-              <Flag size={18} />
-              <span>Marcos de Início ({checkpoints.length})</span>
-            </button>
-
-            <button
-              className={`profile-nav-item ${activeSubTab === 'CONTAS' ? 'active' : ''}`}
-              onClick={() => setActiveSubTab('CONTAS')}
-            >
-              <CreditCard size={18} />
-              <span>Contas & Meios ({accounts.length + cards.length})</span>
-            </button>
-
-            <button
-              className={`profile-nav-item ${activeSubTab === 'BANCOS' ? 'active' : ''}`}
-              onClick={() => setActiveSubTab('BANCOS')}
-            >
-              <Building size={18} />
-              <span>Bancos & Instituições ({banks.length})</span>
-            </button>
-
-            <button
-              className={`profile-nav-item ${activeSubTab === 'CATEGORIAS' ? 'active' : ''}`}
-              onClick={() => setActiveSubTab('CATEGORIAS')}
-            >
-              <Tag size={18} />
-              <span>Naturezas & Categorias</span>
-            </button>
-
-            <button
-              className={`profile-nav-item ${activeSubTab === 'PREFERENCIAS' ? 'active' : ''}`}
-              onClick={() => setActiveSubTab('PREFERENCIAS')}
-            >
-              <Sliders size={18} />
-              <span>Preferências de Exibição</span>
-            </button>
-
-            <button
-              className={`profile-nav-item ${activeSubTab === 'EXPORTACOES' ? 'active' : ''}`}
-              onClick={() => setActiveSubTab('EXPORTACOES')}
-            >
-              <FileSpreadsheet size={18} />
-              <span>Exportações (Excel & CSV)</span>
-            </button>
-
-            <button
-              className={`profile-nav-item ${activeSubTab === 'SEGURANCA' ? 'active' : ''}`}
-              onClick={() => setActiveSubTab('SEGURANCA')}
-            >
-              <ShieldCheck size={18} />
-              <span>Segurança & Criptografia</span>
-            </button>
+                <div className="profile-dropdown-divider" />
+                <button
+                  type="button"
+                  className="profile-dropdown-menu-item text-cyan font-medium"
+                  onClick={() => {
+                    setMobileDropdownOpen(false);
+                    setAdvancedModalOpen(true);
+                  }}
+                >
+                  <div className="profile-dropdown-menu-item-left">
+                    <Layers size={17} className="text-cyan" />
+                    <span>Ferramentas Avançadas</span>
+                  </div>
+                  <ChevronRight size={14} className="text-cyan shrink-0" />
+                </button>
+              </div>
+            )}
           </div>
 
-          {/* Subseção Ferramentas Avançadas */}
-          <div className="advanced-tools-box">
+          {/* Desktop Nav List (Oculto em telas mobile) */}
+          <div className="profile-nav-list profile-desktop-nav-list">
+            {PROFILE_NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  className={`profile-nav-item ${activeSubTab === item.id ? 'active' : ''}`}
+                  onClick={() => setActiveSubTab(item.id)}
+                >
+                  <Icon size={18} />
+                  <span>
+                    {item.label} {item.count !== null ? `(${item.count})` : ''}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Subseção Ferramentas Avançadas (Desktop) */}
+          <div className="advanced-tools-box profile-desktop-advanced">
             <div className="advanced-tools-header">
               <Layers size={16} className="text-cyan" />
               <span>Ferramentas Avançadas</span>
