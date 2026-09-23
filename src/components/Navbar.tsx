@@ -40,11 +40,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         )}
 
-        <div className="system-pill">
-          <div className="pulsing-dot"></div>
-          <span className="system-status-text">BALDER SYSTEM ACTIVE</span>
-        </div>
-
         {nextCriticalEvent && (
           <div className="critical-notice-banner">
             <span className="notice-icon">⚠️</span>
