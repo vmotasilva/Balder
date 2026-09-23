@@ -8,6 +8,8 @@ import {
   Text,
   TouchableOpacity,
   Linking,
+  Image,
+  AppState,
 } from 'react-native';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
 import { StatusBar } from 'expo-status-bar';
@@ -89,7 +91,11 @@ export default function App() {
         {hasError ? (
           <View style={styles.errorContainer}>
             <View style={styles.logoBadge}>
-              <Text style={styles.logoText}>ᛒ</Text>
+              <Image
+                source={require('./assets/icon.png')}
+                style={styles.logoImage}
+                resizeMode="cover"
+              />
             </View>
             <Text style={styles.errorTitle}>Balder Financeiro</Text>
             <Text style={styles.errorSubtitle}>
@@ -126,6 +132,7 @@ export default function App() {
               thirdPartyCookiesEnabled={true}
               scalesPageToFit={true}
               cacheEnabled={true}
+              cacheMode="LOAD_DEFAULT"
               pullToRefreshEnabled={true}
               overScrollMode="never"
               showsVerticalScrollIndicator={false}
@@ -135,6 +142,11 @@ export default function App() {
 
             {isLoading && (
               <View style={styles.loadingOverlay}>
+                <Image
+                  source={require('./assets/icon.png')}
+                  style={{ width: 64, height: 64, borderRadius: 16, marginBottom: 8 }}
+                  resizeMode="cover"
+                />
                 <ActivityIndicator size="large" color="#F59E0B" />
                 <Text style={styles.loadingText}>Carregando Balder...</Text>
               </View>
@@ -190,6 +202,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
+    overflow: 'hidden',
+  },
+  logoImage: {
+    width: 58,
+    height: 58,
+    borderRadius: 14,
   },
   logoText: {
     fontSize: 32,
