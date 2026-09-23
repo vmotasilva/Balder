@@ -796,21 +796,21 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
       {/* Summary KPI Pills */}
       <div className="movements-kpi-row">
         <div className="kpi-pill glass-card">
-          <span className="kpi-pill-label">Total a Receber Previsto</span>
+          <span className="kpi-pill-label">A receber</span>
           <span className="kpi-pill-val text-emerald">
             +{totalReceber.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </span>
         </div>
 
         <div className="kpi-pill glass-card">
-          <span className="kpi-pill-label">Total a Pagar Previsto</span>
+          <span className="kpi-pill-label">A pagar</span>
           <span className="kpi-pill-val text-rose">
             -{totalPagar.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </span>
         </div>
 
         <div className="kpi-pill glass-card">
-          <span className="kpi-pill-label">Resultado Líquido Filtrado</span>
+          <span className="kpi-pill-label">Resultado</span>
           <span className={`kpi-pill-val ${totalReceber - totalPagar >= 0 ? 'text-cyan' : 'text-rose'}`}>
             {totalReceber - totalPagar >= 0 ? '+' : ''}
             {(totalReceber - totalPagar).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
