@@ -76,7 +76,7 @@ export const AndroidDownloadModal: React.FC<AndroidDownloadModalProps> = ({ isOp
               </div>
               <div className="android-dl-btn-text">
                 <span className="android-dl-btn-title">Baixar Pacote APK (.apk)</span>
-                <span className="android-dl-btn-meta">Instalação direta no smartphone Android • ~1.1 MB</span>
+                <span className="android-dl-btn-meta">Instalação direta no smartphone Android • ~33 MB</span>
               </div>
             </a>
           </div>
