@@ -1,16 +1,18 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { LayoutDashboard, Receipt, Target, User } from 'lucide-react-native';
+import { LayoutDashboard, Receipt, Sparkles, Grid, User } from 'lucide-react-native';
 import { DashboardScreen } from '../screens/DashboardScreen';
 import { MovementsScreen } from '../screens/MovementsScreen';
-import { GoalsScreen } from '../screens/GoalsScreen';
+import { CopilotScreen } from '../screens/CopilotScreen';
+import { HubScreen } from '../screens/HubScreen';
 import { ProfileScreen } from '../screens/ProfileScreen';
 import { theme } from '../theme';
 
 export type MainTabParamList = {
   Dashboard: undefined;
   Movements: undefined;
-  Goals: undefined;
+  Copilot: undefined;
+  Hub: undefined;
   Profile: undefined;
 };
 
@@ -33,8 +35,8 @@ export const MainTabNavigator: React.FC = () => {
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.textMuted,
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '600',
+          fontSize: 10,
+          fontWeight: '700',
         },
       }}
     >
@@ -42,7 +44,7 @@ export const MainTabNavigator: React.FC = () => {
         name="Dashboard"
         component={DashboardScreen}
         options={{
-          tabBarLabel: 'Dashboard',
+          tabBarLabel: 'Início',
           tabBarIcon: ({ color, size }) => <LayoutDashboard size={size} color={color} />,
         }}
       />
@@ -55,11 +57,19 @@ export const MainTabNavigator: React.FC = () => {
         }}
       />
       <Tab.Screen
-        name="Goals"
-        component={GoalsScreen}
+        name="Copilot"
+        component={CopilotScreen}
         options={{
-          tabBarLabel: 'Metas',
-          tabBarIcon: ({ color, size }) => <Target size={size} color={color} />,
+          tabBarLabel: 'Copiloto IA',
+          tabBarIcon: ({ color, size }) => <Sparkles size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="Hub"
+        component={HubScreen}
+        options={{
+          tabBarLabel: 'Módulos',
+          tabBarIcon: ({ color, size }) => <Grid size={size} color={color} />,
         }}
       />
       <Tab.Screen

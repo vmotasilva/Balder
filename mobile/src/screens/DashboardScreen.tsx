@@ -8,6 +8,8 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   TrendingUp,
   TrendingDown,
@@ -16,9 +18,18 @@ import {
   CreditCard,
   Building,
   Calendar,
+  PieChart,
+  Landmark,
+  Briefcase,
+  Sparkles,
+  CheckCircle2,
+  Clock,
+  ChevronRight,
+  ShieldCheck,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { useFinancial } from '../context/FinancialContext';
+import type { RootStackParamList } from '../navigation/RootNavigator';
 import { theme } from '../theme';
 
 const formatCurrency = (value: number) => {
@@ -30,7 +41,23 @@ const formatCurrency = (value: number) => {
 
 export const DashboardScreen: React.FC = () => {
   const { user } = useAuth();
-  const { movements, accounts, totals, isLoading, refreshFinancialData } = useFinancial();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const {
+    movements,
+    accounts,
+    totals,
+    isLoading,
+    refreshFinancialData,
+    toggleMovementStatus,
+    activeCheckpoint,
+  } = useFinancial();
+
+  // Próximos vencimentos pendentes primeiro
+  const sortedMovements = [...movements].sort((a, b) => {
+    if (a.status === 'PREVISTA' && b.status === 'REALIZADA') return -1;
+    if (a.status === 'REALIZADA' && b.status === 'PREVISTA') return 1;
+    return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+  });
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -49,7 +76,9 @@ export const DashboardScreen: React.FC = () => {
         <View style={styles.headerRow}>
           <View>
             <Text style={styles.greetingSubtitle}>Visão Consolidada</Text>
-            <Text style={styles.greetingTitle}>Olá, {user?.name?.split(' ')[0] || 'Investidor'}</Text>
+            <Text style={styles.greetingTitle}>
+              Olá, {user?.name?.split(' ')[0] || 'Investidor'}
+            </Text>
           </View>
           <TouchableOpacity
             style={styles.refreshButton}
@@ -66,17 +95,17 @@ export const DashboardScreen: React.FC = () => {
             <View style={styles.heroIconBox}>
               <Wallet size={20} color={theme.colors.primary} />
             </View>
-            <Text style={styles.heroLabel}>SALDO PROJETADO</Text>
+            <Text style={styles.heroLabel}>SALDO PROJETADO EM CAIXA</Text>
           </View>
           <Text style={styles.heroValue}>{formatCurrency(totals.saldoPrevisto)}</Text>
           <Text style={styles.heroFooter}>
-            Baseado no fluxo de transações previstas e realizadas
+            Baseado no saldo em contas (+ R$ {totals.receitas.toFixed(2)}) e despesas (- R${' '}
+            {totals.despesas.toFixed(2)})
           </Text>
         </View>
 
         {/* Mini Cards Grid (Receitas e Despesas) */}
         <View style={styles.metricsRow}>
-          {/* Receitas */}
           <View style={[styles.metricCard, { borderColor: theme.colors.incomeMuted }]}>
             <View style={styles.metricHeader}>
               <View style={[styles.metricIconBox, { backgroundColor: theme.colors.incomeMuted }]}>
@@ -89,7 +118,6 @@ export const DashboardScreen: React.FC = () => {
             </Text>
           </View>
 
-          {/* Despesas */}
           <View style={[styles.metricCard, { borderColor: theme.colors.expenseMuted }]}>
             <View style={styles.metricHeader}>
               <View style={[styles.metricIconBox, { backgroundColor: theme.colors.expenseMuted }]}>
@@ -103,10 +131,62 @@ export const DashboardScreen: React.FC = () => {
           </View>
         </View>
 
+        {/* Atalhos Rápidos para Módulos */}
+        <View style={styles.shortcutsSection}>
+          <Text style={styles.sectionTitle}>Acesso Rápido</Text>
+          <View style={styles.shortcutsGrid}>
+            <TouchableOpacity
+              style={styles.shortcutBtn}
+              onPress={() => navigation.navigate('Naturezas')}
+            >
+              <View style={[styles.shortcutIconBox, { backgroundColor: 'rgba(6, 182, 212, 0.15)' }]}>
+                <PieChart size={18} color="#06B6D4" />
+              </View>
+              <Text style={styles.shortcutText}>Naturezas & Tetos</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.shortcutBtn}
+              onPress={() => navigation.navigate('Invoices')}
+            >
+              <View style={[styles.shortcutIconBox, { backgroundColor: 'rgba(168, 85, 247, 0.15)' }]}>
+                <CreditCard size={18} color="#A855F7" />
+              </View>
+              <Text style={styles.shortcutText}>Faturas & Cartões</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.shortcutBtn}
+              onPress={() => navigation.navigate('Loans')}
+            >
+              <View style={[styles.shortcutIconBox, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
+                <Landmark size={18} color="#F59E0B" />
+              </View>
+              <Text style={styles.shortcutText}>Empréstimos PRICE</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.shortcutBtn}
+              onPress={() => navigation.navigate('SalaryContracts')}
+            >
+              <View style={[styles.shortcutIconBox, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+                <Briefcase size={18} color="#10B981" />
+              </View>
+              <Text style={styles.shortcutText}>Salários & Renda</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Seção Contas Bancárias */}
         {accounts.length > 0 && (
           <View style={styles.sectionContainer}>
-            <Text style={styles.sectionTitle}>Contas & Saldos</Text>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Contas & Saldos</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Accounts')}>
+                <Text style={styles.viewAllText}>Ver todas</Text>
+              </TouchableOpacity>
+            </View>
+
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -119,24 +199,26 @@ export const DashboardScreen: React.FC = () => {
                     <Text style={styles.accountBank}>{acc.bank}</Text>
                   </View>
                   <Text style={styles.accountName}>{acc.name}</Text>
-                  <Text style={styles.accountBalance}>{formatCurrency(acc.initialBalance)}</Text>
+                  <Text style={styles.accountBalance}>{formatCurrency(acc.balance)}</Text>
                 </View>
               ))}
             </ScrollView>
           </View>
         )}
 
-        {/* Transações Recentes */}
+        {/* Transações Recentes com 1-touch toggle */}
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Próximos Vencimentos</Text>
-            <Text style={styles.sectionSubtitle}>{movements.length} no total</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Movements')}>
+              <Text style={styles.viewAllText}>Ver extrato</Text>
+            </TouchableOpacity>
           </View>
 
-          {movements.slice(0, 5).map((mov) => {
-            const isIncome = mov.type === 'RECEBER';
+          {sortedMovements.slice(0, 6).map((mov) => {
+            const isIncome = mov.type === 'RECEITA' || mov.type === 'RECEBER';
             const isLoan = mov.type === 'EMPRESTIMO';
-            const isCard = mov.type === 'CARTAO';
+            const isPaid = mov.status === 'REALIZADA';
 
             let typeColor = theme.colors.expense;
             let typeBg = theme.colors.expenseMuted;
@@ -146,52 +228,54 @@ export const DashboardScreen: React.FC = () => {
             } else if (isLoan) {
               typeColor = theme.colors.loan;
               typeBg = theme.colors.loanMuted;
-            } else if (isCard) {
-              typeColor = theme.colors.card;
-              typeBg = theme.colors.cardMuted;
             }
 
             return (
               <View key={mov.id} style={styles.movementItem}>
-                <View style={[styles.movementIconBox, { backgroundColor: typeBg }]}>
-                  {isCard ? (
-                    <CreditCard size={18} color={typeColor} />
+                <TouchableOpacity
+                  style={[styles.movementIconBox, { backgroundColor: typeBg }]}
+                  onPress={() => toggleMovementStatus(mov.id)}
+                >
+                  {isPaid ? (
+                    <CheckCircle2 size={18} color="#10B981" />
                   ) : (
-                    <Calendar size={18} color={typeColor} />
+                    <Clock size={18} color={typeColor} />
                   )}
-                </View>
+                </TouchableOpacity>
+
                 <View style={styles.movementInfo}>
                   <Text style={styles.movementTitle} numberOfLines={1}>
                     {mov.title}
                   </Text>
                   <Text style={styles.movementMeta}>
-                    {mov.bank} • {mov.dueDate}
+                    {mov.bank} • Venc: {mov.dueDate.split('-').reverse().join('/')}
                     {mov.installmentsTotal && mov.installmentsTotal > 1
                       ? ` • ${mov.installmentNumber}/${mov.installmentsTotal}`
                       : ''}
                   </Text>
                 </View>
+
                 <View style={styles.movementAmountBox}>
-                  <Text style={[styles.movementAmount, { color: typeColor }]}>
+                  <Text style={[styles.movementAmount, { color: isIncome ? '#10B981' : '#F43F5E' }]}>
                     {isIncome ? '+' : '-'} {formatCurrency(mov.amount)}
                   </Text>
-                  <View
+
+                  <TouchableOpacity
                     style={[
                       styles.statusPill,
-                      mov.status === 'REALIZADA' ? styles.statusPaid : styles.statusPending,
+                      isPaid ? styles.statusPaid : styles.statusPending,
                     ]}
+                    onPress={() => toggleMovementStatus(mov.id)}
                   >
                     <Text
                       style={[
                         styles.statusPillText,
-                        mov.status === 'REALIZADA'
-                          ? { color: theme.colors.income }
-                          : { color: theme.colors.textMuted },
+                        isPaid ? { color: theme.colors.income } : { color: theme.colors.loan },
                       ]}
                     >
-                      {mov.status}
+                      {isPaid ? 'Pago' : 'Pendente'}
                     </Text>
-                  </View>
+                  </TouchableOpacity>
                 </View>
               </View>
             );
@@ -208,15 +292,15 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   scrollContent: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.md,
-    paddingBottom: theme.spacing.xxxl,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 40,
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: theme.spacing.lg,
+    marginBottom: 16,
   },
   greetingSubtitle: {
     fontSize: 12,
@@ -243,109 +327,138 @@ const styles = StyleSheet.create({
   },
   heroCard: {
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.xl,
-    padding: theme.spacing.xl,
+    borderRadius: 14,
+    padding: 18,
     borderWidth: 1,
     borderColor: theme.colors.primaryMuted,
-    marginBottom: theme.spacing.lg,
-    shadowColor: theme.colors.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 6,
+    marginBottom: 16,
   },
   heroHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: theme.spacing.sm,
+    marginBottom: 10,
   },
   heroIconBox: {
     width: 32,
     height: 32,
-    borderRadius: theme.radius.md,
+    borderRadius: 8,
     backgroundColor: theme.colors.primaryMuted,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   heroLabel: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '800',
     color: theme.colors.primary,
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
   heroValue: {
-    fontSize: 30,
+    fontSize: 26,
     fontWeight: '800',
     color: theme.colors.textPrimary,
-    marginVertical: 4,
   },
   heroFooter: {
     fontSize: 12,
-    color: theme.colors.textSecondary,
+    color: theme.colors.textMuted,
+    marginTop: 6,
+    lineHeight: 16,
   },
   metricsRow: {
     flexDirection: 'row',
-    gap: theme.spacing.md,
-    marginBottom: theme.spacing.xl,
+    gap: 12,
+    marginBottom: 16,
   },
   metricCard: {
     flex: 1,
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    padding: theme.spacing.md,
+    borderRadius: 12,
+    padding: 14,
     borderWidth: 1,
   },
   metricHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   metricIconBox: {
-    width: 26,
-    height: 26,
-    borderRadius: theme.radius.sm,
-    justifyContent: 'center',
+    width: 24,
+    height: 24,
+    borderRadius: 6,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   metricLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     color: theme.colors.textMuted,
-    letterSpacing: 0.5,
   },
   metricValue: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
   },
-  sectionContainer: {
-    marginBottom: theme.spacing.xl,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing.md,
+  shortcutsSection: {
+    marginBottom: 20,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: theme.colors.textPrimary,
+    marginBottom: 10,
   },
-  sectionSubtitle: {
+  shortcutsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  shortcutBtn: {
+    flexBasis: '48%',
+    flexGrow: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: theme.colors.surface,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  shortcutIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shortcutText: {
     fontSize: 12,
-    color: theme.colors.textMuted,
+    fontWeight: '700',
+    color: '#F8FAFC',
+    flex: 1,
+  },
+  sectionContainer: {
+    marginBottom: 20,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  viewAllText: {
+    fontSize: 12,
+    color: theme.colors.primary,
+    fontWeight: '600',
   },
   accountsScroll: {
-    gap: theme.spacing.md,
-    paddingVertical: 4,
+    gap: 12,
   },
   accountCard: {
-    width: 150,
+    width: 140,
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    padding: theme.spacing.md,
+    borderRadius: 12,
+    padding: 12,
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
@@ -353,52 +466,51 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   accountBank: {
     fontSize: 11,
     color: theme.colors.textMuted,
-    fontWeight: '600',
   },
   accountName: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '700',
     color: theme.colors.textPrimary,
     marginBottom: 4,
   },
   accountBalance: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
+    fontSize: 14,
+    fontWeight: '800',
+    color: theme.colors.income,
   },
   movementItem: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.radius.lg,
-    padding: theme.spacing.md,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    marginBottom: theme.spacing.sm,
   },
   movementIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: theme.radius.md,
-    justifyContent: 'center',
+    width: 36,
+    height: 36,
+    borderRadius: 8,
     alignItems: 'center',
-    marginRight: theme.spacing.md,
+    justifyContent: 'center',
+    marginRight: 10,
   },
   movementInfo: {
     flex: 1,
   },
   movementTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: theme.colors.textPrimary,
   },
   movementMeta: {
-    fontSize: 12,
+    fontSize: 11,
     color: theme.colors.textMuted,
     marginTop: 2,
   },
@@ -412,17 +524,17 @@ const styles = StyleSheet.create({
   statusPill: {
     paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: theme.radius.full,
+    borderRadius: 4,
     marginTop: 4,
   },
   statusPaid: {
-    backgroundColor: theme.colors.incomeMuted,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
   },
   statusPending: {
-    backgroundColor: theme.colors.surfaceElevated,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
   },
   statusPillText: {
-    fontSize: 9,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '600',
   },
 });

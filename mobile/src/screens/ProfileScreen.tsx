@@ -8,6 +8,8 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
   User,
   Shield,
@@ -16,12 +18,20 @@ import {
   ChevronRight,
   Sparkles,
   Smartphone,
+  Briefcase,
+  Wallet,
+  Flag,
+  PieChart,
+  Landmark,
+  CreditCard,
 } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
+import type { RootStackParamList } from '../navigation/RootNavigator';
 import { theme } from '../theme';
 
 export const ProfileScreen: React.FC = () => {
   const { user, logout } = useAuth();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const handleLogout = () => {
     Alert.alert(
@@ -66,6 +76,95 @@ export const ProfileScreen: React.FC = () => {
           </View>
         </View>
 
+        {/* Gestão de Dados & Entidades */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>CONFIGURAÇÕES DE ENTIDADES</Text>
+
+          <TouchableOpacity
+            style={styles.itemRow}
+            onPress={() => navigation.navigate('SalaryContracts')}
+          >
+            <View style={styles.itemLeft}>
+              <Briefcase size={18} color="#10B981" />
+              <View>
+                <Text style={styles.itemTitle}>Contratos & Salários</Text>
+                <Text style={styles.itemSubtitle}>Fontes de renda CLT/PJ, quinzenas e reajustes</Text>
+              </View>
+            </View>
+            <ChevronRight size={18} color={theme.colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.itemRow}
+            onPress={() => navigation.navigate('Accounts')}
+          >
+            <View style={styles.itemLeft}>
+              <Wallet size={18} color="#06B6D4" />
+              <View>
+                <Text style={styles.itemTitle}>Contas & Cartões</Text>
+                <Text style={styles.itemSubtitle}>Contas bancárias, carteiras e limites de cartão</Text>
+              </View>
+            </View>
+            <ChevronRight size={18} color={theme.colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.itemRow}
+            onPress={() => navigation.navigate('Checkpoints')}
+          >
+            <View style={styles.itemLeft}>
+              <Flag size={18} color="#EC4899" />
+              <View>
+                <Text style={styles.itemTitle}>Marcos Patrimoniais</Text>
+                <Text style={styles.itemSubtitle}>Checkpoints e calibração de patrimônio inicial</Text>
+              </View>
+            </View>
+            <ChevronRight size={18} color={theme.colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.itemRow}
+            onPress={() => navigation.navigate('Naturezas')}
+          >
+            <View style={styles.itemLeft}>
+              <PieChart size={18} color="#F59E0B" />
+              <View>
+                <Text style={styles.itemTitle}>Naturezas & Tetos de Gastos</Text>
+                <Text style={styles.itemSubtitle}>Orçamentos máximos e rotinas de compras</Text>
+              </View>
+            </View>
+            <ChevronRight size={18} color={theme.colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.itemRow}
+            onPress={() => navigation.navigate('Loans')}
+          >
+            <View style={styles.itemLeft}>
+              <Landmark size={18} color="#A855F7" />
+              <View>
+                <Text style={styles.itemTitle}>Empréstimos & Simulador PRICE</Text>
+                <Text style={styles.itemSubtitle}>Amortização e antecipação com desconto BACEN</Text>
+              </View>
+            </View>
+            <ChevronRight size={18} color={theme.colors.textMuted} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.itemRow}
+            onPress={() => navigation.navigate('Invoices')}
+          >
+            <View style={styles.itemLeft}>
+              <CreditCard size={18} color="#3B82F6" />
+              <View>
+                <Text style={styles.itemTitle}>Faturas por Ciclo</Text>
+                <Text style={styles.itemSubtitle}>Histórico e projeção de faturas mensais</Text>
+              </View>
+            </View>
+            <ChevronRight size={18} color={theme.colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+
         {/* Informações Técnicas da Sessão */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>SISTEMA & INTEGRAÇÕES</Text>
@@ -75,7 +174,7 @@ export const ProfileScreen: React.FC = () => {
               <Database size={18} color={theme.colors.primary} />
               <View>
                 <Text style={styles.itemTitle}>Backend Supabase Cloud</Text>
-                <Text style={styles.itemSubtitle}>PostgreSQL RLS • balder</Text>
+                <Text style={styles.itemSubtitle}>PostgreSQL RLS • zlwghcqisnejjqugsxvp</Text>
               </View>
             </View>
             <ChevronRight size={18} color={theme.colors.textMuted} />
@@ -86,7 +185,7 @@ export const ProfileScreen: React.FC = () => {
               <Smartphone size={18} color={theme.colors.card} />
               <View>
                 <Text style={styles.itemTitle}>Balder Mobile Engine</Text>
-                <Text style={styles.itemSubtitle}>Expo SDK 57 • React Native 0.86</Text>
+                <Text style={styles.itemSubtitle}>Expo SDK 54 • React Native 0.81</Text>
               </View>
             </View>
             <ChevronRight size={18} color={theme.colors.textMuted} />
@@ -97,7 +196,7 @@ export const ProfileScreen: React.FC = () => {
               <Shield size={18} color={theme.colors.income} />
               <View>
                 <Text style={styles.itemTitle}>Segurança de Dados</Text>
-                <Text style={styles.itemSubtitle}>Document-Level Security (DLS) ativo</Text>
+                <Text style={styles.itemSubtitle}>Row-Level Security (RLS) ativo</Text>
               </View>
             </View>
             <ChevronRight size={18} color={theme.colors.textMuted} />
@@ -215,6 +314,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.md,
+    flex: 1,
+    marginRight: 8,
   },
   itemTitle: {
     fontSize: 14,

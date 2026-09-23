@@ -1,11 +1,58 @@
 import React from 'react';
 import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ShieldCheck } from 'lucide-react-native';
 import { useAuth } from '../context/AuthContext';
 import { AuthStack } from './AuthStack';
 import { MainTabNavigator } from './MainTabNavigator';
+import { NaturezasScreen } from '../screens/NaturezasScreen';
+import { InvoicesScreen } from '../screens/InvoicesScreen';
+import { LoansScreen } from '../screens/LoansScreen';
+import { SalaryContractsScreen } from '../screens/SalaryContractsScreen';
+import { AccountsScreen } from '../screens/AccountsScreen';
+import { CheckpointsScreen } from '../screens/CheckpointsScreen';
+import { GoalsScreen } from '../screens/GoalsScreen';
+import { CopilotScreen } from '../screens/CopilotScreen';
+import { MovementsScreen } from '../screens/MovementsScreen';
 import { theme } from '../theme';
+
+export type RootStackParamList = {
+  MainTabs: undefined;
+  Naturezas: undefined;
+  Invoices: undefined;
+  Loans: undefined;
+  SalaryContracts: undefined;
+  Accounts: undefined;
+  Checkpoints: undefined;
+  Goals: undefined;
+  Copilot: undefined;
+  Movements: undefined;
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+const AppStack: React.FC = () => {
+  return (
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: theme.colors.background },
+      }}
+    >
+      <Stack.Screen name="MainTabs" component={MainTabNavigator} />
+      <Stack.Screen name="Naturezas" component={NaturezasScreen} />
+      <Stack.Screen name="Invoices" component={InvoicesScreen} />
+      <Stack.Screen name="Loans" component={LoansScreen} />
+      <Stack.Screen name="SalaryContracts" component={SalaryContractsScreen} />
+      <Stack.Screen name="Accounts" component={AccountsScreen} />
+      <Stack.Screen name="Checkpoints" component={CheckpointsScreen} />
+      <Stack.Screen name="Goals" component={GoalsScreen} />
+      <Stack.Screen name="Copilot" component={CopilotScreen} />
+      <Stack.Screen name="Movements" component={MovementsScreen} />
+    </Stack.Navigator>
+  );
+};
 
 export const RootNavigator: React.FC = () => {
   const { user, isLoading } = useAuth();
@@ -25,7 +72,7 @@ export const RootNavigator: React.FC = () => {
 
   return (
     <NavigationContainer>
-      {user ? <MainTabNavigator /> : <AuthStack />}
+      {user ? <AppStack /> : <AuthStack />}
     </NavigationContainer>
   );
 };
@@ -61,5 +108,6 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 13,
     color: theme.colors.textSecondary,
+    fontWeight: '500',
   },
 });
