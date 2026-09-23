@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Shield } from 'lucide-react';
+import { Shield, Smartphone, Download } from 'lucide-react';
+import { AndroidDownloadModal } from '../components/AndroidDownloadModal';
 
 export const LoginPage: React.FC = () => {
   const { loginWithGoogle } = useAuth();
+  const [showAndroidModal, setShowAndroidModal] = useState(false);
 
   return (
     <div className="login-screen-wrapper">
@@ -92,6 +94,31 @@ export const LoginPage: React.FC = () => {
             <span style={{ fontSize: '10px', background: 'rgba(255, 255, 255, 0.1)', padding: '2px 6px', borderRadius: '10px', marginLeft: 'auto' }}>Em breve</span>
           </button>
         </div>
+
+        {/* Android App Download Banner */}
+        <div className="login-android-download-wrapper">
+          <button
+            type="button"
+            className="login-android-download-btn cursor-pointer"
+            onClick={() => setShowAndroidModal(true)}
+            title="Baixar versão oficial do Balder para celulares Android (.APK)"
+          >
+            <div className="login-android-icon-box">
+              <Smartphone size={20} className="text-emerald" />
+            </div>
+            <div className="login-android-btn-text">
+              <span className="login-android-btn-title">Disponível para Android</span>
+              <span className="login-android-btn-sub">Baixar aplicativo oficial (.APK)</span>
+            </div>
+            <Download size={16} className="login-android-download-arrow" />
+          </button>
+        </div>
+
+        {/* Modal de Download Android */}
+        <AndroidDownloadModal
+          isOpen={showAndroidModal}
+          onClose={() => setShowAndroidModal(false)}
+        />
       </div>
     </div>
   );
