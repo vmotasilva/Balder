@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   ArrowLeftRight,
@@ -11,6 +11,9 @@ import {
   ChevronLeft,
   ChevronRight,
   LogOut,
+  LayoutGrid,
+  X,
+  Check,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -30,6 +33,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleCollapse,
 }) => {
   const { user, logout } = useAuth();
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Escuta tecla Escape e trava scroll do body quando menu mobile está aberto
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    if (isMobileMenuOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = '';
+    };
+  }, [isMobileMenuOpen]);
 
   const userInitials = (user?.name || 'VM')
     .split(' ')
@@ -95,109 +120,237 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
   ];
 
+  const activeItem = navItems.find((item) => item.id === activeTab) || navItems[0];
+
   return (
-    <aside className={`app-sidebar ${collapsed ? 'collapsed' : ''}`}>
-      {/* Brand Header */}
-      <div className="sidebar-brand">
-        <div className="brand-logo-icon">
-          <img src="/logo-app.png" alt="Balder" className="brand-logo-img" />
-        </div>
-        {!collapsed && (
-          <div className="brand-text">
-            <span className="brand-title">BALDER</span>
-            <span className="brand-subtitle">CONTROLE FINANCEIRO</span>
+    <>
+      {/* Desktop Sidebar (mantido 100% inalterado no desktop) */}
+      <aside className={`app-sidebar ${collapsed ? 'collapsed' : ''}`}>
+        {/* Brand Header */}
+        <div className="sidebar-brand">
+          <div className="brand-logo-icon">
+            <img src="/logo-app.png" alt="Balder" className="brand-logo-img" />
           </div>
-        )}
-      </div>
+          {!collapsed && (
+            <div className="brand-text">
+              <span className="brand-title">BALDER</span>
+              <span className="brand-subtitle">CONTROLE FINANCEIRO</span>
+            </div>
+          )}
+        </div>
 
-      {/* Navigation Links */}
-      <nav className="sidebar-nav">
-        {!collapsed && <span className="nav-section-label">NAVEGAÇÃO PRINCIPAL</span>}
+        {/* Navigation Links */}
+        <nav className="sidebar-nav">
+          {!collapsed && <span className="nav-section-label">NAVEGAÇÃO PRINCIPAL</span>}
 
-        <ul className="nav-list">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
+          <ul className="nav-list">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
 
-            return (
-              <li key={item.id}>
-                <button
-                  className={`nav-button ${isActive ? 'active' : ''}`}
-                  onClick={() => onSelectTab(item.id)}
-                  title={item.label}
-                >
-                  <div className="nav-icon-wrapper">
-                    <Icon size={20} className={isActive ? 'icon-active' : ''} />
-                  </div>
-
-                  {!collapsed && (
-                    <div className="nav-label-group">
-                      <span className="nav-item-title">{item.label}</span>
-                      <span className="nav-item-subtitle">{item.subtitle}</span>
+              return (
+                <li key={item.id}>
+                  <button
+                    className={`nav-button ${isActive ? 'active' : ''}`}
+                    onClick={() => onSelectTab(item.id)}
+                    title={item.label}
+                  >
+                    <div className="nav-icon-wrapper">
+                      <Icon size={20} className={isActive ? 'icon-active' : ''} />
                     </div>
-                  )}
 
-                  {!collapsed && item.badge && (
-                    <span className={`badge-pill ${item.badge === 'IA' ? 'badge-pill-cyan' : ''}`}>
-                      {item.badge}
-                    </span>
-                  )}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
+                    {!collapsed && (
+                      <div className="nav-label-group">
+                        <span className="nav-item-title">{item.label}</span>
+                        <span className="nav-item-subtitle">{item.subtitle}</span>
+                      </div>
+                    )}
 
-      {/* Footer / User Profile & Collapse Toggle */}
-      <div className="sidebar-footer">
+                    {!collapsed && item.badge && (
+                      <span className={`badge-pill ${item.badge === 'IA' ? 'badge-pill-cyan' : ''}`}>
+                        {item.badge}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+
+        {/* Footer / User Profile & Collapse Toggle */}
+        <div className="sidebar-footer">
+          <button
+            className="collapse-toggle-btn"
+            onClick={onToggleCollapse}
+            title={collapsed ? 'Expandir Menu' : 'Recolher Menu'}
+          >
+            {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+            {!collapsed && <span>Recolher Barra</span>}
+          </button>
+
+          {!collapsed && (
+            <div className="user-profile-widget" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+                <div className="user-avatar">
+                  <span>{userInitials}</span>
+                </div>
+                <div className="user-info" style={{ overflow: 'hidden' }}>
+                  <span className="user-name" style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', display: 'block' }}>
+                    {user?.name || 'Vinicius Mota'}
+                  </span>
+                  <span className="user-workspace">
+                    {user?.isGuest ? 'Modo Demo Local' : 'Supabase Cloud'}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={logout}
+                title="Sair da Conta"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-muted, #94a3b8)',
+                  cursor: 'pointer',
+                  padding: '6px',
+                  borderRadius: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'color 0.2s',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
+                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted, #94a3b8)')}
+              >
+                <LogOut size={16} />
+              </button>
+            </div>
+          )}
+        </div>
+      </aside>
+
+      {/* Mobile Floating Circular Navigation Button & Fluid Options Sheet */}
+      <div className="mobile-nav-root">
+        {/* Floating Circular Trigger Button */}
         <button
-          className="collapse-toggle-btn"
-          onClick={onToggleCollapse}
-          title={collapsed ? 'Expandir Menu' : 'Recolher Menu'}
+          type="button"
+          className={`mobile-nav-orb-btn ${isMobileMenuOpen ? 'open' : ''}`}
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          aria-label={isMobileMenuOpen ? 'Fechar Menu de Navegação' : 'Abrir Menu de Navegação'}
+          title="Menu de Navegação"
         >
-          {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-          {!collapsed && <span>Recolher Barra</span>}
+          <div className="mobile-nav-orb-inner">
+            {isMobileMenuOpen ? (
+              <X size={26} className="mobile-nav-orb-icon icon-close" />
+            ) : (
+              <LayoutGrid size={24} className="mobile-nav-orb-icon icon-menu" />
+            )}
+          </div>
+          <span className="mobile-nav-orb-glow" />
         </button>
 
-        {!collapsed && (
-          <div className="user-profile-widget" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-              <div className="user-avatar">
-                <span>{userInitials}</span>
+        {/* Backdrop Overlay */}
+        {isMobileMenuOpen && (
+          <div
+            className="mobile-nav-backdrop"
+            onClick={() => setIsMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+
+        {/* Navigation Sheet / Modal */}
+        <div className={`mobile-nav-sheet ${isMobileMenuOpen ? 'open' : ''}`}>
+          <div className="mobile-nav-sheet-content">
+            {/* Grabber indicator */}
+            <div className="mobile-nav-drag-handle" />
+
+            {/* Header */}
+            <div className="mobile-nav-sheet-header">
+              <div className="mobile-nav-sheet-brand">
+                <img src="/logo-app.png" alt="Balder" className="mobile-nav-sheet-logo" />
+                <div>
+                  <h3 className="mobile-nav-sheet-title">BALDER</h3>
+                  <p className="mobile-nav-sheet-subtitle">Menu de Navegação</p>
+                </div>
               </div>
-              <div className="user-info" style={{ overflow: 'hidden' }}>
-                <span className="user-name" style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', display: 'block' }}>
-                  {user?.name || 'Vinicius Mota'}
-                </span>
-                <span className="user-workspace">
-                  {user?.isGuest ? 'Modo Demo Local' : 'Supabase Cloud'}
-                </span>
+
+              <div className="mobile-nav-sheet-active-pill">
+                <span className="mobile-nav-active-dot" />
+                <span>{activeItem.label}</span>
               </div>
             </div>
-            <button
-              onClick={logout}
-              title="Sair da Conta"
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text-muted, #94a3b8)',
-                cursor: 'pointer',
-                padding: '6px',
-                borderRadius: '6px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'color 0.2s',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
-              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted, #94a3b8)')}
-            >
-              <LogOut size={16} />
-            </button>
+
+            {/* Scrollable 2-Column Grid of 8 Navigation Options */}
+            <div className="mobile-nav-scroll-area">
+              <div className="mobile-nav-grid">
+                {navItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activeTab === item.id;
+
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`mobile-nav-card ${isActive ? 'active' : ''}`}
+                      onClick={() => {
+                        onSelectTab(item.id);
+                        setIsMobileMenuOpen(false);
+                      }}
+                    >
+                      <div className="mobile-nav-card-icon-box">
+                        <Icon size={20} />
+                      </div>
+                      <div className="mobile-nav-card-info">
+                        <div className="mobile-nav-card-title-row">
+                          <span className="mobile-nav-card-title">{item.label}</span>
+                          {item.badge && (
+                            <span className={`badge-pill ${item.badge === 'IA' ? 'badge-pill-cyan' : ''}`}>
+                              {item.badge}
+                            </span>
+                          )}
+                        </div>
+                        <span className="mobile-nav-card-sub">{item.subtitle}</span>
+                      </div>
+                      {isActive && (
+                        <div className="mobile-nav-card-active-check">
+                          <Check size={14} />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* User Profile & Logout Footer */}
+            <div className="mobile-nav-sheet-footer">
+              <div className="mobile-nav-user-info">
+                <div className="user-avatar">
+                  <span>{userInitials}</span>
+                </div>
+                <div className="user-info">
+                  <span className="user-name">{user?.name || 'Vinicius Mota'}</span>
+                  <span className="user-workspace">
+                    {user?.isGuest ? 'Modo Demo Local' : 'Supabase Cloud'}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="mobile-nav-logout-btn"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  logout();
+                }}
+                title="Sair da Conta"
+              >
+                <LogOut size={16} />
+                <span>Sair</span>
+              </button>
+            </div>
           </div>
-        )}
+        </div>
       </div>
-    </aside>
+    </>
   );
 };
