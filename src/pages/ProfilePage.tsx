@@ -49,7 +49,11 @@ import { NatureModal } from '../components/NatureModal';
 import { MappingModal } from '../components/MappingModal';
 import type { SalaryContract, SalaryAdjustment, FixedExpenseMapping } from '../types';
 
-export const ProfilePage: React.FC = () => {
+interface ProfilePageProps {
+  onOpenOnboarding?: (stepIndex?: number) => void;
+}
+
+export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) => {
   const {
     accounts,
     cards,
@@ -78,8 +82,16 @@ export const ProfilePage: React.FC = () => {
     activeCheckpoint,
     activateCheckpoint,
     deleteCheckpoint,
+    movements,
   } = useFinancial();
   const { theme, setTheme } = useTheme();
+
+  // Cálculo dinâmico do progresso do Get Started (3 passos essenciais)
+  const hasCheckpoint = !!activeCheckpoint;
+  const hasInvoices = movements.some((m) => m.type === 'CARTAO') || cards.length > 0;
+  const hasNatures = natures.length > 0;
+  const completedSteps = (hasCheckpoint ? 1 : 0) + (hasInvoices ? 1 : 0) + (hasNatures ? 1 : 0);
+  const completionPercentage = Math.round((completedSteps / 3) * 100);
 
   const [activeSubTab, setActiveSubTab] = useState<
     'PERFIL' | 'ASSINATURA' | 'APP_ANDROID' | 'SALARIO' | 'MARCOS' | 'CONTAS' | 'BANCOS' | 'CATEGORIAS' | 'PREFERENCIAS' | 'EXPORTACOES' | 'SEGURANCA'
@@ -286,6 +298,46 @@ export const ProfilePage: React.FC = () => {
                 <span>ASSINANTE BETA PRO</span>
               </button>
             </div>
+          </div>
+
+          {/* Botão Get Started com Percentual logo Abaixo do Perfil */}
+          <div className="profile-getstarted-quick-box">
+            <button
+              type="button"
+              className="profile-getstarted-btn"
+              onClick={() => {
+                if (onOpenOnboarding) {
+                  onOpenOnboarding(!hasCheckpoint ? 1 : !hasInvoices ? 2 : 3);
+                }
+              }}
+              title="Acessar o Onboarding Get Started e Calibrar o Balder"
+            >
+              <div className="profile-gs-top">
+                <div className="profile-gs-badge-tag">
+                  <Sparkles size={13} className="text-amber-400" />
+                  <span className="profile-gs-title">Get Started</span>
+                </div>
+                <span className={`profile-gs-pct-badge ${completionPercentage === 100 ? 'done' : 'pending'}`}>
+                  {completionPercentage}%
+                </span>
+              </div>
+
+              <div className="profile-gs-progress-bar">
+                <div
+                  className="profile-gs-progress-fill"
+                  style={{ width: `${Math.max(completionPercentage, 6)}%` }}
+                />
+              </div>
+
+              <div className="profile-gs-bottom">
+                <span className="profile-gs-status-text">
+                  {completionPercentage === 100
+                    ? '100% Calibrado e Concluído'
+                    : `${completedSteps} de 3 passos definidos`}
+                </span>
+                <ChevronRight size={14} className="profile-gs-arrow" />
+              </div>
+            </button>
           </div>
 
           {/* Botão Drop-Down Móvel com os itens do card principal */}

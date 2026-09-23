@@ -15762,3 +15762,341 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================================
+   BOTÃO GET STARTED COM PERCENTUAL ABAIXO DO PERFIL (DESKTOP, MOBILE & PROFILE)
+   ========================================================================== */
+
+/* 1. Barra Lateral Desktop (Abaixo do Card de Perfil) */
+.sidebar-gs-container {
+  padding: 6px 12px 10px;
+}
+
+.sidebar-gs-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.08), rgba(245, 158, 11, 0.08));
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sidebar-gs-btn:hover {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.16), rgba(245, 158, 11, 0.16));
+  border-color: rgba(56, 189, 248, 0.45);
+  box-shadow: 0 0 14px rgba(56, 189, 248, 0.2);
+  transform: translateY(-1px);
+}
+
+.sidebar-gs-btn:active {
+  transform: scale(0.98);
+}
+
+.sidebar-gs-text {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+}
+
+.sidebar-gs-badge {
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  letter-spacing: 0.03em;
+  transition: all 0.2s ease;
+}
+
+.sidebar-gs-badge.done {
+  background: rgba(16, 185, 129, 0.18);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #10b981;
+}
+
+.sidebar-gs-badge.pending {
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: var(--accent-cyan);
+}
+
+[data-theme="light"] .sidebar-gs-btn {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.06), rgba(217, 119, 6, 0.06));
+  border-color: rgba(2, 132, 199, 0.25);
+}
+
+[data-theme="light"] .sidebar-gs-btn:hover {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.12), rgba(217, 119, 6, 0.12));
+  border-color: #0284c7;
+}
+
+/* 2. Menu Flutuante / Sheet Mobile (Abaixo do Perfil / Rodapé) */
+.mobile-nav-gs-row {
+  padding: 8px 14px 12px;
+  background: var(--bg-sidebar);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  flex-shrink: 0;
+}
+
+[data-theme="light"] .mobile-nav-gs-row {
+  border-top-color: rgba(0, 0, 0, 0.06);
+}
+
+.mobile-nav-gs-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.1), rgba(245, 158, 11, 0.1));
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  text-align: left;
+}
+
+.mobile-nav-gs-btn:hover {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(245, 158, 11, 0.18));
+  border-color: rgba(56, 189, 248, 0.5);
+  box-shadow: 0 4px 16px rgba(56, 189, 248, 0.25);
+  transform: translateY(-1px);
+}
+
+.mobile-nav-gs-btn:active {
+  transform: scale(0.98);
+}
+
+.mobile-nav-gs-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.mobile-nav-gs-icon-wrap {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mobile-nav-gs-texts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mobile-nav-gs-title-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mobile-nav-gs-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.mobile-nav-gs-sub {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mobile-nav-gs-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.mobile-nav-gs-progress-mini {
+  width: 48px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+[data-theme="light"] .mobile-nav-gs-progress-mini {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.mobile-nav-gs-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #38bdf8, #10b981);
+  transition: width 0.4s ease;
+}
+
+.mobile-nav-gs-badge {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+
+.mobile-nav-gs-badge.done {
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #10b981;
+}
+
+.mobile-nav-gs-badge.pending {
+  background: rgba(56, 189, 248, 0.16);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: var(--accent-cyan);
+}
+
+[data-theme="light"] .mobile-nav-gs-btn {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.07), rgba(217, 119, 6, 0.07));
+  border-color: rgba(2, 132, 199, 0.25);
+}
+
+[data-theme="light"] .mobile-nav-gs-btn:hover {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.12), rgba(217, 119, 6, 0.12));
+  border-color: #0284c7;
+}
+
+/* 3. Página de Perfil (ProfilePage Abaixo do Perfil) */
+.profile-getstarted-quick-box {
+  padding: 8px 0 4px;
+}
+
+.profile-getstarted-btn {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.09), rgba(245, 158, 11, 0.09));
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  text-align: left;
+}
+
+.profile-getstarted-btn:hover {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.16), rgba(245, 158, 11, 0.16));
+  border-color: rgba(56, 189, 248, 0.45);
+  box-shadow: 0 6px 20px rgba(56, 189, 248, 0.2);
+  transform: translateY(-1px);
+}
+
+.profile-getstarted-btn:active {
+  transform: scale(0.98);
+}
+
+.profile-gs-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.profile-gs-badge-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.profile-gs-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.02em;
+}
+
+.profile-gs-pct-badge {
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.03em;
+}
+
+.profile-gs-pct-badge.done {
+  background: rgba(16, 185, 129, 0.18);
+  border: 1px solid rgba(16, 185, 129, 0.38);
+  color: #10b981;
+}
+
+.profile-gs-pct-badge.pending {
+  background: rgba(56, 189, 248, 0.16);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  color: var(--accent-cyan);
+}
+
+.profile-gs-progress-bar {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+[data-theme="light"] .profile-gs-progress-bar {
+  background: rgba(0, 0, 0, 0.07);
+}
+
+.profile-gs-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #38bdf8, #10b981);
+  transition: width 0.4s ease;
+}
+
+.profile-gs-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.profile-gs-status-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.profile-gs-arrow {
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.profile-getstarted-btn:hover .profile-gs-arrow {
+  transform: translateX(2px);
+  color: var(--accent-cyan);
+}
+
+[data-theme="light"] .profile-getstarted-btn {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.06), rgba(217, 119, 6, 0.06));
+  border-color: rgba(2, 132, 199, 0.25);
+}
+
+[data-theme="light"] .profile-getstarted-btn:hover {
+  background: linear-gradient(135deg, rgba(2, 132, 199, 0.12), rgba(217, 119, 6, 0.12));
+  border-color: #0284c7;
+}

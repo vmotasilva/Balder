@@ -118,6 +118,7 @@ export function AppContent() {
         onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         isOpen={isNavMenuOpen}
         onOpenChange={setIsNavMenuOpen}
+        onOpenOnboarding={handleOpenOnboarding}
       />
 
       {/* Main Content Layout */}
@@ -161,7 +162,9 @@ export function AppContent() {
 
           {activeTab === 'METAS' && <GoalsPage />}
 
-          {activeTab === 'PERFIL' && <ProfilePage />}
+          {activeTab === 'PERFIL' && (
+            <ProfilePage onOpenOnboarding={handleOpenOnboarding} />
+          )}
         </main>
       </div>
 

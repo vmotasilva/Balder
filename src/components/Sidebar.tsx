@@ -17,6 +17,7 @@ import {
   Settings,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useFinancial } from '../context/FinancialContext';
 
 export type TabId = 'DASHBOARD' | 'MOVIMENTACOES' | 'FATURAS' | 'NATUREZAS' | 'EMPRESTIMOS' | 'COPILOT' | 'METAS' | 'PERFIL';
 
@@ -27,6 +28,7 @@ interface SidebarProps {
   onToggleCollapse: () => void;
   isOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
+  onOpenOnboarding?: (stepIndex?: number) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -36,9 +38,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleCollapse,
   isOpen,
   onOpenChange,
+  onOpenOnboarding,
 }) => {
   const { user, logout } = useAuth();
+  const { activeCheckpoint, movements, cards, natures } = useFinancial();
   const [internalOpen, setInternalOpen] = useState(false);
+
+  // Cálculo do progresso do Get Started (3 etapas vitais)
+  const hasCheckpoint = !!activeCheckpoint;
+  const hasInvoices = movements.some((m) => m.type === 'CARTAO') || cards.length > 0;
+  const hasNatures = natures.length > 0;
+  const completedSteps = (hasCheckpoint ? 1 : 0) + (hasInvoices ? 1 : 0) + (hasNatures ? 1 : 0);
+  const completionPercentage = Math.round((completedSteps / 3) * 100);
 
   const isMenuOpen = isOpen !== undefined ? isOpen : internalOpen;
   const setIsMenuOpen = (open: boolean) => {
@@ -402,6 +413,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             </div>
           )}
+
+          {/* Botão Get Started na Barra Lateral Desktop Abaixo do Perfil */}
+          {!collapsed && (
+            <div className="sidebar-gs-container">
+              <button
+                type="button"
+                className="sidebar-gs-btn"
+                onClick={() => {
+                  if (onOpenOnboarding) {
+                    onOpenOnboarding(!hasCheckpoint ? 1 : !hasInvoices ? 2 : 3);
+                  }
+                }}
+                title="Acessar Get Started — Calibração Inicial"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <Sparkles size={14} className="text-amber-400 shrink-0" />
+                  <span className="sidebar-gs-text">Get Started</span>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className={`sidebar-gs-badge ${completionPercentage === 100 ? 'done' : 'pending'}`}>
+                    {completionPercentage}%
+                  </span>
+                  <ChevronRight size={13} className="text-muted" />
+                </div>
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -582,6 +620,51 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 <LogOut size={16} />
                 <span className="logout-text">Sair</span>
+              </button>
+            </div>
+
+            {/* Botão Get Started com Percentual logo Abaixo do Perfil no Menu Mobile */}
+            <div className="mobile-nav-gs-row">
+              <button
+                type="button"
+                className="mobile-nav-gs-btn"
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  if (onOpenOnboarding) {
+                    onOpenOnboarding(!hasCheckpoint ? 1 : !hasInvoices ? 2 : 3);
+                  }
+                }}
+                title="Acessar Get Started — Calibração do Sistema"
+              >
+                <div className="mobile-nav-gs-left">
+                  <div className="mobile-nav-gs-icon-wrap">
+                    <Sparkles size={16} className="text-amber-400" />
+                  </div>
+                  <div className="mobile-nav-gs-texts">
+                    <div className="mobile-nav-gs-title-line">
+                      <span className="mobile-nav-gs-title">Get Started</span>
+                      <span className="badge-pill badge-pill-cyan text-[10px]">Forseti</span>
+                    </div>
+                    <span className="mobile-nav-gs-sub">
+                      {completionPercentage === 100
+                        ? '100% Calibrado'
+                        : `${completedSteps} de 3 passos definidos`}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mobile-nav-gs-right">
+                  <div className="mobile-nav-gs-progress-mini">
+                    <div
+                      className="mobile-nav-gs-progress-fill"
+                      style={{ width: `${Math.max(completionPercentage, 8)}%` }}
+                    />
+                  </div>
+                  <span className={`mobile-nav-gs-badge ${completionPercentage === 100 ? 'done' : 'pending'}`}>
+                    {completionPercentage}%
+                  </span>
+                  <ChevronRight size={15} className="text-muted" />
+                </div>
               </button>
             </div>
           </div>
