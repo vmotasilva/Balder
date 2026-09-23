@@ -973,20 +973,41 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
               )}
 
               {selectedNature.mappings.length === 0 ? (
-                <div className="empty-mappings-box glass-card mt-3">
-                  <Layers size={32} className="text-muted" />
-                  <p>Nenhum mapeamento de gastos cadastrado para esta natureza.</p>
-                  <div className="flex items-center gap-3 mt-3">
+                <div className="empty-mappings-box glass-card mt-3" style={{ padding: '24px 20px', textAlign: 'center' }}>
+                  <div
+                    style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '14px',
+                      background: 'rgba(6, 182, 212, 0.12)',
+                      border: '1px solid rgba(6, 182, 212, 0.3)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 12px',
+                      color: 'var(--accent-cyan)',
+                    }}
+                  >
+                    <Sparkles size={24} />
+                  </div>
+                  <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 6px' }}>
+                    Como compor o teto de {selectedNature.name}?
+                  </h4>
+                  <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', maxWidth: '480px', margin: '0 auto 16px', lineHeight: 1.5 }}>
+                    No Balder, o teto de uma Natureza nasce da decomposição em <strong>Mapeamentos de Rotinas Reais</strong> (ex: feira semanal, compras de mercado, açougue ou contas fixas). Cadastre os itens com seus preços e o sistema calcula a soma mensal automaticamente.
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
                     <button
-                      className="btn btn-primary btn-sm"
+                      type="button"
+                      className="btn btn-primary btn-sm flex items-center gap-1.5"
                       onClick={handleOpenCreateMapping}
                     >
-                      <Plus size={14} />
+                      <Plus size={15} />
                       <span>Criar Primeiro Mapeamento</span>
                     </button>
                     <button
                       type="button"
-                      className="btn btn-outline btn-sm text-xs"
+                      className="btn btn-outline btn-sm text-xs flex items-center gap-1.5 text-cyan border-cyan/40"
                       onClick={() => {
                         if (confirm(`Deseja carregar sugestões de rotina e mapeamentos padrão para "${selectedNature.name}"?`)) {
                           loadSuggestedMappingsForNature(selectedNature.id);
@@ -994,7 +1015,8 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                       }}
                       title="Carregar itens e rotinas pré-configuradas para esta natureza"
                     >
-                      <span>💡 Carregar Modelos Sugeridos</span>
+                      <Sparkles size={13} className="text-amber-400" />
+                      <span>💡 Carregar Modelos da Forseti</span>
                     </button>
                   </div>
                 </div>

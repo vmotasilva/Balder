@@ -264,7 +264,7 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
                 </strong>
               </div>
               <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
-                Olá! Notei que seu Balder ainda tem etapas de calibração pendentes ({!activeCheckpoint ? 'Ponto de Partida, ' : ''}{movements.filter(m => m.type === 'CARTAO').length === 0 ? 'Faturas em Aberto, ' : ''}{natures.length === 0 ? 'Naturezas Orçamentárias' : ''}). Recomendo concluirmos esses 3 passos para que minhas auditorias de fluxo e projeções de 30 dias sejam exatas.
+                Olá! Notei que seu Balder ainda tem etapas de calibração pendentes ({!activeCheckpoint ? 'Ponto de Partida, ' : ''}{movements.filter(m => m.type === 'CARTAO').length === 0 ? 'Faturas em Aberto, ' : ''}{natures.length === 0 ? 'Naturezas & Mapeamentos' : ''}). Recomendo concluirmos esses 3 passos para que minhas auditorias de fluxo e projeções de 30 dias sejam exatas.
               </p>
               {onOpenOnboarding && (
                 <button

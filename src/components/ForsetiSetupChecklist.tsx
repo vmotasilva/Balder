@@ -190,7 +190,7 @@ export const ForsetiSetupChecklist: React.FC<ForsetiSetupChecklistProps> = ({
           )}
         </div>
 
-        {/* Item 3: Naturezas Orçamentárias */}
+        {/* Item 3: Naturezas & Mapeamentos */}
         <div className={`checklist-step-item ${hasNatures ? 'done' : 'pending'}`}>
           <div className="step-icon-container">
             {hasNatures ? (
@@ -201,15 +201,15 @@ export const ForsetiSetupChecklist: React.FC<ForsetiSetupChecklistProps> = ({
           </div>
           <div className="step-content">
             <div className="step-title-row">
-              <span className="step-title">3. Naturezas & Tetos</span>
+              <span className="step-title">3. Naturezas & Mapeamentos</span>
               <span className={`step-status-tag ${hasNatures ? 'done' : 'pending'}`}>
                 {hasNatures ? 'Ativas' : 'Pendente'}
               </span>
             </div>
             <p className="step-desc">
               {hasNatures
-                ? `${natures.length} naturezas com tetos monitorados pela Forseti.`
-                : 'Selecione suas naturezas de gastos para auditoria de tetos.'}
+                ? `${natures.length} naturezas com mapeamentos de rotinas e tetos calculados.`
+                : 'Defina naturezas e crie mapeamentos de rotinas de compras para o cálculo automático do teto.'}
             </p>
           </div>
           {!hasNatures && (

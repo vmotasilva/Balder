@@ -173,6 +173,27 @@ export const MappingModal: React.FC<MappingModalProps> = ({
             </p>
           </div>
         </div>
+        {/* Guia Didático da Forseti sobre Mapeamento & Composição do Teto */}
+        <div
+          style={{
+            padding: '10px 14px',
+            marginBottom: '16px',
+            borderRadius: '12px',
+            background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.08), rgba(15, 23, 42, 0.6))',
+            border: '1px solid rgba(6, 182, 212, 0.25)',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '10px',
+          }}
+        >
+          <Sparkles size={16} className="text-cyan" style={{ flexShrink: 0, marginTop: '2px' }} />
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+            <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '2px' }}>
+              Como o Mapeamento compõe o Teto desta Natureza:
+            </strong>
+            Um mapeamento representa uma rotina concreta (ex: Feira Semanal, Mercado Mensal, Açougue). Após criar o grupo, adicione os itens com valores e frequência. O Balder multiplica itens semanais por 4 e quinzenais por 2, calculando o teto sem chutes.
+          </div>
+        </div>
 
         {/* Linha 1: Nome do Mapeamento */}
         <div className="form-group mb-3">
