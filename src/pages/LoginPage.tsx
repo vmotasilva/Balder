@@ -15,7 +15,7 @@ export const LoginPage: React.FC = () => {
         {/* Brand Header */}
         <div className="login-brand-header">
           <div className="login-logo-glow">
-            <span className="login-brand-icon">ᛒ</span>
+            <img src="/logo-app.png" alt="Balder" className="login-brand-logo-img" />
           </div>
           <h1 className="login-brand-title">BALDER</h1>
           <p className="login-brand-subtitle">Controle & Estratégia Financeira Pessoal</p>

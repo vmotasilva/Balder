@@ -12841,22 +12841,29 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .login-logo-glow {
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #1e293b, #090d16);
-  border: 1px solid rgba(245, 158, 11, 0.4);
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: #070B16;
+  border: 1.5px solid rgba(245, 158, 11, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+  box-shadow: 0 0 24px rgba(245, 158, 11, 0.35), 0 0 8px rgba(245, 158, 11, 0.2);
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.login-brand-icon {
-  font-size: 28px;
-  font-weight: 800;
-  color: #f59e0b;
-  text-shadow: 0 0 10px rgba(245, 158, 11, 0.6);
+.login-logo-glow:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 30px rgba(245, 158, 11, 0.5), 0 0 10px rgba(245, 158, 11, 0.3);
+}
+
+.login-brand-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .login-brand-title {
