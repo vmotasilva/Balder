@@ -7,9 +7,6 @@ import {
   CheckCircle2,
   Clock,
   Trash2,
-  CreditCard,
-  Building2,
-  Banknote,
   Zap,
   Briefcase,
   Flag,
@@ -26,6 +23,7 @@ import type { Movement, MovementType } from '../types';
 import { calculatePresentValue, groupLoanMovements } from '../utils/loanMath';
 import { LoanPrepaymentModal } from '../components/LoanPrepaymentModal';
 import { MovementDetailModal } from '../components/MovementDetailModal';
+import { ImmediateActionsModal } from '../components/ImmediateActionsModal';
 import { getSalarySuggestion } from '../utils/salarySuggestion';
 import { getPendingFixedBills, type PendingFixedBill } from '../utils/fixedBillsAlert';
 
@@ -173,6 +171,9 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
 
   // Modal de Detalhes e Ajuste de Realidade por Tipo de Transação
   const [selectedMovementForDetail, setSelectedMovementForDetail] = useState<Movement | null>(null);
+
+  // Modal de Ações Imediatas
+  const [isImmediateActionsOpen, setIsImmediateActionsOpen] = useState(false);
 
   const handleOpenPrepayment = (groupId?: string, movementId?: string) => {
     setSelectedPrepayGroup(groupId);
@@ -721,47 +722,27 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
         </div>
       )}
 
-      {/* Ações Rápidas de Cadastro */}
-      <div className="movements-quick-actions-bar glass-card">
-        <span className="quick-actions-label">Ações Imediatas:</span>
-        <div className="quick-actions-buttons">
-          <button
-            className="quick-action-btn"
-            style={{
-              borderColor: 'rgba(16, 185, 129, 0.45)',
-              background: 'rgba(16, 185, 129, 0.08)',
-              fontWeight: 600,
-            }}
-            onClick={handleSalaryQuickAction}
-            title={
-              salarySuggestion.hasContract
-                ? `Lançar ${salarySuggestion.periodLabel} (${salarySuggestion.dueDate.split('-').reverse().join('/')} • R$ ${salarySuggestion.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})`
-                : 'Registrar recebimento de salário'
-            }
-          >
-            <Briefcase size={14} className="text-emerald" />
-            <span className="text-emerald">+ Salário</span>
-          </button>
-          <button className="quick-action-btn" onClick={() => onOpenNewMovementModal('RECEBER')}>
-            <span className="text-emerald">+</span> Cadastrar a Receber
-          </button>
-          <button className="quick-action-btn" onClick={() => onOpenNewMovementModal('PAGAR')}>
-            <span className="text-rose">-</span> Cadastrar a Pagar
-          </button>
-          <button className="quick-action-btn" onClick={() => onOpenNewMovementModal('PAGAR')}>
-            <CheckCircle2 size={14} className="text-emerald" /> Registrar Pagamento
-          </button>
-          <button className="quick-action-btn" onClick={() => onOpenNewMovementModal('RECEBER')}>
-            <Banknote size={14} className="text-cyan" /> Registrar Recebimento
-          </button>
-          <button className="quick-action-btn" onClick={() => onOpenNewMovementModal('EMPRESTIMO')}>
-            <Building2 size={14} className="text-amber" /> Cadastrar Empréstimo
-          </button>
-          <button className="quick-action-btn" onClick={() => onOpenNewMovementModal('EMPRESTIMO')}>
-            <CreditCard size={14} className="text-purple" /> Cadastrar Financiamento
-          </button>
-        </div>
+      {/* Botão de Ações Imediatas (Abre Pop-up Modal com as ações) */}
+      <div className="movements-immediate-actions-bar mb-4">
+        <button
+          type="button"
+          className="immediate-actions-trigger-btn"
+          onClick={() => setIsImmediateActionsOpen(true)}
+          title="Abrir menu de ações imediatas"
+        >
+          <Zap size={16} className="text-amber-400 fill-amber-400 animate-pulse" />
+          <span>Ações Imediatas</span>
+          <span className="badge badge-amber text-xs">7 Ações</span>
+        </button>
       </div>
+
+      <ImmediateActionsModal
+        isOpen={isImmediateActionsOpen}
+        onClose={() => setIsImmediateActionsOpen(false)}
+        salarySuggestion={salarySuggestion}
+        onSalaryAction={handleSalaryQuickAction}
+        onOpenNewMovementModal={onOpenNewMovementModal}
+      />
 
       {/* BANNER EXECUTIVO QUANDO A ABA FOR EMPRÉSTIMO */}
       {activeTab === 'EMPRESTIMO' && loanGroups.length > 0 && (
