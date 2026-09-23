@@ -97,19 +97,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginWithGoogle = async () => {
-    if (!isSupabaseConfigured) {
-      console.warn('[Supabase] Credenciais não configuradas. Usando modo convidado.');
-      continueAsGuest();
-      return;
+    setIsLoading(true);
+    try {
+      const currentUrl = window.location.origin;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: currentUrl,
+        },
+      });
+      if (error) {
+        console.error('[Supabase Auth] Erro ao iniciar login Google:', error.message);
+      }
+    } catch (err) {
+      console.error('[Supabase Auth] Exceção no login Google:', err);
+    } finally {
+      setIsLoading(false);
     }
-
-    const currentUrl = window.location.origin;
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: currentUrl,
-      },
-    });
   };
 
   const loginWithEmail = async (email: string, pass: string) => {
