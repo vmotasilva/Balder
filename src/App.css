@@ -5541,9 +5541,43 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 
 /* Ocultação de títulos e subtítulos de cabeçalho na versão mobile */
 @media (max-width: 768px) {
+  /* Dashboard: oculta título Meu Dinheiro, subtítulo e kicker badge no celular */
+  .dashboard-page-title,
   .dashboard-page-subtitle,
+  .dashboard-header-title-box .kicker-badge,
+  .dashboard-header .page-title,
   .dashboard-header .page-subtitle {
     display: none !important;
+  }
+
+  .dashboard-page-header {
+    margin-bottom: 12px !important;
+  }
+
+  .dashboard-page-header .page-header-actions {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+  }
+
+  .dashboard-page-header .page-header-actions .quick-actions-container {
+    flex: 1 !important;
+    display: flex !important;
+  }
+
+  .dashboard-page-header .page-header-actions .quick-actions-container button {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 8px 12px !important;
+    font-size: 12px !important;
+  }
+
+  .dashboard-page-header .page-header-actions .btn-secondary {
+    flex: 1 !important;
+    justify-content: center !important;
+    padding: 8px 12px !important;
+    font-size: 12px !important;
   }
 
   /* Ocultação do título e subtítulo de Minhas Movimentações na versão mobile */

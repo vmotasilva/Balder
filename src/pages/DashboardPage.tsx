@@ -71,8 +71,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
     <div className="page-container animate-fade-in">
       {/* Page Header */}
-      <div className="page-header">
-        <div>
+      <div className="page-header dashboard-page-header">
+        <div className="dashboard-header-title-box">
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <div className="kicker-badge" style={{ marginBottom: 0 }}>
               <span>DASHBOARD FINANCEIRO</span>
@@ -90,7 +90,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               </button>
             )}
           </div>
-          <h1 className="page-title">Meu Dinheiro</h1>
+          <h1 className="page-title dashboard-page-title">Meu Dinheiro</h1>
           <p className="page-subtitle dashboard-page-subtitle">
             Sua visão consolidada de patrimônio, liquidez imediata e futuro projetado
           </p>
