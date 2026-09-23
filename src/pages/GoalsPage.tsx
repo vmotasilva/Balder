@@ -1,10 +1,10 @@
 import React from 'react';
 import { useFinancial } from '../context/FinancialContext';
-import { Plus, Sparkles, RefreshCw, FileText, CheckCircle2 } from 'lucide-react';
+import { Plus, RefreshCw, FileText, CheckCircle2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export const GoalsPage: React.FC = () => {
-  const { goals, monthlyFreeCashflow } = useFinancial();
+  const { goals } = useFinancial();
 
   const handleCelebrate = () => {
     confetti({
@@ -47,17 +47,8 @@ export const GoalsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Integration & Acceleration Banner */}
+      {/* Integration & Acceleration Actions */}
       <div className="goals-acceleration-banner glass-card">
-        <div className="acceleration-info">
-          <div className="accel-badge">
-            <Sparkles size={16} className="text-cyan" />
-            <span>CAPACIDADE DE POUPANÇA: +R$ {monthlyFreeCashflow.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}/mês</span>
-          </div>
-          <h3>Integração com Fluxo Projetado & Aceleração de Metas</h3>
-          <p>Seu fluxo livre de caixa permite acelerar a conclusão das suas metas prioritárias sem comprometer a sua reserva operacional.</p>
-        </div>
-
         <div className="acceleration-actions">
           <button className="btn btn-secondary" onClick={handleAcceptRecommendations}>
             <CheckCircle2 size={16} className="text-emerald" />

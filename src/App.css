@@ -2574,27 +2574,19 @@
 .goals-acceleration-banner {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 22px;
+  justify-content: flex-start;
+  padding: 14px 18px;
   border-left: 4px solid var(--accent-cyan);
   background: linear-gradient(135deg, rgba(56, 189, 248, 0.08) 0%, rgba(15, 23, 42, 0.7) 100%);
-}
-
-.accel-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--accent-cyan);
-  text-transform: uppercase;
-  margin-bottom: 6px;
+  border-radius: var(--radius-lg);
 }
 
 .acceleration-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 12px;
+  width: 100%;
 }
 
 .goals-cards-grid {
@@ -5674,6 +5666,22 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 
   .message-bubble {
     padding: 12px 14px !important;
+  }
+
+  .goals-acceleration-banner {
+    padding: 12px 14px !important;
+  }
+
+  .acceleration-actions {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  .acceleration-actions .btn {
+    width: 100% !important;
+    justify-content: center !important;
   }
 
   .metrics-grid-4, .projection-grid-4, .simulations-shortcuts-grid, .goals-cards-grid {
