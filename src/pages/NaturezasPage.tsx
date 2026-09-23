@@ -20,6 +20,7 @@ import {
   Zap,
   ChevronDown,
   ChevronUp,
+  Sparkles,
 } from 'lucide-react';
 import { NatureModal } from '../components/NatureModal';
 import { MappingModal } from '../components/MappingModal';
@@ -94,6 +95,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
   // Modais de Criação e Edição de Mapeamento
   const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
   const [mappingToEdit, setMappingToEdit] = useState<FixedExpenseMapping | null>(null);
+  const [isMappingHelpOpen, setIsMappingHelpOpen] = useState(false);
 
   const handleOpenCreateMapping = () => {
     setMappingToEdit(null);
@@ -915,14 +917,60 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                     Ajuste os itens, quantidades e valores abaixo para redefinir e compor com precisão o teto orçamentário.
                   </p>
                 </div>
-                <button
-                  className="btn btn-outline btn-sm"
-                  onClick={handleOpenCreateMapping}
-                >
-                  <Plus size={14} />
-                  <span>Novo Mapeamento</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm text-cyan text-xs flex items-center gap-1.5 cursor-pointer"
+                    onClick={() => setIsMappingHelpOpen(!isMappingHelpOpen)}
+                    title="Aprenda como funcionam e como criar Mapeamentos"
+                  >
+                    <Sparkles size={14} className="text-cyan" />
+                    <span>{isMappingHelpOpen ? 'Ocultar Guia' : 'Como Funciona?'}</span>
+                  </button>
+                  <button
+                    className="btn btn-outline btn-sm flex items-center gap-1.5"
+                    onClick={handleOpenCreateMapping}
+                  >
+                    <Plus size={14} />
+                    <span>Novo Mapeamento</span>
+                  </button>
+                </div>
               </div>
+
+              {/* Guia Didático da Forseti sobre Mapeamentos */}
+              {isMappingHelpOpen && (
+                <div className="glass-card p-4 mt-3 mb-3 border border-cyan/25 rounded-2xl animate-fade-in">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Sparkles size={16} className="text-cyan" />
+                    <h5 className="text-xs font-bold text-cyan uppercase tracking-wider">
+                      Guia Prático da Forseti: O que é um Mapeamento e como ele calcula o Teto
+                    </h5>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs text-slate-300 mb-3">
+                    <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                      <strong className="text-white block mb-1">1. Crie a Rotina</strong>
+                      <span className="text-[11px] text-slate-400">
+                        Clique em <strong>+ Novo Mapeamento</strong> e defina o nome (ex: 🥦 Feira Semanal ou 🛒 Supermercado).
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                      <strong className="text-white block mb-1">2. Lance os Itens</strong>
+                      <span className="text-[11px] text-slate-400">
+                        Informe os produtos com quantidade, preço unitário e multiplicador de semanas.
+                      </span>
+                    </div>
+                    <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                      <strong className="text-white block mb-1">3. Teto Matemático</strong>
+                      <span className="text-[11px] text-slate-400">
+                        A soma de todos os itens compõe o teto da natureza. Ao comprar no mês, basta dar check no item!
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    💡 <strong>Multiplicador Automático:</strong> Compras semanais (ex: Feira R$ 65) multiplicam por 4 semanas (R$ 260/mês). Compras quinzenais multiplicam por 2. O Balder compõe seu teto sem necessidade de palpites!
+                  </p>
+                </div>
+              )}
 
               {selectedNature.mappings.length === 0 ? (
                 <div className="empty-mappings-box glass-card mt-3">

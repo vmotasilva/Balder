@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useFinancial } from '../context/FinancialContext';
+import { useFinancial, buildSuggestedMappingsForNature } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import {
   Sparkles,
@@ -15,16 +15,19 @@ import {
   Calendar,
   Plus,
   Trash2,
+  BookOpen,
+  ListChecks,
+  Layers,
 } from 'lucide-react';
 
 interface GetStartedOnboardingProps {
   isOpen: boolean;
   onClose: () => void;
-  initialStep?: number; // 1 = Ponto de Partida, 2 = Faturas, 3 = Naturezas
+  initialStep?: number; // 1 = Ponto de Partida, 2 = Faturas, 3 = Naturezas & Mapeamentos
   onComplete?: () => void;
 }
 
-// Naturezas recomendadas com ícones, cores e tetos padrão
+// Naturezas recomendadas com ícones, cores, tetos padrão e rotinas de mapeamentos sugeridas
 const DEFAULT_RECOMMENDED_NATURES = [
   {
     id: 'nat_alimentacao',
@@ -34,6 +37,7 @@ const DEFAULT_RECOMMENDED_NATURES = [
     suggestedCeiling: 1800,
     type: 'ESSENCIAL' as const,
     description: 'Compras de supermercado, feira, açougue e refeições diárias',
+    sampleMappings: ['🛒 Supermercado Mensal', '🥦 Feira Semanal', '🥩 Açougue Quinzenal'],
   },
   {
     id: 'nat_moradia',
@@ -43,6 +47,7 @@ const DEFAULT_RECOMMENDED_NATURES = [
     suggestedCeiling: 2200,
     type: 'FIXA' as const,
     description: 'Aluguel/condomínio, energia, água, internet e serviços essenciais',
+    sampleMappings: ['💡 Contas Fixas (Energia, Água, Net)', '🏢 Condomínio/Aluguel'],
   },
   {
     id: 'nat_transporte',
@@ -52,6 +57,7 @@ const DEFAULT_RECOMMENDED_NATURES = [
     suggestedCeiling: 650,
     type: 'VARIAVEL' as const,
     description: 'Combustível, aplicativos (Uber/99), estacionamento e manutenção',
+    sampleMappings: ['⛽ Combustível Mensal', '📱 Apps (Uber/99)'],
   },
   {
     id: 'nat_saude',
@@ -61,6 +67,7 @@ const DEFAULT_RECOMMENDED_NATURES = [
     suggestedCeiling: 450,
     type: 'ESSENCIAL' as const,
     description: 'Farmácia, consultas, exames, plano de saúde e bem-estar',
+    sampleMappings: ['💊 Farmácia Mensal', '🩺 Consultas & Exames'],
   },
   {
     id: 'nat_lazer',
@@ -70,6 +77,7 @@ const DEFAULT_RECOMMENDED_NATURES = [
     suggestedCeiling: 600,
     type: 'VARIAVEL' as const,
     description: 'Restaurantes, saídas, streaming, delivery e passeios',
+    sampleMappings: ['🎬 Streaming & Assinaturas', '🍽️ Restaurantes & Delivery'],
   },
 ];
 
@@ -163,6 +171,8 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
   const [newNatureCeiling, setNewNatureCeiling] = useState('');
   const [newNatureIcon, setNewNatureIcon] = useState('⚡');
   const [showAddNatureRow, setShowAddNatureRow] = useState(false);
+  const [autoLoadMappings, setAutoLoadMappings] = useState<boolean>(true);
+  const [showMappingTutorial, setShowMappingTutorial] = useState<boolean>(true);
 
   const parseNumber = (val: string): number => {
     if (!val) return 0;
@@ -368,15 +378,19 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
         });
       }
 
-      // 4. Salva as Naturezas selecionadas com seus tetos
+      // 4. Salva as Naturezas selecionadas com seus tetos e mapeamentos
       if (natures.length === 0 && selectedNatures.length > 0) {
-        selectedNatures.forEach((nat) => {
+        selectedNatures.forEach((nat, idx) => {
+          const suggestedMappings = autoLoadMappings
+            ? buildSuggestedMappingsForNature(`nat_seed_${Date.now()}_${idx}`, nat.name, nat.icon)
+            : [];
           addNature({
             name: nat.name,
             icon: nat.icon,
             color: nat.color,
             type: nat.type,
             description: nat.description,
+            mappings: suggestedMappings,
           });
         });
       }
@@ -778,27 +792,118 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
           )}
 
           {/* ======================================================== */}
-          {/* PASSO 3: NATUREZAS & TETOS DE GASTOS                     */}
+          {/* PASSO 3: NATUREZAS & MAPEAMENTOS DE ROTINAS              */}
           {/* ======================================================== */}
           {currentStep === 3 && (
             <div className="onboarding-step-view animate-fade-in">
               <div className="forseti-speech-bubble">
                 <div className="forseti-bubble-header">
                   <Tag size={16} className="text-emerald" />
-                  <strong>Passo 3: Naturezas Orçamentárias & Tetos de Gastos</strong>
+                  <strong>Passo 3: Naturezas & Mapeamentos de Rotinas (Tetos Calculados)</strong>
                 </div>
                 <p>
-                  Quase lá! No Balder, não usamos categorias chatas e soltas: nós definimos{' '}
-                  <strong>Naturezas com tetos de gastos</strong>. Eu fico de olho nesses tetos em
-                  tempo real para te avisar se houver risco de estouro.
+                  Quase lá! No Balder, nós não usamos categorias soltas ou tetos tirados do nada: nós definimos{' '}
+                  <strong>Naturezas fundamentadas por Mapeamentos de Rotinas de Gastos</strong>.
                 </p>
-                <p className="mt-2 text-xs text-slate-400">
-                  Revise as naturezas recomendadas abaixo e ajuste o teto mensal estimado para o seu
-                  estilo de vida:
+                <p className="mt-2 text-xs text-slate-300">
+                  Um teto não deve ser um chute: cada Natureza (ex: Alimentação) é decomposta em compras reais (ex: 🛒 Supermercado Mensal, 🥦 Feira Semanal, 🥩 Açougue Quinzenal). Eu audito esses itens em tempo real para te alertar antes de qualquer estouro!
                 </p>
               </div>
 
-              <div className="onboarding-natures-container">
+              {/* Guia Didático da Forseti: O que é e Como Criar um Mapeamento */}
+              <div className="onboarding-mapping-guide glass-card mt-3.5 p-4 border border-cyan/25 rounded-2xl">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={16} className="text-cyan shrink-0" />
+                    <h4 className="text-xs font-bold text-cyan uppercase tracking-wider">
+                      Como funciona a criação de Mapeamentos nas Naturezas?
+                    </h4>
+                  </div>
+                  <button
+                    type="button"
+                    className="text-xs text-slate-400 hover:text-cyan underline cursor-pointer flex items-center gap-1"
+                    onClick={() => setShowMappingTutorial(!showMappingTutorial)}
+                  >
+                    <BookOpen size={13} />
+                    <span>{showMappingTutorial ? 'Ocultar Guia Didático' : 'Como Criar Mapeamentos'}</span>
+                  </button>
+                </div>
+
+                {showMappingTutorial && (
+                  <div className="space-y-3 text-xs text-slate-300 mt-3 animate-fade-in">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-left">
+                      <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                        <div className="flex items-center gap-1.5 mb-1 text-white font-bold">
+                          <span className="w-5 h-5 rounded-full bg-cyan/20 text-cyan text-[11px] flex items-center justify-center font-bold">1</span>
+                          <span>Escolha a Natureza</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-snug">
+                          A Natureza representa o grupo orçamentário maior (ex: 🍽️ Alimentação ou 🏠 Moradia).
+                        </p>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                        <div className="flex items-center gap-1.5 mb-1 text-white font-bold">
+                          <span className="w-5 h-5 rounded-full bg-cyan/20 text-cyan text-[11px] flex items-center justify-center font-bold">2</span>
+                          <span>Crie a Rotina de Gasto</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-snug">
+                          Dê nome à rotina (ex: 🥦 Feira Semanal) e defina a periodicidade (Semanal, Quinzenal ou Mensal).
+                        </p>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                        <div className="flex items-center gap-1.5 mb-1 text-white font-bold">
+                          <span className="w-5 h-5 rounded-full bg-cyan/20 text-cyan text-[11px] flex items-center justify-center font-bold">3</span>
+                          <span>Adicione os Itens</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-snug">
+                          Lançe itens com quantidade e preço. O Balder calcula a multiplicação mensal automaticamente!
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-gradient-to-r from-cyan-950/30 to-slate-900/40 border border-cyan-500/20 flex items-start gap-2.5">
+                      <ListChecks size={18} className="text-cyan shrink-0 mt-0.5" />
+                      <div className="text-[11px] leading-relaxed text-slate-300">
+                        <strong className="text-white">Cálculo Matemático Automático:</strong> Se você gasta <strong>R$ 65</strong> na feira todo sábado, o Balder multiplica pelas <strong>4 semanas do mês</strong> (total de <strong>R$ 260/mês</strong>). Somando feira, supermercado e açougue, o seu teto mensal fica matematicamente justificado e auditável pela Forseti.
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Opção Inteligente de Inicialização com Mapeamentos Sugeridos */}
+              <div className="mt-3.5 p-3.5 rounded-xl bg-gradient-to-r from-cyan-950/40 via-slate-900/50 to-emerald-950/40 border border-cyan-500/30 shadow-md">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 accent-cyan w-4 h-4 rounded cursor-pointer"
+                    checked={autoLoadMappings}
+                    onChange={(e) => setAutoLoadMappings(e.target.checked)}
+                  />
+                  <div>
+                    <strong className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <span>Ativar Mapeamentos Modelos da Forseti automaticamente</span>
+                      <span className="badge-pill badge-pill-cyan text-[9px]">Recomendado</span>
+                    </strong>
+                    <span className="text-[11px] text-slate-400 block mt-0.5">
+                      Cria rotinas reais pré-configuradas (Supermercado, Feira, Açougue e Contas) com itens e preços de referência para você apenas conferir e ajustar na tela de Naturezas.
+                    </span>
+                  </div>
+                </label>
+              </div>
+
+              <div className="onboarding-natures-container mt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-300">
+                    Selecione suas Naturezas & Ajuste os Tetos:
+                  </span>
+                  <span className="text-xs text-muted">
+                    {selectedNatures.length} de {DEFAULT_RECOMMENDED_NATURES.length} ativas
+                  </span>
+                </div>
+
                 <div className="onboarding-natures-grid">
                   {DEFAULT_RECOMMENDED_NATURES.map((def) => {
                     const current = selectedNatures.find((n) => n.id === def.id);
@@ -825,20 +930,40 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                         <p className="nature-desc">{def.description}</p>
 
                         {isSelected && (
-                          <div className="nature-ceiling-input-row">
-                            <span className="text-xs text-muted">Teto Mensal:</span>
-                            <div className="flex items-center gap-1">
-                              <span className="text-xs text-slate-400">R$</span>
-                              <input
-                                type="number"
-                                className="nature-ceiling-input"
-                                value={current?.ceiling || ''}
-                                onChange={(e) =>
-                                  handleUpdateNatureCeiling(def.id, e.target.value)
-                                }
-                              />
+                          <>
+                            <div className="nature-ceiling-input-row">
+                              <span className="text-xs text-muted">Teto Mensal:</span>
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs text-slate-400">R$</span>
+                                <input
+                                  type="number"
+                                  className="nature-ceiling-input"
+                                  value={current?.ceiling || ''}
+                                  onChange={(e) =>
+                                    handleUpdateNatureCeiling(def.id, e.target.value)
+                                  }
+                                />
+                              </div>
                             </div>
-                          </div>
+
+                            {def.sampleMappings && def.sampleMappings.length > 0 && (
+                              <div className="nature-sample-mappings-row mt-2.5 pt-2 border-t border-white/10">
+                                <span className="text-[10px] text-slate-400 font-semibold block mb-1">
+                                  Mapeamentos previstos:
+                                </span>
+                                <div className="flex flex-wrap gap-1">
+                                  {def.sampleMappings.map((sm, sIdx) => (
+                                    <span
+                                      key={sIdx}
+                                      className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-slate-300"
+                                    >
+                                      {sm}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     );
@@ -953,10 +1078,14 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                   <span>Faturas Provisionadas</span>
                 </div>
                 <div className="summary-chip">
-                  <Tag size={14} className="text-emerald" />
-                  <span>{selectedNatures.length} Naturezas com Tetos</span>
+                  <Layers size={14} className="text-emerald" />
+                  <span>{selectedNatures.length} Naturezas & Mapeamentos</span>
                 </div>
               </div>
+
+              <p className="text-xs text-slate-400 max-w-sm mx-auto mt-4">
+                💡 <strong>Dica da Forseti:</strong> Na tela de <strong>Naturezas</strong> você pode detalhar seus mapeamentos, criar novas rotinas com seus emojis favoritos e dar baixa nos itens conforme realiza suas compras!
+              </p>
 
               <div className="mt-8">
                 <button

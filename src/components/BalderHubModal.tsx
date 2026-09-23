@@ -111,7 +111,7 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
       const missingLabels: string[] = [];
       if (!hasCheckpoint) missingLabels.push('Ponto de Partida');
       if (!hasInvoices) missingLabels.push('Faturas de Cartão');
-      if (!hasNatures) missingLabels.push('Naturezas Orçamentárias');
+      if (!hasNatures) missingLabels.push('Naturezas & Mapeamentos');
 
       list.push({
         id: 'notif_calibration_pending',
@@ -336,8 +336,8 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
                 </div>
                 <p className="hub-gs-desc">
                   {isCalibrationComplete
-                    ? 'Seu ponto de partida, faturas e tetos estão alinhados. Clique abaixo caso queira recalibrar ou ajustar valores iniciais.'
-                    : 'Defina seu Ponto de Partida, informe os valores de faturas em aberto e cadastre as naturezas orçamentárias com a Forseti.'}
+                    ? 'Seu ponto de partida, faturas e naturezas com mapeamentos de rotinas estão alinhados. Clique abaixo caso queira recalibrar ou ajustar valores iniciais.'
+                    : 'Defina seu Ponto de Partida, faturas em aberto e cadastre naturezas com mapeamentos de rotinas de compras com a Forseti.'}
                 </p>
               </div>
             </div>
@@ -358,7 +358,7 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
 
               <div className={`hub-pillar-chip ${hasNatures ? 'done' : 'pending'}`}>
                 <Layers size={12} />
-                <span>3. Naturezas & Tetos</span>
+                <span>3. Naturezas & Mapeamentos</span>
                 {hasNatures ? <Check size={12} className="text-emerald" /> : <Clock size={12} className="text-amber" />}
               </div>
             </div>

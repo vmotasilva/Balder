@@ -414,8 +414,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          {/* Botão Get Started na Barra Lateral Desktop Abaixo do Perfil */}
-          {!collapsed && (
+          {/* Botão Get Started na Barra Lateral Desktop Abaixo do Perfil (oculto em 100%) */}
+          {!collapsed && completionPercentage < 100 && (
             <div className="sidebar-gs-container">
               <button
                 type="button"
@@ -623,50 +623,50 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             </div>
 
-            {/* Botão Get Started com Percentual logo Abaixo do Perfil no Menu Mobile */}
-            <div className="mobile-nav-gs-row">
-              <button
-                type="button"
-                className="mobile-nav-gs-btn"
-                onClick={() => {
-                  setIsMenuOpen(false);
-                  if (onOpenOnboarding) {
-                    onOpenOnboarding(!hasCheckpoint ? 1 : !hasInvoices ? 2 : 3);
-                  }
-                }}
-                title="Acessar Get Started — Calibração do Sistema"
-              >
-                <div className="mobile-nav-gs-left">
-                  <div className="mobile-nav-gs-icon-wrap">
-                    <Sparkles size={16} className="text-amber-400" />
-                  </div>
-                  <div className="mobile-nav-gs-texts">
-                    <div className="mobile-nav-gs-title-line">
-                      <span className="mobile-nav-gs-title">Get Started</span>
-                      <span className="badge-pill badge-pill-cyan text-[10px]">Forseti</span>
+            {/* Botão Get Started com Percentual logo Abaixo do Perfil no Menu Mobile (oculto quando 100%) */}
+            {completionPercentage < 100 && (
+              <div className="mobile-nav-gs-row">
+                <button
+                  type="button"
+                  className="mobile-nav-gs-btn"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    if (onOpenOnboarding) {
+                      onOpenOnboarding(!hasCheckpoint ? 1 : !hasInvoices ? 2 : 3);
+                    }
+                  }}
+                  title="Acessar Get Started — Calibração do Sistema"
+                >
+                  <div className="mobile-nav-gs-left">
+                    <div className="mobile-nav-gs-icon-wrap">
+                      <Sparkles size={16} className="text-amber-400" />
                     </div>
-                    <span className="mobile-nav-gs-sub">
-                      {completionPercentage === 100
-                        ? '100% Calibrado'
-                        : `${completedSteps} de 3 passos definidos`}
-                    </span>
+                    <div className="mobile-nav-gs-texts">
+                      <div className="mobile-nav-gs-title-line">
+                        <span className="mobile-nav-gs-title">Get Started</span>
+                        <span className="badge-pill badge-pill-cyan text-[10px]">Forseti</span>
+                      </div>
+                      <span className="mobile-nav-gs-sub">
+                        {completedSteps} de 3 passos definidos
+                      </span>
+                    </div>
                   </div>
-                </div>
 
-                <div className="mobile-nav-gs-right">
-                  <div className="mobile-nav-gs-progress-mini">
-                    <div
-                      className="mobile-nav-gs-progress-fill"
-                      style={{ width: `${Math.max(completionPercentage, 8)}%` }}
-                    />
+                  <div className="mobile-nav-gs-right">
+                    <div className="mobile-nav-gs-progress-mini">
+                      <div
+                        className="mobile-nav-gs-progress-fill"
+                        style={{ width: `${Math.max(completionPercentage, 8)}%` }}
+                      />
+                    </div>
+                    <span className={`mobile-nav-gs-badge ${completionPercentage === 100 ? 'done' : 'pending'}`}>
+                      {completionPercentage}%
+                    </span>
+                    <ChevronRight size={15} className="text-muted" />
                   </div>
-                  <span className={`mobile-nav-gs-badge ${completionPercentage === 100 ? 'done' : 'pending'}`}>
-                    {completionPercentage}%
-                  </span>
-                  <ChevronRight size={15} className="text-muted" />
-                </div>
-              </button>
-            </div>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

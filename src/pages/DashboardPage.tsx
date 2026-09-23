@@ -270,7 +270,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <div className="section-title-row">
               <div className="section-title-left">
                 <span className="badge badge-purple">PROJEÇÃO PROSPECTIVA</span>
-                <h2 className="section-heading">O Que Vai Acontecer (30 Dias)</h2>
               </div>
               <button className="link-button" onClick={onNavigateToMovements}>
                 Ver todas as movimentações e filtros →

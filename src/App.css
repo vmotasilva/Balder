@@ -5595,10 +5595,16 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 
 /* Área de Rolagem do Grid */
 .mobile-nav-scroll-area {
-  flex: 1;
+  flex: 0 1 auto;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 14px 16px 8px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 10px 14px 6px;
+}
+
+.mobile-nav-scroll-area::-webkit-scrollbar {
+  display: none;
 }
 
 /* Grid de Navegação */
@@ -6038,9 +6044,9 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     left: 0;
     right: 0;
     top: auto;
-    max-height: 86vh;
-    max-height: 86dvh;
-    border-radius: 28px 28px 0 0;
+    max-height: 96vh;
+    max-height: 96dvh;
+    border-radius: 24px 24px 0 0;
     box-shadow: 0 -14px 44px rgba(0, 0, 0, 0.55), 0 0 1px rgba(255, 255, 255, 0.1);
   }
 
@@ -6060,8 +6066,64 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   }
 
   .mobile-nav-sheet-content {
-    max-height: 86vh;
-    max-height: 86dvh;
+    max-height: 96vh;
+    max-height: 96dvh;
+    height: auto;
+  }
+
+  .mobile-nav-drag-handle {
+    margin: 8px auto 4px;
+    height: 3.5px;
+    width: 32px;
+  }
+
+  .mobile-nav-sheet-header {
+    padding: 8px 14px;
+  }
+
+  .mobile-nav-sheet-logo {
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
+  }
+
+  .mobile-nav-sheet-title {
+    font-size: 14px;
+  }
+
+  .mobile-nav-scroll-area {
+    padding: 8px 12px 4px;
+  }
+
+  .mobile-nav-grid {
+    gap: 6px;
+  }
+
+  .mobile-nav-card {
+    padding: 7px 8px;
+    min-height: 44px;
+    border-radius: 11px;
+    gap: 8px;
+  }
+
+  .mobile-nav-card-icon-box {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+  }
+
+  .mobile-nav-card-icon-box svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .mobile-nav-card-title {
+    font-size: 12.5px;
+  }
+
+  .mobile-nav-card-sub {
+    font-size: 9.5px;
+    margin-top: 1px;
   }
 
   .mobile-nav-orb-btn {
@@ -6080,7 +6142,63 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   }
 
   .mobile-nav-sheet-footer {
-    padding-bottom: calc(86px + env(safe-area-inset-bottom, 0px));
+    padding: 7px 12px;
+    gap: 6px;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  /* Quando o Get Started estiver em 100% (oculto), o rodapé ocupa o espaço inferior com espaçamento seguro */
+  .mobile-nav-sheet-content:not(:has(.mobile-nav-gs-row)) .mobile-nav-sheet-footer {
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .mobile-nav-user-btn {
+    padding: 5px 8px;
+    border-radius: 10px;
+    gap: 7px;
+  }
+
+  .mobile-nav-user-btn .user-name {
+    font-size: 11px;
+  }
+
+  .mobile-nav-forseti-btn {
+    padding: 5px 8px;
+    border-radius: 10px;
+    gap: 6px;
+  }
+
+  .mobile-nav-logout-btn {
+    padding: 5px 8px;
+    border-radius: 10px;
+    height: 36px;
+  }
+
+  .mobile-nav-gs-row {
+    padding: 3px 12px calc(8px + env(safe-area-inset-bottom, 0px));
+    border-top: none;
+  }
+
+  .mobile-nav-gs-btn {
+    padding: 7px 10px;
+    border-radius: 11px;
+  }
+
+  .mobile-nav-gs-icon-wrap {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+  }
+
+  .mobile-nav-gs-title {
+    font-size: 12px;
+  }
+
+  /* Ocultar títulos e subtextos da Projeção Orçamentária no mobile conforme solicitado */
+  .monthly-projection-heading,
+  .monthly-projection-subtext,
+  .hide-on-mobile {
+    display: none !important;
   }
 
   .navbar-brand-title {

@@ -300,45 +300,47 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
             </div>
           </div>
 
-          {/* Botão Get Started com Percentual logo Abaixo do Perfil */}
-          <div className="profile-getstarted-quick-box">
-            <button
-              type="button"
-              className="profile-getstarted-btn"
-              onClick={() => {
-                if (onOpenOnboarding) {
-                  onOpenOnboarding(!hasCheckpoint ? 1 : !hasInvoices ? 2 : 3);
-                }
-              }}
-              title="Acessar o Onboarding Get Started e Calibrar o Balder"
-            >
-              <div className="profile-gs-top">
-                <div className="profile-gs-badge-tag">
-                  <Sparkles size={13} className="text-amber-400" />
-                  <span className="profile-gs-title">Get Started</span>
+          {/* Botão Get Started com Percentual logo Abaixo do Perfil (oculto quando 100%) */}
+          {completionPercentage < 100 && (
+            <div className="profile-getstarted-quick-box">
+              <button
+                type="button"
+                className="profile-getstarted-btn"
+                onClick={() => {
+                  if (onOpenOnboarding) {
+                    onOpenOnboarding(!hasCheckpoint ? 1 : !hasInvoices ? 2 : 3);
+                  }
+                }}
+                title="Acessar o Onboarding Get Started e Calibrar o Balder"
+              >
+                <div className="profile-gs-top">
+                  <div className="profile-gs-badge-tag">
+                    <Sparkles size={13} className="text-amber-400" />
+                    <span className="profile-gs-title">Get Started</span>
+                  </div>
+                  <span className={`profile-gs-pct-badge ${completionPercentage === 100 ? 'done' : 'pending'}`}>
+                    {completionPercentage}%
+                  </span>
                 </div>
-                <span className={`profile-gs-pct-badge ${completionPercentage === 100 ? 'done' : 'pending'}`}>
-                  {completionPercentage}%
-                </span>
-              </div>
 
-              <div className="profile-gs-progress-bar">
-                <div
-                  className="profile-gs-progress-fill"
-                  style={{ width: `${Math.max(completionPercentage, 6)}%` }}
-                />
-              </div>
+                <div className="profile-gs-progress-bar">
+                  <div
+                    className="profile-gs-progress-fill"
+                    style={{ width: `${Math.max(completionPercentage, 6)}%` }}
+                  />
+                </div>
 
-              <div className="profile-gs-bottom">
-                <span className="profile-gs-status-text">
-                  {completionPercentage === 100
-                    ? '100% Calibrado e Concluído'
-                    : `${completedSteps} de 3 passos definidos`}
-                </span>
-                <ChevronRight size={14} className="profile-gs-arrow" />
-              </div>
-            </button>
-          </div>
+                <div className="profile-gs-bottom">
+                  <span className="profile-gs-status-text">
+                    {completionPercentage === 100
+                      ? '100% Calibrado e Concluído'
+                      : `${completedSteps} de 3 passos definidos`}
+                  </span>
+                  <ChevronRight size={14} className="profile-gs-arrow" />
+                </div>
+              </button>
+            </div>
+          )}
 
           {/* Botão Drop-Down Móvel com os itens do card principal */}
           <div className="profile-mobile-dropdown-wrapper" ref={dropdownRef}>

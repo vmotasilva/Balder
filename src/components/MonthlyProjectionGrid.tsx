@@ -208,13 +208,13 @@ export const MonthlyProjectionGrid: React.FC = () => {
             <span className="badge badge-cyan text-xs">VISÃO GERAL GLANCEABLE</span>
             <span className="text-xs text-muted">Fluxo de Caixa Macro</span>
           </div>
-          <h2 className="text-lg font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+          <h2 className="text-lg font-bold flex items-center gap-2 monthly-projection-heading hide-on-mobile" style={{ color: 'var(--text-primary)' }}>
             <span>Projeção Orçamentária Mês a Mês</span>
             <span className="text-xs font-normal dre-competence-badge px-2 py-0.5 rounded">
               DRE Sintética
             </span>
           </h2>
-          <p className="text-xs text-secondary mt-1">
+          <p className="text-xs text-secondary mt-1 monthly-projection-subtext hide-on-mobile">
             Visão consolidada sem rolagem. Clique nas células de <strong>Entradas</strong> ou <strong>Saídas</strong> para inspecionar o detalhamento completo dos lançamentos.
           </p>
         </div>
