@@ -15,11 +15,8 @@ import {
   X,
   Check,
   Settings,
-  Smartphone,
-  Download,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { AndroidDownloadModal } from './AndroidDownloadModal';
 
 export type TabId = 'DASHBOARD' | 'MOVIMENTACOES' | 'FATURAS' | 'NATUREZAS' | 'EMPRESTIMOS' | 'COPILOT' | 'METAS' | 'PERFIL';
 
@@ -44,7 +41,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [internalOpen, setInternalOpen] = useState(false);
 
   const isMenuOpen = isOpen !== undefined ? isOpen : internalOpen;
-  const [showAndroidModal, setShowAndroidModal] = useState(false);
   const setIsMenuOpen = (open: boolean) => {
     if (onOpenChange) {
       onOpenChange(open);
@@ -384,29 +380,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setShowAndroidModal(true)}
-                title="Baixar App Android (APK)"
-                className="sidebar-android-btn"
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--text-muted, #94a3b8)',
-                  cursor: 'pointer',
-                  padding: '6px',
-                  borderRadius: '6px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'color 0.2s',
-                  flexShrink: 0,
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = '#38bdf8')}
-                onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted, #94a3b8)')}
-              >
-                <Smartphone size={16} />
-              </button>
-              <button
-                type="button"
                 onClick={logout}
                 title="Sair da Conta"
                 style={{
@@ -596,26 +569,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
               </button>
 
-              {/* Botão Baixar App Android */}
-              <button
-                type="button"
-                className="mobile-nav-android-btn"
-                onClick={() => {
-                  setIsMenuOpen(false);
-                  setShowAndroidModal(true);
-                }}
-                title="Baixar App Balder para Android (APK)"
-              >
-                <div className="android-nav-icon-box">
-                  <Smartphone size={16} />
-                </div>
-                <div className="android-nav-info">
-                  <span className="android-nav-title">App Android</span>
-                  <span className="android-nav-sub">Baixar APK v1.0</span>
-                </div>
-                <Download size={14} className="android-nav-download-icon" />
-              </button>
-
               {/* Botão Sair */}
               <button
                 type="button"
@@ -634,12 +587,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Modal de Download do App Android */}
-      <AndroidDownloadModal
-        isOpen={showAndroidModal}
-        onClose={() => setShowAndroidModal(false)}
-      />
     </>
   );
 };

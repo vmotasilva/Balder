@@ -9,6 +9,7 @@ import {
   Sliders,
   FileSpreadsheet,
   ShieldCheck,
+  Smartphone,
   Download,
   CheckCircle2,
   ChevronRight,
@@ -81,7 +82,7 @@ export const ProfilePage: React.FC = () => {
   const { theme, setTheme } = useTheme();
 
   const [activeSubTab, setActiveSubTab] = useState<
-    'PERFIL' | 'ASSINATURA' | 'SALARIO' | 'MARCOS' | 'CONTAS' | 'BANCOS' | 'CATEGORIAS' | 'PREFERENCIAS' | 'EXPORTACOES' | 'SEGURANCA'
+    'PERFIL' | 'ASSINATURA' | 'APP_ANDROID' | 'SALARIO' | 'MARCOS' | 'CONTAS' | 'BANCOS' | 'CATEGORIAS' | 'PREFERENCIAS' | 'EXPORTACOES' | 'SEGURANCA'
   >('PERFIL');
   const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'YEARLY'>('MONTHLY');
   const [subscriptionSuccessMsg, setSubscriptionSuccessMsg] = useState<string | null>(null);
@@ -215,6 +216,7 @@ export const ProfilePage: React.FC = () => {
   const PROFILE_NAV_ITEMS = [
     { id: 'PERFIL' as const, label: 'Perfil & Dados Pessoais', icon: User, count: null },
     { id: 'ASSINATURA' as const, label: 'Plano & Assinatura', icon: Crown, count: 'PRO' },
+    { id: 'APP_ANDROID' as const, label: 'Aplicativo Android (APK)', icon: Smartphone, count: 'v1.0' },
     { id: 'SALARIO' as const, label: 'Remuneração & Salário', icon: Briefcase, count: salaryContracts.length },
     { id: 'MARCOS' as const, label: 'Marcos de Início', icon: Flag, count: checkpoints.length },
     { id: 'CONTAS' as const, label: 'Contas & Meios', icon: CreditCard, count: accounts.length + cards.length },
@@ -817,6 +819,115 @@ export const ProfilePage: React.FC = () => {
                 >
                   Pausar ou cancelar assinatura
                 </button>
+              </div>
+            </div>
+          )}
+
+          {activeSubTab === 'APP_ANDROID' && (
+            <div className="subtab-content animate-fade-in">
+              <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3>Aplicativo Android</h3>
+                    <span className="badge-pill badge-pill-emerald">APK Nativo</span>
+                    <span className="badge-pill" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)' }}>v1.0.0</span>
+                    <span className="badge-pill" style={{ background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-muted)', border: '1px solid rgba(255, 255, 255, 0.1)' }}>~33 MB</span>
+                  </div>
+                  <p className="subtab-desc">Instalação oficial e direta do Balder no seu smartphone Android sem intermediários</p>
+                </div>
+              </div>
+
+              {/* Card Destaque de Download */}
+              <div className="android-profile-card glass-card">
+                <div className="android-profile-card-header">
+                  <div className="android-profile-icon-box">
+                    <Smartphone size={28} className="text-emerald" />
+                  </div>
+                  <div className="android-profile-header-info">
+                    <h4>Balder Mobile para Android</h4>
+                    <p>Experiência móvel nativa e ultra-rápida, sincronizada em tempo real com seu workspace na nuvem.</p>
+                  </div>
+                </div>
+
+                <div className="android-profile-highlights-grid">
+                  <div className="android-feature-item">
+                    <ShieldCheck size={18} className="text-cyan shrink-0" />
+                    <div>
+                      <strong className="block text-xs text-white">Multi-tenant com Supabase RLS</strong>
+                      <span className="text-xs text-muted">Isolamento rigoroso por usuário e criptografia de ponta a ponta</span>
+                    </div>
+                  </div>
+                  <div className="android-feature-item">
+                    <Sparkles size={18} className="text-amber shrink-0" />
+                    <div>
+                      <strong className="block text-xs text-white">Forseti IA com Scanner OCR</strong>
+                      <span className="text-xs text-muted">Auditoria e leitura de cupons com purge de memória temporária</span>
+                    </div>
+                  </div>
+                  <div className="android-feature-item">
+                    <CheckCircle2 size={18} className="text-emerald shrink-0" />
+                    <div>
+                      <strong className="block text-xs text-white">Gestão Rápida & Simulador PRICE</strong>
+                      <span className="text-xs text-muted">Controle total de amortizações, faturas e fluxo de caixa na palma da mão</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botão de Download Principal */}
+                <div className="android-profile-dl-action">
+                  <a
+                    href="/balder-android.apk"
+                    download="balder-android.apk"
+                    className="android-download-btn cursor-pointer"
+                  >
+                    <div className="android-dl-icon-circle">
+                      <Download size={22} className="text-white" />
+                    </div>
+                    <div className="android-dl-btn-text">
+                      <span className="android-dl-btn-title">Baixar Pacote APK Nativo (.apk)</span>
+                      <span className="android-dl-btn-meta">balder-android.apk • Tamanho: 32,9 MB • Arquitetura Universal (Release)</span>
+                    </div>
+                  </a>
+                </div>
+
+                {/* Especificações Técnicas */}
+                <div className="android-profile-specs-grid">
+                  <div className="spec-box">
+                    <span className="spec-label">Identificador do Pacote</span>
+                    <span className="spec-value">com.balder.financial</span>
+                  </div>
+                  <div className="spec-box">
+                    <span className="spec-label">Versão do Aplicativo</span>
+                    <span className="spec-value">1.0.0 (Build 1)</span>
+                  </div>
+                  <div className="spec-box">
+                    <span className="spec-label">Compatibilidade Mínima</span>
+                    <span className="spec-value">Android 8.0 (API 26) ou superior</span>
+                  </div>
+                  <div className="spec-box">
+                    <span className="spec-label">Status da Assinatura</span>
+                    <span className="spec-value text-emerald font-semibold">Assinado Oficialmente (v1/v2)</span>
+                  </div>
+                </div>
+
+                {/* Guia de Instalação Passo a Passo */}
+                <div className="android-install-guide mt-2">
+                  <div className="guide-title-row">
+                    <AlertTriangle size={16} className="text-amber" />
+                    <h4>Como instalar no seu celular Android em 3 passos:</h4>
+                  </div>
+                  <ol className="guide-steps-list">
+                    <li>
+                      <strong>1. Baixe o pacote:</strong> Toque no botão verde acima. Se o seu navegador exibir um aviso sobre arquivos APK externos (ex: <em>"O arquivo pode ser nocivo"</em>), toque em <strong>Fazer o download mesmo assim</strong>.
+                    </li>
+                    <li>
+                      <strong>2. Autorize a instalação:</strong> Abra o arquivo baixado através da barra de notificações ou da pasta <em>Downloads</em> do seu celular. Caso o sistema solicite permissão, toque em <strong>Configurações</strong> e ative <strong>"Permitir desta fonte"</strong>.
+                    </li>
+                    <li>
+                      <strong>3. Conclua a instalação:</strong> Toque em <strong>Instalar</strong>. Em seguida, toque em <strong>Abrir</strong> e faça login com sua conta do Balder.
+                    </li>
+                  </ol>
+                </div>
               </div>
             </div>
           )}

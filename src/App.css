@@ -14370,3 +14370,126 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   color: #475569;
 }
 
+/* ==========================================================================
+   Android APK Tab inside Profile Page (Aba App Android no Perfil)
+   ========================================================================== */
+
+.android-profile-card {
+  padding: 1.5rem;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(6, 182, 212, 0.05) 50%, rgba(15, 23, 42, 0.6) 100%);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.android-profile-card-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.android-profile-icon-box {
+  width: 50px;
+  height: 50px;
+  border-radius: 14px;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.android-profile-header-info h4 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary, #f8fafc);
+  margin: 0;
+}
+
+.android-profile-header-info p {
+  font-size: 0.82rem;
+  color: var(--text-secondary, #cbd5e1);
+  margin: 4px 0 0 0;
+}
+
+.android-profile-highlights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.android-profile-dl-action {
+  width: 100%;
+}
+
+.android-profile-specs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.spec-box {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  padding: 10px 14px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.spec-label {
+  font-size: 0.7rem;
+  color: var(--text-muted, #94a3b8);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.spec-value {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary, #f8fafc);
+}
+
+/* Light Theme support for Android Profile Tab */
+[data-theme="light"] .android-profile-card {
+  background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
+  border-color: #86efac;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .android-profile-header-info h4 {
+  color: #0f172a;
+}
+
+[data-theme="light"] .android-profile-header-info p {
+  color: #475569;
+}
+
+[data-theme="light"] .android-profile-highlights-grid {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .spec-box {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .spec-label {
+  color: #64748b;
+}
+
+[data-theme="light"] .spec-value {
+  color: #0f172a;
+}
+
+
