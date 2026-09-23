@@ -91,7 +91,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             )}
           </div>
           <h1 className="page-title">Meu Dinheiro</h1>
-          <p className="page-subtitle">Sua visão consolidada de patrimônio, liquidez imediata e futuro projetado</p>
+          <p className="page-subtitle dashboard-page-subtitle">
+            Sua visão consolidada de patrimônio, liquidez imediata e futuro projetado
+          </p>
         </div>
 
         <div className="page-header-actions flex items-center gap-2">
@@ -99,6 +101,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             onOpenSimulation={onOpenSimulation}
             onNavigateToLoans={onNavigateToLoans}
             onOpenPrepayment={onOpenPrepayment}
+            onOpenCheckpoint={() => setIsCheckpointModalOpen(true)}
             size="sm"
           />
           <button className="btn btn-secondary" onClick={onNavigateToCopilot}>
@@ -108,29 +111,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
       </div>
 
-      {/* Banner de Primeiro Uso (Sem Checkpoint Ativo) */}
+      {/* Botão de Ponto de Partida: Aparece apenas se NÃO houver marco definido */}
       {!activeCheckpoint && (
-        <div className="glass-card mb-6 p-4 md:p-5 border-l-4 border-l-indigo-500 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-gradient-to-r from-indigo-950/40 via-slate-900/60 to-slate-900/40 rounded-2xl">
-          <div className="flex items-start gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 mt-0.5">
-              <Flag size={20} />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                Defina seu Marco de Acompanhamento Financeiro
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  Recomendado
-                </span>
-              </h3>
-              <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-                Defina a data de início e o saldo em caixa para ancorar suas projeções e saldos. Se precisar recomeçar no futuro, você poderá criar um novo marco a qualquer momento.
-              </p>
-            </div>
-          </div>
+        <div className="mb-5 flex items-center">
           <button
             type="button"
             onClick={() => setIsCheckpointModalOpen(true)}
-            className="btn btn-primary whitespace-nowrap self-stretch md:self-auto text-xs py-2.5 px-4 shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2"
+            className="btn btn-primary text-xs py-2 px-4 shadow-lg flex items-center gap-2 cursor-pointer"
           >
             <Flag size={14} />
             <span>Definir Ponto de Partida</span>
@@ -464,6 +451,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
               onOpenSimulation={onOpenSimulation}
               onNavigateToLoans={onNavigateToLoans}
               onOpenPrepayment={onOpenPrepayment}
+              onOpenCheckpoint={() => setIsCheckpointModalOpen(true)}
               buttonLabel="Ações Rápidas"
               size="lg"
             />
