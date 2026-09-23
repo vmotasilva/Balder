@@ -13336,64 +13336,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   transform: translateY(2px);
 }
 
-/* Floating Navigator Android Button */
-.mobile-nav-android-btn {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(56, 189, 248, 0.08) 100%);
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  color: var(--text-primary, #f8fafc);
-  cursor: pointer;
-  text-align: left;
-  transition: all 0.2s ease;
-}
 
-.mobile-nav-android-btn:hover,
-.mobile-nav-android-btn:active {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(56, 189, 248, 0.15) 100%);
-  border-color: rgba(16, 185, 129, 0.5);
-  transform: scale(0.99);
-}
-
-.android-nav-icon-box {
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: rgba(16, 185, 129, 0.2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #34d399;
-  flex-shrink: 0;
-}
-
-.android-nav-info {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-}
-
-.android-nav-title {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #34d399;
-  line-height: 1.2;
-}
-
-.android-nav-sub {
-  font-size: 0.68rem;
-  color: var(--text-muted, #94a3b8);
-}
-
-.android-nav-download-icon {
-  color: #34d399;
-  flex-shrink: 0;
-}
 
 /* Android Download Modal */
 .android-download-overlay {
@@ -13648,19 +13591,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   color: #64748b;
 }
 
-[data-theme="light"] .mobile-nav-android-btn {
-  background: #f0fdf4;
-  border-color: #86efac;
-  color: #0f172a;
-}
 
-[data-theme="light"] .mobile-nav-android-btn:hover {
-  background: #dcfce7;
-}
-
-[data-theme="light"] .android-nav-title {
-  color: #059669;
-}
 
 [data-theme="light"] .android-download-modal {
   background: #ffffff;
