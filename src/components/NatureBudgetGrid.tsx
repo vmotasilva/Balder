@@ -8,6 +8,8 @@ import {
   Edit3,
   X,
   AlertTriangle,
+  LayoutGrid,
+  Table,
 } from 'lucide-react';
 import type { ExpenseNature, MonthlyGridProjectionRow, MappingItem } from '../types';
 import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
@@ -62,6 +64,8 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
   const [searchTerm, setSearchTerm] = useState<string>('');
   // Filtro de status: ALL, OVER (Acima do teto), WITHIN (Dentro do teto)
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'OVER' | 'WITHIN'>('ALL');
+  // Modo de exibição: CARDS (padrão otimizado) ou TABLE
+  const [viewMode, setViewMode] = useState<'CARDS' | 'TABLE'>('CARDS');
   // Estado para abrir modal de edição de observação da natureza
   const [editingNatureId, setEditingNatureId] = useState<string | null>(null);
   const [editingObservationText, setEditingObservationText] = useState<string>('');
@@ -480,6 +484,36 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
             )}
           </div>
 
+          {/* Seletor de Modo de Visualização: Cards vs Tabela */}
+          <div className="flex items-center p-0.5 rounded-lg border border-border/50 text-xs" style={{ background: 'var(--bg-app)' }}>
+            <button
+              type="button"
+              onClick={() => setViewMode('CARDS')}
+              className={`px-2.5 py-1 rounded font-medium flex items-center gap-1.5 transition cursor-pointer ${
+                viewMode === 'CARDS'
+                  ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 font-bold'
+                  : 'text-muted hover:text-primary'
+              }`}
+              title="Exibir Naturezas como Cards (Otimizado para Espaço)"
+            >
+              <LayoutGrid size={13} />
+              <span>Cards</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('TABLE')}
+              className={`px-2.5 py-1 rounded font-medium flex items-center gap-1.5 transition cursor-pointer ${
+                viewMode === 'TABLE'
+                  ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 font-bold'
+                  : 'text-muted hover:text-primary'
+              }`}
+              title="Exibir Naturezas como Tabela Tradicional"
+            >
+              <Table size={13} />
+              <span>Tabela</span>
+            </button>
+          </div>
+
           {/* Atalho para Gerenciar Naturezas */}
           {onNavigateToNatures && (
             <button
@@ -547,9 +581,10 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
         </div>
       </div>
 
-      {/* Tabela do Grid de Naturezas (Desktop) */}
-      <div className="nature-table-wrapper nature-table-desktop-view">
-        <table className="nature-budget-table">
+      {viewMode === 'TABLE' ? (
+        /* Visualização em Tabela Tradicional */
+        <div className="nature-table-wrapper">
+          <table className="nature-budget-table">
           <thead>
             <tr>
               <th style={{ width: '22%', minWidth: '190px' }}>Natureza</th>
@@ -788,184 +823,205 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
           </tfoot>
         </table>
       </div>
-
-      {/* Lista de Cards de Naturezas (Versão Mobile em Cards) */}
-      <div className="nature-cards-mobile-view">
-        {filteredRows.map((row) => (
-          <div
-            key={row.natureId}
-            className={`nature-mobile-card ${
-              row.hasAttentionPoint
-                ? row.attentionType === 'OVER_CEILING'
-                  ? 'card-attention-rose'
-                  : 'card-attention-amber'
-                : ''
-            }`}
-            onClick={() => handleOpenNatureDetail(row)}
-            title="Toque para ver os lançamentos desta natureza"
-          >
-            {/* Header do Card: Nome, Tipo e Status do Teto */}
-            <div className="nature-card-header">
-              <div className="flex items-center gap-2 min-w-0">
-                <div
-                  className="nature-color-dot flex-shrink-0"
-                  style={{
-                    backgroundColor: row.color || '#38BDF8',
-                    width: '12px',
-                    height: '12px',
-                    borderRadius: '50%',
-                    boxShadow: `0 0 6px ${row.color || '#38BDF8'}66`,
-                  }}
-                />
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <strong className="text-xs font-bold text-primary truncate max-w-[170px]">
-                      {row.name}
-                    </strong>
-                    <span className="badge badge-pill text-[9px] uppercase tracking-wider flex-shrink-0">
-                      {row.type}
+      ) : (
+        /* Visualização em Cards Otimizada para Espaço (Desktop e Mobile) */
+        <div className="nature-cards-grid-view">
+          {filteredRows.map((row) => (
+            <div
+              key={row.natureId}
+              className={`nature-card-item ${
+                row.hasAttentionPoint
+                  ? row.attentionType === 'OVER_CEILING'
+                    ? 'card-attention-rose'
+                    : 'card-attention-amber'
+                  : ''
+              }`}
+              onClick={() => handleOpenNatureDetail(row)}
+              title="Clique para ver os lançamentos desta natureza"
+            >
+              {/* Header do Card: Nome, Tipo e Status do Teto */}
+              <div className="nature-card-header">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div
+                    className="nature-color-dot flex-shrink-0"
+                    style={{
+                      backgroundColor: row.color || '#38BDF8',
+                      width: '11px',
+                      height: '11px',
+                      borderRadius: '50%',
+                      boxShadow: `0 0 6px ${row.color || '#38BDF8'}80`,
+                    }}
+                  />
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <strong className="text-xs font-bold truncate max-w-[150px]" style={{ color: 'var(--text-primary)' }}>
+                        {row.name}
+                      </strong>
+                      <span className="badge badge-pill text-[9px] uppercase tracking-wider flex-shrink-0">
+                        {row.type}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-muted block">
+                      {row.routinesCount} rotinas • {row.itemsCount} itens
                     </span>
                   </div>
-                  <span className="text-[10px] text-muted block">
-                    {row.routinesCount} rotinas • {row.itemsCount} itens
+                </div>
+
+                {/* Status do Teto e Ação de Editar Nota */}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <span
+                    className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full ${
+                      row.isOverCeiling
+                        ? 'bg-rose-500/20 text-rose border border-rose-500/30'
+                        : 'bg-emerald-500/20 text-emerald border border-emerald-500/30'
+                    }`}
+                  >
+                    {row.isOverCeiling ? '⚠️ Acima' : '✓ No Teto'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingNatureId(row.natureId);
+                      setEditingObservationText(row.customNotes || '');
+                    }}
+                    className="p-1 text-muted hover:text-cyan-400 rounded transition cursor-pointer"
+                    title="Editar anotação personalizada"
+                  >
+                    <Edit3 size={12} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Barra de Progresso Visual de Aderência */}
+              <div className="nature-card-progress-wrap mt-2">
+                <div className="flex items-center justify-between text-[10px] mb-1">
+                  <span className="text-muted font-medium">Consumo do Teto</span>
+                  <span className={`font-mono font-bold ${row.isOverCeiling ? 'text-rose' : 'text-emerald'}`}>
+                    {row.percentUsed}% gasto
+                  </span>
+                </div>
+                <div className="w-full bg-slate-800/80 dark:bg-slate-800/80 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-300 ${
+                      row.isOverCeiling
+                        ? 'bg-rose-500'
+                        : row.percentUsed > 80
+                        ? 'bg-amber-500'
+                        : 'bg-emerald-500'
+                    }`}
+                    style={{ width: `${Math.min(row.percentUsed, 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Grid de 3 Valores Financeiros */}
+              <div className="nature-card-metrics-grid mt-2">
+                <div className="nature-card-metric-col">
+                  <span className="nature-card-metric-label">Previsto</span>
+                  <span className="nature-card-metric-val font-mono font-medium text-xs">{formatBRL(row.plannedAmount)}</span>
+                </div>
+                <div className="nature-card-metric-col">
+                  <span className="nature-card-metric-label">Realizado</span>
+                  <span className="nature-card-metric-val font-mono font-bold text-xs" style={{ color: 'var(--text-primary)' }}>
+                    {formatBRL(row.realizedAmount)}
+                  </span>
+                </div>
+                <div className="nature-card-metric-col text-right">
+                  <span className="nature-card-metric-label">Diferença</span>
+                  <span
+                    className={`nature-card-metric-val font-mono font-bold text-xs ${
+                      row.diffAmount >= 0 ? 'text-emerald' : 'text-rose'
+                    }`}
+                  >
+                    {row.diffAmount >= 0 ? `+${formatBRL(row.diffAmount)}` : `-${formatBRL(Math.abs(row.diffAmount))}`}
                   </span>
                 </div>
               </div>
 
-              {/* Status do Teto e Edição de Nota */}
-              <div className="flex items-center gap-1.5 flex-shrink-0">
-                <span
-                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                    row.isOverCeiling
-                      ? 'bg-rose-500/20 text-rose border border-rose-500/30'
-                      : 'bg-emerald-500/20 text-emerald border border-emerald-500/30'
-                  }`}
-                >
-                  {row.isOverCeiling ? '⚠️ Acima' : '✓ No Teto'}
-                </span>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditingNatureId(row.natureId);
-                    setEditingObservationText(row.customNotes || '');
-                  }}
-                  className="p-1 text-muted hover:text-cyan-400 rounded transition"
-                  title="Editar observação"
-                >
-                  <Edit3 size={13} />
-                </button>
-              </div>
-            </div>
-
-            {/* Barra de Progresso Visual de Aderência */}
-            <div className="nature-card-progress-wrap mt-2">
-              <div className="flex items-center justify-between text-[10px] mb-1">
-                <span className="text-muted">Consumo do Teto</span>
-                <span className={`font-mono font-bold ${row.isOverCeiling ? 'text-rose' : 'text-emerald'}`}>
-                  {row.percentUsed}% gasto
-                </span>
-              </div>
-              <div className="w-full bg-slate-800/80 dark:bg-slate-800/80 rounded-full h-1.5 overflow-hidden">
+              {/* Observações / Ponto de Atenção se houver */}
+              {row.hasAttentionPoint && row.observations !== '-' && (
                 <div
-                  className={`h-full rounded-full transition-all duration-300 ${
-                    row.isOverCeiling ? 'bg-rose-500' : 'bg-emerald-500'
-                  }`}
-                  style={{ width: `${Math.min(row.percentUsed, 100)}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Grid de 3 Valores Financeiros */}
-            <div className="nature-card-metrics-grid mt-2.5">
-              <div className="nature-card-metric-col">
-                <span className="nature-card-metric-label">Previsto</span>
-                <span className="nature-card-metric-val font-mono">{formatBRL(row.plannedAmount)}</span>
-              </div>
-              <div className="nature-card-metric-col">
-                <span className="nature-card-metric-label">Realizado</span>
-                <span className="nature-card-metric-val font-mono font-bold text-primary">{formatBRL(row.realizedAmount)}</span>
-              </div>
-              <div className="nature-card-metric-col text-right">
-                <span className="nature-card-metric-label">Diferença</span>
-                <span
-                  className={`nature-card-metric-val font-mono font-bold ${
-                    row.diffAmount >= 0 ? 'text-emerald' : 'text-rose'
+                  className={`obs-attention-chip mt-2 ${
+                    row.attentionType === 'OVER_CEILING' ? 'rose' : 'amber'
                   }`}
                 >
-                  {row.diffAmount >= 0 ? `+${formatBRL(row.diffAmount)}` : `-${formatBRL(Math.abs(row.diffAmount))}`}
-                </span>
-              </div>
-            </div>
+                  <div className="obs-attention-chip-header">
+                    <AlertTriangle size={11} className="flex-shrink-0" />
+                    <span className="obs-attention-chip-label">
+                      {row.attentionType === 'OVER_CEILING' ? 'Atenção • Estouro' : 'Atenção • Gasto Atípico'}
+                    </span>
+                  </div>
+                  <p className="obs-attention-chip-text line-clamp-2">{row.observations}</p>
+                </div>
+              )}
 
-            {/* Observações / Ponto de Atenção se houver */}
-            {row.hasAttentionPoint && row.observations !== '-' && (
-              <div
-                className={`obs-attention-chip mt-2.5 ${
-                  row.attentionType === 'OVER_CEILING' ? 'rose' : 'amber'
-                }`}
-              >
-                <div className="obs-attention-chip-header">
-                  <AlertTriangle size={11} className="flex-shrink-0" />
-                  <span className="obs-attention-chip-label">
-                    {row.attentionType === 'OVER_CEILING' ? 'Atenção • Estouro do Teto' : 'Atenção • Gasto Atípico'}
+              {/* Rodapé do Card com Última Transação */}
+              {row.lastTransaction && (
+                <div className="nature-card-footer mt-2 pt-2 border-t border-border/30 flex items-center justify-between text-[10px]">
+                  <div className="flex items-center gap-1 min-w-0 text-muted">
+                    <span className="font-mono font-medium text-slate-300 dark:text-slate-300">{row.lastTransaction.dateFormatted}</span>
+                    {row.lastTransaction.cardName && (
+                      <span className="badge badge-cyan text-[8.5px] px-1 py-0.2">
+                        {row.lastTransaction.cardName.split(' ')[0]}
+                      </span>
+                    )}
+                    <span>•</span>
+                    <span className="truncate max-w-[95px]">{row.lastTransaction.description}</span>
+                  </div>
+                  <span className="font-mono font-bold text-emerald flex-shrink-0">
+                    {formatBRL(row.lastTransaction.amount)}
                   </span>
                 </div>
-                <p className="obs-attention-chip-text">{row.observations}</p>
-              </div>
-            )}
+              )}
+            </div>
+          ))}
 
-            {/* Rodapé do Card com Última Transação */}
-            {row.lastTransaction && (
-              <div className="nature-card-footer mt-2 pt-2 border-t border-border/30 flex items-center justify-between text-[10px]">
-                <div className="flex items-center gap-1 min-w-0 text-muted">
-                  <span className="font-mono font-medium text-slate-300 dark:text-slate-300">{row.lastTransaction.dateFormatted}</span>
-                  {row.lastTransaction.cardName && (
-                    <span className="badge badge-cyan text-[8.5px] px-1 py-0.2">
-                      {row.lastTransaction.cardName.split(' ')[0]}
-                    </span>
-                  )}
-                  <span>•</span>
-                  <span className="truncate max-w-[110px]">{row.lastTransaction.description}</span>
+          {filteredRows.length === 0 && (
+            <div className="glass-card text-center py-8 text-muted text-xs col-span-full" style={{ width: '100%' }}>
+              Nenhuma natureza encontrada para o filtro selecionado.
+            </div>
+          )}
+
+          {/* Card de Totais Consolidados das Naturezas */}
+          {filteredRows.length > 0 && (
+            <div className="nature-consolidated-card">
+              <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-primary)' }}>
+                    Total Consolidado ({filteredRows.length} naturezas)
+                  </span>
+                  <span className="text-[10px] text-muted">Competência {currentRow?.competenceLabel}</span>
                 </div>
-                <span className="font-mono font-bold text-emerald flex-shrink-0">
-                  {formatBRL(row.lastTransaction.amount)}
+                <span className="badge badge-cyan text-[10px] font-bold">{summaryTotals.avgPct}% aderência</span>
+              </div>
+              <div className="grid grid-cols-3 gap-3 mt-2 text-center">
+                <div className="p-1.5 rounded-lg bg-black/10 dark:bg-black/20">
+                  <span className="text-[10px] text-muted block uppercase font-semibold">Previsto Total</span>
+                  <span className="font-mono font-bold text-xs" style={{ color: 'var(--text-primary)' }}>{formatBRL(summaryTotals.totalPlanned)}</span>
+                </div>
+                <div className="p-1.5 rounded-lg bg-black/10 dark:bg-black/20">
+                  <span className="text-[10px] text-muted block uppercase font-semibold">Realizado Total</span>
+                  <span className="font-mono font-bold text-xs" style={{ color: 'var(--text-primary)' }}>{formatBRL(summaryTotals.totalRealized)}</span>
+                </div>
+                <div className="p-1.5 rounded-lg bg-black/10 dark:bg-black/20">
+                  <span className="text-[10px] text-muted block uppercase font-semibold">Saldo / Estouro</span>
+                  <span className={`font-mono font-bold text-xs ${summaryTotals.totalDiff >= 0 ? 'text-emerald' : 'text-rose'}`}>
+                    {summaryTotals.totalDiff >= 0 ? `+${formatBRL(summaryTotals.totalDiff)}` : `-${formatBRL(Math.abs(summaryTotals.totalDiff))}`}
+                  </span>
+                </div>
+              </div>
+              <div className="mt-2 text-center">
+                <span className="text-[11px] text-muted">
+                  {summaryTotals.overCount > 0
+                    ? `⚠️ ${summaryTotals.overCount} naturezas acima do teto estipulado.`
+                    : '✓ Todas as naturezas estão em estrita conformidade orçamentária.'}
                 </span>
               </div>
-            )}
-          </div>
-        ))}
-
-        {filteredRows.length === 0 && (
-          <div className="glass-card text-center py-6 text-muted text-xs">
-            Nenhuma natureza encontrada para o filtro selecionado.
-          </div>
-        )}
-
-        {/* Card de Totais Consolidados das Naturezas no Mobile */}
-        <div className="nature-mobile-totals-card">
-          <div className="flex items-center justify-between pb-2 border-b border-border/40">
-            <span className="text-xs font-bold uppercase tracking-wider text-primary">Consolidado ({filteredRows.length} naturezas)</span>
-            <span className="badge badge-cyan text-[10px]">{summaryTotals.avgPct}% aderência</span>
-          </div>
-          <div className="grid grid-cols-3 gap-2 mt-2 text-center">
-            <div>
-              <span className="text-[10px] text-muted block">Previsto Total</span>
-              <span className="font-mono font-bold text-xs text-primary">{formatBRL(summaryTotals.totalPlanned)}</span>
             </div>
-            <div>
-              <span className="text-[10px] text-muted block">Realizado Total</span>
-              <span className="font-mono font-bold text-xs text-primary">{formatBRL(summaryTotals.totalRealized)}</span>
-            </div>
-            <div>
-              <span className="text-[10px] text-muted block">Diferença</span>
-              <span className={`font-mono font-bold text-xs ${summaryTotals.totalDiff >= 0 ? 'text-emerald' : 'text-rose'}`}>
-                {summaryTotals.totalDiff >= 0 ? `+${formatBRL(summaryTotals.totalDiff)}` : `-${formatBRL(Math.abs(summaryTotals.totalDiff))}`}
-              </span>
-            </div>
-          </div>
+          )}
         </div>
-      </div>
+      )}
 
       {/* Modal Inline Rápido para Editar Observação */}
       {editingNatureId && (
