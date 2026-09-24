@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useFinancial, buildSuggestedMappingsForNature } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { SupabaseService } from '../services/supabaseService';
+import { auditOnboardingProgress } from '../utils/onboardingProgress';
 import {
   Sparkles,
   Flag,
   CreditCard,
   Tag,
   CheckCircle2,
+  Clock,
   ArrowRight,
   ArrowLeft,
   X,
@@ -113,9 +115,26 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
     addSalaryContract,
     updateSalaryContract,
     salaryContracts,
+    movements,
+    cards,
   } = useFinancial();
 
   const [currentStep, setCurrentStep] = useState<number>(initialStep);
+
+  // Auditoria dos 5 pilares do Get Started
+  const onboardingAudit = useMemo(
+    () =>
+      auditOnboardingProgress({
+        activeCheckpoint,
+        salaryContracts,
+        movements,
+        cards,
+        accounts,
+        banks,
+        natures,
+      }),
+    [activeCheckpoint, salaryContracts, movements, cards, accounts, banks, natures]
+  );
 
   // -------------------------------------------------------------
   // PASSO 1: Ponto de Partida & Configuração de Salário
@@ -888,8 +907,17 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="onboarding-step-counter">
-              <span>Etapa {Math.min(currentStep, 3)} de 3</span>
+            <div className="flex items-center gap-2">
+              <span
+                className={`badge-pill text-xs font-semibold ${
+                  onboardingAudit.isAllComplete ? 'badge-pill-emerald' : 'badge-pill-amber'
+                }`}
+              >
+                {onboardingAudit.percent}% Calibrado
+              </span>
+              <div className="onboarding-step-counter">
+                <span>Etapa {Math.min(currentStep, 3)} de 3</span>
+              </div>
             </div>
             <button
               type="button"
@@ -916,6 +944,73 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                   : '100%',
             }}
           />
+        </div>
+
+        {/* Step Navigation Tabs with Progress Status */}
+        <div className="flex items-center justify-between gap-2 px-6 py-2 bg-white/5 border-b border-white/5 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap text-xs">
+            <button
+              type="button"
+              onClick={() => setCurrentStep(1)}
+              className={`px-3 py-1 rounded-full flex items-center gap-1.5 transition-colors cursor-pointer ${
+                currentStep === 1
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold'
+                  : 'bg-white/5 text-muted hover:text-white'
+              }`}
+            >
+              <span>1. Contas & Salário</span>
+              {onboardingAudit.steps.find((s) => s.id === 'checkpoint')?.isComplete &&
+              onboardingAudit.steps.find((s) => s.id === 'salary')?.isComplete ? (
+                <CheckCircle2 size={13} className="text-emerald-400" />
+              ) : (
+                <Clock size={13} className="text-amber-400" />
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCurrentStep(2)}
+              className={`px-3 py-1 rounded-full flex items-center gap-1.5 transition-colors cursor-pointer ${
+                currentStep === 2
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold'
+                  : 'bg-white/5 text-muted hover:text-white'
+              }`}
+            >
+              <span>2. Cartões & Faturas</span>
+              {onboardingAudit.steps.find((s) => s.id === 'invoices')?.isComplete ? (
+                <CheckCircle2 size={13} className="text-emerald-400" />
+              ) : (
+                <Clock size={13} className="text-amber-400" />
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCurrentStep(3)}
+              className={`px-3 py-1 rounded-full flex items-center gap-1.5 transition-colors cursor-pointer ${
+                currentStep === 3
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold'
+                  : 'bg-white/5 text-muted hover:text-white'
+              }`}
+            >
+              <span>3. Naturezas & IA</span>
+              {onboardingAudit.steps.find((s) => s.id === 'natures')?.isComplete &&
+              onboardingAudit.steps.find((s) => s.id === 'ai_mappings')?.isComplete ? (
+                <CheckCircle2 size={13} className="text-emerald-400" />
+              ) : (
+                <Clock size={13} className="text-amber-400" />
+              )}
+            </button>
+          </div>
+
+          {onboardingAudit.nextSuggestedStep && !onboardingAudit.isAllComplete && (
+            <span className="text-[11px] text-amber-300 flex items-center gap-1">
+              <Sparkles size={11} className="text-amber-400 shrink-0" />
+              <span>
+                Pendente: <strong>{onboardingAudit.nextSuggestedStep.shortLabel}</strong>
+              </span>
+            </span>
+          )}
         </div>
 
         {/* Stage Content */}

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   LayoutDashboard,
   ArrowLeftRight,
@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useFinancial } from '../context/FinancialContext';
+import { auditOnboardingProgress } from '../utils/onboardingProgress';
 
 export type TabId = 'DASHBOARD' | 'MOVIMENTACOES' | 'FATURAS' | 'NATUREZAS' | 'EMPRESTIMOS' | 'COPILOT' | 'METAS' | 'COMPARTILHADO' | 'PERFIL';
 
@@ -42,15 +43,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenOnboarding,
 }) => {
   const { user, logout } = useAuth();
-  const { activeCheckpoint, movements, cards, natures } = useFinancial();
+  const {
+    activeCheckpoint,
+    salaryContracts,
+    movements,
+    cards,
+    accounts,
+    banks,
+    natures,
+  } = useFinancial();
   const [internalOpen, setInternalOpen] = useState(false);
 
-  // Cálculo do progresso do Get Started (3 etapas vitais)
-  const hasCheckpoint = !!activeCheckpoint;
-  const hasInvoices = movements.some((m) => m.type === 'CARTAO') || cards.length > 0;
-  const hasNatures = natures.length > 0;
-  const completedSteps = (hasCheckpoint ? 1 : 0) + (hasInvoices ? 1 : 0) + (hasNatures ? 1 : 0);
-  const completionPercentage = Math.round((completedSteps / 3) * 100);
+  // Cálculo detalhado dos 5 pilares do Get Started
+  const onboardingAudit = useMemo(
+    () =>
+      auditOnboardingProgress({
+        activeCheckpoint,
+        salaryContracts,
+        movements,
+        cards,
+        accounts,
+        banks,
+        natures,
+      }),
+    [activeCheckpoint, salaryContracts, movements, cards, accounts, banks, natures]
+  );
+  const completionPercentage = onboardingAudit.percent;
+  const completedSteps = onboardingAudit.completedCount;
 
   const isMenuOpen = isOpen !== undefined ? isOpen : internalOpen;
   const setIsMenuOpen = (open: boolean) => {
@@ -430,7 +449,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 className="sidebar-gs-btn"
                 onClick={() => {
                   if (onOpenOnboarding) {
-                    onOpenOnboarding(!hasCheckpoint ? 1 : !hasInvoices ? 2 : 3);
+                    onOpenOnboarding(onboardingAudit.nextSuggestedStep?.stepIndex || 1);
                   }
                 }}
                 title="Acessar Get Started — Calibração Inicial"
@@ -640,7 +659,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onClick={() => {
                     setIsMenuOpen(false);
                     if (onOpenOnboarding) {
-                      onOpenOnboarding(!hasCheckpoint ? 1 : !hasInvoices ? 2 : 3);
+                      onOpenOnboarding(onboardingAudit.nextSuggestedStep?.stepIndex || 1);
                     }
                   }}
                   title="Acessar Get Started — Calibração do Sistema"

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import {
   Sparkles,
@@ -7,7 +7,10 @@ import {
   ArrowRight,
   ChevronDown,
   ChevronUp,
+  AlertCircle,
+  Lightbulb,
 } from 'lucide-react';
+import { auditOnboardingProgress } from '../utils/onboardingProgress';
 
 interface ForsetiSetupChecklistProps {
   onOpenOnboarding: (stepIndex?: number) => void;
@@ -16,34 +19,43 @@ interface ForsetiSetupChecklistProps {
 export const ForsetiSetupChecklist: React.FC<ForsetiSetupChecklistProps> = ({
   onOpenOnboarding,
 }) => {
-  const { activeCheckpoint, movements, cards, natures } = useFinancial();
+  const {
+    activeCheckpoint,
+    salaryContracts,
+    movements,
+    cards,
+    accounts,
+    banks,
+    natures,
+  } = useFinancial();
+
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // 1. Ponto de Partida definido?
-  const hasCheckpoint = !!activeCheckpoint;
-
-  // 2. Faturas em aberto cadastradas?
-  const cardMovements = movements.filter((m) => m.type === 'CARTAO');
-  const hasInvoices = cardMovements.length > 0 || cards.length > 0;
-
-  // 3. Naturezas cadastradas?
-  const hasNatures = natures.length > 0;
-
-  const completedSteps =
-    (hasCheckpoint ? 1 : 0) + (hasInvoices ? 1 : 0) + (hasNatures ? 1 : 0);
-  const isAllComplete = completedSteps === 3;
+  const audit = useMemo(
+    () =>
+      auditOnboardingProgress({
+        activeCheckpoint,
+        salaryContracts,
+        movements,
+        cards,
+        accounts,
+        banks,
+        natures,
+      }),
+    [activeCheckpoint, salaryContracts, movements, cards, accounts, banks, natures]
+  );
 
   // Se tudo estiver concluído e o usuário tiver recolhido, exibe apenas um mini badge discreto
-  if (isAllComplete && isCollapsed) {
+  if (audit.isAllComplete && isCollapsed) {
     return (
-      <div className="forseti-checklist-compact glass-card animate-fade-in">
+      <div className="forseti-checklist-compact glass-card animate-fade-in mb-4">
         <div className="flex items-center gap-2">
           <div className="forseti-compact-avatar">
             <img src="/forseti-avatar.png" alt="Forseti" className="w-5 h-5 rounded-full" />
             <span className="forseti-pulse-dot" />
           </div>
           <span className="text-xs font-semibold text-emerald-400">
-            Sistema 100% Calibrado pela Forseti
+            Sistema 100% Calibrado pela Forseti (5 de 5 Pilares)
           </span>
         </div>
         <button
@@ -51,7 +63,7 @@ export const ForsetiSetupChecklist: React.FC<ForsetiSetupChecklistProps> = ({
           className="text-xs text-muted hover:text-cyan flex items-center gap-1 cursor-pointer transition-colors"
           onClick={() => setIsCollapsed(false)}
         >
-          <span>Ver Detalhes</span>
+          <span>Ver Pilares</span>
           <ChevronDown size={14} />
         </button>
       </div>
@@ -60,8 +72,8 @@ export const ForsetiSetupChecklist: React.FC<ForsetiSetupChecklistProps> = ({
 
   return (
     <div
-      className={`forseti-setup-checklist-card glass-card animate-fade-in ${
-        isAllComplete ? 'completed-theme' : 'pending-theme'
+      className={`forseti-setup-checklist-card glass-card animate-fade-in mb-6 ${
+        audit.isAllComplete ? 'completed-theme' : 'pending-theme'
       }`}
     >
       <div className="checklist-header">
@@ -79,38 +91,34 @@ export const ForsetiSetupChecklist: React.FC<ForsetiSetupChecklistProps> = ({
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="checklist-title">
-                {isAllComplete
+                {audit.isAllComplete
                   ? 'Sistema 100% Calibrado pela Forseti'
-                  : 'Pendências da Forseti: Calibração Inicial do Sistema'}
+                  : 'Calibração do Balder: Pilares do Get Started'}
               </h3>
               <span
                 className={`badge-pill ${
-                  isAllComplete ? 'badge-pill-emerald' : 'badge-pill-amber'
+                  audit.isAllComplete ? 'badge-pill-emerald' : 'badge-pill-amber'
                 }`}
               >
-                {completedSteps} de 3 Concluídos
+                {audit.percent}% • {audit.completedCount} de {audit.totalCount} Concluídos
               </span>
             </div>
 
             <p className="checklist-subtitle">
-              {isAllComplete
-                ? 'Seu ponto de partida, faturas e tetos orçamentários estão sincronizados com precisão.'
-                : 'Para que a Forseti possa auditar seus gastos e projetar seu fluxo de 30 dias com precisão, conclua os 3 pilares:'}
+              {audit.summaryMessage}
             </p>
           </div>
         </div>
 
         <div className="checklist-header-actions">
-          {isAllComplete && (
-            <button
-              type="button"
-              className="btn-icon-ghost"
-              onClick={() => setIsCollapsed(true)}
-              title="Recolher aviso"
-            >
-              <ChevronUp size={16} />
-            </button>
-          )}
+          <button
+            type="button"
+            className="btn-icon-ghost"
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            title={isCollapsed ? 'Expandir checklist' : 'Recolher checklist'}
+          >
+            {isCollapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+          </button>
         </div>
       </div>
 
@@ -118,129 +126,90 @@ export const ForsetiSetupChecklist: React.FC<ForsetiSetupChecklistProps> = ({
       <div className="checklist-progress-bar">
         <div
           className="checklist-progress-fill"
-          style={{ width: `${(completedSteps / 3) * 100}%` }}
+          style={{ width: `${Math.max(audit.percent, 4)}%` }}
         />
       </div>
 
-      {/* Grid das 3 Pendências */}
-      <div className="checklist-steps-grid">
-        {/* Item 1: Ponto de Partida */}
-        <div className={`checklist-step-item ${hasCheckpoint ? 'done' : 'pending'}`}>
-          <div className="step-icon-container">
-            {hasCheckpoint ? (
-              <CheckCircle2 size={18} className="text-emerald" />
-            ) : (
-              <Clock size={18} className="text-amber" />
-            )}
-          </div>
-          <div className="step-content">
-            <div className="step-title-row">
-              <span className="step-title">1. Ponto de Partida</span>
-              <span className={`step-status-tag ${hasCheckpoint ? 'done' : 'pending'}`}>
-                {hasCheckpoint ? 'Definido' : 'Pendente'}
-              </span>
-            </div>
-            <p className="step-desc">
-              {hasCheckpoint
-                ? `Ancorado a partir de ${activeCheckpoint?.startDate.split('-').reverse().join('/')}`
-                : 'Defina a data e o saldo inicial em contas para ancorar o patrimônio.'}
-            </p>
-          </div>
-          {!hasCheckpoint && (
-            <button
-              type="button"
-              className="btn btn-outline btn-xs"
-              onClick={() => onOpenOnboarding(1)}
-            >
-              Definir
-            </button>
-          )}
-        </div>
+      {/* Grid dos 5 Pilares */}
+      {!isCollapsed && (
+        <>
+          <div className="checklist-steps-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
+            {audit.steps.map((step, idx) => {
+              const isDone = step.status === 'DONE';
+              const isPartial = step.status === 'PARTIAL';
 
-        {/* Item 2: Faturas em Aberto */}
-        <div className={`checklist-step-item ${hasInvoices ? 'done' : 'pending'}`}>
-          <div className="step-icon-container">
-            {hasInvoices ? (
-              <CheckCircle2 size={18} className="text-emerald" />
-            ) : (
-              <Clock size={18} className="text-amber" />
-            )}
-          </div>
-          <div className="step-content">
-            <div className="step-title-row">
-              <span className="step-title">2. Faturas em Aberto</span>
-              <span className={`step-status-tag ${hasInvoices ? 'done' : 'pending'}`}>
-                {hasInvoices ? 'Registradas' : 'Pendente'}
-              </span>
-            </div>
-            <p className="step-desc">
-              {hasInvoices
-                ? `${cards.length} cartão(ões) e faturas provisionados no fluxo.`
-                : 'Informe os valores de faturas aberta (atual) e futura para previsão de fluxo.'}
-            </p>
-          </div>
-          {!hasInvoices && (
-            <button
-              type="button"
-              className="btn btn-outline btn-xs"
-              onClick={() => onOpenOnboarding(2)}
-            >
-              Informar
-            </button>
-          )}
-        </div>
+              return (
+                <div
+                  key={step.id}
+                  className={`checklist-step-item ${isDone ? 'done' : isPartial ? 'partial active' : 'pending'}`}
+                >
+                  <div className="step-icon-container">
+                    {isDone ? (
+                      <CheckCircle2 size={18} className="text-emerald" />
+                    ) : isPartial ? (
+                      <AlertCircle size={18} className="text-amber" />
+                    ) : (
+                      <Clock size={18} className="text-amber" />
+                    )}
+                  </div>
+                  <div className="step-content">
+                    <div className="step-title-row">
+                      <span className="step-title">
+                        {idx + 1}. {step.title}
+                      </span>
+                      <span
+                        className={`step-status-tag ${
+                          isDone ? 'done' : isPartial ? 'partial' : 'pending'
+                        }`}
+                      >
+                        {isDone ? 'Concluído' : isPartial ? 'Parcial' : 'Pendente'}
+                      </span>
+                    </div>
 
-        {/* Item 3: Naturezas & Mapeamentos */}
-        <div className={`checklist-step-item ${hasNatures ? 'done' : 'pending'}`}>
-          <div className="step-icon-container">
-            {hasNatures ? (
-              <CheckCircle2 size={18} className="text-emerald" />
-            ) : (
-              <Clock size={18} className="text-amber" />
-            )}
-          </div>
-          <div className="step-content">
-            <div className="step-title-row">
-              <span className="step-title">3. Naturezas & Mapeamentos</span>
-              <span className={`step-status-tag ${hasNatures ? 'done' : 'pending'}`}>
-                {hasNatures ? 'Ativas' : 'Pendente'}
-              </span>
-            </div>
-            <p className="step-desc">
-              {hasNatures
-                ? `${natures.length} naturezas com mapeamentos de rotinas e tetos calculados.`
-                : 'Defina naturezas e crie mapeamentos de rotinas de compras para o cálculo automático do teto.'}
-            </p>
-          </div>
-          {!hasNatures && (
-            <button
-              type="button"
-              className="btn btn-outline btn-xs"
-              onClick={() => onOpenOnboarding(3)}
-            >
-              Configurar
-            </button>
-          )}
-        </div>
-      </div>
+                    <p className="step-desc">{step.description}</p>
 
-      {/* CTA Inferior se ainda houver pendências */}
-      {!isAllComplete && (
-        <div className="checklist-bottom-cta">
-          <button
-            type="button"
-            className="btn btn-primary btn-sm flex items-center gap-2 cursor-pointer shadow-md"
-            onClick={() =>
-              onOpenOnboarding(
-                !hasCheckpoint ? 1 : !hasInvoices ? 2 : 3
-              )
-            }
-          >
-            <Sparkles size={14} className="text-amber" />
-            <span>Continuar Calibração com a Forseti</span>
-            <ArrowRight size={14} />
-          </button>
-        </div>
+                    {step.missingHint && !isDone && (
+                      <div className="flex items-start gap-1.5 mt-2 text-xs text-amber-300/90 bg-amber-500/10 p-1.5 rounded border border-amber-500/20">
+                        <Lightbulb size={13} className="shrink-0 mt-0.5 text-amber-400" />
+                        <span>{step.missingHint}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    className={`btn btn-xs ${isDone ? 'btn-ghost text-muted' : 'btn-outline text-cyan border-cyan/40 hover:bg-cyan/10'}`}
+                    onClick={() => onOpenOnboarding(step.stepIndex)}
+                    title={`Abrir Passo ${step.stepIndex} no Get Started`}
+                  >
+                    {step.actionLabel}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* CTA Inferior se ainda houver pendências */}
+          {!audit.isAllComplete && audit.nextSuggestedStep && (
+            <div className="checklist-bottom-cta flex items-center justify-between flex-wrap gap-3 mt-4 pt-3 border-t border-white/5">
+              <span className="text-xs text-muted flex items-center gap-1.5">
+                <Sparkles size={14} className="text-amber-400 shrink-0" />
+                <span>
+                  Próximo passo recomendado: <strong>{audit.nextSuggestedStep.title}</strong>
+                </span>
+              </span>
+
+              <button
+                type="button"
+                className="btn btn-primary btn-sm flex items-center gap-2 cursor-pointer shadow-md"
+                onClick={() => onOpenOnboarding(audit.nextSuggestedStep!.stepIndex)}
+              >
+                <span>{audit.nextSuggestedStep.actionLabel}</span>
+                <ArrowRight size={14} />
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

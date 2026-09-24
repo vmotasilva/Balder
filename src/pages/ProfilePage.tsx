@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { useTheme } from '../context/ThemeContext';
+import { auditOnboardingProgress } from '../utils/onboardingProgress';
 import {
   User,
   Building,
@@ -86,12 +87,22 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
   } = useFinancial();
   const { theme, setTheme } = useTheme();
 
-  // Cálculo dinâmico do progresso do Get Started (3 passos essenciais)
-  const hasCheckpoint = !!activeCheckpoint;
-  const hasInvoices = movements.some((m) => m.type === 'CARTAO') || cards.length > 0;
-  const hasNatures = natures.length > 0;
-  const completedSteps = (hasCheckpoint ? 1 : 0) + (hasInvoices ? 1 : 0) + (hasNatures ? 1 : 0);
-  const completionPercentage = Math.round((completedSteps / 3) * 100);
+  // Auditoria dinâmica dos 5 pilares do Get Started
+  const onboardingAudit = useMemo(
+    () =>
+      auditOnboardingProgress({
+        activeCheckpoint,
+        salaryContracts,
+        movements,
+        cards,
+        accounts,
+        banks,
+        natures,
+      }),
+    [activeCheckpoint, salaryContracts, movements, cards, accounts, banks, natures]
+  );
+  const completionPercentage = onboardingAudit.percent;
+  const completedSteps = onboardingAudit.completedCount;
 
   const [activeSubTab, setActiveSubTab] = useState<
     'PERFIL' | 'ASSINATURA' | 'APP_ANDROID' | 'SALARIO' | 'MARCOS' | 'CONTAS' | 'BANCOS' | 'CATEGORIAS' | 'PREFERENCIAS' | 'EXPORTACOES' | 'SEGURANCA'
@@ -308,7 +319,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                 className="profile-getstarted-btn"
                 onClick={() => {
                   if (onOpenOnboarding) {
-                    onOpenOnboarding(!hasCheckpoint ? 1 : !hasInvoices ? 2 : 3);
+                    onOpenOnboarding(onboardingAudit.nextSuggestedStep?.stepIndex || 1);
                   }
                 }}
                 title="Acessar o Onboarding Get Started e Calibrar o Balder"
@@ -334,7 +345,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                   <span className="profile-gs-status-text">
                     {completionPercentage === 100
                       ? '100% Calibrado e Concluído'
-                      : `${completedSteps} de 3 passos definidos`}
+                      : `${completedSteps} de ${onboardingAudit.totalCount} pilares concluídos${
+                          onboardingAudit.nextSuggestedStep
+                            ? ` (Falta: ${onboardingAudit.nextSuggestedStep.shortLabel})`
+                            : ''
+                        }`}
                   </span>
                   <ChevronRight size={14} className="profile-gs-arrow" />
                 </div>
