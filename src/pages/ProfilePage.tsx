@@ -41,6 +41,10 @@ import {
   Zap,
   Receipt,
   X,
+  Archive,
+  ArchiveRestore,
+  Copy,
+  Compass,
 } from 'lucide-react';
 import { FinanceEntityModal, type EntityTab } from '../components/FinanceEntityModal';
 import { SalaryAdjustmentModal, type SalaryModalMode } from '../components/SalaryAdjustmentModal';
@@ -86,7 +90,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
     checkpoints,
     activeCheckpoint,
     activateCheckpoint,
+    updateCheckpoint,
+    archiveCheckpoint,
+    unarchiveCheckpoint,
     deleteCheckpoint,
+    clearAllCheckpoints,
+    duplicateCheckpointAsSimulation,
     movements,
   } = useFinancial();
   const { theme, setTheme } = useTheme();
@@ -115,6 +124,25 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
   const [subscriptionSuccessMsg, setSubscriptionSuccessMsg] = useState<string | null>(null);
   const [advancedModalOpen, setAdvancedModalOpen] = useState(false);
   const [checkpointModalOpen, setCheckpointModalOpen] = useState(false);
+
+  // Estados para Gestão & Arquivamento de Marcos e Simulações
+  const [checkpointTabFilter, setCheckpointTabFilter] = useState<'ACTIVE_AND_SIMS' | 'ARCHIVED' | 'ALL'>('ACTIVE_AND_SIMS');
+  const [editingCheckpointId, setEditingCheckpointId] = useState<string | null>(null);
+  const [editingLabelValue, setEditingLabelValue] = useState<string>('');
+
+  const duplicateCheckpoints = useMemo(() => {
+    const seen = new Set<string>();
+    const dups: typeof checkpoints = [];
+    checkpoints.forEach((cp) => {
+      const key = `${cp.startDate}_${cp.initialBalance}_${cp.creditCardDebt || 0}`;
+      if (seen.has(key)) {
+        dups.push(cp);
+      } else {
+        seen.add(key);
+      }
+    });
+    return dups;
+  }, [checkpoints]);
 
   // Estados de Modal para Salários e Reajustes
   const [salaryModalOpen, setSalaryModalOpen] = useState(false);
@@ -1579,148 +1607,735 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
 
           {activeSubTab === 'MARCOS' && (
             <div className="subtab-content animate-fade-in">
-              <div className="naturezas-header-row mb-4">
+              {/* Header do Módulo com Ações Globais */}
+              <div className="naturezas-header-row mb-5" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
                 <div>
-                  <h3>Marcos de Acompanhamento Financeiro</h3>
-                  <p className="subtab-desc">
-                    Defina datas-chave e saldos iniciais em caixa para ancorar e recalibrar suas projeções e saldos consolidados.
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                    <div
+                      style={{
+                        width: '36px',
+                        height: '36px',
+                        borderRadius: '10px',
+                        background: 'rgba(99, 102, 241, 0.15)',
+                        border: '1px solid rgba(99, 102, 241, 0.3)',
+                        color: '#818CF8',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Compass size={20} />
+                    </div>
+                    <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                      Marcos de Planejamento & Cenários Financeiros
+                    </h3>
+                  </div>
+                  <p className="subtab-desc" style={{ maxWidth: '680px', margin: '4px 0 0 0', fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+                    O <strong>Marco Ativo</strong> é o planejamento vigente que ancora o saldo real em caixa, a régua de acompanhamento e o cálculo das metas. Você pode criar novos cenários, simulações alternativas e arquivar marcos antigos.
                   </p>
                 </div>
-                <div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  {duplicateCheckpoints.length > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{
+                        background: 'rgba(245, 158, 11, 0.15)',
+                        borderColor: 'rgba(245, 158, 11, 0.4)',
+                        color: '#FCD34D',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                      onClick={() => {
+                        if (window.confirm(`Deseja consolidar e remover as ${duplicateCheckpoints.length} réplicas duplicadas mantendo apenas o marco principal?`)) {
+                          duplicateCheckpoints.forEach((cp) => deleteCheckpoint(cp.id));
+                        }
+                      }}
+                      title="Remover réplicas criadas repetidamente"
+                    >
+                      <Copy size={14} />
+                      <span>Limpar Duplicados ({duplicateCheckpoints.length})</span>
+                    </button>
+                  )}
+
+                  {checkpoints.length > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      style={{
+                        background: 'rgba(239, 68, 68, 0.12)',
+                        borderColor: 'rgba(239, 68, 68, 0.35)',
+                        color: '#FCA5A5',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            'ATENÇÃO: Deseja realmente ZERAR todos os marcos de ponto de partida existentes?\n\nIsso apagará todos os planejamentos atuais e o Balder solicitará um novo ponto de partida para recalibrar o fluxo.'
+                          )
+                        ) {
+                          clearAllCheckpoints();
+                        }
+                      }}
+                      title="Zerar todos os marcos existentes no sistema"
+                    >
+                      <RotateCcw size={14} />
+                      <span>Zerar Todos os Marcos</span>
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     className="btn btn-primary btn-sm"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}
                     onClick={() => setCheckpointModalOpen(true)}
                   >
                     <Plus size={15} />
-                    <span>Novo Marco de Início</span>
+                    <span>Novo Ponto de Partida</span>
                   </button>
                 </div>
               </div>
 
+              {/* Filtros em Abas: Planejamentos & Simulações vs Arquivados vs Todos */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '20px',
+                  paddingBottom: '12px',
+                  borderBottom: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <button
+                  type="button"
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s',
+                    background: checkpointTabFilter === 'ACTIVE_AND_SIMS' ? 'var(--color-primary, #6366f1)' : 'rgba(255, 255, 255, 0.05)',
+                    color: checkpointTabFilter === 'ACTIVE_AND_SIMS' ? '#fff' : 'var(--text-secondary)',
+                    border: checkpointTabFilter === 'ACTIVE_AND_SIMS' ? '1px solid #4f46e5' : '1px solid rgba(255, 255, 255, 0.08)',
+                  }}
+                  onClick={() => setCheckpointTabFilter('ACTIVE_AND_SIMS')}
+                >
+                  <Flag size={13} />
+                  <span>Planejamentos & Simulações ({checkpoints.filter((c) => !c.isArchived).length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s',
+                    background: checkpointTabFilter === 'ARCHIVED' ? 'var(--color-primary, #6366f1)' : 'rgba(255, 255, 255, 0.05)',
+                    color: checkpointTabFilter === 'ARCHIVED' ? '#fff' : 'var(--text-secondary)',
+                    border: checkpointTabFilter === 'ARCHIVED' ? '1px solid #4f46e5' : '1px solid rgba(255, 255, 255, 0.08)',
+                  }}
+                  onClick={() => setCheckpointTabFilter('ARCHIVED')}
+                >
+                  <Archive size={13} />
+                  <span>Arquivados ({checkpoints.filter((c) => c.isArchived).length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s',
+                    background: checkpointTabFilter === 'ALL' ? 'var(--color-primary, #6366f1)' : 'rgba(255, 255, 255, 0.05)',
+                    color: checkpointTabFilter === 'ALL' ? '#fff' : 'var(--text-secondary)',
+                    border: checkpointTabFilter === 'ALL' ? '1px solid #4f46e5' : '1px solid rgba(255, 255, 255, 0.08)',
+                  }}
+                  onClick={() => setCheckpointTabFilter('ALL')}
+                >
+                  <span>Todos ({checkpoints.length})</span>
+                </button>
+              </div>
+
               {checkpoints.length === 0 ? (
-                <div className="empty-state-card glass-card text-center p-8">
-                  <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto mb-4">
+                <div className="empty-state-card glass-card text-center p-8" style={{ borderRadius: '16px', border: '1px dashed rgba(99, 102, 241, 0.3)', padding: '48px 24px' }}>
+                  <div
+                    style={{
+                      width: '64px',
+                      height: '64px',
+                      borderRadius: '16px',
+                      background: 'rgba(99, 102, 241, 0.12)',
+                      border: '1px solid rgba(99, 102, 241, 0.25)',
+                      color: '#818CF8',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      margin: '0 auto 16px auto',
+                    }}
+                  >
                     <Flag size={32} />
                   </div>
-                  <h4 className="text-base font-bold text-white mb-2">Nenhum marco de início definido</h4>
-                  <p className="text-sm text-muted max-w-md mx-auto mb-5 leading-relaxed">
-                    Defina um ponto de partida para indicar a partir de quando o Balder deve calcular seus saldos em caixa e projetar suas finanças.
+                  <h4 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '8px' }}>
+                    Nenhum marco de início definido
+                  </h4>
+                  <p style={{ fontSize: '14px', color: 'var(--text-muted)', maxWidth: '480px', margin: '0 auto 20px auto', lineHeight: '1.6' }}>
+                    Defina um ponto de partida para indicar a partir de quando o Balder deve calcular seus saldos em caixa, patrimônio líquido e projetar suas finanças.
                   </p>
                   <button
                     type="button"
-                    className="btn btn-primary btn-sm"
+                    className="btn btn-primary"
+                    style={{ padding: '10px 20px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '8px' }}
                     onClick={() => setCheckpointModalOpen(true)}
                   >
-                    <Flag size={14} />
-                    <span>Definir Ponto de Partida</span>
+                    <Flag size={16} />
+                    <span>Definir Ponto de Partida Agora</span>
                   </button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {checkpoints.map((cp) => (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {/* HERO CARD: Marco Vigente / Planejamento Ativo no Sistema */}
+                  {activeCheckpoint && checkpointTabFilter !== 'ARCHIVED' && (
                     <div
-                      key={cp.id}
-                      className={`glass-card p-4 rounded-xl border transition-all ${
-                        cp.isActive
-                          ? 'border-indigo-500/50 bg-indigo-950/20 shadow-lg shadow-indigo-500/10'
-                          : 'border-slate-800 hover:border-slate-700'
-                      }`}
+                      style={{
+                        padding: '24px',
+                        borderRadius: '16px',
+                        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(99, 102, 241, 0.12) 100%)',
+                        border: '1px solid rgba(16, 185, 129, 0.4)',
+                        boxShadow: '0 8px 32px rgba(16, 185, 129, 0.08), 0 0 20px rgba(99, 102, 241, 0.05)',
+                        position: 'relative',
+                        overflow: 'hidden',
+                      }}
                     >
-                      <div className="flex items-start justify-between gap-3 mb-3">
-                        <div className="flex items-center gap-2.5">
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap', marginBottom: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                           <div
-                            className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                              cp.isActive
-                                ? 'bg-indigo-500/20 text-indigo-400'
-                                : 'bg-slate-800 text-slate-400'
-                            }`}
+                            style={{
+                              width: '42px',
+                              height: '42px',
+                              borderRadius: '12px',
+                              background: 'rgba(16, 185, 129, 0.25)',
+                              border: '1px solid rgba(16, 185, 129, 0.5)',
+                              color: '#34D399',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}
                           >
-                            <Flag size={18} />
+                            <Flag size={20} />
                           </div>
                           <div>
-                            <h4 className="text-sm font-semibold text-white">
-                              {cp.label || 'Marco de Início'}
-                            </h4>
-                            <span className="text-xs text-muted">
-                              Início em {cp.startDate.split('-').reverse().join('/')}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <h4 style={{ fontSize: '17px', fontWeight: 800, margin: 0, color: '#fff' }}>
+                                {activeCheckpoint.label || 'Marco de Início'}
+                              </h4>
+                              <span
+                                style={{
+                                  padding: '3px 10px',
+                                  borderRadius: '9999px',
+                                  fontSize: '11px',
+                                  fontWeight: 800,
+                                  textTransform: 'uppercase',
+                                  letterSpacing: '0.05em',
+                                  background: 'rgba(16, 185, 129, 0.25)',
+                                  border: '1px solid rgba(16, 185, 129, 0.5)',
+                                  color: '#34D399',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                }}
+                              >
+                                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#34D399', boxShadow: '0 0 6px #34D399' }} />
+                                Planejamento Ativo no Sistema
+                              </span>
+                              {activeCheckpoint.type === 'SIMULATION' && (
+                                <span
+                                  style={{
+                                    padding: '3px 8px',
+                                    borderRadius: '9999px',
+                                    fontSize: '11px',
+                                    fontWeight: 700,
+                                    background: 'rgba(168, 85, 247, 0.2)',
+                                    border: '1px solid rgba(168, 85, 247, 0.4)',
+                                    color: '#C084FC',
+                                  }}
+                                >
+                                  Simulação Alternativa
+                                </span>
+                              )}
+                            </div>
+                            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                              Início em <strong>{activeCheckpoint.startDate.split('-').reverse().join('/')}</strong> • Ancorando Dashboard, Runway e Metas
                             </span>
                           </div>
                         </div>
 
-                        {cp.isActive ? (
-                          <span className="badge badge-emerald flex items-center gap-1">
-                            <CheckCircle2 size={12} />
-                            <span>Ativo</span>
-                          </span>
-                        ) : (
+                        {/* Ações Rápidas no Marco Ativo */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <button
                             type="button"
                             className="btn btn-secondary btn-xs"
-                            onClick={() => activateCheckpoint(cp.id)}
-                            title="Tornar este marco o ponto de partida ativo"
+                            style={{
+                              fontSize: '12px',
+                              padding: '5px 10px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                            }}
+                            onClick={() => duplicateCheckpointAsSimulation(activeCheckpoint.id)}
+                            title="Clonar este marco como simulação para testar outros números"
                           >
-                            Ativar
+                            <Copy size={13} />
+                            <span>Duplicar p/ Simulação</span>
                           </button>
-                        )}
+
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-xs"
+                            style={{
+                              fontSize: '12px',
+                              padding: '5px 10px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                            }}
+                            onClick={() => setCheckpointModalOpen(true)}
+                            title="Editar valores e recalibrar este ponto de partida"
+                          >
+                            <Edit2 size={13} />
+                            <span>Recalibrar</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-xs"
+                            style={{
+                              fontSize: '12px',
+                              padding: '5px 10px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              color: 'var(--text-muted)',
+                            }}
+                            onClick={() => {
+                              if (window.confirm('Deseja arquivar este planejamento vigente?')) {
+                                archiveCheckpoint(activeCheckpoint.id);
+                              }
+                            }}
+                            title="Arquivar este planejamento no histórico"
+                          >
+                            <Archive size={13} />
+                            <span>Arquivar</span>
+                          </button>
+                        </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-2 bg-slate-900/60 p-3 rounded-lg text-xs mb-3 border border-slate-800/80">
+                      {/* Grade de Métricas do Marco Vigente */}
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                          gap: '12px',
+                          background: 'rgba(0, 0, 0, 0.25)',
+                          padding: '14px',
+                          borderRadius: '12px',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                        }}
+                      >
                         <div>
-                          <span className="text-muted block text-[11px]">Saldo Inicial em Caixa</span>
-                          <span className="font-semibold text-emerald-400 text-sm">
-                            R$ {cp.initialBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Data de Início
+                          </span>
+                          <span style={{ fontSize: '15px', fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                            <Calendar size={15} style={{ color: '#818CF8' }} />
+                            {activeCheckpoint.startDate.split('-').reverse().join('/')}
                           </span>
                         </div>
-                        {cp.creditCardDebt !== undefined && cp.creditCardDebt > 0 ? (
-                          <div>
-                            <span className="text-muted block text-[11px]">Dívida de Cartão</span>
-                            <span className="font-semibold text-rose-400 text-sm">
-                              - R$ {cp.creditCardDebt.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
-                            {cp.cardDueDate && (
-                              <span className="text-[10px] text-muted block">
-                                Venc. {cp.cardDueDate.split('-').reverse().join('/')}
-                              </span>
-                            )}
-                          </div>
-                        ) : (
-                          cp.initialNetWorth !== undefined && (
-                            <div>
-                              <span className="text-muted block text-[11px]">Patrimônio Líquido</span>
-                              <span className="font-semibold text-cyan-400 text-sm">
-                                R$ {cp.initialNetWorth.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              </span>
-                            </div>
-                          )
-                        )}
+
+                        <div>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Saldo Inicial em Caixa
+                          </span>
+                          <span style={{ fontSize: '15px', fontWeight: 800, color: '#34D399', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                            <Wallet size={15} style={{ color: '#34D399' }} />
+                            {activeCheckpoint.initialBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </span>
+                        </div>
+
+                        <div>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Faturas / Dívida de Cartão
+                          </span>
+                          <span style={{ fontSize: '15px', fontWeight: 800, color: '#F87171', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                            <CreditCard size={15} style={{ color: '#F87171' }} />
+                            {activeCheckpoint.creditCardDebt && activeCheckpoint.creditCardDebt > 0
+                              ? `- ${activeCheckpoint.creditCardDebt.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
+                              : 'R$ 0,00'}
+                          </span>
+                        </div>
+
+                        <div>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Patrimônio Líquido de Partida
+                          </span>
+                          <span style={{ fontSize: '15px', fontWeight: 800, color: '#38BDF8', display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                            <TrendingUp size={15} style={{ color: '#38BDF8' }} />
+                            {(activeCheckpoint.initialNetWorth !== undefined
+                              ? activeCheckpoint.initialNetWorth
+                              : activeCheckpoint.initialBalance - (activeCheckpoint.creditCardDebt || 0)
+                            ).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                          </span>
+                        </div>
                       </div>
 
-                      {cp.notes && (
-                        <p className="text-xs text-slate-400 italic mb-3">
-                          "{cp.notes}"
+                      {activeCheckpoint.notes && (
+                        <p style={{ margin: '12px 0 0 0', fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                          "{activeCheckpoint.notes}"
                         </p>
                       )}
-
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-800/60 text-xs">
-                        <span className="text-[11px] text-muted">
-                          Criado em {new Date(cp.createdAt).toLocaleDateString('pt-BR')}
-                        </span>
-                        <button
-                          type="button"
-                          className="text-rose-400 hover:text-rose-300 transition-colors p-1 rounded hover:bg-rose-500/10 cursor-pointer"
-                          title="Excluir este marco"
-                          onClick={() => {
-                            if (window.confirm(`Tem certeza que deseja excluir o marco "${cp.label || cp.startDate}"?`)) {
-                              deleteCheckpoint(cp.id);
-                            }
-                          }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
                     </div>
-                  ))}
+                  )}
+
+                  {/* Subtítulo da Lista de Cenários */}
+                  <div>
+                    <h4 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>
+                      {checkpointTabFilter === 'ARCHIVED'
+                        ? 'Marcos Arquivados no Histórico'
+                        : checkpointTabFilter === 'ALL'
+                        ? 'Todos os Cenários Cadastrados'
+                        : 'Demais Cenários & Simulações Alternativas'}
+                    </h4>
+
+                    {/* Grade dos Demais Marcos */}
+                    {checkpoints
+                      .filter((cp) => {
+                        if (checkpointTabFilter === 'ARCHIVED') return cp.isArchived;
+                        if (checkpointTabFilter === 'ACTIVE_AND_SIMS') return !cp.isArchived;
+                        return true;
+                      })
+                      .filter((cp) => (checkpointTabFilter === 'ACTIVE_AND_SIMS' ? !cp.isActive : true)).length === 0 ? (
+                      <div
+                        style={{
+                          padding: '24px',
+                          textAlign: 'center',
+                          borderRadius: '12px',
+                          background: 'rgba(255, 255, 255, 0.03)',
+                          border: '1px dashed rgba(255, 255, 255, 0.1)',
+                          color: 'var(--text-muted)',
+                          fontSize: '13px',
+                        }}
+                      >
+                        {checkpointTabFilter === 'ARCHIVED'
+                          ? 'Nenhum marco arquivado no momento.'
+                          : 'Nenhum outro cenário cadastrado. Você pode duplicar o marco ativo para criar simulações.'}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {checkpoints
+                          .filter((cp) => {
+                            if (checkpointTabFilter === 'ARCHIVED') return cp.isArchived;
+                            if (checkpointTabFilter === 'ACTIVE_AND_SIMS') return !cp.isArchived;
+                            return true;
+                          })
+                          .filter((cp) => (checkpointTabFilter === 'ACTIVE_AND_SIMS' ? !cp.isActive : true))
+                          .map((cp) => (
+                            <div
+                              key={cp.id}
+                              className="glass-card"
+                              style={{
+                                padding: '18px',
+                                borderRadius: '14px',
+                                border: cp.isActive ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))',
+                                background: cp.isActive
+                                  ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(99, 102, 241, 0.05) 100%)'
+                                  : 'rgba(255, 255, 255, 0.03)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                justifyContent: 'space-between',
+                                transition: 'all 0.2s',
+                              }}
+                            >
+                              <div>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '12px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                    <div
+                                      style={{
+                                        width: '36px',
+                                        height: '36px',
+                                        borderRadius: '10px',
+                                        background: cp.isActive
+                                          ? 'rgba(16, 185, 129, 0.2)'
+                                          : cp.type === 'SIMULATION'
+                                          ? 'rgba(168, 85, 247, 0.15)'
+                                          : 'rgba(255, 255, 255, 0.06)',
+                                        color: cp.isActive ? '#34D399' : cp.type === 'SIMULATION' ? '#C084FC' : 'var(--text-muted)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        flexShrink: 0,
+                                      }}
+                                    >
+                                      {cp.type === 'SIMULATION' ? <Sparkles size={18} /> : <Flag size={18} />}
+                                    </div>
+                                    <div>
+                                      {editingCheckpointId === cp.id ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                          <input
+                                            type="text"
+                                            value={editingLabelValue}
+                                            onChange={(e) => setEditingLabelValue(e.target.value)}
+                                            style={{
+                                              padding: '4px 8px',
+                                              borderRadius: '6px',
+                                              fontSize: '13px',
+                                              background: 'rgba(0, 0, 0, 0.4)',
+                                              border: '1px solid #6366f1',
+                                              color: '#fff',
+                                            }}
+                                            autoFocus
+                                          />
+                                          <button
+                                            type="button"
+                                            className="btn btn-primary btn-xs"
+                                            onClick={() => {
+                                              updateCheckpoint(cp.id, { label: editingLabelValue.trim() || cp.label });
+                                              setEditingCheckpointId(null);
+                                            }}
+                                          >
+                                            Salvar
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <h4
+                                          style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                        >
+                                          <span>{cp.label || 'Marco de Início'}</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setEditingCheckpointId(cp.id);
+                                              setEditingLabelValue(cp.label || '');
+                                            }}
+                                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
+                                            title="Editar nome do planejamento"
+                                          >
+                                            <Edit2 size={12} />
+                                          </button>
+                                        </h4>
+                                      )}
+                                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                        Início em {cp.startDate.split('-').reverse().join('/')}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Badges de Status */}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                    {cp.isActive && (
+                                      <span
+                                        style={{
+                                          padding: '2px 8px',
+                                          borderRadius: '9999px',
+                                          fontSize: '10px',
+                                          fontWeight: 800,
+                                          background: 'rgba(16, 185, 129, 0.25)',
+                                          border: '1px solid rgba(16, 185, 129, 0.5)',
+                                          color: '#34D399',
+                                        }}
+                                      >
+                                        ATIVO
+                                      </span>
+                                    )}
+
+                                    {cp.type === 'SIMULATION' && (
+                                      <span
+                                        style={{
+                                          padding: '2px 8px',
+                                          borderRadius: '9999px',
+                                          fontSize: '10px',
+                                          fontWeight: 700,
+                                          background: 'rgba(168, 85, 247, 0.15)',
+                                          border: '1px solid rgba(168, 85, 247, 0.35)',
+                                          color: '#C084FC',
+                                        }}
+                                      >
+                                        SIMULAÇÃO
+                                      </span>
+                                    )}
+
+                                    {cp.isArchived && (
+                                      <span
+                                        style={{
+                                          padding: '2px 8px',
+                                          borderRadius: '9999px',
+                                          fontSize: '10px',
+                                          fontWeight: 700,
+                                          background: 'rgba(255, 255, 255, 0.1)',
+                                          color: 'var(--text-muted)',
+                                        }}
+                                      >
+                                        ARQUIVADO
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Valores com Espaçamento Adequado */}
+                                <div
+                                  style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: '1fr 1fr',
+                                    gap: '10px',
+                                    padding: '10px 12px',
+                                    borderRadius: '10px',
+                                    background: 'rgba(0, 0, 0, 0.25)',
+                                    border: '1px solid rgba(255, 255, 255, 0.05)',
+                                    marginBottom: '12px',
+                                  }}
+                                >
+                                  <div>
+                                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>
+                                      Saldo em Caixa
+                                    </span>
+                                    <strong style={{ fontSize: '13px', color: '#34D399' }}>
+                                      {cp.initialBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                    </strong>
+                                  </div>
+
+                                  <div>
+                                    <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>
+                                      Dívida de Cartão
+                                    </span>
+                                    <strong style={{ fontSize: '13px', color: cp.creditCardDebt && cp.creditCardDebt > 0 ? '#F87171' : 'var(--text-muted)' }}>
+                                      {cp.creditCardDebt && cp.creditCardDebt > 0
+                                        ? `- ${cp.creditCardDebt.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
+                                        : 'R$ 0,00'}
+                                    </strong>
+                                  </div>
+                                </div>
+
+                                {cp.notes && (
+                                  <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontStyle: 'italic', margin: '0 0 12px 0' }}>
+                                    "{cp.notes}"
+                                  </p>
+                                )}
+                              </div>
+
+                              {/* Rodapé do Card com Ação de Ativação e Gestão */}
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  gap: '8px',
+                                  paddingTop: '10px',
+                                  borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                                  flexWrap: 'wrap',
+                                }}
+                              >
+                                <div>
+                                  {!cp.isActive && (
+                                    <button
+                                      type="button"
+                                      className="btn btn-primary btn-xs"
+                                      style={{
+                                        fontSize: '11px',
+                                        fontWeight: 700,
+                                        padding: '4px 10px',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '5px',
+                                      }}
+                                      onClick={() => activateCheckpoint(cp.id)}
+                                      title="Tornar este o planejamento e marco ativo no sistema"
+                                    >
+                                      <Zap size={12} />
+                                      <span>Ativar este Planejamento</span>
+                                    </button>
+                                  )}
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <button
+                                    type="button"
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      color: 'var(--text-muted)',
+                                      cursor: 'pointer',
+                                      padding: '4px',
+                                    }}
+                                    onClick={() => duplicateCheckpointAsSimulation(cp.id)}
+                                    title="Duplicar como Simulação"
+                                  >
+                                    <Copy size={14} />
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      color: 'var(--text-muted)',
+                                      cursor: 'pointer',
+                                      padding: '4px',
+                                    }}
+                                    onClick={() => (cp.isArchived ? unarchiveCheckpoint(cp.id) : archiveCheckpoint(cp.id))}
+                                    title={cp.isArchived ? 'Desarquivar Marco' : 'Arquivar Marco'}
+                                  >
+                                    {cp.isArchived ? <ArchiveRestore size={14} /> : <Archive size={14} />}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    style={{
+                                      background: 'none',
+                                      border: 'none',
+                                      color: '#F87171',
+                                      cursor: 'pointer',
+                                      padding: '4px',
+                                    }}
+                                    title="Excluir este marco"
+                                    onClick={() => {
+                                      if (window.confirm(`Tem certeza que deseja excluir o marco "${cp.label || cp.startDate}"?`)) {
+                                        deleteCheckpoint(cp.id);
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

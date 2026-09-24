@@ -504,6 +504,8 @@ export interface FinancialCheckpoint {
   label?: string;          // Rótulo livre, ex: "Início 2025", "Reset pós-crise"
   notes?: string;          // Observações sobre o marco
   isActive: boolean;       // true = checkpoint vigente (apenas um por vez)
+  isArchived?: boolean;    // true = arquivado no histórico de marcos/planejamentos
+  type?: 'PLANNING' | 'SIMULATION'; // Tipo do cenário: Planejamento Oficial ou Simulação de Cenário
 }
 
 /**

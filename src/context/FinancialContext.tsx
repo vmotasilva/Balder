@@ -67,12 +67,17 @@ interface FinancialContextType {
   chatHistory: CopilotMessage[];
   natures: ExpenseNature[];
 
-  // Marco de Acompanhamento Financeiro
+  // Marco de Acompanhamento Financeiro & Planejamento / Cenários
   checkpoints: FinancialCheckpoint[];
   activeCheckpoint: FinancialCheckpoint | null;
   addCheckpoint: (cp: Omit<FinancialCheckpoint, 'id' | 'createdAt' | 'isActive'>) => void;
+  updateCheckpoint: (id: string, updates: Partial<FinancialCheckpoint>) => void;
   activateCheckpoint: (id: string) => void;
+  archiveCheckpoint: (id: string) => void;
+  unarchiveCheckpoint: (id: string) => void;
   deleteCheckpoint: (id: string) => void;
+  clearAllCheckpoints: () => void;
+  duplicateCheckpointAsSimulation: (id: string, newLabel?: string) => void;
 
   // Fechamentos Mensais de Competência
   monthlyClosings: MonthlyClosing[];
@@ -473,7 +478,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
-  // Ativar um checkpoint existente pelo ID
+  // Ativar um checkpoint existente pelo ID (garante que estritamente apenas 1 fique ativo)
   const activateCheckpoint = (id: string) => {
     setCheckpoints((prev) => {
       const next = prev.map((c) => ({ ...c, isActive: c.id === id }));
@@ -493,12 +498,81 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
+  // Atualizar dados de um checkpoint existente (rótulo, notas, tipo, etc.)
+  const updateCheckpoint = (id: string, updates: Partial<FinancialCheckpoint>) => {
+    setCheckpoints((prev) => {
+      const next = prev.map((c) => (c.id === id ? { ...c, ...updates } : c));
+      const storageKey = user && !user.isGuest ? `balder_checkpoints_${user.$id}` : 'balder_checkpoints_guest';
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch (e) {
+        console.warn('Erro ao atualizar checkpoint:', e);
+      }
+      if (user && !user.isGuest) {
+        const updated = next.find((c) => c.id === id);
+        if (updated) {
+          SupabaseService.upsertCheckpoint(updated).catch(console.error);
+        }
+        SupabaseService.saveUserProfileSettings({ checkpoints: next }).catch(console.error);
+      }
+      return next;
+    });
+  };
+
+  // Arquivar um checkpoint
+  const archiveCheckpoint = (id: string) => {
+    setCheckpoints((prev) => {
+      const target = prev.find((c) => c.id === id);
+      if (!target) return prev;
+      
+      const wasActive = target.isActive;
+      let next = prev.map((c) => (c.id === id ? { ...c, isArchived: true, isActive: false } : c));
+      
+      // Se era o marco ativo, ativa o primeiro não-arquivado restante
+      if (wasActive) {
+        const nextCandidate = next.find((c) => !c.isArchived);
+        if (nextCandidate) {
+          next = next.map((c) => ({ ...c, isActive: c.id === nextCandidate.id }));
+        }
+      }
+
+      const storageKey = user && !user.isGuest ? `balder_checkpoints_${user.$id}` : 'balder_checkpoints_guest';
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch (e) {}
+      if (user && !user.isGuest) {
+        next.forEach((c) => SupabaseService.upsertCheckpoint(c).catch(console.error));
+        SupabaseService.saveUserProfileSettings({ checkpoints: next }).catch(console.error);
+      }
+      return next;
+    });
+  };
+
+  // Desarquivar um checkpoint
+  const unarchiveCheckpoint = (id: string) => {
+    setCheckpoints((prev) => {
+      const next = prev.map((c) => (c.id === id ? { ...c, isArchived: false } : c));
+      const storageKey = user && !user.isGuest ? `balder_checkpoints_${user.$id}` : 'balder_checkpoints_guest';
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch (e) {}
+      if (user && !user.isGuest) {
+        const updated = next.find((c) => c.id === id);
+        if (updated) SupabaseService.upsertCheckpoint(updated).catch(console.error);
+        SupabaseService.saveUserProfileSettings({ checkpoints: next }).catch(console.error);
+      }
+      return next;
+    });
+  };
+
   // Excluir um checkpoint existente pelo ID
   const deleteCheckpoint = (id: string) => {
     setCheckpoints((prev) => {
       const next = prev.filter((c) => c.id !== id);
       if (!next.some((c) => c.isActive) && next.length > 0) {
-        next[next.length - 1].isActive = true;
+        // Ativa o primeiro não-arquivado
+        const candidate = next.find((c) => !c.isArchived) || next[0];
+        candidate.isActive = true;
       }
       const storageKey = user && !user.isGuest ? `balder_checkpoints_${user.$id}` : 'balder_checkpoints_guest';
       try {
@@ -512,6 +586,50 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (activeOne) {
           SupabaseService.upsertCheckpoint(activeOne).catch(console.error);
         }
+        SupabaseService.saveUserProfileSettings({ checkpoints: next }).catch(console.error);
+      }
+      return next;
+    });
+  };
+
+  // Zerar Todos os Marcos (Apaga todos os checkpoints da memória, local e nuvem)
+  const clearAllCheckpoints = () => {
+    const toDelete = [...checkpoints];
+    setCheckpoints([]);
+    const storageKey = user && !user.isGuest ? `balder_checkpoints_${user.$id}` : 'balder_checkpoints_guest';
+    try {
+      localStorage.removeItem(storageKey);
+    } catch (e) {}
+    if (user && !user.isGuest) {
+      toDelete.forEach((c) => {
+        SupabaseService.deleteCheckpoint(c.id).catch(console.error);
+      });
+      SupabaseService.saveUserProfileSettings({ checkpoints: [] }).catch(console.error);
+    }
+  };
+
+  // Duplicar Marco como Cenário de Simulação Alternativo
+  const duplicateCheckpointAsSimulation = (id: string, newLabel?: string) => {
+    const source = checkpoints.find((c) => c.id === id);
+    if (!source) return;
+    const clone: FinancialCheckpoint = {
+      ...source,
+      id: `cp_sim_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+      createdAt: new Date().toISOString(),
+      label: newLabel || `Simulação de ${source.label || 'Cenário'}`,
+      type: 'SIMULATION',
+      isActive: false,
+      isArchived: false,
+      notes: `Cenário simulado a partir de ${source.label || source.startDate}`,
+    };
+    setCheckpoints((prev) => {
+      const next = [...prev, clone];
+      const storageKey = user && !user.isGuest ? `balder_checkpoints_${user.$id}` : 'balder_checkpoints_guest';
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch (e) {}
+      if (user && !user.isGuest) {
+        SupabaseService.upsertCheckpoint(clone).catch(console.error);
         SupabaseService.saveUserProfileSettings({ checkpoints: next }).catch(console.error);
       }
       return next;
@@ -1493,12 +1611,46 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               } catch {}
             }
           }
-          if (user && !user.isGuest && finalCheckpoints.length > 0 && (!cloudProfileSettings?.checkpoints || cloudProfileSettings.checkpoints.length === 0)) {
-            SupabaseService.saveUserProfileSettings({ checkpoints: finalCheckpoints }).catch(console.error);
+          // Normalização e Anti-Duplicação de Checkpoints:
+          // 1. Remove duplicatas perfeitas (mesma data de início, saldo e dívida)
+          // 2. Garante que ESTRITAMENTE APENAS 1 marco seja isActive: true
+          const seenCpKeys = new Set<string>();
+          const dedupedCheckpoints: FinancialCheckpoint[] = [];
+          for (const cp of finalCheckpoints) {
+            const key = `${cp.startDate}_${cp.initialBalance}_${cp.creditCardDebt || 0}`;
+            if (seenCpKeys.has(key)) {
+              console.warn(`[Anti-Duplicação] Checkpoint duplicado detectado e purgado: ${cp.label || cp.id}`);
+              if (user && !user.isGuest) {
+                SupabaseService.deleteCheckpoint(cp.id).catch(console.error);
+              }
+              continue;
+            }
+            seenCpKeys.add(key);
+            dedupedCheckpoints.push(cp);
           }
+
+          // Garante que apenas 1 marco seja ativo:
+          let hasActive = false;
+          finalCheckpoints = dedupedCheckpoints.map((cp) => {
+            if (cp.isActive && !hasActive && !cp.isArchived) {
+              hasActive = true;
+              return cp;
+            }
+            return { ...cp, isActive: false };
+          });
+          if (!hasActive && finalCheckpoints.length > 0) {
+            const nonArchived = finalCheckpoints.filter((c) => !c.isArchived);
+            if (nonArchived.length > 0) {
+              nonArchived[0].isActive = true;
+            } else {
+              finalCheckpoints[0].isActive = true;
+            }
+          }
+
           setCheckpoints(finalCheckpoints);
           if (user && !user.isGuest) {
             localStorage.setItem(`balder_checkpoints_${user.$id}`, JSON.stringify(finalCheckpoints));
+            SupabaseService.saveUserProfileSettings({ checkpoints: finalCheckpoints }).catch(console.error);
           }
 
           // 7. Cartões de Crédito (via Perfil Nuvem ou Cache)
@@ -3757,8 +3909,13 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         checkpoints,
         activeCheckpoint,
         addCheckpoint,
+        updateCheckpoint,
         activateCheckpoint,
+        archiveCheckpoint,
+        unarchiveCheckpoint,
         deleteCheckpoint,
+        clearAllCheckpoints,
+        duplicateCheckpointAsSimulation,
         monthlyClosings,
         closeMonth,
         reopenMonth,
