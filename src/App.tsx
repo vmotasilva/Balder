@@ -14,6 +14,7 @@ import { GoalsPage } from './pages/GoalsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { NaturezasPage } from './pages/NaturezasPage';
 import { LoansPage } from './pages/LoansPage';
+import { SharedPlanningPage } from './pages/SharedPlanningPage';
 import { NewMovementModal } from './components/NewMovementModal';
 import { SimulationModal } from './components/SimulationModal';
 import { LoanPrepaymentModal } from './components/LoanPrepaymentModal';
@@ -142,6 +143,7 @@ export function AppContent() {
               onNavigateToCopilot={() => setIsCopilotOpen(true)}
               onNavigateToLoans={() => setActiveTab('EMPRESTIMOS')}
               onNavigateToNatures={() => setActiveTab('NATUREZAS')}
+              onNavigateToShared={() => setActiveTab('COMPARTILHADO')}
               onOpenSimulation={handleOpenSimulation}
               onOpenPrepayment={() => setPrepaymentModalOpen(true)}
               onOpenOnboarding={handleOpenOnboarding}
@@ -161,6 +163,8 @@ export function AppContent() {
           {activeTab === 'EMPRESTIMOS' && <LoansPage />}
 
           {activeTab === 'METAS' && <GoalsPage />}
+
+          {activeTab === 'COMPARTILHADO' && <SharedPlanningPage />}
 
           {activeTab === 'PERFIL' && (
             <ProfilePage onOpenOnboarding={handleOpenOnboarding} />

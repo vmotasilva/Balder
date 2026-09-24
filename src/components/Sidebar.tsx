@@ -15,11 +15,12 @@ import {
   X,
   Check,
   Settings,
+  Users,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useFinancial } from '../context/FinancialContext';
 
-export type TabId = 'DASHBOARD' | 'MOVIMENTACOES' | 'FATURAS' | 'NATUREZAS' | 'EMPRESTIMOS' | 'COPILOT' | 'METAS' | 'PERFIL';
+export type TabId = 'DASHBOARD' | 'MOVIMENTACOES' | 'FATURAS' | 'NATUREZAS' | 'EMPRESTIMOS' | 'COPILOT' | 'METAS' | 'COMPARTILHADO' | 'PERFIL';
 
 interface SidebarProps {
   activeTab: TabId;
@@ -264,6 +265,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       subtitle: 'Objetivos & Sonhos',
       icon: Target,
       badge: 'Price',
+    },
+    {
+      id: 'COMPARTILHADO' as TabId,
+      label: 'Planejamento Conjunto',
+      subtitle: 'Acompanhamento Mútuo',
+      icon: Users,
+      badge: 'Mútuo',
     },
   ];
 

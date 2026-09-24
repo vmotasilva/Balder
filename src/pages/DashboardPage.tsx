@@ -13,6 +13,8 @@ import {
   Calendar,
   Layers,
   Target,
+  Users,
+  UserCheck,
 } from 'lucide-react';
 import type { SimulationPresetId } from '../types';
 
@@ -28,6 +30,7 @@ interface DashboardPageProps {
   onNavigateToCopilot: () => void;
   onNavigateToLoans?: () => void;
   onNavigateToNatures?: () => void;
+  onNavigateToShared?: () => void;
   onOpenSimulation: (preset?: SimulationPresetId, mode?: 'PRESETS' | 'STUDIO') => void;
   onOpenPrepayment?: () => void;
   onOpenOnboarding?: (stepIndex?: number) => void;
@@ -39,6 +42,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onNavigateToCopilot,
   onNavigateToLoans,
   onNavigateToNatures,
+  onNavigateToShared,
   onOpenSimulation,
   onOpenPrepayment,
   onOpenOnboarding,
@@ -54,6 +58,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     nextCriticalEvent,
     goals,
     activeCheckpoint,
+    activeTrackingScope,
+    defaultTrackingScope,
+    setActiveTrackingScope,
   } = useFinancial();
 
   const [isCheckpointModalOpen, setIsCheckpointModalOpen] = useState(false);
@@ -99,6 +106,49 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             <div className="kicker-badge" style={{ marginBottom: 0 }}>
               <span>DASHBOARD FINANCEIRO</span>
             </div>
+
+            {/* Seletor de Escopo: Próprio vs Compartilhado */}
+            <div className="inline-flex items-center p-0.5 rounded-full bg-black/40 border border-white/10 text-xs">
+              <button
+                type="button"
+                onClick={() => setActiveTrackingScope('INDIVIDUAL')}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-medium transition-all cursor-pointer ${
+                  activeTrackingScope === 'INDIVIDUAL'
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                    : 'text-muted hover:text-white'
+                }`}
+                title={defaultTrackingScope === 'INDIVIDUAL' ? 'Acompanhamento Próprio (Definido como Principal ⭐)' : 'Alternar para Acompanhamento Próprio'}
+              >
+                <UserCheck size={12} />
+                <span>Próprio</span>
+                {defaultTrackingScope === 'INDIVIDUAL' && (
+                  <span className="text-[10px] text-amber-400 font-bold" title="Acompanhamento Principal">★</span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTrackingScope('COMPARTILHADO');
+                  if (onNavigateToShared && activeTrackingScope === 'COMPARTILHADO') {
+                    onNavigateToShared();
+                  }
+                }}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full font-medium transition-all cursor-pointer ${
+                  activeTrackingScope === 'COMPARTILHADO'
+                    ? 'bg-purple-500/20 text-pink-300 border border-purple-500/40 shadow-sm'
+                    : 'text-muted hover:text-white'
+                }`}
+                title={defaultTrackingScope === 'COMPARTILHADO' ? 'Acompanhamento Compartilhado (Definido como Principal ⭐)' : 'Alternar para Acompanhamento Compartilhado'}
+              >
+                <Users size={12} />
+                <span>Compartilhado</span>
+                {defaultTrackingScope === 'COMPARTILHADO' && (
+                  <span className="text-[10px] text-amber-400 font-bold" title="Acompanhamento Principal">★</span>
+                )}
+              </button>
+            </div>
+
             {activeCheckpoint && (
               <button
                 onClick={() => setIsCheckpointModalOpen(true)}

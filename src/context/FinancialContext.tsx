@@ -28,6 +28,9 @@ import type {
   SalaryAdjustment,
   FinancialCheckpoint,
   MonthlyClosing,
+  TrackingScopeMode,
+  SharedScenario,
+  SharedSettlementItem,
 } from '../types';
 import { recognizeImageOCR } from '../services/ocrService';
 import { learnReceiptItemAssociation } from '../services/receiptMemoryService';
@@ -146,6 +149,18 @@ interface FinancialContextType {
   getNatureCeiling: (nature: ExpenseNature) => number;
   getNatureSpent: (nature: ExpenseNature) => number;
   getNatureMissingItems: (nature: ExpenseNature) => Array<{ item: MappingItem; mappingName: string; missingAmount: number }>;
+
+  // Acompanhamento Mútuo & Planejamento Compartilhado
+  activeTrackingScope: TrackingScopeMode;
+  defaultTrackingScope: TrackingScopeMode;
+  setActiveTrackingScope: (scope: TrackingScopeMode) => void;
+  setDefaultTrackingScope: (scope: TrackingScopeMode) => void;
+  sharedScenario: SharedScenario | null;
+  updateSharedScenario: (updates: Partial<SharedScenario>) => void;
+  sharedSettlements: SharedSettlementItem[];
+  addSharedSettlement: (item: Omit<SharedSettlementItem, 'id'>) => void;
+  toggleSharedSettlementStatus: (id: string) => void;
+  settleAllSharedDebts: () => void;
 }
 
 
@@ -498,6 +513,184 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const getMonthlyClosing = (monthKey: string): MonthlyClosing | undefined => {
     return monthlyClosings.find((c) => c.monthKey === monthKey);
+  };
+
+  // -------------------------------------------------------------
+  // Acompanhamento Mútuo & Planejamento Compartilhado
+  // -------------------------------------------------------------
+  // Preferência do Acompanhamento Principal (INDIVIDUAL ou COMPARTILHADO)
+  const [defaultTrackingScope, setDefaultTrackingScopeState] = useState<TrackingScopeMode>(() => {
+    try {
+      const storageKey = user && !user.isGuest ? `balder_default_scope_${user.$id}` : 'balder_default_scope';
+      const saved = localStorage.getItem(storageKey);
+      if (saved === 'COMPARTILHADO' || saved === 'INDIVIDUAL') return saved;
+    } catch {}
+    return 'INDIVIDUAL';
+  });
+
+  // Escopo de Acompanhamento Ativo no Momento
+  const [activeTrackingScope, setActiveTrackingScope] = useState<TrackingScopeMode>(() => defaultTrackingScope);
+
+  const setDefaultTrackingScope = (scope: TrackingScopeMode) => {
+    setDefaultTrackingScopeState(scope);
+    const storageKey = user && !user.isGuest ? `balder_default_scope_${user.$id}` : 'balder_default_scope';
+    try {
+      localStorage.setItem(storageKey, scope);
+    } catch {}
+  };
+
+  // Cenário de Planejamento Compartilhado
+  const [sharedScenario, setSharedScenario] = useState<SharedScenario | null>(() => {
+    try {
+      const storageKey = user && !user.isGuest ? `balder_shared_scenario_${user.$id}` : 'balder_shared_scenario';
+      const saved = localStorage.getItem(storageKey);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+
+    // Cenário padrão inicial inteligente
+    return {
+      id: 'shared_default',
+      name: 'Planejamento Familiar & Casal',
+      createdAt: new Date().toISOString(),
+      inviteCode: 'BALDER-CASAL-7829',
+      status: 'ACTIVE',
+      members: [
+        {
+          id: user?.$id || 'user_owner',
+          name: user?.name || 'Vinicius Mota Silva',
+          email: user?.email || 'vinicius@balder.app',
+          role: 'OWNER',
+          status: 'ACTIVE',
+          monthlyIncome: 8500,
+          color: '#06b6d4',
+          joinedAt: new Date().toISOString(),
+        },
+        {
+          id: 'partner_1',
+          name: 'Camila Silva',
+          email: 'camila@email.com',
+          role: 'PARTNER',
+          status: 'ACTIVE',
+          monthlyIncome: 5200,
+          color: '#ec4899',
+          joinedAt: new Date().toISOString(),
+        },
+      ],
+      splitMode: 'PROPORTIONAL_INCOME',
+      userSharePercent: 62,
+      partnerSharePercent: 38,
+      notes: 'Rateio proporcional calculado com base na renda líquida mensal de cada parceiro.',
+    };
+  });
+
+  // Lista de Despesas e Acertos Mútuos Compartilhados
+  const [sharedSettlements, setSharedSettlements] = useState<SharedSettlementItem[]>(() => {
+    try {
+      const storageKey = user && !user.isGuest ? `balder_shared_settlements_${user.$id}` : 'balder_shared_settlements';
+      const saved = localStorage.getItem(storageKey);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+
+    const todayYm = new Date().toISOString().substring(0, 7);
+    return [
+      {
+        id: 'settle_1',
+        title: 'Supermercado Mensal (Compras Grandes)',
+        category: 'Alimentação',
+        totalAmount: 1450,
+        paidBy: 'USER',
+        splitMode: 'PROPORTIONAL_INCOME',
+        userOwes: 899,
+        partnerOwes: 551,
+        date: `${todayYm}-05`,
+        status: 'PENDENTE',
+      },
+      {
+        id: 'settle_2',
+        title: 'Energia Elétrica & Gás',
+        category: 'Moradia',
+        totalAmount: 380,
+        paidBy: 'PARTNER',
+        splitMode: 'PROPORTIONAL_INCOME',
+        userOwes: 235.60,
+        partnerOwes: 144.40,
+        date: `${todayYm}-10`,
+        status: 'PENDENTE',
+      },
+      {
+        id: 'settle_3',
+        title: 'Condomínio Residencial',
+        category: 'Moradia',
+        totalAmount: 650,
+        paidBy: 'USER',
+        splitMode: 'PROPORTIONAL_INCOME',
+        userOwes: 403,
+        partnerOwes: 247,
+        date: `${todayYm}-15`,
+        status: 'PENDENTE',
+      },
+      {
+        id: 'settle_4',
+        title: 'Internet Fibra 600MB',
+        category: 'Moradia',
+        totalAmount: 140,
+        paidBy: 'PARTNER',
+        splitMode: 'PROPORTIONAL_INCOME',
+        userOwes: 86.80,
+        partnerOwes: 53.20,
+        date: `${todayYm}-20`,
+        status: 'PENDENTE',
+      },
+    ];
+  });
+
+  const updateSharedScenario = (updates: Partial<SharedScenario>) => {
+    setSharedScenario((prev) => {
+      if (!prev) return null;
+      const updated = { ...prev, ...updates };
+      const storageKey = user && !user.isGuest ? `balder_shared_scenario_${user.$id}` : 'balder_shared_scenario';
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  const addSharedSettlement = (item: Omit<SharedSettlementItem, 'id'>) => {
+    const newItem: SharedSettlementItem = {
+      ...item,
+      id: `settle_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+    };
+    setSharedSettlements((prev) => {
+      const next = [newItem, ...prev];
+      const storageKey = user && !user.isGuest ? `balder_shared_settlements_${user.$id}` : 'balder_shared_settlements';
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const toggleSharedSettlementStatus = (id: string) => {
+    setSharedSettlements((prev) => {
+      const next = prev.map((s) => (s.id === id ? { ...s, status: (s.status === 'PENDENTE' ? 'ACERTADO' : 'PENDENTE') as 'PENDENTE' | 'ACERTADO' } : s));
+      const storageKey = user && !user.isGuest ? `balder_shared_settlements_${user.$id}` : 'balder_shared_settlements';
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const settleAllSharedDebts = () => {
+    setSharedSettlements((prev) => {
+      const next = prev.map((s) => ({ ...s, status: 'ACERTADO' as const }));
+      const storageKey = user && !user.isGuest ? `balder_shared_settlements_${user.$id}` : 'balder_shared_settlements';
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
   };
 
   // Movimentações Financeiras
@@ -2682,6 +2875,16 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         getNatureMissingItems,
         reconcileReceiptData,
         loadSuggestedMappingsForNature,
+        activeTrackingScope,
+        defaultTrackingScope,
+        setActiveTrackingScope,
+        setDefaultTrackingScope,
+        sharedScenario,
+        updateSharedScenario,
+        sharedSettlements,
+        addSharedSettlement,
+        toggleSharedSettlementStatus,
+        settleAllSharedDebts,
       }}
     >
       {children}

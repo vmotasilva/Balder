@@ -18,6 +18,7 @@ const SCREEN_NAMES: Record<TabId, string> = {
   NATUREZAS: 'Naturezas & Tetos',
   EMPRESTIMOS: 'Empréstimos (PRICE)',
   METAS: 'Metas Financeiras',
+  COMPARTILHADO: 'Planejamento Conjunto & Mútuo',
   PERFIL: 'Perfil & Configurações',
   COPILOT: 'Forseti IA',
 };

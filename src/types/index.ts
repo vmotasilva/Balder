@@ -488,3 +488,57 @@ export interface FinancialCheckpoint {
   notes?: string;          // Observações sobre o marco
   isActive: boolean;       // true = checkpoint vigente (apenas um por vez)
 }
+
+/**
+ * Escopo de acompanhamento ativo no sistema:
+ * - INDIVIDUAL: acompanhamento financeiro próprio/pessoal
+ * - COMPARTILHADO: acompanhamento mútuo/conjunto (casal, família, sócios)
+ */
+export type TrackingScopeMode = 'INDIVIDUAL' | 'COMPARTILHADO';
+
+/**
+ * Regra de rateio de despesas compartilhadas:
+ * - EQUAL_50_50: divisão 50% / 50%
+ * - PROPORTIONAL_INCOME: divisão proporcional à renda líquida de cada participante
+ * - CUSTOM: percentual personalizado fixo
+ */
+export type ExpenseSplitMode = 'EQUAL_50_50' | 'PROPORTIONAL_INCOME' | 'CUSTOM';
+
+export interface SharedMember {
+  id: string;
+  name: string;
+  email: string;
+  role: 'OWNER' | 'PARTNER';
+  monthlyIncome?: number;
+  avatarUrl?: string;
+  color?: string;
+  status: 'ACTIVE' | 'PENDING';
+  joinedAt?: string;
+}
+
+export interface SharedScenario {
+  id: string;
+  name: string;
+  createdAt: string;
+  inviteCode: string;
+  status: 'ACTIVE' | 'PENDING';
+  members: SharedMember[];
+  splitMode: ExpenseSplitMode;
+  userSharePercent: number; // ex: 50% ou 60%
+  partnerSharePercent: number; // ex: 50% ou 40%
+  notes?: string;
+}
+
+export interface SharedSettlementItem {
+  id: string;
+  title: string;
+  category: string;
+  totalAmount: number;
+  paidBy: 'USER' | 'PARTNER';
+  splitMode: ExpenseSplitMode;
+  userOwes: number;
+  partnerOwes: number;
+  date: string;
+  status: 'PENDENTE' | 'ACERTADO';
+}
+
