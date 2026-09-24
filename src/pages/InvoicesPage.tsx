@@ -19,12 +19,15 @@ import {
 import { useFinancial } from '../context/FinancialContext';
 import type { Movement, MovementStatus, InvoiceNatureItemBreakdown } from '../types';
 import { MovementDetailModal } from '../components/MovementDetailModal';
+import { NewInvoiceModal } from '../components/NewInvoiceModal';
+import { getBankBranding } from '../utils/bankBranding';
 
 export const InvoicesPage: React.FC = () => {
   const {
     movements,
     updateMovement,
     addMovement,
+    deleteMovement,
     cards,
     natures,
   } = useFinancial();
@@ -35,6 +38,9 @@ export const InvoicesPage: React.FC = () => {
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<'ALL' | 'PREVISTA' | 'REALIZADA'>('ALL');
   const [selectedConciliationFilter, setSelectedConciliationFilter] = useState<'ALL' | 'RECONCILED' | 'PARTIAL' | 'UNANALYZED'>('ALL');
   const [selectedMonthFilter, setSelectedMonthFilter] = useState('ALL');
+
+  // Modal para Criar Nova Fatura
+  const [isNewInvoiceModalOpen, setIsNewInvoiceModalOpen] = useState(false);
 
   // Modal de Detalhamento Pop-up (MovementDetailModal)
   const [selectedMovementForModal, setSelectedMovementForModal] = useState<Movement | null>(null);
@@ -56,7 +62,7 @@ export const InvoicesPage: React.FC = () => {
       .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
   }, [movements]);
 
-  // Lista de bancos presentes nos movimentos de cartão
+  // Lista de bancos presentes nos movimentos de cartão e nos cartões cadastrados
   const availableBanks = useMemo(() => {
     const set = new Set<string>();
     cardMovements.forEach((m) => {
@@ -114,7 +120,6 @@ export const InvoicesPage: React.FC = () => {
         if (m.category === 'Não Analisada' || !m.category) {
           totalUnanalyzed += m.amount;
         } else {
-          // Se tiver uma natureza fixa atribuída
           totalReconciled += m.amount;
         }
       } else {
@@ -150,8 +155,9 @@ export const InvoicesPage: React.FC = () => {
       }
 
       // Banco
-      if (selectedBankFilter !== 'ALL' && m.bank !== selectedBankFilter) {
-        return false;
+      if (selectedBankFilter !== 'ALL') {
+        const bankMatch = (m.bank || '').toLowerCase() === selectedBankFilter.toLowerCase();
+        if (!bankMatch) return false;
       }
 
       // Status
@@ -331,7 +337,7 @@ export const InvoicesPage: React.FC = () => {
           (inv) =>
             inv.id !== m.id &&
             inv.type === 'CARTAO' &&
-            (inv.bank === m.bank || inv.title.toLowerCase().includes(m.bank.toLowerCase())) &&
+            (inv.bank === m.bank || inv.title.toLowerCase().includes((m.bank || '').toLowerCase())) &&
             inv.dueDate.startsWith(futureMonthPrefix)
         );
 
@@ -424,18 +430,8 @@ export const InvoicesPage: React.FC = () => {
         <div className="page-header-actions">
           <button
             className="btn btn-primary"
-            onClick={() => {
-              addMovement({
-                title: 'Nova Fatura de Cartão',
-                type: 'CARTAO',
-                amount: 1500,
-                dueDate: new Date(Date.now() + 20 * 86400000).toISOString().split('T')[0],
-                bank: cards[0]?.bank || 'Nubank',
-                status: 'PREVISTA',
-                category: 'Não Analisada',
-                notes: 'Fatura cadastrada manualmente para conciliação',
-              });
-            }}
+            onClick={() => setIsNewInvoiceModalOpen(true)}
+            id="btn-add-invoice"
           >
             <Plus size={16} />
             <span>Adicionar Fatura</span>
@@ -444,123 +440,177 @@ export const InvoicesPage: React.FC = () => {
       </div>
 
       {/* Top KPIs Banner */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div className="glass-card p-4 flex items-center gap-3 border border-slate-800/80">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-sky-500/10 text-sky-400 font-bold">
+      <div className="invoices-kpi-grid">
+        <div className="invoices-kpi-card">
+          <div className="invoices-kpi-icon" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38BDF8' }}>
             <CreditCard size={22} />
           </div>
-          <div>
-            <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider block">
-              Faturas em Aberto (Mês)
-            </span>
-            <strong className="text-xl font-black text-[var(--text-primary)]">
-              {fmtBRL(kpis.openCurrentMonth)}
-            </strong>
-            <span className="text-[11px] text-sky-400/80 block mt-0.5">Vencimento próximo</span>
+          <div className="invoices-kpi-content">
+            <span className="invoices-kpi-label">Faturas em Aberto (Mês)</span>
+            <strong className="invoices-kpi-value">{fmtBRL(kpis.openCurrentMonth)}</strong>
+            <span className="invoices-kpi-hint" style={{ color: '#38BDF8' }}>Vencimento próximo</span>
           </div>
         </div>
 
-        <div className="glass-card p-4 flex items-center gap-3 border border-slate-800/80">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-indigo-500/10 text-indigo-400 font-bold">
+        <div className="invoices-kpi-card">
+          <div className="invoices-kpi-icon" style={{ background: 'rgba(99, 102, 241, 0.15)', color: '#818CF8' }}>
             <Calendar size={22} />
           </div>
-          <div>
-            <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider block">
-              Faturas Futuras
-            </span>
-            <strong className="text-xl font-black text-[var(--text-primary)]">
-              {fmtBRL(kpis.openFuture)}
-            </strong>
-            <span className="text-[11px] text-indigo-400/80 block mt-0.5">Parcelamentos a vencer</span>
+          <div className="invoices-kpi-content">
+            <span className="invoices-kpi-label">Faturas Futuras</span>
+            <strong className="invoices-kpi-value">{fmtBRL(kpis.openFuture)}</strong>
+            <span className="invoices-kpi-hint" style={{ color: '#818CF8' }}>Parcelamentos a vencer</span>
           </div>
         </div>
 
         <div
-          className={`glass-card p-4 flex items-center gap-3 border transition-all ${
-            kpis.totalUnanalyzed > 0
-              ? 'border-amber-500/40 bg-amber-500/5'
-              : 'border-emerald-500/30 bg-emerald-500/5'
-          }`}
+          className="invoices-kpi-card"
+          style={{
+            borderColor: kpis.totalUnanalyzed > 0 ? 'rgba(245, 158, 11, 0.35)' : 'rgba(16, 185, 129, 0.35)',
+            background: kpis.totalUnanalyzed > 0 ? 'rgba(245, 158, 11, 0.05)' : 'rgba(16, 185, 129, 0.05)',
+          }}
         >
           <div
-            className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold ${
-              kpis.totalUnanalyzed > 0
-                ? 'bg-amber-500/20 text-amber-400'
-                : 'bg-emerald-500/20 text-emerald-400'
-            }`}
+            className="invoices-kpi-icon"
+            style={{
+              background: kpis.totalUnanalyzed > 0 ? 'rgba(245, 158, 11, 0.18)' : 'rgba(16, 185, 129, 0.18)',
+              color: kpis.totalUnanalyzed > 0 ? '#F59E0B' : '#10B981',
+            }}
           >
             {kpis.totalUnanalyzed > 0 ? <AlertTriangle size={22} /> : <CheckCircle2 size={22} />}
           </div>
-          <div>
-            <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider block">
-              Pendente de Análise
-            </span>
+          <div className="invoices-kpi-content">
+            <span className="invoices-kpi-label">Pendente de Análise</span>
             <strong
-              className={`text-xl font-black ${
-                kpis.totalUnanalyzed > 0 ? 'text-amber-400' : 'text-emerald-400'
-              }`}
+              className="invoices-kpi-value"
+              style={{ color: kpis.totalUnanalyzed > 0 ? '#F59E0B' : '#10B981' }}
             >
               {fmtBRL(kpis.totalUnanalyzed)}
             </strong>
-            <span className="text-[11px] text-[var(--text-muted)] block mt-0.5">
+            <span
+              className="invoices-kpi-hint"
+              style={{ color: kpis.totalUnanalyzed > 0 ? '#F59E0B' : '#10B981' }}
+            >
               {kpis.totalUnanalyzed > 0 ? 'Aguardando classificação' : '100% categorizado!'}
             </span>
           </div>
         </div>
 
-        <div className="glass-card p-4 flex items-center gap-3 border border-slate-800/80">
-          <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-emerald-500/10 text-emerald-400 font-bold">
+        <div className="invoices-kpi-card">
+          <div className="invoices-kpi-icon" style={{ background: 'rgba(16, 185, 129, 0.15)', color: '#10B981' }}>
             <Layers size={22} />
           </div>
-          <div>
-            <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider block">
-              Alocado em Naturezas
-            </span>
-            <strong className="text-xl font-black text-[var(--text-primary)]">
-              {fmtBRL(kpis.totalReconciled)}
-            </strong>
-            <span className="text-[11px] text-emerald-400/80 block mt-0.5">Abatendo dos tetos</span>
+          <div className="invoices-kpi-content">
+            <span className="invoices-kpi-label">Alocado em Naturezas</span>
+            <strong className="invoices-kpi-value">{fmtBRL(kpis.totalReconciled)}</strong>
+            <span className="invoices-kpi-hint" style={{ color: '#10B981' }}>Abatendo dos tetos</span>
           </div>
         </div>
       </div>
 
       {/* Notice box about Credit Card Logic */}
-      <div className="glass-card p-4 mb-6 flex items-start gap-3 border border-indigo-900/40 bg-indigo-950/20 rounded-xl">
-        <div className="w-8 h-8 rounded-lg bg-indigo-500/20 text-indigo-300 flex items-center justify-center shrink-0 mt-0.5">
+      <div
+        className="glass-card"
+        style={{
+          padding: '16px 20px',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '14px',
+          border: '1px solid rgba(99, 102, 241, 0.3)',
+          background: 'rgba(99, 102, 241, 0.08)',
+          borderRadius: '14px',
+        }}
+      >
+        <div
+          style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '10px',
+            background: 'rgba(99, 102, 241, 0.2)',
+            color: '#A5B4FC',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            marginTop: '2px',
+          }}
+        >
           <Sparkles size={16} />
         </div>
-        <div className="text-xs leading-relaxed text-slate-300 flex-1">
-          <strong className="text-indigo-300 block font-semibold mb-0.5">
+        <div style={{ fontSize: '13px', lineHeight: '1.5', color: 'var(--text-secondary)', flex: 1 }}>
+          <strong style={{ color: '#C7D2FE', display: 'block', marginBottom: '2px' }}>
             Regra de Competência e Vencimento de Cartão de Crédito
           </strong>
           Os gastos efetuados no mês atual (ex: Setembro) têm sua fatura fechada com vencimento no mês seguinte (ex: Outubro). Ao destrinchar os itens nas Naturezas, os valores abatem diretamente as metas e tetos orçamentários do Balder. O saldo não distribuído é mantido como <strong>Não Analisada</strong> até que você decida alocá-lo ou transferi-lo para <strong>Outros</strong>.
         </div>
       </div>
 
-      {/* Filter Panel */}
-      <div className="glass-card p-4 mb-6 border border-slate-800/80">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2">
-            <SlidersHorizontal size={15} className="text-slate-400" />
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
-              Filtros & Pesquisa
+      {/* Filter Panel com Abas Visuais por Banco */}
+      <div className="invoices-filter-panel">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <SlidersHorizontal size={15} style={{ color: 'var(--text-muted)' }} />
+            <span style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)' }}>
+              Filtros & Distinção por Banco
             </span>
           </div>
-          <span className="text-xs text-slate-400">
-            Mostrando <strong>{filteredInvoices.length}</strong> de {cardMovements.length} faturas
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+            Mostrando <strong style={{ color: 'var(--text-primary)' }}>{filteredInvoices.length}</strong> de {cardMovements.length} faturas
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+        {/* Abas Rápidas por Banco com cores da marca */}
+        <div className="invoices-bank-pills">
+          <button
+            type="button"
+            className={`invoices-bank-pill ${selectedBankFilter === 'ALL' ? 'active' : ''}`}
+            onClick={() => setSelectedBankFilter('ALL')}
+          >
+            <span>💳 Todos os Bancos</span>
+            <span style={{ fontSize: '11px', opacity: 0.85 }}>({cardMovements.length})</span>
+          </button>
+
+          {availableBanks.map((b) => {
+            const brand = getBankBranding(b);
+            const count = cardMovements.filter((m) => (m.bank || '').toLowerCase() === b.toLowerCase()).length;
+            const isSelected = selectedBankFilter.toLowerCase() === b.toLowerCase();
+            return (
+              <button
+                key={b}
+                type="button"
+                className={`invoices-bank-pill ${isSelected ? 'active' : ''}`}
+                style={
+                  isSelected
+                    ? {
+                        background: brand.badgeBg,
+                        borderColor: brand.badgeBorder,
+                        color: brand.textColor,
+                        boxShadow: `0 0 12px ${brand.primaryColor}55`,
+                      }
+                    : undefined
+                }
+                onClick={() => setSelectedBankFilter(isSelected ? 'ALL' : b)}
+              >
+                <span>{brand.iconText}</span>
+                <span>{b}</span>
+                <span style={{ fontSize: '11px', opacity: 0.85 }}>({count})</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Grid de Inputs de Filtros */}
+        <div className="invoices-filter-grid">
           {/* Busca */}
-          <div className="relative">
+          <div style={{ position: 'relative' }}>
             <Search
               size={15}
-              className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+              style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }}
             />
             <input
               type="text"
-              className="w-full pl-9 pr-3 py-2 text-xs rounded-lg bg-slate-900/60 border border-slate-700/80 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+              className="form-input"
+              style={{ paddingLeft: '36px' }}
               placeholder="Buscar por fatura, banco, item..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -570,14 +620,14 @@ export const InvoicesPage: React.FC = () => {
           {/* Filtro Banco */}
           <div>
             <select
-              className="w-full py-2 px-3 text-xs rounded-lg bg-slate-900/60 border border-slate-700/80 text-white focus:outline-none focus:border-indigo-500"
+              className="form-select"
               value={selectedBankFilter}
               onChange={(e) => setSelectedBankFilter(e.target.value)}
             >
               <option value="ALL">Todos os Bancos / Emissores</option>
               {availableBanks.map((b) => (
                 <option key={b} value={b}>
-                  {b}
+                  {getBankBranding(b).iconText} {b}
                 </option>
               ))}
             </select>
@@ -586,7 +636,7 @@ export const InvoicesPage: React.FC = () => {
           {/* Filtro Mês */}
           <div>
             <select
-              className="w-full py-2 px-3 text-xs rounded-lg bg-slate-900/60 border border-slate-700/80 text-white focus:outline-none focus:border-indigo-500"
+              className="form-select"
               value={selectedMonthFilter}
               onChange={(e) => setSelectedMonthFilter(e.target.value)}
             >
@@ -602,7 +652,7 @@ export const InvoicesPage: React.FC = () => {
           {/* Filtro Status */}
           <div>
             <select
-              className="w-full py-2 px-3 text-xs rounded-lg bg-slate-900/60 border border-slate-700/80 text-white focus:outline-none focus:border-indigo-500"
+              className="form-select"
               value={selectedStatusFilter}
               onChange={(e) => setSelectedStatusFilter(e.target.value as any)}
             >
@@ -615,7 +665,7 @@ export const InvoicesPage: React.FC = () => {
           {/* Filtro Conciliação */}
           <div>
             <select
-              className="w-full py-2 px-3 text-xs rounded-lg bg-slate-900/60 border border-slate-700/80 text-white focus:outline-none focus:border-indigo-500"
+              className="form-select"
               value={selectedConciliationFilter}
               onChange={(e) => setSelectedConciliationFilter(e.target.value as any)}
             >
@@ -630,33 +680,54 @@ export const InvoicesPage: React.FC = () => {
 
       {/* Lista de Faturas */}
       {filteredInvoices.length === 0 ? (
-        <div className="glass-card p-12 text-center border border-slate-800/80 rounded-2xl">
-          <div className="w-16 h-16 rounded-full bg-slate-800/60 text-slate-400 flex items-center justify-center mx-auto mb-4">
-            <CreditCard size={32} />
-          </div>
-          <h3 className="text-base font-bold text-white mb-1">Nenhuma fatura de cartão encontrada</h3>
-          <p className="text-xs text-slate-400 max-w-md mx-auto mb-4">
-            Não encontramos faturas correspondentes aos filtros selecionados. Você pode adicionar uma nova fatura ou redefinir seus filtros.
-          </p>
-          <button
-            className="btn btn-secondary text-xs"
-            onClick={() => {
-              setSearchTerm('');
-              setSelectedBankFilter('ALL');
-              setSelectedStatusFilter('ALL');
-              setSelectedMonthFilter('ALL');
-              setSelectedConciliationFilter('ALL');
+        <div className="glass-card" style={{ padding: '48px 24px', textAlign: 'center', borderRadius: '16px' }}>
+          <div
+            style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.05)',
+              color: 'var(--text-muted)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px auto',
             }}
           >
-            Limpar Filtros
-          </button>
+            <CreditCard size={32} />
+          </div>
+          <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '6px' }}>
+            Nenhuma fatura de cartão encontrada
+          </h3>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', maxWidth: '440px', margin: '0 auto 20px auto' }}>
+            Não encontramos faturas para os filtros ativos. Você pode cadastrar uma nova fatura com banco e valor personalizados ou redefinir os filtros.
+          </p>
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+            <button
+              className="btn btn-secondary"
+              onClick={() => {
+                setSearchTerm('');
+                setSelectedBankFilter('ALL');
+                setSelectedStatusFilter('ALL');
+                setSelectedMonthFilter('ALL');
+                setSelectedConciliationFilter('ALL');
+              }}
+            >
+              Limpar Filtros
+            </button>
+            <button className="btn btn-primary" onClick={() => setIsNewInvoiceModalOpen(true)}>
+              <Plus size={15} />
+              <span>Adicionar Fatura</span>
+            </button>
+          </div>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div>
           {filteredInvoices.map((m) => {
             const breakdown = m.invoiceBreakdown || [];
             const isExpanded = !!expandedInvoices[m.id];
             const isPaid = m.status === 'REALIZADA';
+            const bankBrand = getBankBranding(m.bank);
 
             // Cálculos da Composição
             const natureItems = breakdown.filter((i) => i.natureId !== 'OUTROS');
@@ -683,87 +754,149 @@ export const InvoicesPage: React.FC = () => {
             return (
               <div
                 key={m.id}
-                className="glass-card border border-slate-800/80 rounded-2xl overflow-hidden hover:border-slate-700/80 transition-all shadow-lg"
+                className="invoice-card"
+                style={{
+                  borderLeft: `5px solid ${bankBrand.accentBorder}`,
+                  boxShadow: `0 6px 20px rgba(0, 0, 0, 0.35), 0 0 16px ${bankBrand.primaryColor}15`,
+                }}
               >
-                {/* Header da Fatura */}
-                <div className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-900/40">
-                  <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 text-indigo-400 font-bold shrink-0">
-                      <CreditCard size={24} />
+                {/* Header da Fatura com Cores Distintas por Banco */}
+                <div
+                  className="invoice-card-header"
+                  style={{
+                    background: bankBrand.headerGradient,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                    {/* Avatar do Banco com Logo/Ícone da Marca */}
+                    <div
+                      className="invoice-bank-avatar"
+                      style={{
+                        background: bankBrand.primaryColor,
+                        boxShadow: `0 0 16px ${bankBrand.primaryColor}55`,
+                      }}
+                      title={bankBrand.name}
+                    >
+                      {bankBrand.iconText}
                     </div>
+
                     <div>
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className="text-xs font-bold text-indigo-300 uppercase px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20">
-                          {m.bank || 'Cartão'}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                        {/* Badge Oficial do Banco */}
+                        <span
+                          className="invoice-bank-badge"
+                          style={{
+                            background: bankBrand.badgeBg,
+                            border: `1px solid ${bankBrand.badgeBorder}`,
+                            color: bankBrand.textColor,
+                          }}
+                        >
+                          {m.bank || 'Cartão de Crédito'}
                         </span>
+
                         {m.installmentNumber && (
-                          <span className="text-xs font-semibold text-slate-300 px-2 py-0.5 rounded-full bg-slate-800">
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              padding: '3px 8px',
+                              borderRadius: '9999px',
+                              background: 'rgba(255, 255, 255, 0.08)',
+                              color: 'var(--text-secondary)',
+                            }}
+                          >
                             Parcela {m.installmentNumber}/{m.installmentsTotal || 10}
                           </span>
                         )}
+
+                        {/* Status da Fatura */}
                         <span
-                          className={`text-xs font-bold px-2 py-0.5 rounded-full border ${
-                            isPaid
-                              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                              : 'bg-sky-500/10 border-sky-500/30 text-sky-300'
-                          }`}
+                          className="badge"
+                          style={{
+                            background: isPaid ? 'rgba(16, 185, 129, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+                            border: isPaid ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(56, 189, 248, 0.35)',
+                            color: isPaid ? '#34D399' : '#38BDF8',
+                          }}
                         >
                           {isPaid ? 'REALIZADA (PAGA)' : 'PREVISTA NO FLUXO'}
                         </span>
 
+                        {/* Status de Conciliação */}
                         {isFullyReconciled ? (
-                          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center gap-1">
+                          <span
+                            className="badge"
+                            style={{
+                              background: 'rgba(16, 185, 129, 0.15)',
+                              border: '1px solid rgba(16, 185, 129, 0.35)',
+                              color: '#34D399',
+                            }}
+                          >
                             <CheckCircle2 size={12} />
                             100% Conciliada
                           </span>
                         ) : isPartiallyReconciled ? (
-                          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center gap-1">
+                          <span
+                            className="badge"
+                            style={{
+                              background: 'rgba(245, 158, 11, 0.15)',
+                              border: '1px solid rgba(245, 158, 11, 0.35)',
+                              color: '#FBBF24',
+                            }}
+                          >
                             <AlertTriangle size={12} />
                             Parcial ({fmtBRL(unallocated)} pendente)
                           </span>
                         ) : (
-                          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 flex items-center gap-1">
+                          <span
+                            className="badge"
+                            style={{
+                              background: 'rgba(239, 68, 68, 0.15)',
+                              border: '1px solid rgba(239, 68, 68, 0.35)',
+                              color: '#F87171',
+                            }}
+                          >
                             <AlertTriangle size={12} />
                             Não Analisada
                           </span>
                         )}
                       </div>
 
-                      <h3 className="text-base font-bold text-white">{m.title}</h3>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        Vencimento: <strong className="text-slate-200">{dueDateFormatted}</strong> ({monthName}) • Competência:{' '}
-                        <span className="text-slate-300">Gastos do mês anterior</span>
+                      <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                        {m.title}
+                      </h3>
+
+                      <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>
+                        Vencimento: <strong style={{ color: 'var(--text-primary)' }}>{dueDateFormatted}</strong> ({monthName}) • Competência:{' '}
+                        <span style={{ color: 'var(--text-secondary)' }}>Gastos do mês anterior</span>
                       </p>
                     </div>
                   </div>
 
-                  {/* Valor e Ações Rápidas do Header */}
-                  <div className="flex items-center gap-4 self-end md:self-center">
-                    <div className="text-right">
-                      <span className="text-[11px] font-semibold text-slate-400 block uppercase">
+                  {/* Valor e Ações Rápidas */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div className="invoice-amount-box">
+                      <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
                         Valor da Fatura
                       </span>
-                      <strong className="text-2xl font-black text-white">
+                      <strong className="invoice-amount-value">
                         {fmtBRL(m.amount)}
                       </strong>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <button
-                        className="btn btn-secondary text-xs px-3 py-2 flex items-center gap-1.5"
+                        className="btn btn-secondary"
+                        style={{ fontSize: '12px', padding: '8px 14px' }}
                         onClick={() => setSelectedMovementForModal(m)}
-                        title="Abrir pop-up detalhado de conciliação"
+                        title="Abrir pop-up detalhado de conciliação da fatura"
                       >
                         <ArrowUpRight size={14} />
-                        <span>Abrir Pop-up</span>
+                        <span>Conciliar Itens</span>
                       </button>
 
                       <button
-                        className={`p-2 rounded-lg border transition-all ${
-                          isPaid
-                            ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
-                            : 'bg-slate-800/80 border-slate-700 text-slate-400 hover:text-emerald-400 hover:border-emerald-500/40'
-                        }`}
+                        className={`btn ${isPaid ? 'btn-success' : 'btn-outline'}`}
+                        style={{ padding: '8px 10px' }}
                         onClick={() => handleToggleInvoiceStatus(m)}
                         title={isPaid ? 'Marcar como prevista' : 'Marcar como paga / realizada'}
                       >
@@ -771,31 +904,47 @@ export const InvoicesPage: React.FC = () => {
                       </button>
 
                       <button
-                        className="p-2 rounded-lg bg-slate-800/80 border border-slate-700 text-slate-400 hover:text-white"
+                        className="btn btn-outline"
+                        style={{ padding: '8px 10px' }}
                         onClick={() => toggleExpand(m.id)}
                         title={isExpanded ? 'Recolher detalhes' : 'Expandir itens e naturezas'}
                       >
                         {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </button>
+
+                      <button
+                        className="btn btn-outline"
+                        style={{ padding: '8px 10px', color: 'var(--accent-rose)' }}
+                        onClick={() => {
+                          if (window.confirm(`Deseja realmente excluir esta fatura (${m.title} - ${fmtBRL(m.amount)})?`)) {
+                            deleteMovement(m.id);
+                          }
+                        }}
+                        title="Excluir fatura"
+                      >
+                        <Trash2 size={16} />
                       </button>
                     </div>
                   </div>
                 </div>
 
                 {/* Barra de Progresso Visual da Composição */}
-                <div className="px-5 py-3 border-t border-b border-slate-800/60 bg-slate-950/40">
-                  <div className="flex items-center justify-between text-xs mb-1.5 font-medium">
-                    <div className="flex items-center gap-4 flex-wrap">
-                      <span className="flex items-center gap-1.5 text-emerald-400">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+                <div className="invoice-composition-panel">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-emerald)', fontWeight: 600 }}>
+                        <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--accent-emerald)', display: 'inline-block' }} />
                         Naturezas: <strong>{fmtBRL(natureAllocated)}</strong> ({naturePct.toFixed(0)}%)
                       </span>
-                      <span className="flex items-center gap-1.5 text-sky-400">
-                        <span className="w-2.5 h-2.5 rounded-full bg-sky-500 inline-block" />
+
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-cyan)', fontWeight: 600 }}>
+                        <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--accent-cyan)', display: 'inline-block' }} />
                         Outros: <strong>{fmtBRL(outrosAllocated)}</strong> ({outrosPct.toFixed(0)}%)
                       </span>
+
                       {unallocated > 0.01 && (
-                        <span className="flex items-center gap-1.5 text-amber-400">
-                          <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" />
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--accent-amber)', fontWeight: 600 }}>
+                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--accent-amber)', display: 'inline-block' }} />
                           Não Analisada: <strong>{fmtBRL(unallocated)}</strong> ({unallocatedPct.toFixed(0)}%)
                         </span>
                       )}
@@ -803,29 +952,50 @@ export const InvoicesPage: React.FC = () => {
 
                     {unallocated > 0.01 && (
                       <button
-                        className="text-[11px] font-bold text-sky-400 hover:text-sky-300 underline underline-offset-2 flex items-center gap-1"
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          color: 'var(--accent-cyan)',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          textDecoration: 'underline',
+                          textUnderlineOffset: '3px',
+                        }}
                         onClick={() => handleQuickAllocateRemainingAsOutros(m)}
                       >
-                        <span>Classificar restante ({fmtBRL(unallocated)}) como Outros</span>
+                        Classificar restante ({fmtBRL(unallocated)}) como Outros
                       </button>
                     )}
                   </div>
 
-                  {/* Visual Bar */}
-                  <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden flex">
+                  {/* Barra Visual */}
+                  <div style={{ width: '100%', height: '8px', borderRadius: '9999px', background: 'var(--bg-card-elevated)', overflow: 'hidden', display: 'flex' }}>
                     <div
-                      className="h-full bg-emerald-500 transition-all duration-300"
-                      style={{ width: `${naturePct}%` }}
+                      style={{
+                        width: `${naturePct}%`,
+                        height: '100%',
+                        background: 'var(--accent-emerald)',
+                        transition: 'width 0.3s ease',
+                      }}
                       title={`Naturezas: ${fmtBRL(natureAllocated)}`}
                     />
                     <div
-                      className="h-full bg-sky-500 transition-all duration-300"
-                      style={{ width: `${outrosPct}%` }}
+                      style={{
+                        width: `${outrosPct}%`,
+                        height: '100%',
+                        background: 'var(--accent-cyan)',
+                        transition: 'width 0.3s ease',
+                      }}
                       title={`Outros: ${fmtBRL(outrosAllocated)}`}
                     />
                     <div
-                      className="h-full bg-amber-500 transition-all duration-300"
-                      style={{ width: `${unallocatedPct}%` }}
+                      style={{
+                        width: `${unallocatedPct}%`,
+                        height: '100%',
+                        background: 'var(--accent-amber)',
+                        transition: 'width 0.3s ease',
+                      }}
                       title={`Não Analisada: ${fmtBRL(unallocated)}`}
                     />
                   </div>
@@ -833,34 +1003,45 @@ export const InvoicesPage: React.FC = () => {
 
                 {/* Conteúdo Expandido (Lista de Itens e Inclusão Rápida) */}
                 {isExpanded && (
-                  <div className="p-5 bg-slate-950/20 animate-fade-in">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                        <Tag size={13} className="text-indigo-400" />
-                        Itens Detalhados da Fatura ({breakdown.length})
+                  <div style={{ padding: '20px 24px', background: 'rgba(6, 9, 15, 0.4)' }} className="animate-fade-in">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+                      <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Tag size={14} style={{ color: 'var(--accent-cyan)' }} />
+                        <span>Itens Detalhados da Fatura ({breakdown.length})</span>
                       </h4>
-                      <span className="text-[11px] text-slate-400">
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                         Cada item abatido alimenta a execução orçamentária do Balder
                       </span>
                     </div>
 
                     {breakdown.length === 0 ? (
-                      <div className="p-4 rounded-xl border border-dashed border-slate-800 text-center bg-slate-900/20 mb-4">
-                        <p className="text-xs text-slate-400 mb-2">
+                      <div
+                        style={{
+                          padding: '24px',
+                          borderRadius: '12px',
+                          border: '1px dashed var(--border-default)',
+                          textAlign: 'center',
+                          background: 'rgba(15, 23, 42, 0.3)',
+                          marginBottom: '16px',
+                        }}
+                      >
+                        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
                           Esta fatura ainda não possui itens detalhados. O valor integral de{' '}
-                          <strong className="text-amber-400">{fmtBRL(m.amount)}</strong> consta como{' '}
+                          <strong style={{ color: 'var(--accent-amber)' }}>{fmtBRL(m.amount)}</strong> consta como{' '}
                           <strong>Não Analisada</strong>.
                         </p>
-                        <div className="flex items-center justify-center gap-2">
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                           <button
-                            className="btn btn-secondary text-xs"
+                            className="btn btn-secondary"
+                            style={{ fontSize: '12px' }}
                             onClick={() => setSelectedMovementForModal(m)}
                           >
                             <ArrowUpRight size={13} className="mr-1" />
                             Detalhar no Pop-up
                           </button>
                           <button
-                            className="btn btn-primary text-xs"
+                            className="btn btn-primary"
+                            style={{ fontSize: '12px' }}
                             onClick={() => handleQuickAllocateRemainingAsOutros(m)}
                           >
                             Classificar Tudo como Outros
@@ -868,20 +1049,20 @@ export const InvoicesPage: React.FC = () => {
                         </div>
                       </div>
                     ) : (
-                      <div className="overflow-x-auto mb-4">
-                        <table className="w-full text-xs text-left">
-                          <thead className="text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-800 bg-slate-900/30">
+                      <div style={{ overflowX: 'auto', marginBottom: '16px' }}>
+                        <table className="invoice-items-table">
+                          <thead>
                             <tr>
-                              <th className="py-2.5 px-3">Natureza</th>
-                              <th className="py-2.5 px-3">Descrição do Item</th>
-                              <th className="py-2.5 px-3 text-center">Parcela(s)</th>
-                              <th className="py-2.5 px-3 text-right">Nesta Fatura (R$)</th>
-                              <th className="py-2.5 px-3 text-right text-purple-300">Valor Final (R$)</th>
-                              <th className="py-2.5 px-3 text-right">% Fatura</th>
-                              <th className="py-2.5 px-3 text-center">Ações</th>
+                              <th>Natureza</th>
+                              <th>Descrição do Item</th>
+                              <th style={{ textAlign: 'center' }}>Parcela(s)</th>
+                              <th style={{ textAlign: 'right' }}>Nesta Fatura (R$)</th>
+                              <th style={{ textAlign: 'right', color: '#D8B4FE' }}>Valor Final (R$)</th>
+                              <th style={{ textAlign: 'right' }}>% Fatura</th>
+                              <th style={{ textAlign: 'center' }}>Ações</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-800/60">
+                          <tbody>
                             {breakdown.map((item) => {
                               const itemPct = m.amount > 0 ? (item.amount / m.amount) * 100 : 0;
                               const isOutros = item.natureId === 'OUTROS';
@@ -889,42 +1070,61 @@ export const InvoicesPage: React.FC = () => {
                               const finalVal = item.finalAmount ?? (item.amount * inst);
 
                               return (
-                                <tr key={item.id} className="hover:bg-slate-900/40 transition-colors">
-                                  <td className="py-2.5 px-3">
+                                <tr key={item.id}>
+                                  <td>
                                     <span
-                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold text-[11px] ${
-                                        isOutros
-                                          ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20'
-                                          : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
-                                      }`}
+                                      className="badge"
+                                      style={{
+                                        background: isOutros ? 'rgba(56, 189, 248, 0.15)' : 'rgba(99, 102, 241, 0.15)',
+                                        border: isOutros ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid rgba(99, 102, 241, 0.35)',
+                                        color: isOutros ? '#38BDF8' : '#818CF8',
+                                      }}
                                     >
                                       {item.natureName}
                                     </span>
                                   </td>
-                                  <td className="py-2.5 px-3 text-white font-medium">
+                                  <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                                     {item.description}
                                   </td>
-                                  <td className="py-2.5 px-3 text-center">
+                                  <td style={{ textAlign: 'center' }}>
                                     {inst > 1 ? (
-                                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30" title={`Parcela ${item.currentInstallment || 1} de ${inst}`}>
+                                      <span
+                                        style={{
+                                          padding: '2px 8px',
+                                          borderRadius: '9999px',
+                                          fontSize: '11px',
+                                          fontWeight: 700,
+                                          background: 'rgba(168, 85, 247, 0.15)',
+                                          color: '#C084FC',
+                                          border: '1px solid rgba(168, 85, 247, 0.3)',
+                                        }}
+                                        title={`Parcela ${item.currentInstallment || 1} de ${inst}`}
+                                      >
                                         {item.currentInstallment || 1}/{inst}
                                       </span>
                                     ) : (
-                                      <span className="text-slate-500 text-[11px]">1x (à vista)</span>
+                                      <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>1x (à vista)</span>
                                     )}
                                   </td>
-                                  <td className="py-2.5 px-3 text-right font-bold text-slate-200">
+                                  <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>
                                     {fmtBRL(item.amount)}
                                   </td>
-                                  <td className="py-2.5 px-3 text-right font-semibold text-purple-300">
+                                  <td style={{ textAlign: 'right', fontWeight: 600, color: '#D8B4FE' }}>
                                     {fmtBRL(finalVal)}
                                   </td>
-                                  <td className="py-2.5 px-3 text-right text-slate-400">
+                                  <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>
                                     {itemPct.toFixed(1)}%
                                   </td>
-                                  <td className="py-2.5 px-3 text-center">
+                                  <td style={{ textAlign: 'center' }}>
                                     <button
-                                      className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
+                                      style={{
+                                        background: 'none',
+                                        border: 'none',
+                                        color: 'var(--accent-rose)',
+                                        cursor: 'pointer',
+                                        padding: '4px',
+                                        borderRadius: '6px',
+                                      }}
                                       onClick={() => handleDeleteBreakdownItem(m, item.id)}
                                       title="Remover item do detalhamento"
                                     >
@@ -939,11 +1139,22 @@ export const InvoicesPage: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Inline Form para adicionar item */}
-                    <div className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-                      <div className="w-full sm:w-40 shrink-0">
+                    {/* Formulário Inline para adicionar item */}
+                    <div
+                      style={{
+                        padding: '14px 16px',
+                        borderRadius: '12px',
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border-default)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <div style={{ minWidth: '150px', flex: '1 1 150px' }}>
                         <select
-                          className="w-full py-1.5 px-2.5 text-xs rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-indigo-500"
+                          className="form-select"
                           value={inlineItemNature[m.id] || (natures[0]?.id ?? 'OUTROS')}
                           onChange={(e) =>
                             setInlineItemNature((prev) => ({ ...prev, [m.id]: e.target.value }))
@@ -958,11 +1169,11 @@ export const InvoicesPage: React.FC = () => {
                         </select>
                       </div>
 
-                      <div className="flex-1">
+                      <div style={{ minWidth: '200px', flex: '2 1 200px' }}>
                         <input
                           type="text"
-                          className="w-full py-1.5 px-3 text-xs rounded-lg bg-slate-800 border border-slate-700 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
-                          placeholder="Descrição do gasto (ex: Tênis, Compras)..."
+                          className="form-input"
+                          placeholder="Descrição do gasto (ex: Tênis, Mercado, Farmácia)..."
                           value={inlineItemDesc[m.id] || ''}
                           onChange={(e) =>
                             setInlineItemDesc((prev) => ({ ...prev, [m.id]: e.target.value }))
@@ -970,9 +1181,9 @@ export const InvoicesPage: React.FC = () => {
                         />
                       </div>
 
-                      <div className="w-full sm:w-28 shrink-0">
+                      <div style={{ width: '130px' }}>
                         <select
-                          className="w-full py-1.5 px-2 text-xs rounded-lg bg-slate-800 border border-slate-700 text-white focus:outline-none focus:border-indigo-500"
+                          className="form-select"
                           value={inlineItemInstallments[m.id] || 1}
                           onChange={(e) =>
                             handleInlineInstallmentsChange(m.id, parseInt(e.target.value, 10))
@@ -990,10 +1201,11 @@ export const InvoicesPage: React.FC = () => {
                         </select>
                       </div>
 
-                      <div className="w-full sm:w-28 shrink-0">
+                      <div style={{ width: '120px' }}>
                         <input
                           type="text"
-                          className="w-full py-1.5 px-2.5 text-xs rounded-lg bg-slate-800 border border-slate-700 text-cyan-300 placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-bold"
+                          className="form-input"
+                          style={{ fontWeight: 700, color: 'var(--accent-cyan)' }}
                           placeholder="Nesta Fatura"
                           value={inlineItemAmount[m.id] || ''}
                           onChange={(e) => handleInlineAmountChange(m.id, e.target.value)}
@@ -1001,10 +1213,11 @@ export const InvoicesPage: React.FC = () => {
                         />
                       </div>
 
-                      <div className="w-full sm:w-28 shrink-0">
+                      <div style={{ width: '120px' }}>
                         <input
                           type="text"
-                          className="w-full py-1.5 px-2.5 text-xs rounded-lg bg-slate-800 border border-slate-700 text-purple-300 placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-bold"
+                          className="form-input"
+                          style={{ fontWeight: 700, color: '#D8B4FE' }}
                           placeholder="Valor Final"
                           value={inlineItemFinalAmount[m.id] || ''}
                           onChange={(e) => handleInlineFinalAmountChange(m.id, e.target.value)}
@@ -1013,7 +1226,8 @@ export const InvoicesPage: React.FC = () => {
                       </div>
 
                       <button
-                        className="btn btn-primary text-xs py-1.5 px-3 shrink-0 flex items-center justify-center gap-1"
+                        className="btn btn-primary"
+                        style={{ fontSize: '12px', padding: '8px 16px', flexShrink: 0 }}
                         onClick={() => handleAddInlineItem(m)}
                       >
                         <Plus size={14} />
@@ -1027,6 +1241,13 @@ export const InvoicesPage: React.FC = () => {
           })}
         </div>
       )}
+
+      {/* Pop-up para Adicionar Nova Fatura (Banco e Valor) */}
+      <NewInvoiceModal
+        isOpen={isNewInvoiceModalOpen}
+        onClose={() => setIsNewInvoiceModalOpen(false)}
+        defaultBank={selectedBankFilter !== 'ALL' ? selectedBankFilter : undefined}
+      />
 
       {/* Modal de Detalhamento Pop-up (MovementDetailModal) */}
       {selectedMovementForModal && (
