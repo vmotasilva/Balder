@@ -16,6 +16,7 @@ import {
   Calendar,
   Check,
   Upload,
+  Copy,
 } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import type { Movement, MovementStatus, InvoiceNatureItemBreakdown } from '../types';
@@ -213,6 +214,91 @@ export const InvoicesPage: React.FC = () => {
   // Helper para formatar moeda
   const fmtBRL = (val: number) =>
     val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  // Detecção e Agrupamento de Faturas Duplicadas (mesmo banco e mês de vencimento)
+  const duplicateInvoiceGroups = useMemo(() => {
+    const groups: Record<string, Movement[]> = {};
+    cardMovements.forEach((m) => {
+      if (m.status === 'PREVISTA') {
+        const bankKey = (m.bank || 'cartao').trim().toLowerCase();
+        const monthKey = m.dueDate.substring(0, 7);
+        const groupKey = `${bankKey}_${monthKey}`;
+        if (!groups[groupKey]) groups[groupKey] = [];
+        groups[groupKey].push(m);
+      }
+    });
+
+    return Object.entries(groups)
+      .filter(([_, list]) => list.length > 1)
+      .map(([key, list]) => ({
+        key,
+        bank: list[0].bank || 'Cartão',
+        monthKey: list[0].dueDate.substring(0, 7),
+        dueDate: list[0].dueDate,
+        invoices: list,
+      }));
+  }, [cardMovements]);
+
+  const totalDuplicatesCount = useMemo(() => {
+    return duplicateInvoiceGroups.reduce((acc, g) => acc + (g.invoices.length - 1), 0);
+  }, [duplicateInvoiceGroups]);
+
+  // Consolidar e Limpar Duplicatas em 1 Clique
+  const handleConsolidateDuplicates = () => {
+    if (duplicateInvoiceGroups.length === 0) return;
+
+    const confirmMsg = `Detectamos ${totalDuplicatesCount} fatura(s) em duplicidade para o mesmo cartão e mês.\n\nDeseja consolidar o fluxo agora? O Balder manterá a fatura principal e removerá com segurança as cópias duplicadas.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    let removed = 0;
+    duplicateInvoiceGroups.forEach((group) => {
+      // Priorização para manter a melhor fatura:
+      // 1. Quem tem itens no breakdown
+      // 2. Quem tem UUID persistido no Supabase
+      // 3. Primeira da lista
+      const sorted = [...group.invoices].sort((a, b) => {
+        const aBreakdown = (a.invoiceBreakdown || []).length;
+        const bBreakdown = (b.invoiceBreakdown || []).length;
+        if (bBreakdown !== aBreakdown) return bBreakdown - aBreakdown;
+        const aIsUuid = /^[0-9a-f-]{36}$/i.test(a.id);
+        const bIsUuid = /^[0-9a-f-]{36}$/i.test(b.id);
+        if (aIsUuid && !bIsUuid) return -1;
+        if (!aIsUuid && bIsUuid) return 1;
+        return 0;
+      });
+
+      const keep = sorted[0];
+      const duplicates = sorted.slice(1);
+
+      // Mescla itens do breakdown que possam estar apenas nas cópias
+      const mergedBreakdown = [...(keep.invoiceBreakdown || [])];
+      let hasBreakdownUpdates = false;
+
+      duplicates.forEach((dup) => {
+        (dup.invoiceBreakdown || []).forEach((item) => {
+          if (!mergedBreakdown.some((mItem) => mItem.description === item.description && mItem.amount === item.amount)) {
+            mergedBreakdown.push(item);
+            hasBreakdownUpdates = true;
+          }
+        });
+        deleteMovement(dup.id);
+        removed++;
+      });
+
+      if (hasBreakdownUpdates) {
+        const allocated = mergedBreakdown.reduce((sum, it) => sum + it.amount, 0);
+        updateMovement(keep.id, {
+          invoiceBreakdown: mergedBreakdown,
+          unanalyzedAmount: Math.max(0, keep.amount - allocated),
+          category: allocated >= keep.amount ? 'Fatura de Cartão' : keep.category,
+        });
+      }
+    });
+
+    if (removed > 0) {
+      alert(`${removed} fatura(s) duplicada(s) foram consolidadas com sucesso!`);
+    }
+  };
 
   // Classificar restante como Outros diretamente
   const handleQuickAllocateRemainingAsOutros = (m: Movement) => {
@@ -512,6 +598,27 @@ export const InvoicesPage: React.FC = () => {
           </p>
         </div>
         <div className="page-header-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {totalDuplicatesCount > 0 && (
+            <button
+              className="btn btn-secondary"
+              onClick={handleConsolidateDuplicates}
+              id="btn-consolidate-duplicates-top"
+              title="Detectamos faturas duplicadas. Clique para consolidar e limpar."
+              style={{
+                background: 'rgba(239, 68, 68, 0.18)',
+                borderColor: 'rgba(239, 68, 68, 0.45)',
+                color: '#FCA5A5',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontWeight: 600,
+              }}
+            >
+              <Copy size={16} />
+              <span>Limpar Duplicadas ({totalDuplicatesCount})</span>
+            </button>
+          )}
+
           <button
             className="btn btn-secondary"
             onClick={() => setIsNewInvoiceImportOpen(true)}
@@ -638,6 +745,80 @@ export const InvoicesPage: React.FC = () => {
           Os gastos efetuados no mês atual (ex: Setembro) têm sua fatura fechada com vencimento no mês seguinte (ex: Outubro). Ao destrinchar os itens nas Naturezas, os valores abatem diretamente as metas e tetos orçamentários do Balder. O saldo não distribuído é mantido como <strong>Não Analisada</strong> até que você decida alocá-lo ou transferi-lo para <strong>Outros</strong>.
         </div>
       </div>
+
+      {/* Banner de Alerta e Limpeza Inteligente de Duplicadas */}
+      {duplicateInvoiceGroups.length > 0 && (
+        <div
+          className="duplicate-invoices-banner"
+          style={{
+            marginBottom: '20px',
+            padding: '16px 20px',
+            borderRadius: '14px',
+            background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.14) 0%, rgba(245, 158, 11, 0.1) 100%)',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+            flexWrap: 'wrap',
+            boxShadow: '0 8px 24px rgba(239, 68, 68, 0.1)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '10px',
+                background: 'rgba(239, 68, 68, 0.25)',
+                color: '#EF4444',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Copy size={22} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <strong style={{ color: '#FCA5A5', fontSize: '15px' }}>
+                  Faturas Duplicadas Detectadas ({totalDuplicatesCount} cópias redundantes)
+                </strong>
+              </div>
+              <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                {duplicateInvoiceGroups
+                  .map(
+                    (g) =>
+                      `${g.invoices.length}x ${g.bank} (${g.invoices[0].title} — ${fmtBRL(g.invoices[0].amount)})`
+                  )
+                  .join(' • ')}
+                . O Balder pode manter a fatura principal e purgar as cópias clonadas com 1 clique.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="btn btn-primary"
+            style={{
+              background: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)',
+              borderColor: '#DC2626',
+              color: '#fff',
+              fontWeight: 600,
+              fontSize: '13px',
+              padding: '9px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+            onClick={handleConsolidateDuplicates}
+          >
+            <CheckCircle2 size={16} />
+            <span>Consolidar e Limpar Duplicadas</span>
+          </button>
+        </div>
+      )}
 
       {/* Filter Panel com Abas Visuais por Banco */}
       <div className="invoices-filter-panel">
@@ -914,6 +1095,28 @@ export const InvoicesPage: React.FC = () => {
                         >
                           {isPaid ? 'REALIZADA (PAGA)' : 'PREVISTA NO FLUXO'}
                         </span>
+
+                        {/* Indicador de Duplicidade */}
+                        {duplicateInvoiceGroups.some((g) => g.invoices.some((inv) => inv.id === m.id) && g.invoices.length > 1) && (
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              padding: '3px 8px',
+                              borderRadius: '9999px',
+                              background: 'rgba(239, 68, 68, 0.2)',
+                              border: '1px solid rgba(239, 68, 68, 0.45)',
+                              color: '#F87171',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                            title="Existe outra fatura para o mesmo cartão e mês de vencimento"
+                          >
+                            <Copy size={11} />
+                            Duplicada no Fluxo
+                          </span>
+                        )}
 
                         {/* Status de Conciliação */}
                         {isFullyReconciled ? (

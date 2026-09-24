@@ -1631,6 +1631,27 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               } catch {}
             }
           }
+          // Anti-Duplicação Proativa: Sanitiza faturas de cartão idênticas (mesmo banco, vencimento e valor)
+          const seenCardInvoiceSignatures = new Set<string>();
+          const sanitizedMovements: Movement[] = [];
+          for (const m of finalMovements) {
+            if (m.type === 'CARTAO' && m.status === 'PREVISTA') {
+              const signature = `${(m.bank || '').trim().toLowerCase()}_${m.dueDate}_${m.amount.toFixed(2)}`;
+              if (seenCardInvoiceSignatures.has(signature)) {
+                console.warn(`[Anti-Duplicação] Fatura duplicada idêntica detectada e purgada: ${m.title} (${m.id})`);
+                if (user && !user.isGuest && isUuid(m.id)) {
+                  SupabaseService.deleteMovement(m.id).catch((e) =>
+                    console.warn('Erro ao deletar duplicata no Supabase:', e)
+                  );
+                }
+                continue;
+              }
+              seenCardInvoiceSignatures.add(signature);
+            }
+            sanitizedMovements.push(m);
+          }
+          finalMovements = sanitizedMovements;
+
           setMovements(finalMovements);
           if (user && !user.isGuest) {
             localStorage.setItem(`balder_movements_${user.$id}`, JSON.stringify(finalMovements));
@@ -1763,6 +1784,24 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Adicionar Movimentação
   const addMovement = (item: Omit<Movement, 'id'>) => {
+    // Guarda Anti-Duplicação: Impede clonagem de faturas idênticas (mesmo banco, vencimento e valor)
+    if (item.type === 'CARTAO' && item.status === 'PREVISTA') {
+      const existingExact = movements.find(
+        (m) =>
+          m.type === 'CARTAO' &&
+          m.status === 'PREVISTA' &&
+          (m.bank || '').trim().toLowerCase() === (item.bank || '').trim().toLowerCase() &&
+          m.dueDate === item.dueDate &&
+          Math.abs(m.amount - item.amount) < 0.01
+      );
+      if (existingExact) {
+        console.warn(
+          `[Anti-Duplicação] Fatura idêntica já existente: ${item.title} (${item.bank} - ${item.dueDate} - R$ ${item.amount}). Inserção duplicada prevenida.`
+        );
+        return;
+      }
+    }
+
     const tempId = `mov_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
     const newMovement: Movement = {
       ...item,

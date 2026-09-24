@@ -16,7 +16,7 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
   onClose,
   defaultBank,
 }) => {
-  const { addMovement, cards, banks, accounts } = useFinancial();
+  const { addMovement, updateMovement, movements, cards, banks, accounts } = useFinancial();
 
   // Opções consolidadas de Bancos / Cartões
   const bankOptions = useMemo(() => {
@@ -92,6 +92,19 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
   // Banco efetivo selecionado
   const effectiveBank = isCustomBank ? customBankName.trim() : selectedBank;
   const bankBrand = getBankBranding(effectiveBank);
+
+  // Detecção em tempo real de fatura existente para o mesmo banco e competência
+  const existingSimilarInvoice = useMemo(() => {
+    if (!dueDate || !effectiveBank) return null;
+    const targetMonth = dueDate.substring(0, 7);
+    return movements.find(
+      (m) =>
+        m.type === 'CARTAO' &&
+        m.status === 'PREVISTA' &&
+        (m.bank || '').trim().toLowerCase() === effectiveBank.trim().toLowerCase() &&
+        m.dueDate.startsWith(targetMonth)
+    );
+  }, [movements, effectiveBank, dueDate]);
 
   // Inicialização ao abrir modal
   useEffect(() => {
@@ -207,6 +220,22 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
 
     const finalTitle = title.trim() || `Fatura ${effectiveBank}`;
 
+    if (existingSimilarInvoice) {
+      const confirmUpdate = window.confirm(
+        `Atenção: Já existe uma fatura de R$ ${existingSimilarInvoice.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} cadastrada para o ${effectiveBank} com vencimento em ${existingSimilarInvoice.dueDate.split('-').reverse().join('/')}.\n\nDeseja atualizar a fatura existente para evitar duplicações no fluxo?`
+      );
+      if (confirmUpdate) {
+        updateMovement(existingSimilarInvoice.id, {
+          amount: Math.round(parsedAmount * 100) / 100,
+          dueDate,
+          title: finalTitle,
+          notes: notes.trim() || existingSimilarInvoice.notes,
+        });
+        onClose();
+        return;
+      }
+    }
+
     addMovement({
       title: finalTitle,
       type: 'CARTAO',
@@ -230,6 +259,55 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
       maxWidth="520px"
     >
       <form onSubmit={handleSubmit} className="movement-form">
+        {existingSimilarInvoice && (
+          <div
+            style={{
+              padding: '12px 14px',
+              borderRadius: '10px',
+              background: 'rgba(245, 158, 11, 0.12)',
+              border: '1px solid rgba(245, 158, 11, 0.35)',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px',
+              marginBottom: '16px',
+            }}
+          >
+            <AlertCircle size={18} style={{ color: '#F59E0B', flexShrink: 0, marginTop: '2px' }} />
+            <div style={{ fontSize: '12px', lineHeight: '1.4', color: '#FDE68A', flex: 1 }}>
+              <strong style={{ color: '#FCD34D' }}>Fatura Existente Detectada:</strong>
+              <p style={{ margin: '3px 0 6px 0' }}>
+                Já existe uma fatura de <strong>{existingSimilarInvoice.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong> prevista para <strong>{effectiveBank}</strong> com vencimento em {existingSimilarInvoice.dueDate.split('-').reverse().join('/')}.
+              </p>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                style={{
+                  fontSize: '11px',
+                  padding: '4px 10px',
+                  background: 'rgba(245, 158, 11, 0.2)',
+                  borderColor: '#F59E0B',
+                  color: '#FEF3C7',
+                  cursor: 'pointer',
+                }}
+                onClick={() => {
+                  const cleanAmount = amount.replace(/[R$\s]/g, '').trim();
+                  const parsed = cleanAmount.includes(',')
+                    ? parseFloat(cleanAmount.replace(/\./g, '').replace(',', '.'))
+                    : parseFloat(cleanAmount) || 0;
+                  updateMovement(existingSimilarInvoice.id, {
+                    amount: parsed > 0 ? Math.round(parsed * 100) / 100 : existingSimilarInvoice.amount,
+                    dueDate: dueDate || existingSimilarInvoice.dueDate,
+                    title: title.trim() || existingSimilarInvoice.title,
+                  });
+                  onClose();
+                }}
+              >
+                Atualizar Fatura Existente (Evitar Duplicata)
+              </button>
+            </div>
+          </div>
+        )}
+
         {errorMsg && (
           <div
             style={{

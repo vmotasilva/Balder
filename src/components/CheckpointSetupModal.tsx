@@ -154,6 +154,8 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
     cards,
     natures,
     addMovement,
+    updateMovement,
+    movements,
     updateCard,
     markMappingItemsFulfilled,
   } = useFinancial();
@@ -800,22 +802,41 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
               });
             }
           } else {
-            // Fatura futura ou fatura atual sem detalhamento prévio
-            addMovement({
-              title: isCurrent
-                ? `Fatura ${b.cardName} (Atual — Não Analisada)`
-                : `Fatura ${b.cardName} (${inv.monthLabel.split(' ')[0]})`,
-              type: 'CARTAO',
-              amount: inv.amount,
-              dueDate: inv.dueDate,
-              bank: b.bankName || 'Cartão de Crédito',
-              status: 'PREVISTA',
-              category: isCurrent ? 'Não Analisada' : 'Fatura de Cartão',
-              installmentNumber: instNum,
-              installmentsTotal: totalInvs,
-              installmentGroupId,
-              notes: `Fatura cadastrada no Ponto de Partida (${startDate}) - ${inv.monthLabel}`,
-            });
+            const existingSimilar = movements.find(
+              (m) =>
+                m.type === 'CARTAO' &&
+                m.status === 'PREVISTA' &&
+                (m.bank || '').toLowerCase() === (b.bankName || '').toLowerCase() &&
+                m.dueDate === inv.dueDate
+            );
+
+            if (existingSimilar) {
+              updateMovement(existingSimilar.id, {
+                amount: inv.amount,
+                title: isCurrent
+                  ? `Fatura ${b.cardName} (Atual — Não Analisada)`
+                  : `Fatura ${b.cardName} (${inv.monthLabel.split(' ')[0]})`,
+                category: isCurrent ? 'Não Analisada' : 'Fatura de Cartão',
+                notes: `Fatura atualizada no Ponto de Partida (${startDate}) - ${inv.monthLabel}`,
+              });
+            } else {
+              // Fatura futura ou fatura atual sem detalhamento prévio
+              addMovement({
+                title: isCurrent
+                  ? `Fatura ${b.cardName} (Atual — Não Analisada)`
+                  : `Fatura ${b.cardName} (${inv.monthLabel.split(' ')[0]})`,
+                type: 'CARTAO',
+                amount: inv.amount,
+                dueDate: inv.dueDate,
+                bank: b.bankName || 'Cartão de Crédito',
+                status: 'PREVISTA',
+                category: isCurrent ? 'Não Analisada' : 'Fatura de Cartão',
+                installmentNumber: instNum,
+                installmentsTotal: totalInvs,
+                installmentGroupId,
+                notes: `Fatura cadastrada no Ponto de Partida (${startDate}) - ${inv.monthLabel}`,
+              });
+            }
           }
         });
 

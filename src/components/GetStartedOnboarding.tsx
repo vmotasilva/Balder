@@ -106,6 +106,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
     addAccount,
     addCard,
     addMovement,
+    updateMovement,
     addNature,
     addBank,
     banks,
@@ -613,50 +614,98 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
       // 3. Cadastra o(s) Cartão(ões) de Crédito com fatura do mês seguinte
       try {
         if (hasCards) {
-          addCard({
-            name: cardName || 'Cartão Principal',
-            bank: cardBank || 'Nubank',
-            brand: 'MASTERCARD',
-            limitTotal: Math.max(5000, parsedCurrentInv * 1.5),
-            closingDay: Math.max(1, cardDueDay - 7),
-            dueDay: cardDueDay,
-            color: '#8b5cf6',
-          });
-
-          // Adiciona movimento previsto para a fatura do mês seguinte
-          if (parsedCurrentInv > 0) {
-            addMovement({
-              title: `Fatura ${cardName || 'Cartão'} (${getMonthInfo(safeStartDate, 1).short})`,
-              amount: parsedCurrentInv,
-              dueDate: getMonthDueDate(safeStartDate, 1, cardDueDay),
-              type: 'CARTAO',
-              status: 'PREVISTA',
-              category: 'Fatura de Cartão',
-              bank: cardBank,
+          const existingCard = cards.find(
+            (c) => (c.bank || '').toLowerCase() === (cardBank || '').toLowerCase()
+          );
+          if (!existingCard) {
+            addCard({
+              name: cardName || 'Cartão Principal',
+              bank: cardBank || 'Nubank',
+              brand: 'MASTERCARD',
+              limitTotal: Math.max(5000, parsedCurrentInv * 1.5),
+              closingDay: Math.max(1, cardDueDay - 7),
+              dueDay: cardDueDay,
+              color: '#8b5cf6',
             });
+          }
+
+          // Adiciona ou atualiza movimento previsto para a fatura do mês seguinte (evita duplicações)
+          if (parsedCurrentInv > 0) {
+            const targetDueDate = getMonthDueDate(safeStartDate, 1, cardDueDay);
+            const targetMonth = targetDueDate.substring(0, 7);
+            const existingInv = movements.find(
+              (m) =>
+                m.type === 'CARTAO' &&
+                m.status === 'PREVISTA' &&
+                (m.bank || '').toLowerCase() === (cardBank || '').toLowerCase() &&
+                m.dueDate.startsWith(targetMonth)
+            );
+
+            if (existingInv) {
+              updateMovement(existingInv.id, {
+                amount: parsedCurrentInv,
+                dueDate: targetDueDate,
+                bank: cardBank,
+                title: `Fatura ${cardName || 'Cartão'} (${getMonthInfo(safeStartDate, 1).short})`,
+              });
+            } else {
+              addMovement({
+                title: `Fatura ${cardName || 'Cartão'} (${getMonthInfo(safeStartDate, 1).short})`,
+                amount: parsedCurrentInv,
+                dueDate: targetDueDate,
+                type: 'CARTAO',
+                status: 'PREVISTA',
+                category: 'Fatura de Cartão',
+                bank: cardBank,
+              });
+            }
           }
         }
 
         if (hasSecondCard && parsedSecondCurr > 0) {
-          addCard({
-            name: secondCardName || 'Segundo Cartão',
-            bank: secondCardBank || 'Inter',
-            brand: 'VISA',
-            limitTotal: Math.max(4000, parsedSecondCurr * 1.5),
-            closingDay: Math.max(1, secondCardDueDay - 7),
-            dueDay: secondCardDueDay,
-            color: '#f59e0b',
-          });
+          const existingSecondCard = cards.find(
+            (c) => (c.bank || '').toLowerCase() === (secondCardBank || '').toLowerCase()
+          );
+          if (!existingSecondCard) {
+            addCard({
+              name: secondCardName || 'Segundo Cartão',
+              bank: secondCardBank || 'Inter',
+              brand: 'VISA',
+              limitTotal: Math.max(4000, parsedSecondCurr * 1.5),
+              closingDay: Math.max(1, secondCardDueDay - 7),
+              dueDay: secondCardDueDay,
+              color: '#f59e0b',
+            });
+          }
 
-          addMovement({
-            title: `Fatura ${secondCardName} (${getMonthInfo(safeStartDate, 1).short})`,
-            amount: parsedSecondCurr,
-            dueDate: getMonthDueDate(safeStartDate, 1, secondCardDueDay),
-            type: 'CARTAO',
-            status: 'PREVISTA',
-            category: 'Fatura de Cartão',
-            bank: secondCardBank,
-          });
+          const targetSecondDueDate = getMonthDueDate(safeStartDate, 1, secondCardDueDay);
+          const targetSecondMonth = targetSecondDueDate.substring(0, 7);
+          const existingSecondInv = movements.find(
+            (m) =>
+              m.type === 'CARTAO' &&
+              m.status === 'PREVISTA' &&
+              (m.bank || '').toLowerCase() === (secondCardBank || '').toLowerCase() &&
+              m.dueDate.startsWith(targetSecondMonth)
+          );
+
+          if (existingSecondInv) {
+            updateMovement(existingSecondInv.id, {
+              amount: parsedSecondCurr,
+              dueDate: targetSecondDueDate,
+              bank: secondCardBank,
+              title: `Fatura ${secondCardName} (${getMonthInfo(safeStartDate, 1).short})`,
+            });
+          } else {
+            addMovement({
+              title: `Fatura ${secondCardName} (${getMonthInfo(safeStartDate, 1).short})`,
+              amount: parsedSecondCurr,
+              dueDate: targetSecondDueDate,
+              type: 'CARTAO',
+              status: 'PREVISTA',
+              category: 'Fatura de Cartão',
+              bank: secondCardBank,
+            });
+          }
         }
       } catch (cardErr) {
         console.warn('Erro ao cadastrar cartões:', cardErr);
