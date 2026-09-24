@@ -38,7 +38,7 @@ export const SupabaseService = {
         .from(TABLES.MOVEMENTS)
         .select('*')
         .order('due_date', { ascending: false })
-        .limit(200);
+        .limit(5000);
 
       if (error) {
         console.error('[SupabaseService] Erro ao buscar movimentações:', error.message);
@@ -611,9 +611,20 @@ export const SupabaseService = {
         history: contract.history || [],
       };
 
-      const { error } = await supabase
+      let { error } = await supabase
         .from(TABLES.SALARY_CONTRACTS)
         .upsert(payload);
+
+      // Resiliência de schema: se pay_in_following_month não estiver provisionada, tenta sem a coluna
+      if (error && (error.message?.includes('pay_in_following_month') || error.code === 'PGRST204')) {
+        console.warn('[SupabaseService] Coluna pay_in_following_month ausente na tabela, tentando salvar sem ela...');
+        const fallbackPayload = { ...payload };
+        delete fallbackPayload.pay_in_following_month;
+        const retryRes = await supabase
+          .from(TABLES.SALARY_CONTRACTS)
+          .upsert(fallbackPayload);
+        error = retryRes.error;
+      }
 
       if (error) {
         console.error('[SupabaseService] Erro ao salvar contrato:', error.message);

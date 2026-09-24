@@ -184,6 +184,7 @@ CREATE TABLE IF NOT EXISTS public.salary_contracts (
   second_installment_amount NUMERIC(15, 2),
   weekly_installment_amount NUMERIC(15, 2),
   installment_value_mode TEXT DEFAULT 'AUTO',
+  pay_in_following_month BOOLEAN NOT NULL DEFAULT FALSE,
   current_gross_amount NUMERIC(15, 2),
   current_net_amount NUMERIC(15, 2) NOT NULL,
   receiving_bank_account_id TEXT,
@@ -280,3 +281,9 @@ CREATE INDEX IF NOT EXISTS idx_payment_methods_user_id ON public.payment_methods
 CREATE OR REPLACE TRIGGER trg_payment_methods_updated_at
   BEFORE UPDATE ON public.payment_methods
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+-- ------------------------------------------------------------------------------
+-- MIGRATION PATCHES (Idempotent updates for existing tables)
+-- ------------------------------------------------------------------------------
+ALTER TABLE public.salary_contracts ADD COLUMN IF NOT EXISTS pay_in_following_month BOOLEAN DEFAULT FALSE;
+

@@ -561,6 +561,8 @@ export interface UserProfileSettings {
   sharedSettlements?: SharedSettlementItem[];
   defaultTrackingScope?: TrackingScopeMode;
   onboardingCompleted?: boolean;
+  salaryContracts?: SalaryContract[];
+  checkpoints?: FinancialCheckpoint[];
 }
 
 

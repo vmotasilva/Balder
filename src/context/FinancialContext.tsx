@@ -1,6 +1,10 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
 import { SupabaseService } from '../services/supabaseService';
+import { supabase, isSupabaseConfigured, TABLES } from '../lib/supabase';
 import { useAuth } from './AuthContext';
+
+const isUuid = (val: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+
 import type {
   Movement,
   MovementStatus,
@@ -463,6 +467,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     if (user && !user.isGuest) {
       SupabaseService.upsertCheckpoint(newCp).catch(console.error);
+      SupabaseService.saveUserProfileSettings({
+        checkpoints: [...checkpoints.map((c) => ({ ...c, isActive: false })), newCp],
+      }).catch(console.error);
     }
   };
 
@@ -480,6 +487,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         next.forEach((c) => {
           SupabaseService.upsertCheckpoint(c).catch(console.error);
         });
+        SupabaseService.saveUserProfileSettings({ checkpoints: next }).catch(console.error);
       }
       return next;
     });
@@ -504,6 +512,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (activeOne) {
           SupabaseService.upsertCheckpoint(activeOne).catch(console.error);
         }
+        SupabaseService.saveUserProfileSettings({ checkpoints: next }).catch(console.error);
       }
       return next;
     });
@@ -1015,11 +1024,15 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
     if (user && !user.isGuest) {
       SupabaseService.upsertSalaryContract(newContract).catch(console.error);
+      SupabaseService.saveUserProfileSettings({
+        salaryContracts: [...salaryContracts, newContract],
+      }).catch(console.error);
     }
   };
 
   const updateSalaryContract = (id: string, updates: Partial<SalaryContract>) => {
     let updatedSc: SalaryContract | null = null;
+    let nextList: SalaryContract[] = [];
     setSalaryContracts((prev) => {
       const next = prev.map((sc) => {
         if (sc.id === id) {
@@ -1028,6 +1041,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
         return sc;
       });
+      nextList = next;
       if (user && !user.isGuest) {
         localStorage.setItem(`balder_salaries_${user.$id}`, JSON.stringify(next));
       }
@@ -1035,12 +1049,15 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
     if (user && !user.isGuest && updatedSc) {
       SupabaseService.upsertSalaryContract(updatedSc).catch(console.error);
+      SupabaseService.saveUserProfileSettings({ salaryContracts: nextList }).catch(console.error);
     }
   };
 
   const deleteSalaryContract = (id: string) => {
+    let nextList: SalaryContract[] = [];
     setSalaryContracts((prev) => {
       const next = prev.filter((sc) => sc.id !== id);
+      nextList = next;
       if (user && !user.isGuest) {
         localStorage.setItem(`balder_salaries_${user.$id}`, JSON.stringify(next));
       }
@@ -1048,6 +1065,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
     if (user && !user.isGuest) {
       SupabaseService.deleteSalaryContract(id).catch(console.error);
+      SupabaseService.saveUserProfileSettings({ salaryContracts: nextList }).catch(console.error);
     }
   };
 
@@ -1091,6 +1109,10 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
     if (user && !user.isGuest && targetContract) {
       SupabaseService.upsertSalaryContract(targetContract).catch(console.error);
+      setSalaryContracts((current) => {
+        SupabaseService.saveUserProfileSettings({ salaryContracts: current }).catch(console.error);
+        return current;
+      });
     }
   };
 
@@ -1120,6 +1142,10 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
     if (user && !user.isGuest && targetContract) {
       SupabaseService.upsertSalaryContract(targetContract).catch(console.error);
+      setSalaryContracts((current) => {
+        SupabaseService.saveUserProfileSettings({ salaryContracts: current }).catch(console.error);
+        return current;
+      });
     }
   };
 
@@ -1148,6 +1174,10 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
     if (user && !user.isGuest && targetContract) {
       SupabaseService.upsertSalaryContract(targetContract).catch(console.error);
+      setSalaryContracts((current) => {
+        SupabaseService.saveUserProfileSettings({ salaryContracts: current }).catch(console.error);
+        return current;
+      });
     }
   };
 
@@ -1408,8 +1438,14 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             localStorage.setItem(`balder_payment_methods_${user.$id}`, JSON.stringify(finalMethods));
           }
 
-          // 5. Contratos de Salário / Remuneração
+          // 5. Contratos de Salário / Remuneração (Nuvem prioritária com dupla camada de resiliência)
           let finalSalaries = cloudSalaries || [];
+          if (finalSalaries.length === 0 && cloudProfileSettings?.salaryContracts && cloudProfileSettings.salaryContracts.length > 0) {
+            finalSalaries = cloudProfileSettings.salaryContracts;
+            if (user && !user.isGuest) {
+              finalSalaries.forEach((sc) => SupabaseService.upsertSalaryContract(sc).catch(console.error));
+            }
+          }
           if (finalSalaries.length === 0 && user) {
             const savedSalStr = localStorage.getItem(`balder_salaries_${user.$id}`) || localStorage.getItem('balder_salaries_guest');
             if (savedSalStr) {
@@ -1419,10 +1455,15 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                   finalSalaries = parsed;
                   if (!user.isGuest) {
                     parsed.forEach((sc) => SupabaseService.upsertSalaryContract(sc).catch(console.error));
+                    SupabaseService.saveUserProfileSettings({ salaryContracts: parsed }).catch(console.error);
                   }
                 }
               } catch {}
             }
+          }
+          // Garante que o perfil nas nuvens tenha o backup de contratos para mobile/outros dispositivos
+          if (user && !user.isGuest && finalSalaries.length > 0 && (!cloudProfileSettings?.salaryContracts || cloudProfileSettings.salaryContracts.length === 0)) {
+            SupabaseService.saveUserProfileSettings({ salaryContracts: finalSalaries }).catch(console.error);
           }
           setSalaryContracts(finalSalaries);
           if (user && !user.isGuest) {
@@ -1431,6 +1472,12 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
           // 6. Checkpoints de Partida (Crucial para saldo e métricas)
           let finalCheckpoints = cloudCheckpoints || [];
+          if (finalCheckpoints.length === 0 && cloudProfileSettings?.checkpoints && cloudProfileSettings.checkpoints.length > 0) {
+            finalCheckpoints = cloudProfileSettings.checkpoints;
+            if (user && !user.isGuest) {
+              finalCheckpoints.forEach((cp) => SupabaseService.upsertCheckpoint(cp).catch(console.error));
+            }
+          }
           if (finalCheckpoints.length === 0 && user) {
             const savedCpStr = localStorage.getItem(`balder_checkpoints_${user.$id}`) || localStorage.getItem('balder_checkpoints_guest');
             if (savedCpStr) {
@@ -1440,10 +1487,14 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                   finalCheckpoints = parsed;
                   if (!user.isGuest) {
                     parsed.forEach((cp) => SupabaseService.upsertCheckpoint(cp).catch(console.error));
+                    SupabaseService.saveUserProfileSettings({ checkpoints: parsed }).catch(console.error);
                   }
                 }
               } catch {}
             }
+          }
+          if (user && !user.isGuest && finalCheckpoints.length > 0 && (!cloudProfileSettings?.checkpoints || cloudProfileSettings.checkpoints.length === 0)) {
+            SupabaseService.saveUserProfileSettings({ checkpoints: finalCheckpoints }).catch(console.error);
           }
           setCheckpoints(finalCheckpoints);
           if (user && !user.isGuest) {
@@ -1535,6 +1586,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               cards: finalCards,
               banks: finalBanks,
               monthlyClosings: finalClosings,
+              salaryContracts: finalSalaries,
+              checkpoints: finalCheckpoints,
               onboardingCompleted: localStorage.getItem(`balder_onboarding_completed_${user.$id}`) === 'true',
             }).catch(console.error);
           }
@@ -1593,8 +1646,110 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
     loadCloudData();
 
+    // Sincronização em tempo real & Revalidação ao retornar ao app no Mobile / APK
+    let lastSilentRefetch = Date.now();
+    const silentRefetch = async () => {
+      if (!isMounted || !user || user.isGuest) return;
+      const now = Date.now();
+      if (now - lastSilentRefetch < 4000) return; // Cooldown anti-spam
+      lastSilentRefetch = now;
+      try {
+        const [
+          cloudMovements,
+          cloudSalaries,
+          cloudCheckpoints,
+          cloudAccounts,
+          cloudProfileSettings,
+        ] = await Promise.all([
+          SupabaseService.getMovements(),
+          SupabaseService.getSalaryContracts(),
+          SupabaseService.getCheckpoints(),
+          SupabaseService.getAccounts(),
+          SupabaseService.getUserProfileSettings(),
+        ]);
+
+        if (!isMounted) return;
+
+        // Salários (tabela ou profile_settings)
+        let freshSalaries = cloudSalaries || [];
+        if (freshSalaries.length === 0 && cloudProfileSettings?.salaryContracts?.length) {
+          freshSalaries = cloudProfileSettings.salaryContracts;
+        }
+        if (freshSalaries.length > 0) {
+          setSalaryContracts(freshSalaries);
+          localStorage.setItem(`balder_salaries_${user.$id}`, JSON.stringify(freshSalaries));
+        }
+
+        // Checkpoints (tabela ou profile_settings)
+        let freshCheckpoints = cloudCheckpoints || [];
+        if (freshCheckpoints.length === 0 && cloudProfileSettings?.checkpoints?.length) {
+          freshCheckpoints = cloudProfileSettings.checkpoints;
+        }
+        if (freshCheckpoints.length > 0) {
+          setCheckpoints(freshCheckpoints);
+          localStorage.setItem(`balder_checkpoints_${user.$id}`, JSON.stringify(freshCheckpoints));
+        }
+
+        // Movimentações
+        if (cloudMovements && cloudMovements.length > 0) {
+          setMovements(cloudMovements);
+          localStorage.setItem(`balder_movements_${user.$id}`, JSON.stringify(cloudMovements));
+        }
+
+        // Contas
+        if (cloudAccounts && cloudAccounts.length > 0) {
+          setAccounts(cloudAccounts);
+          localStorage.setItem(`balder_accounts_${user.$id}`, JSON.stringify(cloudAccounts));
+        }
+
+        // Cartões e bancos
+        if (cloudProfileSettings?.cards?.length) {
+          setCards(cloudProfileSettings.cards);
+          localStorage.setItem(`balder_cards_${user.$id}`, JSON.stringify(cloudProfileSettings.cards));
+        }
+        if (cloudProfileSettings?.banks?.length) {
+          setBanks(cloudProfileSettings.banks);
+          localStorage.setItem(`balder_banks_${user.$id}`, JSON.stringify(cloudProfileSettings.banks));
+        }
+        if (cloudProfileSettings?.monthlyClosings?.length) {
+          setMonthlyClosings(cloudProfileSettings.monthlyClosings);
+          localStorage.setItem(`balder_monthly_closings_${user.$id}`, JSON.stringify(cloudProfileSettings.monthlyClosings));
+        }
+      } catch (e) {
+        console.warn('[FinancialContext] Falha no silentRefetch:', e);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        silentRefetch();
+      }
+    };
+    const handleFocus = () => {
+      silentRefetch();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    let channel: any = null;
+    if (user && !user.isGuest && isSupabaseConfigured) {
+      channel = supabase
+        .channel(`balder-sync-${user.$id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.MOVEMENTS }, () => silentRefetch())
+        .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.SALARY_CONTRACTS }, () => silentRefetch())
+        .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.CHECKPOINTS }, () => silentRefetch())
+        .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.ACCOUNTS }, () => silentRefetch())
+        .subscribe();
+    }
+
     return () => {
       isMounted = false;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [user]);
 
@@ -1658,11 +1813,30 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
 
     if (user && !user.isGuest) {
-      items.forEach((item) => {
-        SupabaseService.addMovement(item).catch((err) =>
-          console.error('Erro ao salvar item parcelado no Supabase:', err)
-        );
-      });
+      Promise.all(
+        items.map((item, idx) =>
+          SupabaseService.addMovement(item).then((created) => ({
+            tempId: newItems[idx].id,
+            realId: created?.id,
+          }))
+        )
+      )
+        .then((results) => {
+          const map = new Map(results.filter((r) => r.realId).map((r) => [r.tempId, r.realId!]));
+          if (map.size > 0) {
+            setMovements((prev) => {
+              const updated = prev.map((m) => {
+                const real = map.get(m.id);
+                return real ? { ...m, id: real } : m;
+              });
+              try {
+                localStorage.setItem(`balder_movements_${user.$id}`, JSON.stringify(updated));
+              } catch {}
+              return updated;
+            });
+          }
+        })
+        .catch((err) => console.error('Erro ao salvar item parcelado no Supabase:', err));
     }
   };
 
@@ -1682,7 +1856,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return next;
     });
 
-    if (user && !user.isGuest && !id.startsWith('rec_') && !id.startsWith('pay_') && !id.startsWith('lia_') && !id.startsWith('cc_') && !id.startsWith('mov_')) {
+    if (user && !user.isGuest && isUuid(id)) {
       SupabaseService.updateMovement(id, updates).catch((err) =>
         console.error('Erro ao atualizar movimentação no Supabase:', err)
       );
@@ -1705,7 +1879,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return next;
     });
 
-    if (user && !user.isGuest && !id.startsWith('rec_') && !id.startsWith('pay_') && !id.startsWith('lia_') && !id.startsWith('cc_') && !id.startsWith('mov_')) {
+    if (user && !user.isGuest && isUuid(id)) {
       SupabaseService.deleteMovement(id).catch((err) =>
         console.error('Erro ao excluir no Supabase:', err)
       );
@@ -1738,7 +1912,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return next;
     });
 
-    if (user && !user.isGuest && !id.startsWith('rec_') && !id.startsWith('pay_') && !id.startsWith('lia_') && !id.startsWith('cc_') && !id.startsWith('mov_')) {
+    if (user && !user.isGuest && isUuid(id)) {
       SupabaseService.updateMovement(id, { status: nextStatus }).catch((err) =>
         console.error('Erro ao atualizar status no Supabase:', err)
       );
