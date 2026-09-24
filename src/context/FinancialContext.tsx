@@ -1660,12 +1660,14 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           cloudCheckpoints,
           cloudAccounts,
           cloudProfileSettings,
+          cloudNatures,
         ] = await Promise.all([
           SupabaseService.getMovements(),
           SupabaseService.getSalaryContracts(),
           SupabaseService.getCheckpoints(),
           SupabaseService.getAccounts(),
           SupabaseService.getUserProfileSettings(),
+          SupabaseService.getNatures(),
         ]);
 
         if (!isMounted) return;
@@ -1702,7 +1704,13 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           localStorage.setItem(`balder_accounts_${user.$id}`, JSON.stringify(cloudAccounts));
         }
 
-        // Cartões e bancos
+        // Naturezas (pilares 4 e 5 do Get Started — crítico para mobile)
+        if (cloudNatures && cloudNatures.length > 0) {
+          setNatures(cloudNatures);
+          localStorage.setItem(`balder_natures_${user.$id}`, JSON.stringify(cloudNatures));
+        }
+
+        // Cartões e bancos (pilar 3 do Get Started)
         if (cloudProfileSettings?.cards?.length) {
           setCards(cloudProfileSettings.cards);
           localStorage.setItem(`balder_cards_${user.$id}`, JSON.stringify(cloudProfileSettings.cards));

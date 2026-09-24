@@ -1327,7 +1327,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                       </div>
                     </div>
 
-                    <div className="form-grid-3 mt-2">
+                    <div className="form-grid-2 mt-2">
                       <div className="form-group">
                         <label className="flex items-center gap-1.5 font-semibold text-xs text-slate-300">
                           <Building2 size={14} className="text-slate-400" />
@@ -1354,24 +1354,40 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                           onChange={(e) => setSalaryRole(e.target.value)}
                         />
                       </div>
+                    </div>
 
-                      <div className="form-group">
-                        <label className="flex items-center gap-1.5 font-semibold text-xs text-slate-300">
-                          <span>Regime de Contrato:</span>
-                        </label>
-                        <select
-                          className="form-input text-xs"
-                          value={salaryContractType}
-                          onChange={(e) => setSalaryContractType(e.target.value as SalaryContractType)}
-                        >
-                          <option value="CLT">CLT (Carteira Assinada)</option>
-                          <option value="PJ">PJ (Pessoa Jurídica)</option>
-                          <option value="PRO_LABORE">Pró-Labore (Empresário)</option>
-                          <option value="CONCURSO">Concurso / Servidor Público</option>
-                          <option value="AUTONOMO">Autônomo / Liberal</option>
-                          <option value="ESTAGIO">Estágio / Bolsa</option>
-                          <option value="OUTRO">Outro / Benefício</option>
-                        </select>
+                    {/* Regime de Contrato — Flag Chips */}
+                    <div className="form-group mt-3">
+                      <label className="flex items-center gap-1.5 font-semibold text-xs text-slate-300 mb-2">
+                        <span>Regime de Contrato:</span>
+                      </label>
+                      <div className="salary-regime-chips">
+                        {(
+                          [
+                            { value: 'CLT',        label: 'CLT',        sub: 'Carteira Assinada' },
+                            { value: 'PJ',         label: 'PJ',         sub: 'Pessoa Jurídica' },
+                            { value: 'PRO_LABORE', label: 'Pró-Labore', sub: 'Empresário' },
+                            { value: 'CONCURSO',   label: 'Servidor',   sub: 'Concurso Público' },
+                            { value: 'AUTONOMO',   label: 'Autônomo',   sub: 'Liberal' },
+                            { value: 'ESTAGIO',    label: 'Estágio',    sub: 'Bolsa' },
+                            { value: 'OUTRO',      label: 'Outro',      sub: 'Benefício' },
+                          ] as { value: SalaryContractType; label: string; sub: string }[]
+                        ).map((opt) => {
+                          const isActive = salaryContractType === opt.value;
+                          return (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              className={`salary-regime-chip${isActive ? ' active' : ''}`}
+                              onClick={() => setSalaryContractType(opt.value)}
+                              title={opt.sub}
+                            >
+                              {isActive && <span className="salary-regime-chip-dot" />}
+                              <span className="salary-regime-chip-label">{opt.label}</span>
+                              <span className="salary-regime-chip-sub">{opt.sub}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
 

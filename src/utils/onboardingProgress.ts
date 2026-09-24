@@ -113,14 +113,21 @@ export function auditOnboardingProgress(data: AuditInputData): OnboardingAuditRe
 
   // --------------------------------------------------------------------------
   // 2. REMUNERAÇÃO & CONTRATO DE SALÁRIO (Passo 1 do Get Started)
+  // Concluído assim que houver ao menos 1 remuneração cadastrada no perfil,
+  // independentemente de isActive ou valor (conforme definição do usuário).
   // --------------------------------------------------------------------------
-  const activeSalaries = (salaryContracts || []).filter((s) => s.isActive && s.currentNetAmount > 0);
-  if (activeSalaries.length > 0) {
-    const mainSalary = activeSalaries[0];
-    const valFormatted = mainSalary.currentNetAmount.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    });
+  const allSalaries = salaryContracts || [];
+  const activeSalaries = allSalaries.filter((s) => s.isActive && s.currentNetAmount > 0);
+  const hasSalaryRegistered = allSalaries.length > 0;
+
+  if (hasSalaryRegistered) {
+    // Prefere o contrato ativo com maior valor para exibição, senão usa o primeiro cadastrado
+    const displaySalary = activeSalaries.length > 0
+      ? activeSalaries[0]
+      : allSalaries[0];
+    const valFormatted = displaySalary.currentNetAmount
+      ? displaySalary.currentNetAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+      : 'Valor a confirmar';
     steps.push({
       id: 'salary',
       title: 'Remuneração & Salário',
@@ -129,7 +136,7 @@ export function auditOnboardingProgress(data: AuditInputData): OnboardingAuditRe
       status: 'DONE',
       isComplete: true,
       score: 20,
-      description: `${mainSalary.role || 'Remuneração'} (${valFormatted}, Dia ${mainSalary.paymentDay}) ativa no fluxo.`,
+      description: `${displaySalary.role || 'Remuneração'} (${valFormatted}${displaySalary.paymentDay ? `, Dia ${displaySalary.paymentDay}` : ''}) cadastrada no perfil.`,
       actionLabel: 'Ajustar',
       importance: 'CRITICO',
     });
@@ -151,12 +158,41 @@ export function auditOnboardingProgress(data: AuditInputData): OnboardingAuditRe
 
   // --------------------------------------------------------------------------
   // 3. CARTÕES DE CRÉDITO & FATURAS EM ABERTO (Passo 2 do Get Started)
+  // Fontes de evidência (qualquer uma basta para confirmar o preenchimento):
+  //   a) cards[] com cartões cadastrados no contexto
+  //   b) movements[] filtrados por type === 'CARTAO'
+  //   c) activeCheckpoint.cardDebts (preenchido no Get Started — sync anterior ao cache de cards)
+  // Isso garante consistência entre dispositivos mesmo antes do cache local ser populado.
   // --------------------------------------------------------------------------
   const hasCards = cards && cards.length > 0;
   const cardMovements = (movements || []).filter((m) => m.type === 'CARTAO');
   const hasCardMovements = cardMovements.length > 0;
+  const checkpointCardDebts = (activeCheckpoint?.cardDebts || []);
+  const hasCheckpointCards = checkpointCardDebts.length > 0;
 
-  if (hasCards && hasCardMovements) {
+  // Contagens para a descrição (preferência: dados em tempo real; fallback: checkpoint)
+  const displayCardCount = hasCards
+    ? cards.length
+    : hasCheckpointCards
+      ? checkpointCardDebts.length
+      : 0;
+  const displayInvoiceCount = hasCardMovements
+    ? cardMovements.length
+    : hasCheckpointCards
+      ? checkpointCardDebts.reduce((acc, d) => acc + (d.invoices?.length || 0), 0)
+      : 0;
+
+  // hasCardMovements sozinho basta: movimentos tipo CARTAO são a evidência real de faturas
+  // provisionadas. Não depende de cards[] (volátil entre dispositivos antes do sync).
+  const isInvoicesDone = hasCardMovements || hasCheckpointCards;
+  const isInvoicesPartial = !isInvoicesDone && hasCards;
+
+  if (isInvoicesDone) {
+    const invoiceDesc = displayCardCount > 0
+      ? `${displayCardCount} cartão(ões) e ${displayInvoiceCount} fatura(s) provisionada(s) no fluxo.`
+      : cardMovements.length > 0
+        ? `${cardMovements.length} fatura(s) de cartão provisionada(s) no fluxo.`
+        : 'Faturas de cartão configuradas no Ponto de Partida.';
     steps.push({
       id: 'invoices',
       title: 'Faturas de Cartão em Aberto',
@@ -165,11 +201,11 @@ export function auditOnboardingProgress(data: AuditInputData): OnboardingAuditRe
       status: 'DONE',
       isComplete: true,
       score: 20,
-      description: `${cards.length} cartão(ões) e ${cardMovements.length} fatura(s) provisionada(s) no fluxo.`,
+      description: invoiceDesc,
       actionLabel: 'Revisar Faturas',
       importance: 'ALTO',
     });
-  } else if (hasCards || hasCardMovements) {
+  } else if (isInvoicesPartial) {
     steps.push({
       id: 'invoices',
       title: 'Faturas de Cartão em Aberto',

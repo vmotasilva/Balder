@@ -674,7 +674,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <span className="badge-pill badge-pill-cyan text-[10px]">Forseti</span>
                       </div>
                       <span className="mobile-nav-gs-sub">
-                        {completedSteps} de 3 passos definidos
+                        {completedSteps} de {onboardingAudit.totalCount} pilares
                       </span>
                     </div>
                   </div>

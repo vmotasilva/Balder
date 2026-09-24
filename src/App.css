@@ -4514,6 +4514,73 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   gap: 12px;
 }
 
+/* ---- Salary Regime Flag Chips ---- */
+.salary-regime-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.salary-regime-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  padding: 6px 12px 5px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  min-width: 68px;
+  gap: 1px;
+}
+
+.salary-regime-chip:hover {
+  border-color: rgba(6, 182, 212, 0.4);
+  background: rgba(6, 182, 212, 0.06);
+}
+
+.salary-regime-chip.active {
+  border-color: var(--accent-cyan);
+  background: rgba(6, 182, 212, 0.14);
+  box-shadow: 0 0 0 1px rgba(6, 182, 212, 0.25);
+}
+
+.salary-regime-chip-dot {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+  box-shadow: 0 0 4px rgba(6, 182, 212, 0.8);
+}
+
+.salary-regime-chip-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+}
+
+.salary-regime-chip.active .salary-regime-chip-label {
+  color: var(--accent-cyan);
+}
+
+.salary-regime-chip-sub {
+  font-size: 9px;
+  color: var(--text-muted);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.salary-regime-chip.active .salary-regime-chip-sub {
+  color: rgba(6, 182, 212, 0.7);
+}
+
 .ml-auto {
   margin-left: auto;
 }
