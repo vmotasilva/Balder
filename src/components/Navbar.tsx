@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { useTheme } from '../context/ThemeContext';
-import { Plus, Sparkles, Sun, Moon, LayoutGrid } from 'lucide-react';
+import { Plus, Sparkles, Sun, Moon, LayoutGrid, Bell } from 'lucide-react';
 import { BalderHubModal } from './BalderHubModal';
+import { auditOnboardingProgress } from '../utils/onboardingProgress';
 
 interface NavbarProps {
   onOpenNewMovementModal: () => void;
@@ -30,19 +31,33 @@ export const Navbar: React.FC<NavbarProps> = ({
     emergencyReserveMonths,
     nextCriticalEvent,
     activeCheckpoint,
+    salaryContracts,
     movements,
     cards,
+    accounts,
+    banks,
     natures,
   } = useFinancial();
   const { theme, toggleTheme } = useTheme();
   const [isHubOpen, setIsHubOpen] = useState(false);
 
-  // Indica se há alertas ou calibração pendente para exibir indicador no logo
-  const hasPendingCalibration =
-    !activeCheckpoint ||
-    (movements.filter((m) => m.type === 'CARTAO').length === 0 && cards.length === 0) ||
-    natures.length === 0;
-  const hasHubAlerts = hasPendingCalibration || !!nextCriticalEvent;
+  // Auditoria dos 5 pilares do Get Started
+  const onboardingAudit = useMemo(
+    () =>
+      auditOnboardingProgress({
+        activeCheckpoint,
+        salaryContracts,
+        movements,
+        cards,
+        accounts,
+        banks,
+        natures,
+      }),
+    [activeCheckpoint, salaryContracts, movements, cards, accounts, banks, natures]
+  );
+
+  const pendingCount = onboardingAudit.missingStepsCount + (nextCriticalEvent ? 1 : 0);
+  const hasHubAlerts = pendingCount > 0;
 
   return (
     <>
@@ -103,6 +118,37 @@ export const Navbar: React.FC<NavbarProps> = ({
             {emergencyReserveMonths} meses
           </span>
         </div>
+
+        {/* Notifications & Pendencies Center Button */}
+        <button
+          type="button"
+          className="theme-toggle-btn"
+          onClick={() => setIsHubOpen(true)}
+          title="Notificações & Central de Pendências"
+          aria-label="Abrir Notificações"
+          style={{ position: 'relative' }}
+        >
+          <Bell size={17} />
+          {pendingCount > 0 && (
+            <span
+              style={{
+                position: 'absolute',
+                top: '-4px',
+                right: '-4px',
+                background: '#f43f5e',
+                color: '#fff',
+                fontSize: '10px',
+                fontWeight: 700,
+                borderRadius: '999px',
+                padding: '1px 5px',
+                lineHeight: '1.2',
+                boxShadow: '0 0 6px rgba(244, 63, 94, 0.6)',
+              }}
+            >
+              {pendingCount}
+            </span>
+          )}
+        </button>
 
         {/* Theme Toggle Button */}
         <button

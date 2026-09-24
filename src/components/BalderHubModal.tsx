@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useFinancial } from '../context/FinancialContext';
+import { auditOnboardingProgress } from '../utils/onboardingProgress';
 import {
   Sparkles,
   CreditCard,
@@ -47,8 +48,11 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
 }) => {
   const {
     activeCheckpoint,
+    salaryContracts,
     movements,
     cards,
+    accounts,
+    banks,
     natures,
     nextCriticalEvent,
     emergencyReserveMonths,
@@ -89,48 +93,57 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
     }
   };
 
-  // 1. Status dos 3 Pilares do Get Started
-  const hasCheckpoint = !!activeCheckpoint;
-  const cardMovements = movements.filter((m) => m.type === 'CARTAO');
-  const hasInvoices = cardMovements.length > 0 || cards.length > 0;
-  const hasNatures = natures.length > 0;
-
-  const completedSteps =
-    (hasCheckpoint ? 1 : 0) + (hasInvoices ? 1 : 0) + (hasNatures ? 1 : 0);
-  const isCalibrationComplete = completedSteps === 3;
+  // 1. Auditoria dos 5 Pilares do Get Started
+  const onboardingAudit = useMemo(
+    () =>
+      auditOnboardingProgress({
+        activeCheckpoint,
+        salaryContracts,
+        movements,
+        cards,
+        accounts,
+        banks,
+        natures,
+      }),
+    [activeCheckpoint, salaryContracts, movements, cards, accounts, banks, natures]
+  );
 
   // 2. Geração Dinâmica de Notificações Inteligentes
   const activeNotifications = useMemo<HubNotification[]>(() => {
     const list: HubNotification[] = [];
 
-    // Notificação 1: Pendências de Calibração Get Started
-    if (!isCalibrationComplete) {
-      const missingLabels: string[] = [];
-      if (!hasCheckpoint) missingLabels.push('Ponto de Partida');
-      if (!hasInvoices) missingLabels.push('Faturas de Cartão');
-      if (!hasNatures) missingLabels.push('Naturezas & Mapeamentos');
-
-      list.push({
-        id: 'notif_calibration_pending',
-        type: 'WARNING',
-        title: 'Calibração do Balder Pendente',
-        description: `Faltam ${3 - completedSteps} passo(s) essenciais: ${missingLabels.join(', ')}. Conclua para auditorias 100% precisas.`,
-        timestamp: 'Agora',
-        actionLabel: 'Completar Get Started',
-        action: () => {
-          onClose();
-          onOpenOnboarding(!hasCheckpoint ? 1 : !hasInvoices ? 2 : 3);
-        },
-        icon: <Sparkles size={16} className="text-amber" />,
+    // Notificações Inteligentes para cada situação pendente do Get Started (1 por situação)
+    if (!onboardingAudit.isAllComplete) {
+      onboardingAudit.steps.forEach((step) => {
+        if (!step.isComplete) {
+          list.push({
+            id: `notif_gs_${step.id}`,
+            type: step.importance === 'CRITICO' ? 'CRITICAL' : 'WARNING',
+            title: `Get Started: ${step.title}`,
+            description: step.missingHint || step.description,
+            timestamp: 'Pendente',
+            actionLabel: `${step.actionLabel} (Etapa ${step.stepIndex})`,
+            action: () => {
+              onClose();
+              onOpenOnboarding(step.stepIndex);
+            },
+            icon: (
+              <Sparkles
+                size={16}
+                className={step.importance === 'CRITICO' ? 'text-rose' : 'text-amber'}
+              />
+            ),
+          });
+        }
       });
     } else {
       list.push({
         id: 'notif_calibration_done',
         type: 'SUCCESS',
         title: 'Sistema 100% Calibrado',
-        description: `Ponto de partida ativo desde ${activeCheckpoint?.startDate.split('-').reverse().join('/')}. Faturas e naturezas sincronizadas.`,
+        description: `Todos os 5 pilares do Get Started foram calibrados com sucesso pela Forseti. Ponto de partida ativo desde ${activeCheckpoint?.startDate.split('-').reverse().join('/')}.`,
         timestamp: 'Ativo',
-        actionLabel: 'Recalibrar',
+        actionLabel: 'Revisar Calibração',
         action: () => {
           onClose();
           onOpenOnboarding(1);
@@ -181,6 +194,7 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
     }
 
     // Notificação 4: Faturas de Cartão de Crédito
+    const cardMovements = movements.filter((m) => m.type === 'CARTAO');
     if (cardMovements.length > 0) {
       const openCardInvoices = cardMovements.filter((m) => m.status === 'PREVISTA');
       if (openCardInvoices.length > 0) {
@@ -242,15 +256,9 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
 
     return list;
   }, [
-    isCalibrationComplete,
-    hasCheckpoint,
-    hasInvoices,
-    hasNatures,
-    completedSteps,
-    activeCheckpoint,
+    onboardingAudit,
     nextCriticalEvent,
     movements,
-    cardMovements,
     emergencyReserveMonths,
     goals,
     onClose,

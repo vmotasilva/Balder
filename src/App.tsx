@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
-import { FinancialProvider, useFinancial } from './context/FinancialContext';
+import { FinancialProvider } from './context/FinancialContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sidebar } from './components/Sidebar';
 import type { TabId } from './components/Sidebar';
@@ -43,8 +43,6 @@ export function ProtectedApp() {
 }
 
 export function AppContent() {
-  const { user } = useAuth();
-  const { isDataReady, activeCheckpoint } = useFinancial();
   const [activeTab, setActiveTab] = useState<TabId>('DASHBOARD');
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -64,18 +62,6 @@ export function AppContent() {
   const [simulationMode, setSimulationMode] = useState<'PRESETS' | 'STUDIO'>('PRESETS');
 
   const [prepaymentModalOpen, setPrepaymentModalOpen] = useState(false);
-
-  // Auto-disparo do Get Started na primeira sessão do usuário sem checkpoint
-  useEffect(() => {
-    if (!isDataReady || !user) return;
-    const isCompleted = localStorage.getItem(`balder_onboarding_completed_${user.$id}`);
-    const isDismissed = sessionStorage.getItem('balder_onboarding_dismissed');
-
-    if (!isCompleted && !isDismissed && !activeCheckpoint) {
-      setIsOnboardingOpen(true);
-      setOnboardingInitialStep(1);
-    }
-  }, [isDataReady, user, activeCheckpoint]);
 
   const handleOpenOnboarding = (step = 1) => {
     setOnboardingInitialStep(step);

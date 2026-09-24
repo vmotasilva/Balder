@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   LayoutDashboard,
   ArrowLeftRight,
@@ -18,8 +18,6 @@ import {
   Users,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { useFinancial } from '../context/FinancialContext';
-import { auditOnboardingProgress } from '../utils/onboardingProgress';
 
 export type TabId = 'DASHBOARD' | 'MOVIMENTACOES' | 'FATURAS' | 'NATUREZAS' | 'EMPRESTIMOS' | 'COPILOT' | 'METAS' | 'COMPARTILHADO' | 'PERFIL';
 
@@ -40,36 +38,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleCollapse,
   isOpen,
   onOpenChange,
-  onOpenOnboarding,
 }) => {
   const { user, logout } = useAuth();
-  const {
-    activeCheckpoint,
-    salaryContracts,
-    movements,
-    cards,
-    accounts,
-    banks,
-    natures,
-  } = useFinancial();
   const [internalOpen, setInternalOpen] = useState(false);
-
-  // Cálculo detalhado dos 5 pilares do Get Started
-  const onboardingAudit = useMemo(
-    () =>
-      auditOnboardingProgress({
-        activeCheckpoint,
-        salaryContracts,
-        movements,
-        cards,
-        accounts,
-        banks,
-        natures,
-      }),
-    [activeCheckpoint, salaryContracts, movements, cards, accounts, banks, natures]
-  );
-  const completionPercentage = onboardingAudit.percent;
-  const completedSteps = onboardingAudit.completedCount;
 
   const isMenuOpen = isOpen !== undefined ? isOpen : internalOpen;
   const setIsMenuOpen = (open: boolean) => {
@@ -441,32 +412,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          {/* Botão Get Started na Barra Lateral Desktop Abaixo do Perfil (oculto em 100%) */}
-          {!collapsed && completionPercentage < 100 && (
-            <div className="sidebar-gs-container">
-              <button
-                type="button"
-                className="sidebar-gs-btn"
-                onClick={() => {
-                  if (onOpenOnboarding) {
-                    onOpenOnboarding(onboardingAudit.nextSuggestedStep?.stepIndex || 1);
-                  }
-                }}
-                title="Acessar Get Started — Calibração Inicial"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <Sparkles size={14} className="text-amber-400 shrink-0" />
-                  <span className="sidebar-gs-text">Get Started</span>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className={`sidebar-gs-badge ${completionPercentage === 100 ? 'done' : 'pending'}`}>
-                    {completionPercentage}%
-                  </span>
-                  <ChevronRight size={13} className="text-muted" />
-                </div>
-              </button>
-            </div>
-          )}
         </div>
       </aside>
 
@@ -650,50 +595,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </button>
             </div>
 
-            {/* Botão Get Started com Percentual logo Abaixo do Perfil no Menu Mobile (oculto quando 100%) */}
-            {completionPercentage < 100 && (
-              <div className="mobile-nav-gs-row">
-                <button
-                  type="button"
-                  className="mobile-nav-gs-btn"
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    if (onOpenOnboarding) {
-                      onOpenOnboarding(onboardingAudit.nextSuggestedStep?.stepIndex || 1);
-                    }
-                  }}
-                  title="Acessar Get Started — Calibração do Sistema"
-                >
-                  <div className="mobile-nav-gs-left">
-                    <div className="mobile-nav-gs-icon-wrap">
-                      <Sparkles size={16} className="text-amber-400" />
-                    </div>
-                    <div className="mobile-nav-gs-texts">
-                      <div className="mobile-nav-gs-title-line">
-                        <span className="mobile-nav-gs-title">Get Started</span>
-                        <span className="badge-pill badge-pill-cyan text-[10px]">Forseti</span>
-                      </div>
-                      <span className="mobile-nav-gs-sub">
-                        {completedSteps} de {onboardingAudit.totalCount} pilares
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="mobile-nav-gs-right">
-                    <div className="mobile-nav-gs-progress-mini">
-                      <div
-                        className="mobile-nav-gs-progress-fill"
-                        style={{ width: `${Math.max(completionPercentage, 8)}%` }}
-                      />
-                    </div>
-                    <span className={`mobile-nav-gs-badge ${completionPercentage === 100 ? 'done' : 'pending'}`}>
-                      {completionPercentage}%
-                    </span>
-                    <ChevronRight size={15} className="text-muted" />
-                  </div>
-                </button>
-              </div>
-            )}
           </div>
         </div>
       </div>

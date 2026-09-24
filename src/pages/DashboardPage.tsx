@@ -23,8 +23,6 @@ import { MonthlyProjectionGrid } from '../components/MonthlyProjectionGrid';
 import { NatureBudgetGrid } from '../components/NatureBudgetGrid';
 import { CheckpointSetupModal } from '../components/CheckpointSetupModal';
 import { QuickActionsDropdown } from '../components/QuickActionsDropdown';
-import { ForsetiSetupChecklist } from '../components/ForsetiSetupChecklist';
-import { auditOnboardingProgress } from '../utils/onboardingProgress';
 
 interface DashboardPageProps {
   onNavigateToMovements: () => void;
@@ -63,30 +61,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     activeTrackingScope,
     defaultTrackingScope,
     setActiveTrackingScope,
-    salaryContracts,
-    movements,
-    cards,
-    accounts,
-    banks,
-    natures,
   } = useFinancial();
 
   const [isCheckpointModalOpen, setIsCheckpointModalOpen] = useState(false);
-
-  // Auditoria contínua dos 5 pilares do Get Started
-  const onboardingAudit = useMemo(
-    () =>
-      auditOnboardingProgress({
-        activeCheckpoint,
-        salaryContracts,
-        movements,
-        cards,
-        accounts,
-        banks,
-        natures,
-      }),
-    [activeCheckpoint, salaryContracts, movements, cards, accounts, banks, natures]
-  );
   const [activeSection, setActiveSection] = useState<DashboardTab>('PROJECAO_MES');
 
   // Cálculo real do crescimento patrimonial relativo ao marco inicial (evita exibir dados estáticos/falsos)
@@ -184,34 +161,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 </span>
               </button>
             )}
-            {onOpenOnboarding && (
-              <button
-                onClick={() => onOpenOnboarding(onboardingAudit.nextSuggestedStep?.stepIndex || 1)}
-                title={
-                  onboardingAudit.isAllComplete
-                    ? 'Get Started: 100% Calibrado (Clique para revisar os 5 pilares)'
-                    : `Get Started: ${onboardingAudit.percent}% Calibrado. ${
-                        onboardingAudit.nextSuggestedStep
-                          ? `Falta: ${onboardingAudit.nextSuggestedStep.title}`
-                          : ''
-                      }`
-                }
-                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium transition-all cursor-pointer ${
-                  onboardingAudit.isAllComplete
-                    ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20'
-                    : 'bg-amber-500/10 border border-amber-500/30 text-amber-300 hover:bg-amber-500/20 animate-pulse'
-                }`}
-              >
-                <Sparkles
-                  size={12}
-                  className={onboardingAudit.isAllComplete ? 'text-emerald-400' : 'text-amber-400'}
-                />
-                <span>Get Started: {onboardingAudit.percent}%</span>
-                {!onboardingAudit.isAllComplete && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                )}
-              </button>
-            )}
           </div>
           <h1 className="page-title dashboard-page-title">Meu Dinheiro</h1>
           <p className="page-subtitle dashboard-page-subtitle">
@@ -234,11 +183,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </button>
         </div>
       </div>
-
-      {/* Widget de Calibração / Get Started da Forseti */}
-      {onOpenOnboarding && (
-        <ForsetiSetupChecklist onOpenOnboarding={onOpenOnboarding} />
-      )}
 
       {/* ============================================================== */}
       {/* SEÇÃO 1: COMO ESTOU                                            */}

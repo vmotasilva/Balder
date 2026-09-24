@@ -7,7 +7,7 @@ import {
   Sparkles,
   Flag,
   CreditCard,
-  Tag,
+  AlertTriangle,
   CheckCircle2,
   Clock,
   ArrowRight,
@@ -492,11 +492,14 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
   // SALVAR TUDO E ATIVAR
   // -------------------------------------------------------------
   const [isFinishing, setIsFinishing] = useState(false);
+  const [finishError, setFinishError] = useState<string | null>(null);
 
   const handleFinishCalibration = () => {
     setIsFinishing(true);
+    setFinishError(null);
 
     try {
+      const safeStartDate = startDate || firstDayOfMonthStr || new Date().toISOString().split('T')[0];
       const parsedBalance = parseNumber(initialBalance);
       const parsedCurrentInv = parseNumber(currentInvoiceAmount);
       const parsedSecondCurr = parseNumber(secondCurrentInvoice);
@@ -506,211 +509,232 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
         (hasSecondCard ? parsedSecondCurr : 0);
 
       // 1. Cria ou Atualiza o Checkpoint (Ponto de Partida) com faturas detalhadas
-      addCheckpoint({
-        label: `Marco Inicial (${startDate.split('-').reverse().join('/')})`,
-        startDate: startDate || firstDayOfMonthStr,
-        initialBalance: parsedBalance,
-        creditCardDebt: totalCardDebt,
-        initialNetWorth: parsedBalance - totalCardDebt,
-        notes: 'Ponto de partida configurado no Get Started conversacional com a Forseti',
-        cardDebts: hasCards
-          ? [
-              {
-                id: `debt_card_1`,
-                bankName: cardBank || 'Nubank',
-                cardName: cardName || 'Cartão Principal',
-                dueDay: cardDueDay,
-                invoices: [
-                  ...(parsedCurrentInv > 0
-                    ? [
-                        {
-                          monthIndex: 1,
-                          monthLabel: `Fatura Mês Seguinte (${getMonthInfo(startDate, 1).short})`,
-                          dueDate: getMonthDueDate(startDate, 1, cardDueDay),
-                          amount: parsedCurrentInv,
-                        },
-                      ]
-                    : []),
-                ],
-                totalDebt: parsedCurrentInv,
-              },
-              ...(hasSecondCard
-                ? [
-                    {
-                      id: `debt_card_2`,
-                      bankName: secondCardBank || 'Inter',
-                      cardName: secondCardName || 'Segundo Cartão',
-                      dueDay: secondCardDueDay,
-                      invoices: [
-                        ...(parsedSecondCurr > 0
-                          ? [
-                              {
-                                monthIndex: 1,
-                                monthLabel: `Fatura Mês Seguinte (${getMonthInfo(startDate, 1).short})`,
-                                dueDate: getMonthDueDate(startDate, 1, secondCardDueDay),
-                                amount: parsedSecondCurr,
-                              },
-                            ]
-                          : []),
-                      ],
-                      totalDebt: parsedSecondCurr,
-                    },
-                  ]
-                : []),
-            ]
-          : [],
-      });
+      try {
+        addCheckpoint({
+          label: `Marco Inicial (${safeStartDate.split('-').reverse().join('/')})`,
+          startDate: safeStartDate,
+          initialBalance: parsedBalance,
+          creditCardDebt: totalCardDebt,
+          initialNetWorth: parsedBalance - totalCardDebt,
+          notes: 'Ponto de partida configurado no Get Started conversacional com a Forseti',
+          cardDebts: hasCards
+            ? [
+                {
+                  id: `debt_card_1`,
+                  bankName: cardBank || 'Nubank',
+                  cardName: cardName || 'Cartão Principal',
+                  dueDay: cardDueDay,
+                  invoices: [
+                    ...(parsedCurrentInv > 0
+                      ? [
+                          {
+                            monthIndex: 1,
+                            monthLabel: `Fatura Mês Seguinte (${getMonthInfo(safeStartDate, 1).short})`,
+                            dueDate: getMonthDueDate(safeStartDate, 1, cardDueDay),
+                            amount: parsedCurrentInv,
+                          },
+                        ]
+                      : []),
+                  ],
+                  totalDebt: parsedCurrentInv,
+                },
+                ...(hasSecondCard
+                  ? [
+                      {
+                        id: `debt_card_2`,
+                        bankName: secondCardBank || 'Inter',
+                        cardName: secondCardName || 'Segundo Cartão',
+                        dueDay: secondCardDueDay,
+                        invoices: [
+                          ...(parsedSecondCurr > 0
+                            ? [
+                                {
+                                  monthIndex: 1,
+                                  monthLabel: `Fatura Mês Seguinte (${getMonthInfo(safeStartDate, 1).short})`,
+                                  dueDate: getMonthDueDate(safeStartDate, 1, secondCardDueDay),
+                                  amount: parsedSecondCurr,
+                                },
+                              ]
+                            : []),
+                        ],
+                        totalDebt: parsedSecondCurr,
+                      },
+                    ]
+                  : []),
+              ]
+            : [],
+        });
+      } catch (cpErr) {
+        console.warn('Erro ao salvar checkpoint:', cpErr);
+      }
 
       // 2. Registra e Garante todos os Bancos e Contas selecionados pelo usuário
-      selectedBanks.forEach((b) => {
-        const brand = getBankBranding(b.name);
-        const alreadyExists = banks.some(
-          (ex) => ex.name.toLowerCase().trim() === b.name.toLowerCase().trim()
-        );
-        if (!alreadyExists) {
-          addBank({
-            name: b.name,
-            color: brand.primaryColor,
-            icon: brand.iconText || '🏦',
-            status: 'CONECTADO',
-            syncedAt: 'Ativo no Balder',
-          });
-        }
-      });
-
-      // Cria Conta Bancária correspondente para cada banco selecionado
-      selectedBanks.forEach((b) => {
-        const brand = getBankBranding(b.name);
-        const indBal = parseNumber(b.balanceInput);
-        const effectiveBal = indBal > 0 ? indBal : (b.isMain ? parsedBalance : 0);
-
-        const accExists = accounts.some(
-          (a) => (a.bankName || a.name).toLowerCase().trim() === b.name.toLowerCase().trim()
-        );
-        if (!accExists) {
-          addAccount({
-            name: `Conta ${b.name}`,
-            bankName: b.name,
-            balance: effectiveBal,
-            type: 'CORRENTE',
-            color: brand.primaryColor,
-            icon: '🏦',
-          });
-        }
-      });
-
-      // 3. Cadastra o(s) Cartão(ões) de Crédito com fatura do mês seguinte
-      if (hasCards) {
-        addCard({
-          name: cardName || 'Cartão Principal',
-          bank: cardBank || 'Nubank',
-          brand: 'MASTERCARD',
-          limitTotal: Math.max(5000, parsedCurrentInv * 1.5),
-          closingDay: Math.max(1, cardDueDay - 7),
-          dueDay: cardDueDay,
-          color: '#8b5cf6',
-        });
-
-        // Adiciona movimento previsto para a fatura do mês seguinte
-        if (parsedCurrentInv > 0) {
-          addMovement({
-            title: `Fatura ${cardName || 'Cartão'} (${getMonthInfo(startDate, 1).short})`,
-            amount: parsedCurrentInv,
-            dueDate: getMonthDueDate(startDate, 1, cardDueDay),
-            type: 'CARTAO',
-            status: 'PREVISTA',
-            category: 'Fatura de Cartão',
-            bank: cardBank,
-          });
-        }
-      }
-
-      if (hasSecondCard && parsedSecondCurr > 0) {
-        addCard({
-          name: secondCardName || 'Segundo Cartão',
-          bank: secondCardBank || 'Inter',
-          brand: 'VISA',
-          limitTotal: Math.max(4000, parsedSecondCurr * 1.5),
-          closingDay: Math.max(1, secondCardDueDay - 7),
-          dueDay: secondCardDueDay,
-          color: '#f59e0b',
-        });
-
-        addMovement({
-          title: `Fatura ${secondCardName} (${getMonthInfo(startDate, 1).short})`,
-          amount: parsedSecondCurr,
-          dueDate: getMonthDueDate(startDate, 1, secondCardDueDay),
-          type: 'CARTAO',
-          status: 'PREVISTA',
-          category: 'Fatura de Cartão',
-          bank: secondCardBank,
-        });
-      }
-
-      // 4. Salva ou atualiza a Configuração do Salário / Remuneração Principal
-      const parsedSalary = parseNumber(salaryAmount);
-      if (hasSalary && parsedSalary > 0) {
-        const existingSalary = salaryContracts?.find((s) => s.isActive) || salaryContracts?.[0];
-        if (existingSalary) {
-          updateSalaryContract(existingSalary.id, {
-            employer: salaryEmployer.trim() || 'Empregador Principal',
-            role: salaryRole.trim() || 'Remuneração Principal',
-            contractType: salaryContractType,
-            paymentDay: Math.min(Math.max(1, salaryPayDay), 31),
-            currentGrossAmount: parsedSalary,
-            currentNetAmount: parsedSalary,
-            receivingBankName: mainBankName,
-            startDate: startDate || firstDayOfMonthStr,
-            isActive: true,
-          });
-        } else {
-          addSalaryContract({
-            employer: salaryEmployer.trim() || 'Empregador Principal',
-            role: salaryRole.trim() || 'Remuneração Principal',
-            contractType: salaryContractType,
-            paymentSchedule: 'UNICO',
-            paymentDay: Math.min(Math.max(1, salaryPayDay), 31),
-            currentGrossAmount: parsedSalary,
-            currentNetAmount: parsedSalary,
-            receivingBankName: mainBankName,
-            startDate: startDate || firstDayOfMonthStr,
-            isActive: true,
-          });
-        }
-
-        // Adiciona movimento de receita prevista para o mês inicial
-        addMovement({
-          title: `Salário: ${salaryEmployer.trim() || 'Remuneração Principal'}`,
-          amount: parsedSalary,
-          dueDate: getMonthDueDate(startDate, 0, salaryPayDay),
-          type: 'RECEBER',
-          status: 'PREVISTA',
-          category: 'Salário',
-          bank: mainBankName,
-        });
-      }
-
-      // 5. Salva as Naturezas selecionadas com seus tetos e mapeamentos
-      if (selectedNatures.length > 0) {
-        selectedNatures.forEach((nat, idx) => {
-          const alreadyExists = natures.some(
-            (n) => n.name.toLowerCase().trim() === nat.name.toLowerCase().trim()
+      try {
+        selectedBanks.forEach((b) => {
+          const brand = getBankBranding(b.name);
+          const alreadyExists = banks.some(
+            (ex) => ex.name.toLowerCase().trim() === b.name.toLowerCase().trim()
           );
           if (!alreadyExists) {
-            const suggestedMappings = autoLoadMappings
-              ? buildSuggestedMappingsForNature(`nat_seed_${Date.now()}_${idx}`, nat.name, nat.icon)
-              : [];
-            addNature({
-              name: nat.name,
-              icon: nat.icon,
-              color: nat.color,
-              type: nat.type,
-              description: nat.description,
-              keywords: (nat as any).keywords || [],
-              mappings: suggestedMappings,
+            addBank({
+              name: b.name,
+              color: brand.primaryColor,
+              icon: brand.iconText || '🏦',
+              status: 'CONECTADO',
+              syncedAt: 'Ativo no Balder',
             });
           }
         });
+
+        // Cria Conta Bancária correspondente para cada banco selecionado
+        selectedBanks.forEach((b) => {
+          const brand = getBankBranding(b.name);
+          const indBal = parseNumber(b.balanceInput);
+          const effectiveBal = indBal > 0 ? indBal : (b.isMain ? parsedBalance : 0);
+
+          const accExists = accounts.some(
+            (a) => (a.bankName || a.name).toLowerCase().trim() === b.name.toLowerCase().trim()
+          );
+          if (!accExists) {
+            addAccount({
+              name: `Conta ${b.name}`,
+              bankName: b.name,
+              balance: effectiveBal,
+              type: 'CORRENTE',
+              color: brand.primaryColor,
+              icon: '🏦',
+            });
+          }
+        });
+      } catch (bankErr) {
+        console.warn('Erro ao registrar bancos/contas:', bankErr);
+      }
+
+      // 3. Cadastra o(s) Cartão(ões) de Crédito com fatura do mês seguinte
+      try {
+        if (hasCards) {
+          addCard({
+            name: cardName || 'Cartão Principal',
+            bank: cardBank || 'Nubank',
+            brand: 'MASTERCARD',
+            limitTotal: Math.max(5000, parsedCurrentInv * 1.5),
+            closingDay: Math.max(1, cardDueDay - 7),
+            dueDay: cardDueDay,
+            color: '#8b5cf6',
+          });
+
+          // Adiciona movimento previsto para a fatura do mês seguinte
+          if (parsedCurrentInv > 0) {
+            addMovement({
+              title: `Fatura ${cardName || 'Cartão'} (${getMonthInfo(safeStartDate, 1).short})`,
+              amount: parsedCurrentInv,
+              dueDate: getMonthDueDate(safeStartDate, 1, cardDueDay),
+              type: 'CARTAO',
+              status: 'PREVISTA',
+              category: 'Fatura de Cartão',
+              bank: cardBank,
+            });
+          }
+        }
+
+        if (hasSecondCard && parsedSecondCurr > 0) {
+          addCard({
+            name: secondCardName || 'Segundo Cartão',
+            bank: secondCardBank || 'Inter',
+            brand: 'VISA',
+            limitTotal: Math.max(4000, parsedSecondCurr * 1.5),
+            closingDay: Math.max(1, secondCardDueDay - 7),
+            dueDay: secondCardDueDay,
+            color: '#f59e0b',
+          });
+
+          addMovement({
+            title: `Fatura ${secondCardName} (${getMonthInfo(safeStartDate, 1).short})`,
+            amount: parsedSecondCurr,
+            dueDate: getMonthDueDate(safeStartDate, 1, secondCardDueDay),
+            type: 'CARTAO',
+            status: 'PREVISTA',
+            category: 'Fatura de Cartão',
+            bank: secondCardBank,
+          });
+        }
+      } catch (cardErr) {
+        console.warn('Erro ao cadastrar cartões:', cardErr);
+      }
+
+      // 4. Salva ou atualiza a Configuração do Salário / Remuneração Principal
+      try {
+        const parsedSalary = parseNumber(salaryAmount);
+        const safeMainBank = salaryReceivingBank || mainBankName || selectedBanks[0]?.name || 'Nubank';
+        if (hasSalary && parsedSalary > 0) {
+          const existingSalary = salaryContracts?.find((s) => s.isActive) || salaryContracts?.[0];
+          if (existingSalary) {
+            updateSalaryContract(existingSalary.id, {
+              employer: salaryEmployer.trim() || 'Empregador Principal',
+              role: salaryRole.trim() || 'Remuneração Principal',
+              contractType: salaryContractType,
+              paymentDay: Math.min(Math.max(1, salaryPayDay), 31),
+              currentGrossAmount: parsedSalary,
+              currentNetAmount: parsedSalary,
+              receivingBankName: safeMainBank,
+              startDate: safeStartDate,
+              isActive: true,
+            });
+          } else {
+            addSalaryContract({
+              employer: salaryEmployer.trim() || 'Empregador Principal',
+              role: salaryRole.trim() || 'Remuneração Principal',
+              contractType: salaryContractType,
+              paymentSchedule: 'UNICO',
+              paymentDay: Math.min(Math.max(1, salaryPayDay), 31),
+              currentGrossAmount: parsedSalary,
+              currentNetAmount: parsedSalary,
+              receivingBankName: safeMainBank,
+              startDate: safeStartDate,
+              isActive: true,
+            });
+          }
+
+          // Adiciona movimento de receita prevista para o mês inicial
+          addMovement({
+            title: `Salário: ${salaryEmployer.trim() || 'Remuneração Principal'}`,
+            amount: parsedSalary,
+            dueDate: getMonthDueDate(safeStartDate, 0, salaryPayDay),
+            type: 'RECEBER',
+            status: 'PREVISTA',
+            category: 'Salário',
+            bank: safeMainBank,
+          });
+        }
+      } catch (salErr) {
+        console.warn('Erro ao cadastrar salário:', salErr);
+      }
+
+      // 5. Salva as Naturezas selecionadas com seus tetos e mapeamentos
+      try {
+        if (selectedNatures.length > 0) {
+          selectedNatures.forEach((nat, idx) => {
+            const alreadyExists = natures.some(
+              (n) => n.name.toLowerCase().trim() === nat.name.toLowerCase().trim()
+            );
+            if (!alreadyExists) {
+              const suggestedMappings = autoLoadMappings
+                ? buildSuggestedMappingsForNature(`nat_seed_${Date.now()}_${idx}`, nat.name, nat.icon)
+                : [];
+              addNature({
+                name: nat.name,
+                icon: nat.icon,
+                color: nat.color,
+                type: nat.type,
+                description: nat.description,
+                keywords: (nat as any).keywords || [],
+                mappings: suggestedMappings,
+              });
+            }
+          });
+        }
+      } catch (natErr) {
+        console.warn('Erro ao cadastrar naturezas:', natErr);
       }
 
       // Marca onboarding como completado no localStorage e no Supabase
@@ -720,11 +744,17 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
       } else {
         localStorage.setItem('balder_onboarding_completed_guest', 'true');
       }
+      sessionStorage.setItem('balder_onboarding_dismissed', 'true');
 
-      setCurrentStep(4); // Passo final de celebração
-    } catch (err) {
+      // Fecha e conclui com sucesso
+      setIsFinishing(false);
+      if (onComplete) onComplete();
+      onClose();
+    } catch (err: any) {
       console.error('Erro ao finalizar calibração:', err);
-    } finally {
+      setFinishError(
+        err?.message || 'Ocorreu um erro ao salvar a calibração. Por favor, tente novamente.'
+      );
       setIsFinishing(false);
     }
   };
@@ -772,7 +802,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                 {onboardingAudit.percent}% Calibrado
               </span>
               <div className="onboarding-step-counter">
-                <span>Etapa {Math.min(currentStep, 3)} de 3</span>
+                <span>Etapa {Math.min(currentStep, 5)} de 5</span>
               </div>
             </div>
             <button
@@ -792,12 +822,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
           <div
             className="onboarding-progress-fill"
             style={{
-              width:
-                currentStep === 1
-                  ? '33%'
-                  : currentStep === 2
-                  ? '66%'
-                  : '100%',
+              width: `${(Math.min(currentStep, 5) / 5) * 100}%`,
             }}
           />
         </div>
@@ -814,9 +839,8 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                   : 'bg-white/5 text-muted hover:text-white'
               }`}
             >
-              <span>1. Contas & Salário</span>
-              {onboardingAudit.steps.find((s) => s.id === 'checkpoint')?.isComplete &&
-              onboardingAudit.steps.find((s) => s.id === 'salary')?.isComplete ? (
+              <span>1. Ponto de Partida</span>
+              {onboardingAudit.steps.find((s) => s.id === 'checkpoint')?.isComplete ? (
                 <CheckCircle2 size={13} className="text-emerald-400" />
               ) : (
                 <Clock size={13} className="text-amber-400" />
@@ -832,8 +856,8 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                   : 'bg-white/5 text-muted hover:text-white'
               }`}
             >
-              <span>2. Cartões & Faturas</span>
-              {onboardingAudit.steps.find((s) => s.id === 'invoices')?.isComplete ? (
+              <span>2. Salário & Renda</span>
+              {onboardingAudit.steps.find((s) => s.id === 'salary')?.isComplete ? (
                 <CheckCircle2 size={13} className="text-emerald-400" />
               ) : (
                 <Clock size={13} className="text-amber-400" />
@@ -849,9 +873,42 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                   : 'bg-white/5 text-muted hover:text-white'
               }`}
             >
-              <span>3. Naturezas & IA</span>
-              {onboardingAudit.steps.find((s) => s.id === 'natures')?.isComplete &&
-              onboardingAudit.steps.find((s) => s.id === 'ai_mappings')?.isComplete ? (
+              <span>3. Cartões & Faturas</span>
+              {onboardingAudit.steps.find((s) => s.id === 'invoices')?.isComplete ? (
+                <CheckCircle2 size={13} className="text-emerald-400" />
+              ) : (
+                <Clock size={13} className="text-amber-400" />
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCurrentStep(4)}
+              className={`px-3 py-1 rounded-full flex items-center gap-1.5 transition-colors cursor-pointer ${
+                currentStep === 4
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold'
+                  : 'bg-white/5 text-muted hover:text-white'
+              }`}
+            >
+              <span>4. Naturezas & Tetos</span>
+              {onboardingAudit.steps.find((s) => s.id === 'natures')?.isComplete ? (
+                <CheckCircle2 size={13} className="text-emerald-400" />
+              ) : (
+                <Clock size={13} className="text-amber-400" />
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setCurrentStep(5)}
+              className={`px-3 py-1 rounded-full flex items-center gap-1.5 transition-colors cursor-pointer ${
+                currentStep === 5
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold'
+                  : 'bg-white/5 text-muted hover:text-white'
+              }`}
+            >
+              <span>5. Mapeamentos & IA</span>
+              {onboardingAudit.steps.find((s) => s.id === 'ai_mappings')?.isComplete ? (
                 <CheckCircle2 size={13} className="text-emerald-400" />
               ) : (
                 <Clock size={13} className="text-amber-400" />
@@ -1124,8 +1181,48 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                 </div>
               </div>
 
+              {/* Botões de Ação da Etapa 1 */}
+              <div className="onboarding-step-actions">
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  onClick={onClose}
+                >
+                  Configurar Depois
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary flex items-center gap-2 px-6"
+                  onClick={() => setCurrentStep(2)}
+                >
+                  <span>Continuar para Salário & Renda</span>
+                  <ArrowRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* ETAPA 2: REMUNERAÇÃO & SALÁRIO                           */}
+          {/* ======================================================== */}
+          {currentStep === 2 && (
+            <div className="onboarding-step-view animate-fade-in">
+              <div className="forseti-speech-bubble">
+                <div className="forseti-bubble-header">
+                  <Briefcase size={16} className="text-emerald" />
+                  <strong>Etapa 2 de 5: Remuneração & Salário Mensal</strong>
+                </div>
+                <p>
+                  Sua receita recorrente é a base para prever o fluxo de entradas dos próximos meses.
+                  Configure aqui seu salário líquido e o dia em que o valor é creditado em conta.
+                </p>
+                <p className="mt-2 text-xs text-slate-400">
+                  Sem a remuneração cadastrada, suas projeções futuras no Dashboard ficariam sem base de recebimentos.
+                </p>
+              </div>
+
               {/* Card de Configuração de Salário / Remuneração Principal */}
-              <div className="onboarding-form-card glass-card mt-3">
+              <div className="onboarding-form-card glass-card">
                 <div className="flex items-center justify-between pb-2 border-b border-white/5">
                   <div className="flex items-center gap-2">
                     <Briefcase size={16} className="text-emerald" />
@@ -1292,21 +1389,22 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                 )}
               </div>
 
-              {/* Botões de Ação do Passo 1 */}
+              {/* Botões de Ação da Etapa 2 */}
               <div className="onboarding-step-actions">
                 <button
                   type="button"
-                  className="btn btn-outline btn-sm"
-                  onClick={onClose}
+                  className="btn btn-outline flex items-center gap-1.5"
+                  onClick={() => setCurrentStep(1)}
                 >
-                  Configurar Depois
+                  <ArrowLeft size={16} />
+                  <span>Voltar</span>
                 </button>
                 <button
                   type="button"
                   className="btn btn-primary flex items-center gap-2 px-6"
-                  onClick={() => setCurrentStep(2)}
+                  onClick={() => setCurrentStep(3)}
                 >
-                  <span>Continuar para Faturas</span>
+                  <span>Continuar para Cartões & Faturas</span>
                   <ArrowRight size={16} />
                 </button>
               </div>
@@ -1314,14 +1412,14 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
           )}
 
           {/* ======================================================== */}
-          {/* PASSO 2: FATURAS DE CARTÃO EM ABERTO                    */}
+          {/* ETAPA 3: FATURAS DE CARTÃO EM ABERTO                    */}
           {/* ======================================================== */}
-          {currentStep === 2 && (
+          {currentStep === 3 && (
             <div className="onboarding-step-view animate-fade-in">
               <div className="forseti-speech-bubble">
                 <div className="forseti-bubble-header">
                   <CreditCard size={16} className="text-cyan" />
-                  <strong>Passo 2: Faturas de Cartão de Crédito em Aberto</strong>
+                  <strong>Etapa 3 de 5: Faturas de Cartão de Crédito em Aberto</strong>
                 </div>
                 <p>
                   Excelente! O segundo ponto é registrar a fatura do cartão que vence no
@@ -1529,7 +1627,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                 <button
                   type="button"
                   className="btn btn-outline flex items-center gap-1.5"
-                  onClick={() => setCurrentStep(1)}
+                  onClick={() => setCurrentStep(2)}
                 >
                   <ArrowLeft size={16} />
                   <span>Voltar</span>
@@ -1537,9 +1635,9 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                 <button
                   type="button"
                   className="btn btn-primary flex items-center gap-2 px-6"
-                  onClick={() => setCurrentStep(3)}
+                  onClick={() => setCurrentStep(4)}
                 >
-                  <span>Continuar para Naturezas</span>
+                  <span>Continuar para Naturezas & Tetos</span>
                   <ArrowRight size={16} />
                 </button>
               </div>
@@ -1547,106 +1645,22 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
           )}
 
           {/* ======================================================== */}
-          {/* PASSO 3: NATUREZAS & MAPEAMENTOS DE ROTINAS              */}
+          {/* ETAPA 4: NATUREZAS ORÇAMENTÁRIAS & TETOS                */}
           {/* ======================================================== */}
-          {currentStep === 3 && (
+          {currentStep === 4 && (
             <div className="onboarding-step-view animate-fade-in">
               <div className="forseti-speech-bubble">
                 <div className="forseti-bubble-header">
-                  <Tag size={16} className="text-emerald" />
-                  <strong>Passo 3: Naturezas & Mapeamentos de Rotinas (Tetos Calculados)</strong>
+                  <Layers size={16} className="text-amber-400" />
+                  <strong>Etapa 4 de 5: Naturezas Orçamentárias & Tetos de Gastos</strong>
                 </div>
                 <p>
-                  Quase lá! No Balder, nós não usamos categorias soltas ou tetos tirados do nada: nós definimos{' '}
-                  <strong>Naturezas fundamentadas por Mapeamentos de Rotinas de Gastos</strong>.
+                  Defina os limites mensais das suas principais categorias de despesa (Alimentação, Moradia, Transporte, etc.).
+                  A Forseti audita desvios em tempo real antes de qualquer estouro orçamentário.
                 </p>
                 <p className="mt-2 text-xs text-slate-300">
-                  Um teto não deve ser um chute: cada Natureza (ex: Alimentação) é decomposta em compras reais (ex: 🛒 Supermercado Mensal, 🥦 Feira Semanal, 🥩 Açougue Quinzenal). Eu audito esses itens em tempo real para te alertar antes de qualquer estouro!
+                  Você pode personalizar os tetos de acordo com a sua realidade financeira e adicionar categorias sob medida.
                 </p>
-              </div>
-
-              {/* Guia Didático da Forseti: O que é e Como Criar um Mapeamento */}
-              <div className="onboarding-mapping-guide glass-card mt-3.5 p-4 border border-cyan/25 rounded-2xl">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <Sparkles size={16} className="text-cyan shrink-0" />
-                    <h4 className="text-xs font-bold text-cyan uppercase tracking-wider">
-                      Como funciona a criação de Mapeamentos nas Naturezas?
-                    </h4>
-                  </div>
-                  <button
-                    type="button"
-                    className="text-xs text-slate-400 hover:text-cyan underline cursor-pointer flex items-center gap-1"
-                    onClick={() => setShowMappingTutorial(!showMappingTutorial)}
-                  >
-                    <BookOpen size={13} />
-                    <span>{showMappingTutorial ? 'Ocultar Guia Didático' : 'Como Criar Mapeamentos'}</span>
-                  </button>
-                </div>
-
-                {showMappingTutorial && (
-                  <div className="space-y-3 text-xs text-slate-300 mt-3 animate-fade-in">
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-left">
-                      <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                        <div className="flex items-center gap-1.5 mb-1 text-white font-bold">
-                          <span className="w-5 h-5 rounded-full bg-cyan/20 text-cyan text-[11px] flex items-center justify-center font-bold">1</span>
-                          <span>Escolha a Natureza</span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 leading-snug">
-                          A Natureza representa o grupo orçamentário maior (ex: 🍽️ Alimentação ou 🏠 Moradia).
-                        </p>
-                      </div>
-
-                      <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                        <div className="flex items-center gap-1.5 mb-1 text-white font-bold">
-                          <span className="w-5 h-5 rounded-full bg-cyan/20 text-cyan text-[11px] flex items-center justify-center font-bold">2</span>
-                          <span>Crie a Rotina de Gasto</span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 leading-snug">
-                          Dê nome à rotina (ex: 🥦 Feira Semanal) e defina a periodicidade (Semanal, Quinzenal ou Mensal).
-                        </p>
-                      </div>
-
-                      <div className="p-3 rounded-xl bg-white/5 border border-white/10">
-                        <div className="flex items-center gap-1.5 mb-1 text-white font-bold">
-                          <span className="w-5 h-5 rounded-full bg-cyan/20 text-cyan text-[11px] flex items-center justify-center font-bold">3</span>
-                          <span>Adicione os Itens</span>
-                        </div>
-                        <p className="text-[11px] text-slate-400 leading-snug">
-                          Lançe itens com quantidade e preço. O Balder calcula a multiplicação mensal automaticamente!
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="p-3 rounded-xl bg-gradient-to-r from-cyan-950/30 to-slate-900/40 border border-cyan-500/20 flex items-start gap-2.5">
-                      <ListChecks size={18} className="text-cyan shrink-0 mt-0.5" />
-                      <div className="text-[11px] leading-relaxed text-slate-300">
-                        <strong className="text-white">Cálculo Matemático Automático:</strong> Se você gasta <strong>R$ 65</strong> na feira todo sábado, o Balder multiplica pelas <strong>4 semanas do mês</strong> (total de <strong>R$ 260/mês</strong>). Somando feira, supermercado e açougue, o seu teto mensal fica matematicamente justificado e auditável pela Forseti.
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Opção Inteligente de Inicialização com Mapeamentos Sugeridos */}
-              <div className="mt-3.5 p-3.5 rounded-xl bg-gradient-to-r from-cyan-950/40 via-slate-900/50 to-emerald-950/40 border border-cyan-500/30 shadow-md">
-                <label className="flex items-start gap-3 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="mt-0.5 accent-cyan w-4 h-4 rounded cursor-pointer"
-                    checked={autoLoadMappings}
-                    onChange={(e) => setAutoLoadMappings(e.target.checked)}
-                  />
-                  <div>
-                    <strong className="text-xs font-bold text-white flex items-center gap-1.5">
-                      <span>Ativar Mapeamentos Modelos da Forseti automaticamente</span>
-                      <span className="badge-pill badge-pill-cyan text-[9px]">Recomendado</span>
-                    </strong>
-                    <span className="text-[11px] text-slate-400 block mt-0.5">
-                      Cria rotinas reais pré-configuradas (Supermercado, Feira, Açougue e Contas) com itens e preços de referência para você apenas conferir e ajustar na tela de Naturezas.
-                    </span>
-                  </div>
-                </label>
               </div>
 
               <div className="onboarding-natures-container mt-4">
@@ -1776,11 +1790,169 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                 )}
               </div>
 
+              {/* Botões de Ação da Etapa 4 */}
               <div className="onboarding-step-actions">
                 <button
                   type="button"
                   className="btn btn-outline flex items-center gap-1.5"
-                  onClick={() => setCurrentStep(2)}
+                  onClick={() => setCurrentStep(3)}
+                >
+                  <ArrowLeft size={16} />
+                  <span>Voltar</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary flex items-center gap-2 px-6"
+                  onClick={() => setCurrentStep(5)}
+                >
+                  <span>Continuar para Mapeamentos & IA</span>
+                  <ArrowRight size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ======================================================== */}
+          {/* ETAPA 5: MAPEAMENTOS DE ROTINAS & IA                    */}
+          {/* ======================================================== */}
+          {currentStep === 5 && (
+            <div className="onboarding-step-view animate-fade-in">
+              <div className="forseti-speech-bubble">
+                <div className="forseti-bubble-header">
+                  <Sparkles size={16} className="text-cyan" />
+                  <strong>Etapa 5 de 5: Mapeamento de Rotinas & Inteligência Artificial</strong>
+                </div>
+                <p>
+                  No Balder, nós não usamos tetos tirados do nada: cada Natureza (ex: Alimentação) é fundamentada por{' '}
+                  <strong>compras e rotinas reais</strong> (Supermercado, Feira, Açougue).
+                </p>
+                <p className="mt-2 text-xs text-slate-300">
+                  A IA utiliza palavras-chave para classificar notas fiscais e comprovantes nas rotinas corretas sem esforço manual.
+                </p>
+              </div>
+
+              {/* Guia Didático da Forseti: O que é e Como Criar um Mapeamento */}
+              <div className="onboarding-mapping-guide glass-card mt-3.5 p-4 border border-cyan/25 rounded-2xl">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={16} className="text-cyan shrink-0" />
+                    <h4 className="text-xs font-bold text-cyan uppercase tracking-wider">
+                      Como funciona a criação de Mapeamentos nas Naturezas?
+                    </h4>
+                  </div>
+                  <button
+                    type="button"
+                    className="text-xs text-slate-400 hover:text-cyan underline cursor-pointer flex items-center gap-1"
+                    onClick={() => setShowMappingTutorial(!showMappingTutorial)}
+                  >
+                    <BookOpen size={13} />
+                    <span>{showMappingTutorial ? 'Ocultar Guia Didático' : 'Como Criar Mapeamentos'}</span>
+                  </button>
+                </div>
+
+                {showMappingTutorial && (
+                  <div className="space-y-3 text-xs text-slate-300 mt-3 animate-fade-in">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-left">
+                      <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                        <div className="flex items-center gap-1.5 mb-1 text-white font-bold">
+                          <span className="w-5 h-5 rounded-full bg-cyan/20 text-cyan text-[11px] flex items-center justify-center font-bold">1</span>
+                          <span>Escolha a Natureza</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-snug">
+                          A Natureza representa o grupo orçamentário maior (ex: 🍽️ Alimentação ou 🏠 Moradia).
+                        </p>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                        <div className="flex items-center gap-1.5 mb-1 text-white font-bold">
+                          <span className="w-5 h-5 rounded-full bg-cyan/20 text-cyan text-[11px] flex items-center justify-center font-bold">2</span>
+                          <span>Crie a Rotina de Gasto</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-snug">
+                          Dê nome à rotina (ex: 🥦 Feira Semanal) e defina a periodicidade (Semanal, Quinzenal ou Mensal).
+                        </p>
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                        <div className="flex items-center gap-1.5 mb-1 text-white font-bold">
+                          <span className="w-5 h-5 rounded-full bg-cyan/20 text-cyan text-[11px] flex items-center justify-center font-bold">3</span>
+                          <span>Adicione os Itens</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 leading-snug">
+                          Lançe itens com quantidade e preço. O Balder calcula a multiplicação mensal automaticamente!
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-gradient-to-r from-cyan-950/30 to-slate-900/40 border border-cyan-500/20 flex items-start gap-2.5">
+                      <ListChecks size={18} className="text-cyan shrink-0 mt-0.5" />
+                      <div className="text-[11px] leading-relaxed text-slate-300">
+                        <strong className="text-white">Cálculo Matemático Automático:</strong> Se você gasta <strong>R$ 65</strong> na feira todo sábado, o Balder multiplica pelas <strong>4 semanas do mês</strong> (total de <strong>R$ 260/mês</strong>). Somando feira, supermercado e açougue, o seu teto mensal fica matematicamente justificado e auditável pela Forseti.
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Opção Inteligente de Inicialização com Mapeamentos Sugeridos */}
+              <div className="mt-3.5 p-3.5 rounded-xl bg-gradient-to-r from-cyan-950/40 via-slate-900/50 to-emerald-950/40 border border-cyan-500/30 shadow-md">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 accent-cyan w-4 h-4 rounded cursor-pointer"
+                    checked={autoLoadMappings}
+                    onChange={(e) => setAutoLoadMappings(e.target.checked)}
+                  />
+                  <div>
+                    <strong className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <span>Ativar Mapeamentos Modelos da Forseti automaticamente</span>
+                      <span className="badge-pill badge-pill-cyan text-[9px]">Recomendado</span>
+                    </strong>
+                    <span className="text-[11px] text-slate-400 block mt-0.5">
+                      Cria rotinas reais pré-configuradas (Supermercado, Feira, Açougue e Contas) com itens e preços de referência para você apenas conferir e ajustar na tela de Naturezas.
+                    </span>
+                  </div>
+                </label>
+              </div>
+
+              {/* Resumo consolidado da calibração */}
+              <div className="onboarding-summary-chips mt-4">
+                <div className="summary-chip">
+                  <Flag size={14} className="text-cyan" />
+                  <span>Ponto de Partida: {startDate ? startDate.split('-').reverse().join('/') : 'Atual'}</span>
+                </div>
+                {hasSalary && parseNumber(salaryAmount) > 0 && (
+                  <div className="summary-chip">
+                    <Briefcase size={14} className="text-emerald" />
+                    <span>Salário Configurado: {Number(salaryAmount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                  </div>
+                )}
+                {hasCards && (
+                  <div className="summary-chip">
+                    <CreditCard size={14} className="text-purple-400" />
+                    <span>Faturas Mapeadas</span>
+                  </div>
+                )}
+                <div className="summary-chip">
+                  <Layers size={14} className="text-emerald" />
+                  <span>{selectedNatures.length} Naturezas & Tetos</span>
+                </div>
+              </div>
+
+              {/* Banner de Erro caso ocorra */}
+              {finishError && (
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2 mt-3">
+                  <AlertTriangle size={16} className="text-rose-400 shrink-0" />
+                  <span>{finishError}</span>
+                </div>
+              )}
+
+              {/* Botões de Ação da Etapa 5 */}
+              <div className="onboarding-step-actions mt-4">
+                <button
+                  type="button"
+                  className="btn btn-outline flex items-center gap-1.5"
+                  onClick={() => setCurrentStep(4)}
                   disabled={isFinishing}
                 >
                   <ArrowLeft size={16} />
@@ -1800,65 +1972,6 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                       <span>Concluir Calibração e Ativar Balder</span>
                     </>
                   )}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ======================================================== */}
-          {/* PASSO 4: SUCESSO & CELEBRAÇÃO                            */}
-          {/* ======================================================== */}
-          {currentStep === 4 && (
-            <div className="onboarding-step-view animate-fade-in text-center py-6">
-              <div className="onboarding-success-badge">
-                <CheckCircle2 size={48} className="text-emerald" />
-              </div>
-
-              <h2 className="text-2xl font-extrabold text-white mt-3">
-                Sistema 100% Calibrado pela Forseti!
-              </h2>
-
-              <p className="text-sm text-slate-300 max-w-md mx-auto mt-2 leading-relaxed">
-                Excelente trabalho, <strong>{user?.name || 'Vinicius'}</strong>! Seu Ponto de Partida,
-                suas faturas em aberto e suas naturezas orçamentárias foram salvos e sincronizados.
-              </p>
-
-              <div className="onboarding-summary-chips mt-5">
-                <div className="summary-chip">
-                  <Flag size={14} className="text-cyan" />
-                  <span>Ponto de Partida Ativo</span>
-                </div>
-                {hasSalary && parseNumber(salaryAmount) > 0 && (
-                  <div className="summary-chip">
-                    <Briefcase size={14} className="text-emerald" />
-                    <span>Salário Configurado</span>
-                  </div>
-                )}
-                <div className="summary-chip">
-                  <CreditCard size={14} className="text-purple-400" />
-                  <span>Faturas Provisionadas</span>
-                </div>
-                <div className="summary-chip">
-                  <Layers size={14} className="text-emerald" />
-                  <span>{selectedNatures.length} Naturezas & Mapeamentos</span>
-                </div>
-              </div>
-
-              <p className="text-xs text-slate-400 max-w-sm mx-auto mt-4">
-                💡 <strong>Dica da Forseti:</strong> Na tela de <strong>Naturezas</strong> você pode detalhar seus mapeamentos, criar novas rotinas com seus emojis favoritos e dar baixa nos itens conforme realiza suas compras!
-              </p>
-
-              <div className="mt-8">
-                <button
-                  type="button"
-                  className="btn btn-primary px-8 py-3 text-base font-bold shadow-2xl inline-flex items-center gap-2 cursor-pointer"
-                  onClick={() => {
-                    onClose();
-                    if (onComplete) onComplete();
-                  }}
-                >
-                  <span>Acessar Meu Dinheiro (Dashboard)</span>
-                  <ArrowRight size={18} />
                 </button>
               </div>
             </div>
