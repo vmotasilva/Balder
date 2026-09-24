@@ -20,8 +20,11 @@ import {
   ListChecks,
   Layers,
   Briefcase,
+  Check,
+  Star,
 } from 'lucide-react';
 import type { SalaryContractType } from '../types';
+import { getBankBranding, POPULAR_BANKS } from '../utils/bankBranding';
 
 interface GetStartedOnboardingProps {
   isOpen: boolean;
@@ -97,6 +100,9 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
     addCard,
     addMovement,
     addNature,
+    addBank,
+    banks,
+    accounts,
     natures,
     activeCheckpoint,
     addSalaryContract,
@@ -119,6 +125,27 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
     activeCheckpoint ? String(activeCheckpoint.initialBalance) : '0'
   );
   const [mainBankName, setMainBankName] = useState<string>('Nubank');
+
+  // Estados de Bancos & Contas selecionados pelo usuário no Get Started
+  const [selectedBanks, setSelectedBanks] = useState<
+    Array<{ id: string; name: string; isMain: boolean; balanceInput: string }>
+  >(() => {
+    if (banks && banks.length > 0) {
+      return banks.map((b, i) => ({
+        id: b.id || `bank_${i}`,
+        name: b.name,
+        isMain: i === 0,
+        balanceInput: '',
+      }));
+    }
+    return [
+      { id: 'bank_nu', name: 'Nubank', isMain: true, balanceInput: '' },
+      { id: 'bank_inter', name: 'Banco Inter', isMain: false, balanceInput: '' },
+    ];
+  });
+  const [customBankInput, setCustomBankInput] = useState('');
+  const [showAddCustomBank, setShowAddCustomBank] = useState(false);
+  const [salaryReceivingBank, setSalaryReceivingBank] = useState<string>('Nubank');
 
   // Estados de Salário / Remuneração Principal
   const [hasSalary, setHasSalary] = useState<boolean>(true);
@@ -188,10 +215,113 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
         if (prim.paymentDay) setSalaryPayDay(prim.paymentDay);
         const salVal = prim.currentNetAmount || prim.currentGrossAmount;
         if (salVal) setSalaryAmount(String(salVal));
-        if (prim.receivingBankName) setMainBankName(prim.receivingBankName);
+        if (prim.receivingBankName) {
+          setMainBankName(prim.receivingBankName);
+          setSalaryReceivingBank(prim.receivingBankName);
+        }
+      }
+
+      if (banks && banks.length > 0) {
+        setSelectedBanks(
+          banks.map((b, i) => ({
+            id: b.id || `bank_${i}`,
+            name: b.name,
+            isMain: i === 0,
+            balanceInput: '',
+          }))
+        );
       }
     }
-  }, [isOpen, initialStep, activeCheckpoint, salaryContracts]);
+  }, [isOpen, initialStep, activeCheckpoint, salaryContracts, banks]);
+
+  // Manipuladores de Seleção de Bancos
+  const handleTogglePopularBank = (bankName: string) => {
+    setSelectedBanks((prev) => {
+      const exists = prev.some((b) => b.name.toLowerCase() === bankName.toLowerCase());
+      if (exists) {
+        if (prev.length <= 1) return prev; // Mantém ao menos 1 banco
+        const filtered = prev.filter((b) => b.name.toLowerCase() !== bankName.toLowerCase());
+        if (!filtered.some((b) => b.isMain) && filtered.length > 0) {
+          filtered[0].isMain = true;
+          setMainBankName(filtered[0].name);
+          setSalaryReceivingBank(filtered[0].name);
+        }
+        return filtered;
+      } else {
+        const isFirst = prev.length === 0;
+        const newBank = {
+          id: `bank_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          name: bankName,
+          isMain: isFirst,
+          balanceInput: '',
+        };
+        if (isFirst) {
+          setMainBankName(bankName);
+          setSalaryReceivingBank(bankName);
+        }
+        return [...prev, newBank];
+      }
+    });
+  };
+
+  const handleAddCustomBank = () => {
+    const trimmed = customBankInput.trim();
+    if (!trimmed) return;
+    const exists = selectedBanks.some((b) => b.name.toLowerCase() === trimmed.toLowerCase());
+    if (!exists) {
+      const isFirst = selectedBanks.length === 0;
+      const newBank = {
+        id: `bank_custom_${Date.now()}`,
+        name: trimmed,
+        isMain: isFirst,
+        balanceInput: '',
+      };
+      setSelectedBanks((prev) => [...prev, newBank]);
+      if (isFirst) {
+        setMainBankName(trimmed);
+        setSalaryReceivingBank(trimmed);
+      }
+    }
+    setCustomBankInput('');
+    setShowAddCustomBank(false);
+  };
+
+  const handleSetMainBank = (bankName: string) => {
+    setSelectedBanks((prev) =>
+      prev.map((b) => ({
+        ...b,
+        isMain: b.name.toLowerCase() === bankName.toLowerCase(),
+      }))
+    );
+    setMainBankName(bankName);
+    setSalaryReceivingBank(bankName);
+  };
+
+  const handleRemoveBank = (bankName: string) => {
+    if (selectedBanks.length <= 1) return;
+    setSelectedBanks((prev) => {
+      const filtered = prev.filter((b) => b.name.toLowerCase() !== bankName.toLowerCase());
+      if (!filtered.some((b) => b.isMain) && filtered.length > 0) {
+        filtered[0].isMain = true;
+        setMainBankName(filtered[0].name);
+        setSalaryReceivingBank(filtered[0].name);
+      }
+      return filtered;
+    });
+  };
+
+  const handleBankBalanceChange = (bankName: string, val: string) => {
+    setSelectedBanks((prev) => {
+      const updated = prev.map((b) =>
+        b.name.toLowerCase() === bankName.toLowerCase() ? { ...b, balanceInput: val } : b
+      );
+      const sum = updated.reduce((acc, b) => acc + parseNumber(b.balanceInput), 0);
+      if (sum > 0) {
+        setInitialBalance(sum.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+      }
+      return updated;
+    });
+  };
 
   // -------------------------------------------------------------
   // PASSO 2: Faturas de Cartão em Aberto (Atual & Múltiplas Futuras por Banco)
@@ -516,17 +646,43 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
           : [],
       });
 
-      // 2. Se informou saldo inicial, garante que há uma Conta Bancária registrada
-      if (parsedBalance > 0 && mainBankName) {
-        addAccount({
-          name: `Conta ${mainBankName}`,
-          bankName: mainBankName,
-          balance: parsedBalance,
-          type: 'CORRENTE',
-          color: '#10b981',
-          icon: '🏦',
-        });
-      }
+      // 2. Registra e Garante todos os Bancos e Contas selecionados pelo usuário
+      selectedBanks.forEach((b) => {
+        const brand = getBankBranding(b.name);
+        const alreadyExists = banks.some(
+          (ex) => ex.name.toLowerCase().trim() === b.name.toLowerCase().trim()
+        );
+        if (!alreadyExists) {
+          addBank({
+            name: b.name,
+            color: brand.primaryColor,
+            icon: brand.iconText || '🏦',
+            status: 'CONECTADO',
+            syncedAt: 'Ativo no Balder',
+          });
+        }
+      });
+
+      // Cria Conta Bancária correspondente para cada banco selecionado
+      selectedBanks.forEach((b) => {
+        const brand = getBankBranding(b.name);
+        const indBal = parseNumber(b.balanceInput);
+        const effectiveBal = indBal > 0 ? indBal : (b.isMain ? parsedBalance : 0);
+
+        const accExists = accounts.some(
+          (a) => (a.bankName || a.name).toLowerCase().trim() === b.name.toLowerCase().trim()
+        );
+        if (!accExists) {
+          addAccount({
+            name: `Conta ${b.name}`,
+            bankName: b.name,
+            balance: effectiveBal,
+            type: 'CORRENTE',
+            color: brand.primaryColor,
+            icon: '🏦',
+          });
+        }
+      });
 
       // 3. Cadastra o(s) Cartão(ões) de Crédito e todas as faturas (atual e futuras)
       if (hasCards) {
@@ -771,16 +927,209 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                 </div>
                 <p>
                   Olá! Sou a <strong>Forseti</strong>, sua auditora financeira pessoal no Balder.
-                  Para que eu possa projetar seu futuro financeiro e auditar seus gastos com precisão
-                  cirúrgica, precisamos de um <strong>Ponto de Partida</strong>.
+                  Para começarmos, me diga <strong>quais bancos e instituições você utiliza</strong> (contas, cartões ou investimentos) e qual seu saldo disponível hoje.
                 </p>
                 <p className="mt-2 text-xs text-slate-400">
-                  A partir de qual data e com quanto em dinheiro disponível você deseja começar a
-                  monitorar?
+                  Você pode selecionar múltiplos bancos. Isso calibrará suas contas, faturas e projeções de fluxo de caixa em todo o sistema.
                 </p>
               </div>
 
-              {/* Card do Formulário do Ponto de Partida */}
+              {/* Card de Seleção de Bancos que o Usuário Utiliza */}
+              <div className="onboarding-form-card glass-card">
+                <div className="flex items-center justify-between pb-2 border-b border-white/5">
+                  <div className="flex items-center gap-2">
+                    <Building2 size={16} className="text-cyan" />
+                    <div>
+                      <span className="font-bold text-sm text-slate-200 block">
+                        Quais Bancos & Instituições Você Utiliza?
+                      </span>
+                      <span className="text-[11px] text-muted block">
+                        Selecione todas as instituições onde você movimenta dinheiro, recebe salário ou tem cartão.
+                      </span>
+                    </div>
+                  </div>
+                  <span className="badge-pill badge-pill-cyan text-[11px] font-bold">
+                    {selectedBanks.length} {selectedBanks.length === 1 ? 'banco' : 'bancos'}
+                  </span>
+                </div>
+
+                {/* Grade de Bancos Populares */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '8px', marginTop: '4px' }}>
+                  {POPULAR_BANKS.map((bName) => {
+                    const isSelected = selectedBanks.some((b) => b.name.toLowerCase() === bName.toLowerCase());
+                    const brand = getBankBranding(bName);
+                    return (
+                      <button
+                        key={bName}
+                        type="button"
+                        onClick={() => handleTogglePopularBank(bName)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '8px 10px',
+                          borderRadius: '10px',
+                          fontSize: '12px',
+                          fontWeight: isSelected ? 700 : 500,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          background: isSelected ? brand.badgeBg : 'rgba(255, 255, 255, 0.03)',
+                          border: isSelected ? `1.5px solid ${brand.primaryColor}` : '1px solid rgba(255, 255, 255, 0.08)',
+                          color: isSelected ? '#FFFFFF' : 'var(--text-secondary)',
+                          boxShadow: isSelected ? `0 0 12px ${brand.primaryColor}33` : 'none',
+                          textAlign: 'left',
+                        }}
+                      >
+                        <span style={{ fontSize: '14px' }}>{brand.iconText || '🏦'}</span>
+                        <span style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {brand.name}
+                        </span>
+                        {isSelected && <Check size={13} style={{ color: brand.secondaryColor, flexShrink: 0 }} />}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Adicionar Outro Banco Customizado */}
+                {!showAddCustomBank ? (
+                  <div style={{ display: 'flex', justifyContent: 'flex-start', marginTop: '2px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddCustomBank(true)}
+                      className="btn btn-ghost btn-sm"
+                      style={{ fontSize: '11.5px', color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 8px' }}
+                    >
+                      <Plus size={13} />
+                      <span>Adicionar outro banco (ex: Sicoob, Nomad, Wise...)</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '6px' }}>
+                    <input
+                      type="text"
+                      className="form-input text-xs"
+                      placeholder="Nome do banco ou cooperativa..."
+                      value={customBankInput}
+                      onChange={(e) => setCustomBankInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddCustomBank();
+                        }
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      style={{ flexShrink: 0 }}
+                      onClick={handleAddCustomBank}
+                    >
+                      Adicionar
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      style={{ flexShrink: 0 }}
+                      onClick={() => setShowAddCustomBank(false)}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                )}
+
+                {/* Detalhes dos Bancos Selecionados & Definição de Conta Principal */}
+                <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '8px' }}>
+                    Bancos Ativos & Configuração de Saldo:
+                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {selectedBanks.map((b) => {
+                      const brand = getBankBranding(b.name);
+                      return (
+                        <div
+                          key={b.id || b.name}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '10px',
+                            padding: '8px 12px',
+                            borderRadius: '10px',
+                            background: b.isMain ? 'rgba(56, 189, 248, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+                            border: b.isMain ? '1px solid rgba(56, 189, 248, 0.35)' : '1px solid rgba(255, 255, 255, 0.06)',
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: '150px' }}>
+                            <span style={{ fontSize: '16px' }}>{brand.iconText || '🏦'}</span>
+                            <span style={{ fontWeight: 700, fontSize: '13px', color: '#fff' }}>{b.name}</span>
+                            {b.isMain ? (
+                              <span
+                                style={{
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: '999px',
+                                  background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.25) 0%, rgba(56, 189, 248, 0.25) 100%)',
+                                  color: '#FDE047',
+                                  border: '1px solid rgba(212, 175, 55, 0.5)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                <Star size={10} />
+                                <span>Principal</span>
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleSetMainBank(b.name)}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: 'var(--text-muted)',
+                                  fontSize: '11px',
+                                  cursor: 'pointer',
+                                  textDecoration: 'underline',
+                                }}
+                              >
+                                Tornar Principal
+                              </button>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, justifyContent: 'flex-end' }}>
+                            <div style={{ width: '135px' }}>
+                              <input
+                                type="text"
+                                className="form-input text-xs"
+                                placeholder="Saldo R$ (opcional)"
+                                value={b.balanceInput}
+                                onChange={(e) => handleBankBalanceChange(b.name, e.target.value)}
+                                title={`Saldo disponível na conta ${b.name}`}
+                              />
+                            </div>
+                            {selectedBanks.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveBank(b.name)}
+                                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                                title={`Remover ${b.name}`}
+                              >
+                                <Trash2 size={13} className="text-rose-400" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Card do Formulário de Data & Saldo Consolidado */}
               <div className="onboarding-form-card glass-card">
                 <div className="form-grid-2">
                   <div className="form-group">
@@ -812,31 +1161,8 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                       onChange={(e) => setInitialBalance(e.target.value)}
                     />
                     <span className="text-[11px] text-muted">
-                      Soma do saldo em conta corrente e carteiras hoje.
+                      Soma dos saldos disponíveis em todos os seus bancos hoje.
                     </span>
-                  </div>
-                </div>
-
-                <div className="form-group mt-3">
-                  <label className="flex items-center gap-1.5 font-semibold text-xs text-slate-300">
-                    <Building2 size={14} className="text-cyan" />
-                    <span>Banco / Conta Principal:</span>
-                  </label>
-                  <div className="flex gap-2 flex-wrap">
-                    {['Nubank', 'Inter', 'Itaú', 'Bradesco', 'Santander', 'Caixa'].map(
-                      (b) => (
-                        <button
-                          key={b}
-                          type="button"
-                          className={`onboarding-pill-btn ${
-                            mainBankName === b ? 'active' : ''
-                          }`}
-                          onClick={() => setMainBankName(b)}
-                        >
-                          {b}
-                        </button>
-                      )
-                    )}
                   </div>
                 </div>
               </div>
@@ -947,6 +1273,44 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                         </select>
                       </div>
                     </div>
+
+                    <div className="form-group mt-3 pt-2.5 border-t border-white/5">
+                      <label className="flex items-center gap-1.5 font-semibold text-xs text-slate-300">
+                        <Building2 size={14} className="text-cyan" />
+                        <span>Banco de Recebimento do Salário:</span>
+                      </label>
+                      <div className="flex gap-2 flex-wrap mt-1.5">
+                        {selectedBanks.map((b) => {
+                          const brand = getBankBranding(b.name);
+                          const isSelected = (salaryReceivingBank || mainBankName).toLowerCase() === b.name.toLowerCase();
+                          return (
+                            <button
+                              key={b.name}
+                              type="button"
+                              onClick={() => setSalaryReceivingBank(b.name)}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '6px 12px',
+                                borderRadius: '8px',
+                                fontSize: '12px',
+                                fontWeight: isSelected ? 700 : 500,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                                background: isSelected ? brand.badgeBg : 'rgba(255, 255, 255, 0.05)',
+                                border: isSelected ? `1.5px solid ${brand.primaryColor}` : '1px solid rgba(255, 255, 255, 0.1)',
+                                color: isSelected ? '#FFFFFF' : 'var(--text-secondary)',
+                              }}
+                            >
+                              <span>{brand.iconText || '🏦'}</span>
+                              <span>{b.name}</span>
+                              {b.isMain && <span style={{ fontSize: '10px', color: '#FDE047', fontWeight: 700 }}>(Principal)</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                   </>
                 ) : (
                   <div className="p-3 rounded-xl bg-white/5 text-center text-xs text-slate-400">
@@ -1047,6 +1411,40 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                         <label className="text-xs text-slate-300 font-medium">
                           Instituição / Banco:
                         </label>
+                        <div className="flex gap-1.5 flex-wrap mb-1.5">
+                          {selectedBanks.map((b) => {
+                            const brand = getBankBranding(b.name);
+                            const isMatch = cardBank.toLowerCase() === b.name.toLowerCase();
+                            return (
+                              <button
+                                key={b.name}
+                                type="button"
+                                onClick={() => {
+                                  setCardBank(b.name);
+                                  if (cardName === 'Cartão Principal' || cardName.startsWith('Cartão ')) {
+                                    setCardName(`Cartão ${b.name}`);
+                                  }
+                                }}
+                                style={{
+                                  padding: '4px 8px',
+                                  fontSize: '11px',
+                                  fontWeight: isMatch ? 700 : 500,
+                                  borderRadius: '6px',
+                                  background: isMatch ? brand.badgeBg : 'rgba(255,255,255,0.05)',
+                                  border: isMatch ? `1px solid ${brand.primaryColor}` : '1px solid rgba(255,255,255,0.1)',
+                                  color: isMatch ? '#fff' : 'var(--text-secondary)',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                }}
+                              >
+                                <span>{brand.iconText || '🏦'}</span>
+                                <span>{b.name}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                         <input
                           type="text"
                           className="form-input"
@@ -1206,6 +1604,40 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                             <label className="text-xs text-slate-300 font-medium">
                               Banco / Instituição:
                             </label>
+                            <div className="flex gap-1.5 flex-wrap mb-1.5">
+                              {selectedBanks.map((b) => {
+                                const brand = getBankBranding(b.name);
+                                const isMatch = secondCardBank.toLowerCase() === b.name.toLowerCase();
+                                return (
+                                  <button
+                                    key={b.name}
+                                    type="button"
+                                    onClick={() => {
+                                      setSecondCardBank(b.name);
+                                      if (secondCardName === 'Segundo Cartão' || secondCardName.startsWith('Cartão ')) {
+                                        setSecondCardName(`Cartão ${b.name}`);
+                                      }
+                                    }}
+                                    style={{
+                                      padding: '3px 6px',
+                                      fontSize: '10.5px',
+                                      fontWeight: isMatch ? 700 : 500,
+                                      borderRadius: '6px',
+                                      background: isMatch ? brand.badgeBg : 'rgba(255,255,255,0.05)',
+                                      border: isMatch ? `1px solid ${brand.primaryColor}` : '1px solid rgba(255,255,255,0.1)',
+                                      color: isMatch ? '#fff' : 'var(--text-secondary)',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
+                                    }}
+                                  >
+                                    <span>{brand.iconText || '🏦'}</span>
+                                    <span>{b.name}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
                             <input
                               type="text"
                               className="form-input text-xs"
