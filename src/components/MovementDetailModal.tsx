@@ -257,6 +257,70 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
     ]);
   };
 
+  const handleImportPlannedCardNatures = () => {
+    const cardNatureItems: {
+      natureId: string;
+      natureName: string;
+      mappingId: string;
+      mappingItemId: string;
+      description: string;
+      amount: number;
+    }[] = [];
+
+    natures.forEach((nat) => {
+      nat.mappings.forEach((m) => {
+        m.items.forEach((item) => {
+          if (item.paymentMethod === 'CARTAO') {
+            const val = item.totalValue || item.quantity * item.price * (item.multiplierWeeks || 1);
+            if (val > 0) {
+              cardNatureItems.push({
+                natureId: nat.id,
+                natureName: nat.name,
+                mappingId: m.id,
+                mappingItemId: item.id,
+                description: item.description,
+                amount: val,
+              });
+            }
+          }
+        });
+      });
+    });
+
+    if (cardNatureItems.length === 0) {
+      alert('Nenhum gasto previsto com método "Cartão" foi encontrado nas Naturezas orçadas.');
+      return;
+    }
+
+    const newRows: ModalBreakdownRow[] = [];
+    cardNatureItems.forEach((cni) => {
+      const alreadyExists = breakdownRows.some(
+        (r) => r.mappingItemId === cni.mappingItemId || r.description.toLowerCase() === cni.description.toLowerCase()
+      );
+      if (!alreadyExists) {
+        newRows.push({
+          id: `row_plan_${cni.mappingItemId}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          natureId: cni.natureId,
+          natureName: cni.natureName,
+          mappingId: cni.mappingId,
+          mappingItemId: cni.mappingItemId,
+          description: cni.description,
+          installments: 1,
+          currentInstallment: 1,
+          amountInput: String(cni.amount),
+          finalAmountInput: String(cni.amount),
+        });
+      }
+    });
+
+    if (newRows.length === 0) {
+      alert('Todos os gastos previstos no cartão já foram associados a esta fatura.');
+      return;
+    }
+
+    setBreakdownRows((prev) => [...prev, ...newRows]);
+  };
+
   const handleRemoveBreakdownRow = (rowId: string) => {
     setBreakdownRows((prev) => prev.filter((r) => r.id !== rowId));
   };
@@ -1058,6 +1122,16 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
                       <Plus size={13} />
                       <span>Adicionar Manualmente</span>
                     </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-xs"
+                      style={{ fontSize: '0.75rem', padding: '5px 12px', gap: '5px', borderColor: 'rgba(192, 132, 252, 0.4)', color: '#c084fc' }}
+                      onClick={handleImportPlannedCardNatures}
+                      title="Puxa os gastos fixos previstos nas Naturezas que usam Cartão de Crédito"
+                    >
+                      <Sparkles size={13} />
+                      <span>Associar Naturezas Previstas</span>
+                    </button>
                   </div>
                 </div>
               ) : (
@@ -1239,6 +1313,25 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
                 >
                   <Plus size={12} />
                   <span>Adicionar Item / Gasto</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="btn btn-outline btn-xs"
+                  style={{
+                    fontSize: '0.72rem',
+                    padding: '4px 10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    borderColor: 'rgba(192, 132, 252, 0.4)',
+                    color: '#c084fc',
+                  }}
+                  onClick={handleImportPlannedCardNatures}
+                  title="Puxa e vincula os gastos de naturezas previstos no cartão nesta fatura"
+                >
+                  <Sparkles size={12} />
+                  <span>Associar Naturezas Previstas</span>
                 </button>
 
                 <button

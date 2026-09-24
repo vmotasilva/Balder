@@ -23,10 +23,12 @@ import {
   RotateCcw,
   Check,
   Calendar,
+  Sparkles,
 } from 'lucide-react';
-import type { MonthlyGridProjectionRow, MappingItem, MovementStatus } from '../types';
+import type { MonthlyGridProjectionRow, MappingItem, MovementStatus, Movement, InvoiceNatureItemBreakdown } from '../types';
 import { buildMonthlyProjectionGrid, resolveSalaryForMonth } from '../utils/projectionMath';
 import type { ProjectionViewMode } from '../utils/projectionMath';
+import { MovementDetailModal } from './MovementDetailModal';
 
 export interface GridCellSelection {
   columnKey:
@@ -85,6 +87,8 @@ export interface CellBreakdownSubItem {
   adjustmentReason?: string;
   payInFollowingMonth?: boolean;
   isFirstInstallment?: boolean;
+  movementId?: string;
+  isInvoiceItem?: boolean;
 }
 
 export interface EditingReceiptData {
@@ -134,6 +138,9 @@ export interface CellBreakdownItem {
   hasAttentionPoint?: boolean;
   attentionType?: 'OVER_CEILING' | 'ATYPICAL';
   attentionMessage?: string;
+  movementId?: string;
+  movement?: Movement;
+  isInvoiceCreatable?: boolean;
 }
 
 /**
@@ -712,6 +719,8 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     updateMovement,
     deleteMovement,
     banks,
+    cards,
+    toggleMovementStatus,
   } = useFinancial();
 
   const columnKey = selection?.columnKey;
@@ -754,6 +763,95 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
   // Estado para edição do recebimento clicado pelo usuário
   const [editingReceipt, setEditingReceipt] = useState<EditingReceiptData | null>(null);
+
+  // Estado para modal completo de ajuste de fatura do cartão
+  const [editingInvoiceMovement, setEditingInvoiceMovement] = useState<Movement | null>(null);
+
+  // Filtro de Realizado vs Previsto dentro do modal
+  const [detailFilter, setDetailFilter] = useState<'ALL' | 'REALIZADO' | 'PREVISTO'>(() => {
+    if (selection?.viewMode === 'REALIZADO') return 'REALIZADO';
+    if (selection?.viewMode === 'PREVISTO') return 'PREVISTO';
+    return 'ALL';
+  });
+
+  useEffect(() => {
+    if (selection?.viewMode === 'REALIZADO') setDetailFilter('REALIZADO');
+    else if (selection?.viewMode === 'PREVISTO') setDetailFilter('PREVISTO');
+    else setDetailFilter('ALL');
+  }, [selection?.viewMode]);
+
+  // Associa gastos fixos/previstos orçados nas naturezas diretamente à fatura
+  const handleAutoAssociateCardNatures = (targetMovement: Movement) => {
+    const cardNatureItems: InvoiceNatureItemBreakdown[] = [];
+    natures.forEach((nat) => {
+      nat.mappings.forEach((map) => {
+        map.items.forEach((item) => {
+          if (item.paymentMethod === 'CARTAO') {
+            const val = item.totalValue || item.quantity * item.price * (item.multiplierWeeks || 1);
+            if (val > 0) {
+              const alreadyExists = (targetMovement.invoiceBreakdown || []).some(
+                (ib) => ib.mappingItemId === item.id || ib.description.toLowerCase() === item.description.toLowerCase()
+              );
+              if (!alreadyExists) {
+                cardNatureItems.push({
+                  id: `ib_${item.id}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                  natureId: nat.id,
+                  natureName: nat.name,
+                  mappingId: map.id,
+                  mappingItemId: item.id,
+                  description: item.description,
+                  amount: val,
+                  isAnalyzed: true,
+                  installments: 1,
+                  currentInstallment: 1,
+                  finalAmount: val,
+                });
+              }
+            }
+          }
+        });
+      });
+    });
+
+    if (cardNatureItems.length === 0) {
+      alert('Nenhum gasto fixo adicional previsto com método "Cartão" foi encontrado nas Naturezas orçadas.');
+      return;
+    }
+
+    const updatedBreakdown = [...(targetMovement.invoiceBreakdown || []), ...cardNatureItems];
+    const totalAllocated = updatedBreakdown.reduce((acc, ib) => acc + ib.amount, 0);
+    const unanalyzedAmount = Math.max(0, targetMovement.amount - totalAllocated);
+
+    updateMovement(targetMovement.id, {
+      invoiceBreakdown: updatedBreakdown,
+      unanalyzedAmount,
+    });
+  };
+
+  // Abre o modal de detalhamento/edição da fatura ou cria caso ainda não exista movement
+  const handleOpenInvoiceEditor = (targetMovement?: Movement) => {
+    if (targetMovement) {
+      setEditingInvoiceMovement(targetMovement);
+      return;
+    }
+    const monthKey = currentRow?.monthKey || row?.monthKey || '2026-09';
+    const cardBank = cards && cards.length > 0 ? cards[0].bank : 'Nubank';
+    const newCardMov: Movement = {
+      id: `mov_card_${monthKey}_${Date.now()}`,
+      title: `Fatura de Cartão (${monthKey})`,
+      type: 'CARTAO',
+      amount: currentRow?.creditCardTotal || row?.creditCardTotal || 0,
+      dueDate: `${monthKey}-10`,
+      bank: cardBank,
+      status: 'PREVISTA',
+      category: 'Cartão de Crédito',
+      notes: 'Fatura consolidada do cartão',
+      unanalyzedAmount: currentRow?.creditCardTotal || row?.creditCardTotal || 0,
+      invoiceBreakdown: [],
+    };
+    addMovement(newCardMov);
+    setEditingInvoiceMovement(newCardMov);
+  };
 
   // Estado para controlar qual seleção está ativa: 'ALL' ou o ID da natureza
   const [activeSelectionId, setActiveSelectionId] = useState<string>('ALL');
@@ -994,23 +1092,96 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     } else if (columnKey === 'creditCard') {
       const realCards = movements.filter(
         (m) =>
-          m.type === 'PAGAR' &&
-          (m.category === 'Cartão' || m.category.toLowerCase().includes('cartão')) &&
+          (m.type === 'CARTAO' ||
+            (m.type === 'PAGAR' && (m.category === 'Cartão' || m.category.toLowerCase().includes('cartão')))) &&
           m.dueDate.startsWith(monthPrefix)
       );
 
       realCards.forEach((m) => {
+        const totalAllocated = (m.invoiceBreakdown || []).reduce((acc, ib) => acc + ib.amount, 0);
+        const unanalyzed = m.unanalyzedAmount !== undefined ? m.unanalyzedAmount : Math.max(0, m.amount - totalAllocated);
+
+        const subList: CellBreakdownSubItem[] = [];
+        if (m.invoiceBreakdown && m.invoiceBreakdown.length > 0) {
+          m.invoiceBreakdown.forEach((ib) => {
+            subList.push({
+              id: ib.id,
+              description: ib.description,
+              quantity: 1,
+              price: ib.amount,
+              multiplierWeeks: 1,
+              totalValue: ib.amount,
+              mappingName: ib.natureName || 'Natureza Orçada',
+              cardName: m.bank,
+              status: m.status,
+              dueDate: m.dueDate,
+              paymentDate: m.paymentDate,
+              movementId: m.id,
+              isInvoiceItem: true,
+            });
+          });
+        }
+
+        if (unanalyzed > 0) {
+          subList.push({
+            id: `sub_unanalyzed_${m.id}`,
+            description: 'Gastos em Aberto (Pendente de Associação com Naturezas)',
+            quantity: 1,
+            price: unanalyzed,
+            multiplierWeeks: 1,
+            totalValue: unanalyzed,
+            mappingName: 'Valor Não Analisado',
+            cardName: m.bank,
+            status: m.status,
+            dueDate: m.dueDate,
+            movementId: m.id,
+            isAtypical: true,
+            attentionReason: 'Pendente de Classificação / Associação',
+            isInvoiceItem: true,
+          });
+        }
+
+        if (subList.length === 0) {
+          const fixedCardItems = allNatureItems.filter((ni) => ni.item.paymentMethod === 'CARTAO');
+          fixedCardItems.forEach((ni) => {
+            const itemVal =
+              ni.item.totalValue ||
+              (ni.item.quantity || 1) * (ni.item.price || 0) * (ni.item.multiplierWeeks || 1);
+            if (itemVal > 0) {
+              subList.push({
+                id: `card_plan_${ni.item.id}`,
+                description: `${ni.item.description} (Previsto no Cartão)`,
+                quantity: ni.item.quantity || 1,
+                price: ni.item.price || 0,
+                multiplierWeeks: ni.item.multiplierWeeks || 1,
+                totalValue: itemVal,
+                mappingName: ni.natureName,
+                cardName: ni.item.cardName || m.bank,
+                status: m.status,
+                dueDate: m.dueDate,
+                movementId: m.id,
+                isInvoiceItem: true,
+              });
+            }
+          });
+        }
+
         items.push({
           id: m.id,
           category: 'Fatura de Cartão',
           bankOrOrigin: m.bank,
-          title: m.title,
-          notes: m.notes || 'Fatura consolidada do banco',
-          badge: m.status === 'REALIZADA' ? 'Liquidado' : 'Fatura Aberta',
+          title: m.title || `Fatura de Cartão (${m.bank})`,
+          notes: unanalyzed > 0
+            ? `Fatura mensal (${m.bank}) • ${formatBRL(unanalyzed)} em aberto.`
+            : `Fatura mensal (${m.bank}) • 100% associada às naturezas.`,
+          badge: m.status === 'REALIZADA' ? 'Liquidada' : 'Fatura Aberta',
           badgeType: m.status === 'REALIZADA' ? 'emerald' : 'purple',
           amount: m.amount,
-          dateOrDue: `Vencimento: ${m.dueDate}`,
+          dateOrDue: `Vencimento: ${formatDueDateBR(m.dueDate)}`,
           isProjected: false,
+          subItems: subList.length > 0 ? subList : undefined,
+          movementId: m.id,
+          movement: m,
         });
       });
 
@@ -1500,7 +1671,102 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
       }
     } else if (columnKey === 'totalExpense') {
       // 1. Faturas de Cartão de Crédito
-      if (row.creditCardTotal > 0) {
+      const monthCardMovements = movements.filter(
+        (m) =>
+          (m.type === 'CARTAO' ||
+            (m.type === 'PAGAR' && (m.category === 'Cartão' || m.category.toLowerCase().includes('cartão')))) &&
+          m.dueDate.startsWith(monthPrefix)
+      );
+
+      if (monthCardMovements.length > 0) {
+        monthCardMovements.forEach((m) => {
+          const totalAllocated = (m.invoiceBreakdown || []).reduce((acc, ib) => acc + ib.amount, 0);
+          const unanalyzed = m.unanalyzedAmount !== undefined ? m.unanalyzedAmount : Math.max(0, m.amount - totalAllocated);
+
+          const subList: CellBreakdownSubItem[] = [];
+          if (m.invoiceBreakdown && m.invoiceBreakdown.length > 0) {
+            m.invoiceBreakdown.forEach((ib) => {
+              subList.push({
+                id: ib.id,
+                description: ib.description,
+                quantity: 1,
+                price: ib.amount,
+                multiplierWeeks: 1,
+                totalValue: ib.amount,
+                mappingName: ib.natureName || 'Natureza Orçada',
+                cardName: m.bank,
+                status: m.status,
+                dueDate: m.dueDate,
+                paymentDate: m.paymentDate,
+                movementId: m.id,
+                isInvoiceItem: true,
+              });
+            });
+          }
+
+          if (unanalyzed > 0) {
+            subList.push({
+              id: `sub_unanalyzed_${m.id}`,
+              description: 'Gastos em Aberto (Pendente de Associação com Naturezas)',
+              quantity: 1,
+              price: unanalyzed,
+              multiplierWeeks: 1,
+              totalValue: unanalyzed,
+              mappingName: 'Valor Não Analisado',
+              cardName: m.bank,
+              status: m.status,
+              dueDate: m.dueDate,
+              movementId: m.id,
+              isAtypical: true,
+              attentionReason: 'Pendente de Classificação / Associação',
+              isInvoiceItem: true,
+            });
+          }
+
+          if (subList.length === 0) {
+            const fixedCardItems = allNatureItems.filter((ni) => ni.item.paymentMethod === 'CARTAO');
+            fixedCardItems.forEach((ni) => {
+              const itemVal =
+                ni.item.totalValue ||
+                (ni.item.quantity || 1) * (ni.item.price || 0) * (ni.item.multiplierWeeks || 1);
+              if (itemVal > 0) {
+                subList.push({
+                  id: `card_plan_${ni.item.id}`,
+                  description: `${ni.item.description} (Previsto no Cartão)`,
+                  quantity: ni.item.quantity || 1,
+                  price: ni.item.price || 0,
+                  multiplierWeeks: ni.item.multiplierWeeks || 1,
+                  totalValue: itemVal,
+                  mappingName: ni.natureName,
+                  cardName: ni.item.cardName || m.bank,
+                  status: m.status,
+                  dueDate: m.dueDate,
+                  movementId: m.id,
+                  isInvoiceItem: true,
+                });
+              }
+            });
+          }
+
+          items.push({
+            id: m.id,
+            category: 'Cartão de Crédito',
+            bankOrOrigin: m.bank,
+            title: m.title || `Fatura de Cartão (${m.bank})`,
+            notes: unanalyzed > 0
+              ? `Fatura mensal (${m.bank}) • ${formatBRL(unanalyzed)} em aberto.`
+              : `Fatura mensal (${m.bank}) • 100% associada às naturezas.`,
+            badge: m.status === 'REALIZADA' ? 'Liquidada' : 'Fatura Aberta',
+            badgeType: m.status === 'REALIZADA' ? 'emerald' : 'purple',
+            amount: m.amount,
+            dateOrDue: `Vencimento: ${formatDueDateBR(m.dueDate)}`,
+            isProjected: false,
+            subItems: subList.length > 0 ? subList : undefined,
+            movementId: m.id,
+            movement: m,
+          });
+        });
+      } else if (row.creditCardTotal > 0) {
         const fixedCardItems = allNatureItems.filter((ni) => ni.item.paymentMethod === 'CARTAO');
         const cardSubItems: CellBreakdownSubItem[] = fixedCardItems.map((ni) => ({
           id: ni.item.id,
@@ -1512,20 +1778,23 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
           paymentMethod: ni.item.paymentMethod,
           cardName: ni.item.cardName,
           mappingName: ni.mappingName,
+          status: 'PREVISTA',
+          isInvoiceItem: true,
         }));
 
         items.push({
           id: `expense_card_${monthPrefix}`,
           category: 'Cartão de Crédito',
-          bankOrOrigin: 'Nubank / Inter',
+          bankOrOrigin: cards && cards.length > 0 ? cards[0].bank : 'Nubank / Inter',
           title: 'Faturas de Cartão de Crédito',
           notes: 'Fatura mensal consolidada (absorve fixos no cartão e parcelamentos)',
-          badge: 'Cartão',
+          badge: 'Fatura Aberta',
           badgeType: 'purple',
           amount: row.creditCardTotal,
           dateOrDue: `Vencimento: ${monthPrefix}-10`,
           isProjected: true,
           subItems: cardSubItems.length > 0 ? cardSubItems : undefined,
+          isInvoiceCreatable: true,
         });
       }
 
@@ -1728,11 +1997,60 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     }
   }, [isOpen, selection, breakdownItems]);
 
-  // Filtragem de naturezas pelo termo de busca informado pelo usuário
+  // Apuração segregada do que é REAL (já liquidado/quitado) e do que é PREVISTO (em aberto/projetado)
+  const { cellRealizedTotal, cellPrevistoTotal } = useMemo(() => {
+    let realized = 0;
+    let previsto = 0;
+
+    breakdownItems.forEach((b) => {
+      if (b.subItems && b.subItems.length > 0) {
+        b.subItems.forEach((sub) => {
+          if (sub.status === 'CANCELADA') return;
+          const val = sub.totalValue || (sub.quantity * sub.price * (sub.multiplierWeeks || 1));
+          if (sub.status === 'REALIZADA') {
+            realized += val;
+          } else {
+            previsto += val;
+          }
+        });
+      } else {
+        if (b.badge === 'Liquidado' || b.badge === 'Liquidada' || b.badge === 'Fatura Paga' || b.badgeType === 'emerald') {
+          realized += b.amount;
+        } else {
+          previsto += b.amount;
+        }
+      }
+    });
+
+    return {
+      cellRealizedTotal: Math.round(realized * 100) / 100,
+      cellPrevistoTotal: Math.round(previsto * 100) / 100,
+    };
+  }, [breakdownItems]);
+
+  // Filtragem de naturezas pelo termo de busca informado pelo usuário e modo de visualização Realizado/Previsto
   const filteredBreakdownItems = useMemo(() => {
-    if (!natureSearchTerm.trim()) return breakdownItems;
+    let list = breakdownItems;
+
+    if (detailFilter === 'REALIZADO') {
+      list = list.filter((item) => {
+        if (item.subItems && item.subItems.length > 0) {
+          return item.subItems.some((s) => s.status === 'REALIZADA');
+        }
+        return item.badgeType === 'emerald' || item.badge === 'Liquidado' || item.badge === 'Liquidada' || item.badge === 'Fatura Paga';
+      });
+    } else if (detailFilter === 'PREVISTO') {
+      list = list.filter((item) => {
+        if (item.subItems && item.subItems.length > 0) {
+          return item.subItems.some((s) => s.status !== 'REALIZADA' && s.status !== 'CANCELADA');
+        }
+        return item.isProjected || (item.badgeType !== 'emerald' && item.badge !== 'Fatura Paga' && item.badge !== 'Liquidado' && item.badge !== 'Liquidada');
+      });
+    }
+
+    if (!natureSearchTerm.trim()) return list;
     const term = natureSearchTerm.trim().toLowerCase();
-    return breakdownItems.filter((item) => {
+    return list.filter((item) => {
       const matchesTitle = item.title.toLowerCase().includes(term);
       const matchesCategory = item.category.toLowerCase().includes(term);
       const matchesBank = item.bankOrOrigin.toLowerCase().includes(term);
@@ -1746,7 +2064,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         : false;
       return matchesTitle || matchesCategory || matchesBank || matchesNotes || matchesSubItems;
     });
-  }, [breakdownItems, natureSearchTerm]);
+  }, [breakdownItems, detailFilter, natureSearchTerm]);
 
   // Itens de todas as naturezas concatenados para visão consolidada
   const consolidatedSubItems = useMemo<CellBreakdownSubItem[]>(() => {
@@ -1764,6 +2082,9 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
           totalValue: b.amount,
           mappingName: b.category,
           cardName: b.bankOrOrigin,
+          status: b.badge === 'Liquidado' || b.badge === 'Liquidada' || b.badge === 'Fatura Paga' ? 'REALIZADA' : 'PREVISTA',
+          movementId: b.movementId,
+          isInvoiceItem: b.category === 'Cartão de Crédito' || b.category === 'Fatura de Cartão',
         });
       }
     });
@@ -1811,23 +2132,51 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
   const currentSubItems = isAll ? consolidatedSubItems : activeItem?.subItems || [];
   const currentDateGroups = isAll ? consolidatedDateGroups : activeItem?.dateGroups || [];
 
-  // Itens filtrados para exibição caso haja busca ativa por natureza/item
+  // Itens filtrados para exibição caso haja busca ativa por natureza/item ou filtro de Realizado/Previsto
   const displayedSubItems = useMemo(() => {
-    if (!natureSearchTerm.trim()) return currentSubItems;
+    let list = currentSubItems;
+    if (detailFilter === 'REALIZADO') {
+      list = list.filter((it) => it.status === 'REALIZADA');
+    } else if (detailFilter === 'PREVISTO') {
+      list = list.filter((it) => it.status !== 'REALIZADA' && it.status !== 'CANCELADA');
+    }
+
+    if (!natureSearchTerm.trim()) return list;
     const term = natureSearchTerm.trim().toLowerCase();
-    return currentSubItems.filter(
+    return list.filter(
       (it) =>
         it.description.toLowerCase().includes(term) ||
         (it.mappingName && it.mappingName.toLowerCase().includes(term)) ||
         (it.cardName && it.cardName.toLowerCase().includes(term)) ||
         currentTitle.toLowerCase().includes(term)
     );
-  }, [currentSubItems, natureSearchTerm, currentTitle]);
+  }, [currentSubItems, detailFilter, natureSearchTerm, currentTitle]);
 
   const displayedDateGroups = useMemo(() => {
-    if (!natureSearchTerm.trim()) return currentDateGroups;
+    let list = currentDateGroups;
+    if (detailFilter === 'REALIZADO') {
+      list = list
+        .map((dg) => {
+          const items = dg.items.filter((it) => it.status === 'REALIZADA');
+          if (items.length === 0) return null;
+          const subtotal = items.reduce((acc, it) => acc + (it.totalValue || it.price || 0), 0);
+          return { ...dg, items, subtotal };
+        })
+        .filter((dg): dg is CellDateGroup => dg !== null);
+    } else if (detailFilter === 'PREVISTO') {
+      list = list
+        .map((dg) => {
+          const items = dg.items.filter((it) => it.status !== 'REALIZADA' && it.status !== 'CANCELADA');
+          if (items.length === 0) return null;
+          const subtotal = items.reduce((acc, it) => acc + (it.totalValue || it.price || 0), 0);
+          return { ...dg, items, subtotal };
+        })
+        .filter((dg): dg is CellDateGroup => dg !== null);
+    }
+
+    if (!natureSearchTerm.trim()) return list;
     const term = natureSearchTerm.trim().toLowerCase();
-    return currentDateGroups
+    return list
       .map((dg) => {
         const filteredItems = dg.items.filter(
           (it) =>
@@ -1846,7 +2195,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         };
       })
       .filter((dg): dg is CellDateGroup => dg !== null);
-  }, [currentDateGroups, natureSearchTerm, currentTitle]);
+  }, [currentDateGroups, detailFilter, natureSearchTerm, currentTitle]);
 
   // Se a busca delimitar para exatamente uma natureza, auto-seleciona a aba dessa natureza
   useEffect(() => {
@@ -1977,7 +2326,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
               {sub.description}
             </div>
 
-            {/* Badges de Status do Recebimento */}
+            {/* Badges de Status do Recebimento ou Fatura */}
             {isReceipt &&
               (isCanceled ? (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1">
@@ -1992,6 +2341,34 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                   <Clock size={10} /> Previsto
                 </span>
               ))}
+
+            {sub.isInvoiceItem && (
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const targetMov = movements.find((m) => m.id === sub.movementId) || activeItem?.movement;
+                  if (targetMov) {
+                    toggleMovementStatus(targetMov.id);
+                  }
+                }}
+                className={`px-2 py-0.5 rounded-full text-[10px] font-bold cursor-pointer transition flex items-center gap-1 ${
+                  sub.status === 'REALIZADA'
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30'
+                    : 'bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/30'
+                }`}
+                title="Clique para alternar situação (Liquidada / Fatura Aberta)"
+              >
+                {sub.status === 'REALIZADA' ? (
+                  <>
+                    <Check size={10} /> Liquidada
+                  </>
+                ) : (
+                  <>
+                    <Clock size={10} /> Fatura Aberta
+                  </>
+                )}
+              </span>
+            )}
 
             {sub.payInFollowingMonth && (
               <span
@@ -2104,6 +2481,38 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
               <span>Editar</span>
             </button>
           )}
+
+          {sub.isInvoiceItem && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                const targetMov = movements.find((m) => m.id === sub.movementId) || activeItem?.movement;
+                handleOpenInvoiceEditor(targetMov);
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '5px 12px',
+                borderRadius: '8px',
+                background: 'rgba(168, 85, 247, 0.15)',
+                color: '#c084fc',
+                border: '1px solid rgba(168, 85, 247, 0.4)',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                flexShrink: 0,
+              }}
+              className="hover:bg-purple-500/25 cursor-pointer shadow-sm hover:scale-[1.03]"
+              title="Ajustar fatura e associar naturezas orçadas"
+            >
+              <Edit3 size={13} style={{ color: '#c084fc' }} />
+              <span>Ajustar Fatura</span>
+            </button>
+          )}
         </div>
       </div>
     );
@@ -2183,11 +2592,94 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             </div>
           </div>
 
-          <div className="cell-detail-header-actions flex items-center gap-3 flex-shrink-0 ml-auto">
+          <div className="cell-detail-header-actions flex items-center gap-3 flex-shrink-0 ml-auto flex-wrap justify-end">
+            {/* Seletor Segmentado: Realizado vs Previsto vs Todos */}
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '3px',
+                borderRadius: '10px',
+                background: 'rgba(15, 23, 42, 0.75)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                gap: '3px',
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setDetailFilter('ALL')}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '7px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: 'none',
+                  transition: 'all 0.15s ease',
+                  background: detailFilter === 'ALL' ? 'rgba(56, 189, 248, 0.2)' : 'transparent',
+                  color: detailFilter === 'ALL' ? '#38bdf8' : 'var(--text-muted)',
+                }}
+                title="Exibir todos os lançamentos consolidados"
+              >
+                Todos ({formatBRL(dynamicTotalValue)})
+              </button>
+              <button
+                type="button"
+                onClick={() => setDetailFilter('REALIZADO')}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '7px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: 'none',
+                  transition: 'all 0.15s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  background: detailFilter === 'REALIZADO' ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
+                  color: detailFilter === 'REALIZADO' ? '#34d399' : 'var(--text-muted)',
+                }}
+                title="Filtrar lançamentos que já foram quitados/realizados"
+              >
+                <CheckCircle2 size={12} />
+                <span>Realizado ({formatBRL(cellRealizedTotal)})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDetailFilter('PREVISTO')}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '7px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  border: 'none',
+                  transition: 'all 0.15s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  background: detailFilter === 'PREVISTO' ? 'rgba(245, 158, 11, 0.2)' : 'transparent',
+                  color: detailFilter === 'PREVISTO' ? '#fbbf24' : 'var(--text-muted)',
+                }}
+                title="Filtrar lançamentos que continuam em aberto ou previstos"
+              >
+                <Clock size={12} />
+                <span>Previsto ({formatBRL(cellPrevistoTotal)})</span>
+              </button>
+            </div>
+
             <div className="text-right flex flex-col items-end whitespace-nowrap">
-              <span className="text-[11px] font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>Valor Total da Célula</span>
-              <span className="text-lg font-mono font-bold leading-tight whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>
-                {formatBRL(dynamicTotalValue)}
+              <span className="text-[11px] font-medium whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
+                {detailFilter === 'REALIZADO' ? 'Total Realizado' : detailFilter === 'PREVISTO' ? 'Total Previsto' : 'Valor Total da Célula'}
+              </span>
+              <span
+                className="text-lg font-mono font-bold leading-tight whitespace-nowrap"
+                style={{
+                  color: detailFilter === 'REALIZADO' ? '#34d399' : detailFilter === 'PREVISTO' ? '#fbbf24' : 'var(--text-primary)',
+                }}
+              >
+                {formatBRL(detailFilter === 'REALIZADO' ? cellRealizedTotal : detailFilter === 'PREVISTO' ? cellPrevistoTotal : dynamicTotalValue)}
               </span>
             </div>
 
@@ -2425,6 +2917,147 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
           {/* LISTAGEM VERTICAL AGRUPADA COM STICKY HEADERS (DATA & SUBTOTAL DO DIA) */}
           <div className="detail-items-scroll-area">
+            {/* PAINEL ESPECIAL DE GESTÃO DA FATURA DO CARTÃO */}
+            {(() => {
+              const isInvoiceContext =
+                (activeItem && (activeItem.category === 'Cartão de Crédito' || activeItem.category === 'Fatura de Cartão' || activeItem.movementId || activeItem.id.startsWith('expense_card_'))) ||
+                (isAll && (columnKey === 'creditCard' || (columnKey === 'totalExpense' && (currentRow?.creditCardTotal || 0) > 0)));
+
+              if (!isInvoiceContext) return null;
+
+              const invMov = activeItem?.movement || movements.find(
+                (m) =>
+                  (m.type === 'CARTAO' ||
+                    (m.type === 'PAGAR' && (m.category === 'Cartão' || m.category.toLowerCase().includes('cartão')))) &&
+                  m.dueDate.startsWith(currentRow?.monthKey || row.monthKey)
+              );
+
+              const totalAmt = invMov ? invMov.amount : (currentRow?.creditCardTotal || activeItem?.amount || 0);
+              const totalAllocated = invMov
+                ? (invMov.invoiceBreakdown || []).reduce((acc, ib) => acc + ib.amount, 0)
+                : 0;
+              const unanalyzed = invMov
+                ? (invMov.unanalyzedAmount !== undefined ? invMov.unanalyzedAmount : Math.max(0, totalAmt - totalAllocated))
+                : totalAmt;
+              const pctAllocated = totalAmt > 0 ? Math.min(100, Math.round((totalAllocated / totalAmt) * 100)) : 0;
+              const isPaid = invMov?.status === 'REALIZADA';
+
+              return (
+                <div
+                  style={{
+                    margin: '0 0 0.85rem 0',
+                    padding: '0.85rem 1rem',
+                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, rgba(88, 28, 135, 0.22) 0%, rgba(30, 27, 75, 0.45) 100%)',
+                    border: '1px solid rgba(168, 85, 247, 0.35)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.65rem',
+                  }}
+                  className="animate-fade-in shadow-md"
+                >
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30 flex-shrink-0">
+                        <CreditCard size={18} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-purple-300">
+                            Fatura de Cartão • {invMov?.bank || activeItem?.bankOrOrigin || 'Nubank / Inter'}
+                          </span>
+                          {invMov ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleMovementStatus(invMov.id)}
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold cursor-pointer transition flex items-center gap-1 ${
+                                isPaid
+                                  ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/40'
+                                  : 'bg-purple-500/25 text-purple-300 border border-purple-500/40 hover:bg-purple-500/40'
+                              }`}
+                              title="Clique para alternar entre Fatura Paga e Fatura Aberta"
+                            >
+                              {isPaid ? (
+                                <>
+                                  <Check size={10} /> Fatura Paga (Liquidada)
+                                </>
+                              ) : (
+                                <>
+                                  <Clock size={10} /> Fatura Aberta (Prevista)
+                                </>
+                              )}
+                            </button>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              Previsão Orçamentária
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-300 mt-0.5">
+                          Defina se parte dos gastos previstos nas naturezas foi aplicado nesta fatura e associe os valores em aberto.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {invMov ? (
+                        <button
+                          type="button"
+                          onClick={() => handleAutoAssociateCardNatures(invMov)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-500/20 text-purple-200 border border-purple-500/40 hover:bg-purple-500/35 transition flex items-center gap-1.5 cursor-pointer shadow-sm hover:scale-[1.02]"
+                          title="Puxa todos os itens de naturezas orçadas no cartão e associa diretamente à fatura"
+                        >
+                          <Sparkles size={13} className="text-purple-300" />
+                          <span>Associar Gastos Previstos</span>
+                        </button>
+                      ) : null}
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenInvoiceEditor(invMov)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-500 hover:to-indigo-500 transition flex items-center gap-1.5 cursor-pointer shadow-sm hover:scale-[1.02]"
+                        title="Ajustar valor da fatura, destrinchar parcelas e classificar cada gasto em naturezas"
+                      >
+                        <Edit3 size={13} />
+                        <span>Ajustar Fatura & Naturezas</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Barra de Progresso de Alocação da Fatura */}
+                  <div className="p-2 rounded-lg bg-black/30 border border-white/5 flex flex-col gap-1.5 text-xs">
+                    <div className="flex items-center justify-between flex-wrap gap-2 text-[11px]">
+                      <span className="text-slate-300">
+                        Total da Fatura: <strong className="text-white">{formatBRL(totalAmt)}</strong>
+                      </span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-cyan-400 font-semibold">
+                          Associado a Naturezas: {formatBRL(totalAllocated)} ({pctAllocated}%)
+                        </span>
+                        <span className={`font-semibold ${unanalyzed > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                          {unanalyzed > 0 ? `Em Aberto (Pendente): ${formatBRL(unanalyzed)}` : '✓ 100% Classificada'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden flex">
+                      <div
+                        className="bg-cyan-500 h-full transition-all duration-300"
+                        style={{ width: `${pctAllocated}%` }}
+                        title={`Alocado em Naturezas: ${formatBRL(totalAllocated)}`}
+                      />
+                      {unanalyzed > 0 && (
+                        <div
+                          className="bg-amber-500 h-full transition-all duration-300"
+                          style={{ width: `${Math.max(0, 100 - pctAllocated)}%` }}
+                          title={`Em Aberto: ${formatBRL(unanalyzed)}`}
+                        />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Banner de Ponto de Atenção se a natureza atual possuir alerta */}
             {activeItem?.hasAttentionPoint && (
               <div
@@ -2891,6 +3524,15 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
           </div>
         </div>,
         document.body
+      )}
+
+      {/* MODAL DE AJUSTE E COMPOSIÇÃO DE FATURA DE CARTÃO */}
+      {editingInvoiceMovement && (
+        <MovementDetailModal
+          isOpen={!!editingInvoiceMovement}
+          onClose={() => setEditingInvoiceMovement(null)}
+          movement={editingInvoiceMovement}
+        />
       )}
     </>
   );
