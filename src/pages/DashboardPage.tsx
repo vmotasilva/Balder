@@ -41,6 +41,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   onNavigateToNatures,
   onOpenSimulation,
   onOpenPrepayment,
+  onOpenOnboarding,
 }) => {
   const {
     isDataReady,
@@ -110,6 +111,16 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 </span>
               </button>
             )}
+            {onOpenOnboarding && (
+              <button
+                onClick={() => onOpenOnboarding(1)}
+                title="Refazer assistente Get Started de calibração inicial"
+                className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20 transition-all cursor-pointer"
+              >
+                <Sparkles size={12} className="text-cyan-400" />
+                <span>Get Started</span>
+              </button>
+            )}
           </div>
           <h1 className="page-title dashboard-page-title">Meu Dinheiro</h1>
           <p className="page-subtitle dashboard-page-subtitle">
@@ -123,6 +134,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             onNavigateToLoans={onNavigateToLoans}
             onOpenPrepayment={onOpenPrepayment}
             onOpenCheckpoint={() => setIsCheckpointModalOpen(true)}
+            onOpenOnboarding={onOpenOnboarding}
             size="sm"
           />
           <button className="btn btn-secondary" onClick={onNavigateToCopilot}>

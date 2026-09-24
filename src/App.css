@@ -7049,6 +7049,100 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   transition: transform 0.18s ease, color 0.18s ease;
 }
 
+/* Card em destaque e atalhos de etapas do Get Started */
+.quick-action-wizard-container {
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(6, 182, 212, 0.28);
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.08) 0%, rgba(139, 92, 246, 0.05) 100%);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.quick-action-wizard-container:hover {
+  border-color: rgba(6, 182, 212, 0.45);
+  box-shadow: 0 4px 18px rgba(6, 182, 212, 0.12);
+}
+
+.quick-action-card-featured {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+}
+
+.quick-action-card-featured:hover {
+  background: rgba(6, 182, 212, 0.06) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.quick-action-step-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 10px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(0, 0, 0, 0.2);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.quick-action-step-pills::-webkit-scrollbar {
+  display: none;
+}
+
+.quick-action-pills-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+
+.quick-action-step-pill {
+  font-size: 10px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary, #cbd5e1);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.quick-action-step-pill:hover {
+  background: rgba(6, 182, 212, 0.18);
+  border-color: rgba(6, 182, 212, 0.35);
+  color: var(--accent-cyan);
+}
+
+[data-theme="light"] .quick-action-wizard-container {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.06) 0%, rgba(139, 92, 246, 0.04) 100%) !important;
+  border-color: rgba(6, 182, 212, 0.25) !important;
+}
+
+[data-theme="light"] .quick-action-step-pills {
+  background: rgba(241, 245, 249, 0.8) !important;
+  border-top-color: rgba(0, 0, 0, 0.06) !important;
+}
+
+[data-theme="light"] .quick-action-step-pill {
+  background: #ffffff !important;
+  border-color: #e2e8f0 !important;
+  color: #475569 !important;
+}
+
+[data-theme="light"] .quick-action-step-pill:hover {
+  background: #e0f2fe !important;
+  border-color: #38bdf8 !important;
+  color: #0284c7 !important;
+}
+
 .quick-actions-panel {
   background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(8, 14, 26, 0.9) 100%);
   border: 1px solid rgba(245, 158, 11, 0.25);

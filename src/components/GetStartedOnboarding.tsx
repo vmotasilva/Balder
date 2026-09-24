@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFinancial, buildSuggestedMappingsForNature } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -99,6 +99,8 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
     natures,
     activeCheckpoint,
     addSalaryContract,
+    updateSalaryContract,
+    salaryContracts,
   } = useFinancial();
 
   const [currentStep, setCurrentStep] = useState<number>(initialStep);
@@ -124,6 +126,71 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
   const [salaryRole, setSalaryRole] = useState<string>('Remuneração Principal');
   const [salaryPayDay, setSalaryPayDay] = useState<number>(5);
   const [salaryContractType, setSalaryContractType] = useState<SalaryContractType>('CLT');
+
+  // Sincroniza passo e pre-carrega dados salvos quando o usuário abre ou refaz o Get Started
+  useEffect(() => {
+    if (isOpen) {
+      setCurrentStep(initialStep || 1);
+
+      if (activeCheckpoint) {
+        if (activeCheckpoint.startDate) setStartDate(activeCheckpoint.startDate);
+        if (activeCheckpoint.initialBalance !== undefined) {
+          setInitialBalance(String(activeCheckpoint.initialBalance));
+        }
+
+        if (activeCheckpoint.cardDebts && activeCheckpoint.cardDebts.length > 0) {
+          const cd1 = activeCheckpoint.cardDebts[0];
+          if (cd1.cardName) setCardName(cd1.cardName);
+          if (cd1.bankName) setCardBank(cd1.bankName);
+          if (cd1.dueDay) setCardDueDay(cd1.dueDay);
+
+          const currInv = cd1.invoices?.find((inv) => inv.monthIndex === 0);
+          if (currInv) setCurrentInvoiceAmount(String(currInv.amount));
+
+          const futs = (cd1.invoices || [])
+            .filter((inv) => inv.monthIndex > 0)
+            .map((inv) => ({
+              id: `c1_fut_${inv.monthIndex}`,
+              monthOffset: inv.monthIndex,
+              amount: String(inv.amount),
+            }));
+          if (futs.length > 0) setCard1FutureInvoices(futs);
+
+          if (activeCheckpoint.cardDebts.length > 1) {
+            const cd2 = activeCheckpoint.cardDebts[1];
+            setHasSecondCard(true);
+            if (cd2.cardName) setSecondCardName(cd2.cardName);
+            if (cd2.bankName) setSecondCardBank(cd2.bankName);
+            if (cd2.dueDay) setSecondCardDueDay(cd2.dueDay);
+
+            const currInv2 = cd2.invoices?.find((inv) => inv.monthIndex === 0);
+            if (currInv2) setSecondCurrentInvoice(String(currInv2.amount));
+
+            const futs2 = (cd2.invoices || [])
+              .filter((inv) => inv.monthIndex > 0)
+              .map((inv) => ({
+                id: `c2_fut_${inv.monthIndex}`,
+                monthOffset: inv.monthIndex,
+                amount: String(inv.amount),
+              }));
+            if (futs2.length > 0) setCard2FutureInvoices(futs2);
+          }
+        }
+      }
+
+      if (salaryContracts && salaryContracts.length > 0) {
+        const prim = salaryContracts.find((s) => s.isActive) || salaryContracts[0];
+        setHasSalary(true);
+        if (prim.employer) setSalaryEmployer(prim.employer);
+        if (prim.role) setSalaryRole(prim.role);
+        if (prim.contractType) setSalaryContractType(prim.contractType);
+        if (prim.paymentDay) setSalaryPayDay(prim.paymentDay);
+        const salVal = prim.currentNetAmount || prim.currentGrossAmount;
+        if (salVal) setSalaryAmount(String(salVal));
+        if (prim.receivingBankName) setMainBankName(prim.receivingBankName);
+      }
+    }
+  }, [isOpen, initialStep, activeCheckpoint, salaryContracts]);
 
   // -------------------------------------------------------------
   // PASSO 2: Faturas de Cartão em Aberto (Atual & Múltiplas Futuras por Banco)
@@ -543,21 +610,36 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
         });
       }
 
-      // 4. Salva a Configuração do Salário / Remuneração Principal
+      // 4. Salva ou atualiza a Configuração do Salário / Remuneração Principal
       const parsedSalary = parseNumber(salaryAmount);
       if (hasSalary && parsedSalary > 0) {
-        addSalaryContract({
-          employer: salaryEmployer.trim() || 'Empregador Principal',
-          role: salaryRole.trim() || 'Remuneração Principal',
-          contractType: salaryContractType,
-          paymentSchedule: 'UNICO',
-          paymentDay: Math.min(Math.max(1, salaryPayDay), 31),
-          currentGrossAmount: parsedSalary,
-          currentNetAmount: parsedSalary,
-          receivingBankName: mainBankName,
-          startDate: startDate || firstDayOfMonthStr,
-          isActive: true,
-        });
+        const existingSalary = salaryContracts?.find((s) => s.isActive) || salaryContracts?.[0];
+        if (existingSalary) {
+          updateSalaryContract(existingSalary.id, {
+            employer: salaryEmployer.trim() || 'Empregador Principal',
+            role: salaryRole.trim() || 'Remuneração Principal',
+            contractType: salaryContractType,
+            paymentDay: Math.min(Math.max(1, salaryPayDay), 31),
+            currentGrossAmount: parsedSalary,
+            currentNetAmount: parsedSalary,
+            receivingBankName: mainBankName,
+            startDate: startDate || firstDayOfMonthStr,
+            isActive: true,
+          });
+        } else {
+          addSalaryContract({
+            employer: salaryEmployer.trim() || 'Empregador Principal',
+            role: salaryRole.trim() || 'Remuneração Principal',
+            contractType: salaryContractType,
+            paymentSchedule: 'UNICO',
+            paymentDay: Math.min(Math.max(1, salaryPayDay), 31),
+            currentGrossAmount: parsedSalary,
+            currentNetAmount: parsedSalary,
+            receivingBankName: mainBankName,
+            startDate: startDate || firstDayOfMonthStr,
+            isActive: true,
+          });
+        }
 
         // Adiciona movimento de receita prevista para o mês inicial
         addMovement({
@@ -572,19 +654,24 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
       }
 
       // 5. Salva as Naturezas selecionadas com seus tetos e mapeamentos
-      if (natures.length === 0 && selectedNatures.length > 0) {
+      if (selectedNatures.length > 0) {
         selectedNatures.forEach((nat, idx) => {
-          const suggestedMappings = autoLoadMappings
-            ? buildSuggestedMappingsForNature(`nat_seed_${Date.now()}_${idx}`, nat.name, nat.icon)
-            : [];
-          addNature({
-            name: nat.name,
-            icon: nat.icon,
-            color: nat.color,
-            type: nat.type,
-            description: nat.description,
-            mappings: suggestedMappings,
-          });
+          const alreadyExists = natures.some(
+            (n) => n.name.toLowerCase().trim() === nat.name.toLowerCase().trim()
+          );
+          if (!alreadyExists) {
+            const suggestedMappings = autoLoadMappings
+              ? buildSuggestedMappingsForNature(`nat_seed_${Date.now()}_${idx}`, nat.name, nat.icon)
+              : [];
+            addNature({
+              name: nat.name,
+              icon: nat.icon,
+              color: nat.color,
+              type: nat.type,
+              description: nat.description,
+              mappings: suggestedMappings,
+            });
+          }
         });
       }
 

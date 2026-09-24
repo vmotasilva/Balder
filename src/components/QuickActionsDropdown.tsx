@@ -10,6 +10,7 @@ import {
   Home,
   ArrowRight,
   Flag,
+  Sparkles,
   X,
 } from 'lucide-react';
 import type { SimulationPresetId } from '../types';
@@ -19,6 +20,7 @@ export interface QuickActionsDropdownProps {
   onNavigateToLoans?: () => void;
   onOpenPrepayment?: () => void;
   onOpenCheckpoint?: () => void;
+  onOpenOnboarding?: (stepIndex?: number) => void;
   className?: string;
   buttonLabel?: string;
   size?: 'sm' | 'md' | 'lg';
@@ -29,6 +31,7 @@ export const QuickActionsDropdown: React.FC<QuickActionsDropdownProps> = ({
   onNavigateToLoans,
   onOpenPrepayment,
   onOpenCheckpoint,
+  onOpenOnboarding,
   className = '',
   buttonLabel = 'Ações Rápidas',
   size = 'md',
@@ -260,38 +263,112 @@ export const QuickActionsDropdown: React.FC<QuickActionsDropdownProps> = ({
                   </button>
                 ))}
 
-                {/* Seção 2: Ponto de Partida (se disponível) */}
-                {onOpenCheckpoint && (
+                {/* Seção 2: Calibração & Assistente Inicial (Get Started) */}
+                {(onOpenOnboarding || onOpenCheckpoint) && (
                   <>
                     <span className="quick-actions-section-title mt-2">
-                      CALIBRAÇÃO DO SISTEMA
+                      CALIBRAÇÃO & ASSISTENTE INICIAL (GET STARTED)
                     </span>
-                    <button
-                      type="button"
-                      className="quick-action-card cursor-pointer text-left w-full"
-                      onClick={() => {
-                        setIsOpen(false);
-                        onOpenCheckpoint();
-                      }}
-                    >
-                      <div className="quick-action-icon-box">
-                        <Flag size={18} className="text-purple-400" />
-                      </div>
-                      <div className="quick-action-text flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="quick-action-title font-bold text-xs md:text-sm">
-                            Definir Ponto de Partida
+
+                    {onOpenOnboarding && (
+                      <div className="quick-action-wizard-container">
+                        <button
+                          type="button"
+                          className="quick-action-card quick-action-card-featured cursor-pointer text-left w-full"
+                          onClick={() => {
+                            setIsOpen(false);
+                            onOpenOnboarding(1);
+                          }}
+                        >
+                          <div className="quick-action-icon-box bg-cyan-500/15 border border-cyan-500/30">
+                            <Sparkles size={18} className="text-cyan-400" />
+                          </div>
+                          <div className="quick-action-text flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="quick-action-title font-bold text-xs md:text-sm text-cyan-200">
+                                Refazer Assistente Inicial (Get Started)
+                              </span>
+                              <span className="badge badge-cyan text-[9px] px-1.5 py-0.5">
+                                Onboarding
+                              </span>
+                            </div>
+                            <span className="quick-action-subtitle text-[11px] text-muted block mt-0.5">
+                              Reconfigure ponto de partida, salário, faturas e naturezas recomendadas
+                            </span>
+                          </div>
+                          <ArrowRight size={15} className="quick-action-arrow text-cyan-400 flex-shrink-0" />
+                        </button>
+
+                        {/* Atalhos Rápidos por Etapa */}
+                        <div className="quick-action-step-pills">
+                          <span className="quick-action-pills-label">
+                            Ir direto:
                           </span>
-                          <span className="badge badge-purple text-[9px] px-1.5 py-0.5">
-                            Marco Inicial
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsOpen(false);
+                              onOpenOnboarding(1);
+                            }}
+                            className="quick-action-step-pill"
+                            title="Ir para Ponto de Partida e Salário"
+                          >
+                            1. Ponto de Partida & Salário
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsOpen(false);
+                              onOpenOnboarding(2);
+                            }}
+                            className="quick-action-step-pill"
+                            title="Ir para Faturas de Cartão"
+                          >
+                            2. Faturas de Cartão
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsOpen(false);
+                              onOpenOnboarding(3);
+                            }}
+                            className="quick-action-step-pill"
+                            title="Ir para Naturezas & Tetos"
+                          >
+                            3. Naturezas & Tetos
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {onOpenCheckpoint && (
+                      <button
+                        type="button"
+                        className="quick-action-card cursor-pointer text-left w-full"
+                        onClick={() => {
+                          setIsOpen(false);
+                          onOpenCheckpoint();
+                        }}
+                      >
+                        <div className="quick-action-icon-box">
+                          <Flag size={18} className="text-purple-400" />
+                        </div>
+                        <div className="quick-action-text flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="quick-action-title font-bold text-xs md:text-sm">
+                              Definir Ponto de Partida
+                            </span>
+                            <span className="badge badge-purple text-[9px] px-1.5 py-0.5">
+                              Marco Inicial
+                            </span>
+                          </div>
+                          <span className="quick-action-subtitle text-[11px] text-muted block mt-0.5">
+                            Calibrar data de início, saldos em contas e faturas abertas
                           </span>
                         </div>
-                        <span className="quick-action-subtitle text-[11px] text-muted block mt-0.5">
-                          Calibrar data de início, saldos em contas e faturas abertas
-                        </span>
-                      </div>
-                      <ArrowRight size={15} className="quick-action-arrow text-muted flex-shrink-0" />
-                    </button>
+                        <ArrowRight size={15} className="quick-action-arrow text-muted flex-shrink-0" />
+                      </button>
+                    )}
                   </>
                 )}
               </div>
