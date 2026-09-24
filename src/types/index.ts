@@ -1,5 +1,5 @@
 export type MovementType = 'RECEBER' | 'PAGAR' | 'EMPRESTIMO' | 'CARTAO';
-export type MovementStatus = 'PREVISTA' | 'REALIZADA';
+export type MovementStatus = 'PREVISTA' | 'REALIZADA' | 'CANCELADA';
 
 export interface Movement {
   id: string;

@@ -49,7 +49,7 @@ function countWeekdayOccurrencesInMonth(year: number, month: number, dayOfWeek: 
 /**
  * Resultado da resolução do salário para uma competência.
  */
-interface SalaryResolution {
+export interface SalaryResolution {
   total: number;
   first: number;          // 1ª quinzena (QUINZENAL)
   second: number;         // 2ª quinzena (QUINZENAL)
@@ -69,7 +69,7 @@ interface SalaryResolution {
  *   - 'AUTO'  → recalcula a partir do netAmount a cada resolução (ignora valores fixados)
  *   - undefined → comportamento legado: tenta FIXED; se não houver, cai em AUTO
  */
-function resolveSalaryForMonth(sc: SalaryContract, compKey: string): SalaryResolution {
+export function resolveSalaryForMonth(sc: SalaryContract, compKey: string): SalaryResolution {
   const zero: SalaryResolution = { total: 0, first: 0, second: 0, weeklyAmount: 0, weeklyCount: 0 };
 
   if (!sc.startDate || sc.startDate > compKey) return zero;
@@ -216,39 +216,75 @@ export function buildMonthlyProjectionGrid(
       )
       .reduce((acc, m) => acc + m.amount, 0);
 
-    // ── 2. Salário (+) — suporta UNICO, QUINZENAL e SEMANAL ──────────────────
+    // ── 2. Salário (+) — suporta UNICO, QUINZENAL e SEMANAL com ajustes reais ──
     let salary = 0;
     let salaryFirstInstallment: number | undefined;
     let salarySecondInstallment: number | undefined;
     let salaryWeeklyAmount: number | undefined;
     let salaryWeeklyInstallments: number | undefined;
 
+    const realSalariesForMonth = movements.filter(
+      (m) =>
+        m.type === 'RECEBER' &&
+        (m.category === 'Salário' ||
+          m.title.toLowerCase().includes('salário') ||
+          m.title.toLowerCase().includes('quinzena')) &&
+        m.dueDate.startsWith(comp.key)
+    );
+
     if (salaryContracts && salaryContracts.length > 0) {
       salaryContracts
         .filter((sc) => sc.isActive)
         .forEach((sc) => {
           const res = resolveSalaryForMonth(sc, comp.key);
-          salary = Math.round((salary + res.total) * 100) / 100;
+          let firstVal = res.first;
+          let secondVal = res.second;
+          let totalVal = res.total;
+
+          // Procura lançamentos específicos cadastrados/ajustados pelo usuário para este mês
+          const mQ1 = realSalariesForMonth.find(
+            (m) =>
+              m.title.toLowerCase().includes('1ª') ||
+              m.title.toLowerCase().includes('adiantamento') ||
+              m.installmentGroupId?.includes('q1')
+          );
+          const mQ2 = realSalariesForMonth.find(
+            (m) =>
+              m.title.toLowerCase().includes('2ª') ||
+              m.title.toLowerCase().includes('principal') ||
+              m.installmentGroupId?.includes('q2')
+          );
+          const mUnico = realSalariesForMonth.find(
+            (m) =>
+              !m.title.toLowerCase().includes('1ª') &&
+              !m.title.toLowerCase().includes('2ª') &&
+              !m.title.toLowerCase().includes('adiantamento')
+          );
 
           if (res.first > 0 || res.second > 0) {
-            salaryFirstInstallment  = Math.round(((salaryFirstInstallment  ?? 0) + res.first)  * 100) / 100;
-            salarySecondInstallment = Math.round(((salarySecondInstallment ?? 0) + res.second) * 100) / 100;
+            if (mQ1 !== undefined) {
+              firstVal = mQ1.amount;
+            }
+            if (mQ2 !== undefined) {
+              secondVal = mQ2.amount;
+            }
+            totalVal = Math.round((firstVal + secondVal) * 100) / 100;
+            salaryFirstInstallment = Math.round(((salaryFirstInstallment ?? 0) + firstVal) * 100) / 100;
+            salarySecondInstallment = Math.round(((salarySecondInstallment ?? 0) + secondVal) * 100) / 100;
+          } else if (mUnico !== undefined) {
+            totalVal = mUnico.amount;
           }
+
+          salary = Math.round((salary + totalVal) * 100) / 100;
+
           if (res.weeklyCount > 0) {
-            salaryWeeklyAmount       = Math.round(((salaryWeeklyAmount      ?? 0) + res.weeklyAmount) * 100) / 100;
-            salaryWeeklyInstallments = Math.max(salaryWeeklyInstallments ?? 0, res.weeklyCount); // usa maior (múltiplos contratos semanais são raros)
+            salaryWeeklyAmount = Math.round(((salaryWeeklyAmount ?? 0) + res.weeklyAmount) * 100) / 100;
+            salaryWeeklyInstallments = Math.max(salaryWeeklyInstallments ?? 0, res.weeklyCount);
           }
         });
     } else {
       // Fallback: movimentos de salário cadastrados para o mês
-      salary = movements
-        .filter(
-          (m) =>
-            m.type === 'RECEBER' &&
-            (m.category === 'Salário' || m.title.toLowerCase().includes('salário')) &&
-            m.dueDate.startsWith(comp.key)
-        )
-        .reduce((acc, m) => acc + m.amount, 0);
+      salary = realSalariesForMonth.reduce((acc, m) => acc + m.amount, 0);
     }
 
     // ── 3. Cartão de Crédito (-) ───────────────────────────────────────────────
