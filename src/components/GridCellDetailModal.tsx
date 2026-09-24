@@ -28,6 +28,7 @@ import {
 import type { MonthlyGridProjectionRow, MappingItem, MovementStatus, Movement, InvoiceNatureItemBreakdown } from '../types';
 import { buildMonthlyProjectionGrid, resolveSalaryForMonth } from '../utils/projectionMath';
 import type { ProjectionViewMode } from '../utils/projectionMath';
+import { getItemManifestationDays } from '../utils/natureScheduling';
 import { MovementDetailModal } from './MovementDetailModal';
 
 export interface GridCellSelection {
@@ -146,7 +147,8 @@ export interface CellBreakdownItem {
 /**
  * Motor contábil que gera agrupamentos inteligentes por Data de Gasto dentro da Natureza.
  * Exemplo: se uma pessoa faz feira toda semana e compra de estoque mensal,
- * calcula os sábados do mês e a data do supermercado, agrupando os itens de cada dia.
+ * calcula as datas de manifestação de cada item (semanal, quinzenal e mensal com ajuste automático do fim do mês)
+ * e agrupa as compras e despesas por data real no calendário da competência.
  */
 export function generateNatureDateGroups(
   competence: string,
@@ -158,214 +160,145 @@ export function generateNatureDateGroups(
     item: MappingItem;
   }>
 ): CellDateGroup[] {
+  if (!items || items.length === 0) return [];
+
   const parts = competence.split('-');
   const year = parseInt(parts[0], 10) || 2026;
   const month = parseInt(parts[1], 10) || 9; // 1-indexed
-
-  // Encontrar os sábados daquele mês
-  const saturdays: number[] = [];
   const daysInMonth = new Date(year, month, 0).getDate();
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dateObj = new Date(year, month - 1, d);
-    if (dateObj.getDay() === 6) { // 6 = Sábado
-      saturdays.push(d);
+  const padM = String(month).padStart(2, '0');
+
+  const WEEKDAY_NAMES = [
+    'Domingo',
+    'Segunda-feira',
+    'Terça-feira',
+    'Quarta-feira',
+    'Quinta-feira',
+    'Sexta-feira',
+    'Sábado',
+  ];
+
+  // Mapa de agrupamento por dateStr (YYYY-MM-DD)
+  const groupsByDate = new Map<
+    string,
+    {
+      dateStr: string;
+      dateFormatted: string;
+      day: number;
+      periodTypes: Set<'SEMANAL' | 'QUINZENAL' | 'MENSAL'>;
+      mappingNames: Set<string>;
+      items: CellBreakdownSubItem[];
+      subtotal: number;
     }
-  }
-  if (saturdays.length === 0) {
-    saturdays.push(5, 12, 19, 26);
-  }
+  >();
 
-  const formatDay = (day: number) => {
-    const padD = String(day).padStart(2, '0');
-    const padM = String(month).padStart(2, '0');
-    return {
-      dateStr: `${year}-${padM}-${padD}`,
-      dateFormatted: `${padD}/${padM}/${year}`,
-    };
-  };
+  items.forEach((ni) => {
+    const item = ni.item;
+    const { days, periodType } = getItemManifestationDays(item, year, month);
 
-  const isFoodNature =
-    natureName.toLowerCase().includes('alimentaç') ||
-    natureName.toLowerCase().includes('mercado') ||
-    items.some((i) => i.mappingName.toLowerCase().includes('feira') || i.mappingName.toLowerCase().includes('açougue'));
+    // Valor de cada ocorrência individual (ex: se é semanal com 4 sábados, cada sábado vale quantity * price)
+    const unitOccVal = Math.round((item.quantity || 1) * (item.price || 0) * 1000) / 1000;
+    const isAtyp = ATYPICAL_KEYWORD_REGEX.test(`${item.description} ${ni.mappingName || ''}`);
 
-  if (isFoodNature) {
-    const dateGroups: CellDateGroup[] = [];
+    days.forEach((day) => {
+      // Ajuste de segurança caso o dia exceda os dias do mês
+      const clampedDay = Math.min(Math.max(1, day), daysInMonth);
+      const padD = String(clampedDay).padStart(2, '0');
+      const dateStr = `${year}-${padM}-${padD}`;
+      const dObj = new Date(year, month - 1, clampedDay);
+      const weekdayName = WEEKDAY_NAMES[dObj.getDay()];
+      const dateFormatted = `${padD}/${padM}/${year} (${weekdayName})`;
 
-    // 1. Supermercado Mensal / Compra de Estoque e Limpeza (Segunda-feira pós 1º sábado)
-    const monthlyItems = items.filter(
-      (ni) =>
-        (ni.item.multiplierWeeks === 1 || ni.mappingName.toLowerCase().includes('mensal') || ni.mappingName.toLowerCase().includes('base')) &&
-        !ni.item.description.toLowerCase().includes('peixe')
-    );
+      const subItem: CellBreakdownSubItem = {
+        id: `${item.id}_${dateStr}`,
+        description: item.description,
+        quantity: item.quantity,
+        price: item.price,
+        multiplierWeeks: 1, // 1 ocorrência nesta data específica
+        totalValue: unitOccVal,
+        paymentMethod: item.paymentMethod,
+        cardName: item.cardName,
+        mappingName: ni.mappingName,
+        isAtypical: isAtyp,
+        attentionReason: isAtyp ? 'Gasto Atípico / Não-Recorrente' : undefined,
+      };
 
-    const monthlyDay = saturdays[0] ? Math.min(saturdays[0] + 2, daysInMonth) : 7;
-    const monthlyDate = formatDay(monthlyDay);
-
-    if (monthlyItems.length > 0) {
-      const subItems: CellBreakdownSubItem[] = monthlyItems.map((ni) => {
-        const isAtyp = ATYPICAL_KEYWORD_REGEX.test(`${ni.item.description} ${ni.mappingName || ''}`);
-        return {
-          id: `${ni.item.id}_mensal`,
-          description: ni.item.description,
-          quantity: ni.item.quantity,
-          price: ni.item.price,
-          multiplierWeeks: 1,
-          totalValue: (ni.item.quantity || 1) * (ni.item.price || 0),
-          paymentMethod: ni.item.paymentMethod,
-          cardName: ni.item.cardName,
-          mappingName: ni.mappingName,
-          isAtypical: isAtyp,
-          attentionReason: isAtyp ? 'Gasto Atípico / Não-Recorrente' : undefined,
+      let group = groupsByDate.get(dateStr);
+      if (!group) {
+        group = {
+          dateStr,
+          dateFormatted,
+          day: clampedDay,
+          periodTypes: new Set(),
+          mappingNames: new Set(),
+          items: [],
+          subtotal: 0,
         };
-      });
+        groupsByDate.set(dateStr, group);
+      }
 
-      dateGroups.push({
-        id: `dg_mensal_${monthlyDate.dateStr}`,
-        dateStr: monthlyDate.dateStr,
-        dateFormatted: `${monthlyDate.dateFormatted} (Segunda-feira)`,
-        eventTitle: '🏬 Supermercado Mensal (Estoque Seco & Limpeza)',
-        periodType: 'MENSAL',
-        subtotal: subItems.reduce((acc, it) => acc + it.totalValue, 0),
-        items: subItems,
-      });
+      group.periodTypes.add(periodType);
+      if (ni.mappingName) group.mappingNames.add(ni.mappingName);
+      group.items.push(subItem);
+      group.subtotal = Math.round((group.subtotal + unitOccVal) * 100) / 100;
+    });
+  });
+
+  // Converter o agrupamento por data para CellDateGroup[]
+  const dateGroups: CellDateGroup[] = Array.from(groupsByDate.values()).map((g) => {
+    let resolvedPeriodType: 'SEMANAL' | 'QUINZENAL' | 'MENSAL' | 'PONTUAL' = 'MENSAL';
+    if (g.periodTypes.size === 1) {
+      resolvedPeriodType = Array.from(g.periodTypes)[0];
+    } else if (g.periodTypes.has('SEMANAL')) {
+      resolvedPeriodType = 'SEMANAL';
+    } else if (g.periodTypes.has('QUINZENAL')) {
+      resolvedPeriodType = 'QUINZENAL';
     }
 
-    // 2. Semanas de Feira e Açougue (Sábados do mês)
-    const weeklyItems = items.filter(
-      (ni) =>
-        ni.item.multiplierWeeks === 4 ||
-        ni.mappingName.toLowerCase().includes('feira') ||
-        ni.item.description.toLowerCase().includes('frango')
-    );
+    const mappingList = Array.from(g.mappingNames);
+    const mainTitle = mappingList.length > 0 ? mappingList.join(' + ') : natureName;
+    const weekNum = Math.min(5, Math.ceil(g.day / 7));
 
-    const biweeklyItems = items.filter((ni) => ni.item.multiplierWeeks === 2);
+    let titlePrefix = '🛒';
+    const lowerNat = natureName.toLowerCase();
+    if (lowerNat.includes('alimentaç') || lowerNat.includes('mercado')) {
+      titlePrefix = resolvedPeriodType === 'SEMANAL' ? '🛒' : resolvedPeriodType === 'QUINZENAL' ? '🥩' : '🏬';
+    } else if (lowerNat.includes('moradia') || lowerNat.includes('casa') || lowerNat.includes('aluguel')) {
+      titlePrefix = '🏠';
+    } else if (lowerNat.includes('transporte') || lowerNat.includes('combust') || lowerNat.includes('veículo')) {
+      titlePrefix = '⛽';
+    } else if (lowerNat.includes('educaç') || lowerNat.includes('escola') || lowerNat.includes('curso')) {
+      titlePrefix = '🎓';
+    } else if (lowerNat.includes('saúde') || lowerNat.includes('saude') || lowerNat.includes('farmácia')) {
+      titlePrefix = '💊';
+    } else if (lowerNat.includes('lazer') || lowerNat.includes('viagem')) {
+      titlePrefix = '🎉';
+    } else {
+      titlePrefix = '📑';
+    }
 
-    const specialMonthlyItems = items.filter(
-      (ni) => ni.item.multiplierWeeks === 1 && ni.item.description.toLowerCase().includes('peixe')
-    );
+    let eventTitle = '';
+    if (resolvedPeriodType === 'SEMANAL') {
+      eventTitle = `${titlePrefix} ${weekNum}ª Semana — ${mainTitle}`;
+    } else if (resolvedPeriodType === 'QUINZENAL') {
+      const qNum = g.day <= 15 ? 1 : 2;
+      eventTitle = `${titlePrefix} ${qNum}ª Quinzena — ${mainTitle}`;
+    } else {
+      eventTitle = `${titlePrefix} ${mainTitle}`;
+    }
 
-    saturdays.slice(0, 4).forEach((satDay, index) => {
-      const weekNum = index + 1;
-      const satDate = formatDay(satDay);
-      const daySubItems: CellBreakdownSubItem[] = [];
-
-      weeklyItems.forEach((ni) => {
-        const itemUnitVal = (ni.item.quantity || 1) * (ni.item.price || 0);
-        const isAtyp = ATYPICAL_KEYWORD_REGEX.test(`${ni.item.description} ${ni.mappingName || ''}`);
-        daySubItems.push({
-          id: `${ni.item.id}_sem_${weekNum}`,
-          description: ni.item.description,
-          quantity: ni.item.quantity,
-          price: ni.item.price,
-          multiplierWeeks: 1,
-          totalValue: itemUnitVal,
-          paymentMethod: ni.item.paymentMethod,
-          cardName: ni.item.cardName,
-          mappingName: ni.mappingName,
-          isAtypical: isAtyp,
-          attentionReason: isAtyp ? 'Gasto Atípico / Não-Recorrente' : undefined,
-        });
-      });
-
-      if (weekNum === 1 || weekNum === 3) {
-        biweeklyItems.forEach((ni) => {
-          const itemUnitVal = (ni.item.quantity || 1) * (ni.item.price || 0);
-          const isAtyp = ATYPICAL_KEYWORD_REGEX.test(`${ni.item.description} ${ni.mappingName || ''}`);
-          daySubItems.push({
-            id: `${ni.item.id}_quinz_${weekNum}`,
-            description: ni.item.description,
-            quantity: ni.item.quantity,
-            price: ni.item.price,
-            multiplierWeeks: 1,
-            totalValue: itemUnitVal,
-            paymentMethod: ni.item.paymentMethod,
-            cardName: ni.item.cardName,
-            mappingName: ni.mappingName,
-            isAtypical: isAtyp,
-            attentionReason: isAtyp ? 'Gasto Atípico / Não-Recorrente' : undefined,
-          });
-        });
-      }
-
-      if (weekNum === 4) {
-        specialMonthlyItems.forEach((ni) => {
-          const isAtyp = ATYPICAL_KEYWORD_REGEX.test(`${ni.item.description} ${ni.mappingName || ''}`);
-          daySubItems.push({
-            id: `${ni.item.id}_esp_${weekNum}`,
-            description: ni.item.description,
-            quantity: ni.item.quantity,
-            price: ni.item.price,
-            multiplierWeeks: 1,
-            totalValue: (ni.item.quantity || 1) * (ni.item.price || 0),
-            paymentMethod: ni.item.paymentMethod,
-            cardName: ni.item.cardName,
-            mappingName: ni.mappingName,
-            isAtypical: isAtyp,
-            attentionReason: isAtyp ? 'Gasto Atípico / Não-Recorrente' : undefined,
-          });
-        });
-      }
-
-      if (daySubItems.length > 0) {
-        let titleDesc = `${weekNum}ª Semana — Feira Livre & Hortifrúti`;
-        if (weekNum === 1 || weekNum === 3) {
-          titleDesc += ' + Açougue Quinzena';
-        } else if (weekNum === 4 && specialMonthlyItems.length > 0) {
-          titleDesc += ' + Peixaria Nobre';
-        }
-
-        dateGroups.push({
-          id: `dg_feira_sem_${weekNum}_${satDate.dateStr}`,
-          dateStr: satDate.dateStr,
-          dateFormatted: `${satDate.dateFormatted} (Sábado)`,
-          eventTitle: `🛒 ${titleDesc}`,
-          periodType: 'SEMANAL',
-          subtotal: daySubItems.reduce((acc, it) => acc + it.totalValue, 0),
-          items: daySubItems,
-        });
-      }
-    });
-
-    dateGroups.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
-    return dateGroups;
-  }
-
-  // Para outras naturezas (Moradia, Educação, Transporte, etc.)
-  const otherGroups: CellDateGroup[] = [];
-  const defaultDay = 10;
-  const defDate = formatDay(defaultDay);
-
-  const subItems: CellBreakdownSubItem[] = items.map((ni) => {
-    const isAtyp = ATYPICAL_KEYWORD_REGEX.test(`${ni.item.description} ${ni.mappingName || ''}`);
     return {
-      id: ni.item.id,
-      description: ni.item.description,
-      quantity: ni.item.quantity,
-      price: ni.item.price,
-      multiplierWeeks: ni.item.multiplierWeeks,
-      totalValue:
-        ni.item.totalValue ||
-        (ni.item.quantity || 1) * (ni.item.price || 0) * (ni.item.multiplierWeeks || 1),
-      paymentMethod: ni.item.paymentMethod,
-      cardName: ni.item.cardName,
-      mappingName: ni.mappingName,
-      isAtypical: isAtyp,
-      attentionReason: isAtyp ? 'Gasto Atípico / Não-Recorrente' : undefined,
+      id: `dg_${g.dateStr}_${natureName.replace(/\s+/g, '_')}`,
+      dateStr: g.dateStr,
+      dateFormatted: g.dateFormatted,
+      eventTitle,
+      periodType: resolvedPeriodType,
+      subtotal: g.subtotal,
+      items: g.items,
     };
   });
 
-  otherGroups.push({
-    id: `dg_other_${defDate.dateStr}`,
-    dateStr: defDate.dateStr,
-    dateFormatted: `${defDate.dateFormatted} (Ciclo Mensal)`,
-    eventTitle: `📑 Custos Recorrentes de ${natureName}`,
-    periodType: 'MENSAL',
-    subtotal: subItems.reduce((acc, it) => acc + it.totalValue, 0),
-    items: subItems,
-  });
-
-  return otherGroups;
+  return dateGroups.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
 }
 
 /**

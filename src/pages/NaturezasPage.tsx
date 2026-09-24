@@ -24,6 +24,11 @@ import {
 } from 'lucide-react';
 import { NatureModal } from '../components/NatureModal';
 import { MappingModal } from '../components/MappingModal';
+import {
+  WEEKDAY_OPTIONS,
+  formatItemScheduleBadge,
+} from '../utils/natureScheduling';
+import type { MappingItem } from '../types';
 
 interface NaturezasPageProps {
   embedded?: boolean;
@@ -70,6 +75,10 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
   const [newItemQty, setNewItemQty] = useState<Record<string, number>>({});
   const [newItemPrice, setNewItemPrice] = useState<Record<string, number>>({});
   const [newItemMult, setNewItemMult] = useState<Record<string, number>>({});
+  const [newItemRecurrenceType, setNewItemRecurrenceType] = useState<Record<string, 'SEMANAL' | 'QUINZENAL' | 'MENSAL'>>({});
+  const [newItemDayOfWeek, setNewItemDayOfWeek] = useState<Record<string, 'DOMINGO' | 'SEGUNDA' | 'TERCA' | 'QUARTA' | 'QUINTA' | 'SEXTA' | 'SABADO'>>({});
+  const [newItemDayOfFortnight, setNewItemDayOfFortnight] = useState<Record<string, number>>({});
+  const [newItemDayOfMonth, setNewItemDayOfMonth] = useState<Record<string, number>>({});
 
   // Inline Editing of existing items
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
@@ -77,6 +86,10 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
   const [editQty, setEditQty] = useState<number | string>(1);
   const [editPrice, setEditPrice] = useState<number | string>(0);
   const [editMult, setEditMult] = useState(1);
+  const [editRecurrenceType, setEditRecurrenceType] = useState<'SEMANAL' | 'QUINZENAL' | 'MENSAL'>('MENSAL');
+  const [editDayOfWeek, setEditDayOfWeek] = useState<'DOMINGO' | 'SEGUNDA' | 'TERCA' | 'QUARTA' | 'QUINTA' | 'SEXTA' | 'SABADO'>('SABADO');
+  const [editDayOfFortnight, setEditDayOfFortnight] = useState<number>(1);
+  const [editDayOfMonth, setEditDayOfMonth] = useState<number>(10);
 
   // Modais de Criação e Edição de Natureza
   const [isNatureModalOpen, setIsNatureModalOpen] = useState(false);
@@ -179,18 +192,31 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
   const totalAllCeilings = natures.reduce((acc, nat) => acc + getNatureCeiling(nat), 0);
   const totalAllSpent = natures.reduce((acc, nat) => acc + getNatureSpent(nat), 0);
 
-  const startEditingItem = (item: {
-    id: string;
-    description: string;
-    quantity: number;
-    price: number;
-    multiplierWeeks: number;
-  }) => {
+  const startEditingItem = (item: MappingItem) => {
     setEditingItemId(item.id);
     setEditDesc(item.description);
     setEditQty(item.quantity);
     setEditPrice(item.price);
     setEditMult(item.multiplierWeeks || 1);
+
+    const rec =
+      item.recurrenceType ||
+      (item.dayOfWeek
+        ? 'SEMANAL'
+        : item.dayOfFortnight !== undefined && item.dayOfFortnight > 0
+        ? 'QUINZENAL'
+        : item.dayOfMonth !== undefined && item.dayOfMonth > 0
+        ? 'MENSAL'
+        : item.multiplierWeeks === 4 || item.multiplierWeeks === 5
+        ? 'SEMANAL'
+        : item.multiplierWeeks === 2
+        ? 'QUINZENAL'
+        : 'MENSAL');
+
+    setEditRecurrenceType(rec);
+    setEditDayOfWeek(item.dayOfWeek || 'SABADO');
+    setEditDayOfFortnight(item.dayOfFortnight || 1);
+    setEditDayOfMonth(item.dayOfMonth !== undefined && item.dayOfMonth > 0 ? item.dayOfMonth : 10);
   };
 
   const handleSaveItemEdit = (mappingId: string, itemId: string) => {
@@ -209,6 +235,10 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
       quantity: parsedQty > 0 ? Math.round(parsedQty * 1000) / 1000 : 0.001,
       price: Math.max(0, Math.round(parsedPrice * 1000) / 1000),
       multiplierWeeks: Math.max(1, editMult),
+      recurrenceType: editRecurrenceType,
+      dayOfWeek: editRecurrenceType === 'SEMANAL' ? editDayOfWeek : undefined,
+      dayOfFortnight: editRecurrenceType === 'QUINZENAL' ? editDayOfFortnight : undefined,
+      dayOfMonth: editRecurrenceType === 'MENSAL' ? editDayOfMonth : undefined,
     });
     setEditingItemId(null);
   };
@@ -1274,12 +1304,13 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                           <table className="natureza-items-table">
                             <thead>
                               <tr>
-                                <th style={{ width: '28%' }}>Descrição / Item</th>
-                                <th style={{ width: '12%' }}>Quantidade</th>
-                                <th style={{ width: '15%' }}>Preço Unitário</th>
-                                <th style={{ width: '18%' }}>Multiplicador (Semanas)</th>
-                                <th style={{ width: '15%' }}>Valor Total (Teto)</th>
-                                <th style={{ width: '12%' }}>Ações</th>
+                                <th style={{ width: '25%' }}>Descrição / Item</th>
+                                <th style={{ width: '9%' }}>Qtd</th>
+                                <th style={{ width: '12%' }}>Preço Unit.</th>
+                                <th style={{ width: '22%' }}>Dia de Manifestação</th>
+                                <th style={{ width: '12%' }}>Multiplicador</th>
+                                <th style={{ width: '12%' }}>Valor Total (Teto)</th>
+                                <th style={{ width: '8%' }}>Ações</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -1329,6 +1360,68 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                         />
                                       </td>
                                       <td>
+                                        <div className="flex flex-col gap-1">
+                                          <select
+                                            className="form-input form-input-sm text-xs py-1"
+                                            value={editRecurrenceType}
+                                            onChange={(e) => {
+                                              const val = e.target.value as 'SEMANAL' | 'QUINZENAL' | 'MENSAL';
+                                              setEditRecurrenceType(val);
+                                              if (val === 'SEMANAL' && editMult < 4) setEditMult(4);
+                                              if (val === 'QUINZENAL') setEditMult(2);
+                                              if (val === 'MENSAL') setEditMult(1);
+                                            }}
+                                          >
+                                            <option value="SEMANAL">🗓️ Semanal</option>
+                                            <option value="QUINZENAL">🌓 Quinzenal</option>
+                                            <option value="MENSAL">📅 Mensal</option>
+                                          </select>
+
+                                          {editRecurrenceType === 'SEMANAL' && (
+                                            <select
+                                              className="form-input form-input-sm text-xs py-1"
+                                              value={editDayOfWeek}
+                                              onChange={(e) => setEditDayOfWeek(e.target.value as any)}
+                                            >
+                                              {WEEKDAY_OPTIONS.map((opt) => (
+                                                <option key={opt.value} value={opt.value}>
+                                                  {opt.label}
+                                                </option>
+                                              ))}
+                                            </select>
+                                          )}
+
+                                          {editRecurrenceType === 'QUINZENAL' && (
+                                            <select
+                                              className="form-input form-input-sm text-xs py-1 font-mono"
+                                              value={editDayOfFortnight}
+                                              onChange={(e) => setEditDayOfFortnight(parseInt(e.target.value) || 1)}
+                                            >
+                                              {Array.from({ length: 15 }, (_, i) => i + 1).map((d) => (
+                                                <option key={d} value={d}>
+                                                  Dia {d} (dias {d} e {d + 15})
+                                                </option>
+                                              ))}
+                                            </select>
+                                          )}
+
+                                          {editRecurrenceType === 'MENSAL' && (
+                                            <select
+                                              className="form-input form-input-sm text-xs py-1 font-mono"
+                                              value={editDayOfMonth}
+                                              onChange={(e) => setEditDayOfMonth(parseInt(e.target.value) || 1)}
+                                            >
+                                              {Array.from({ length: 30 }, (_, i) => i + 1).map((d) => (
+                                                <option key={d} value={d}>
+                                                  Dia {d}
+                                                </option>
+                                              ))}
+                                              <option value={31}>Dia 31 (Fim do Mês - ajuste auto 28-31)</option>
+                                            </select>
+                                          )}
+                                        </div>
+                                      </td>
+                                      <td>
                                         <select
                                           className="form-input form-input-sm"
                                           value={editMult}
@@ -1341,7 +1434,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                         </select>
                                       </td>
                                       <td>
-                                        <strong className="text-emerald-500 font-bold">
+                                        <strong className="text-emerald-500 font-bold font-mono">
                                           {previewTotal.toLocaleString('pt-BR', {
                                             style: 'currency',
                                             currency: 'BRL',
@@ -1428,6 +1521,25 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                       })}
                                     </td>
                                     <td>
+                                      {(() => {
+                                        const badge = formatItemScheduleBadge(item);
+                                        return (
+                                          <div
+                                            className="flex items-center gap-1.5 cursor-pointer group"
+                                            title={`${badge.detail}. Clique no botão editar para alterar o dia.`}
+                                            onClick={() => startEditingItem(item)}
+                                          >
+                                            <span
+                                              className={`badge ${badge.badgeClass} flex items-center gap-1 text-[11px] font-medium py-0.5 px-2 group-hover:brightness-110 transition-all`}
+                                            >
+                                              <span>{badge.icon}</span>
+                                              <span>{badge.label}</span>
+                                            </span>
+                                          </div>
+                                        );
+                                      })()}
+                                    </td>
+                                    <td>
                                       <span className="badge badge-cyan">
                                         {item.multiplierWeeks}x{' '}
                                         {item.multiplierWeeks === 1
@@ -1449,7 +1561,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                       <div className="flex items-center gap-1">
                                         <button
                                           className="btn btn-ghost btn-xs text-cyan"
-                                          title="Ajustar item / teto"
+                                          title="Ajustar item / dia"
                                           onClick={() => startEditingItem(item)}
                                         >
                                           <Edit2 size={13} />
@@ -1526,6 +1638,90 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                       }))
                                     }
                                   />
+                                </td>
+                                <td>
+                                  <div className="flex flex-col gap-1">
+                                    <select
+                                      className="form-input form-input-sm text-xs py-1"
+                                      value={
+                                        newItemRecurrenceType[mapping.id] ||
+                                        (newItemMult[mapping.id] === 2
+                                          ? 'QUINZENAL'
+                                          : newItemMult[mapping.id] === 1
+                                          ? 'MENSAL'
+                                          : 'SEMANAL')
+                                      }
+                                      onChange={(e) => {
+                                        const val = e.target.value as 'SEMANAL' | 'QUINZENAL' | 'MENSAL';
+                                        setNewItemRecurrenceType((prev) => ({ ...prev, [mapping.id]: val }));
+                                        if (val === 'SEMANAL') setNewItemMult((prev) => ({ ...prev, [mapping.id]: 4 }));
+                                        if (val === 'QUINZENAL') setNewItemMult((prev) => ({ ...prev, [mapping.id]: 2 }));
+                                        if (val === 'MENSAL') setNewItemMult((prev) => ({ ...prev, [mapping.id]: 1 }));
+                                      }}
+                                    >
+                                      <option value="SEMANAL">🗓️ Semanal</option>
+                                      <option value="QUINZENAL">🌓 Quinzenal</option>
+                                      <option value="MENSAL">📅 Mensal</option>
+                                    </select>
+
+                                    {(!newItemRecurrenceType[mapping.id] || newItemRecurrenceType[mapping.id] === 'SEMANAL') && (
+                                      <select
+                                        className="form-input form-input-sm text-xs py-1"
+                                        value={newItemDayOfWeek[mapping.id] || 'SABADO'}
+                                        onChange={(e) =>
+                                          setNewItemDayOfWeek((prev) => ({
+                                            ...prev,
+                                            [mapping.id]: e.target.value as any,
+                                          }))
+                                        }
+                                      >
+                                        {WEEKDAY_OPTIONS.map((opt) => (
+                                          <option key={opt.value} value={opt.value}>
+                                            {opt.label}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    )}
+
+                                    {newItemRecurrenceType[mapping.id] === 'QUINZENAL' && (
+                                      <select
+                                        className="form-input form-input-sm text-xs py-1 font-mono"
+                                        value={newItemDayOfFortnight[mapping.id] || 1}
+                                        onChange={(e) =>
+                                          setNewItemDayOfFortnight((prev) => ({
+                                            ...prev,
+                                            [mapping.id]: parseInt(e.target.value) || 1,
+                                          }))
+                                        }
+                                      >
+                                        {Array.from({ length: 15 }, (_, i) => i + 1).map((d) => (
+                                          <option key={d} value={d}>
+                                            Dia {d} (dias {d} e {d + 15})
+                                          </option>
+                                        ))}
+                                      </select>
+                                    )}
+
+                                    {newItemRecurrenceType[mapping.id] === 'MENSAL' && (
+                                      <select
+                                        className="form-input form-input-sm text-xs py-1 font-mono"
+                                        value={newItemDayOfMonth[mapping.id] || 10}
+                                        onChange={(e) =>
+                                          setNewItemDayOfMonth((prev) => ({
+                                            ...prev,
+                                            [mapping.id]: parseInt(e.target.value) || 1,
+                                          }))
+                                        }
+                                      >
+                                        {Array.from({ length: 30 }, (_, i) => i + 1).map((d) => (
+                                          <option key={d} value={d}>
+                                            Dia {d}
+                                          </option>
+                                        ))}
+                                        <option value={31}>Dia 31 (Fim do Mês - ajuste auto 28-31)</option>
+                                      </select>
+                                    )}
+                                  </div>
                                 </td>
                                 <td>
                                   <select
@@ -1605,6 +1801,17 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                         return;
                                       }
 
+                                      const recType =
+                                        newItemRecurrenceType[mapping.id] ||
+                                        (mult === 4 || mult === 5
+                                          ? 'SEMANAL'
+                                          : mult === 2
+                                          ? 'QUINZENAL'
+                                          : 'MENSAL');
+                                      const dWeek = newItemDayOfWeek[mapping.id] || 'SABADO';
+                                      const dFort = newItemDayOfFortnight[mapping.id] || 1;
+                                      const dMonth = newItemDayOfMonth[mapping.id] || 10;
+
                                       addItemToMapping(selectedNature.id, mapping.id, {
                                         description: desc,
                                         quantity: Math.round(qty * 1000) / 1000,
@@ -1612,6 +1819,10 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                         unit: 'un',
                                         multiplierWeeks: mult,
                                         isFulfilled: false,
+                                        recurrenceType: recType,
+                                        dayOfWeek: recType === 'SEMANAL' ? dWeek : undefined,
+                                        dayOfFortnight: recType === 'QUINZENAL' ? dFort : undefined,
+                                        dayOfMonth: recType === 'MENSAL' ? dMonth : undefined,
                                       });
 
                                       // Limpar campos

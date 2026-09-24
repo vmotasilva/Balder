@@ -48,6 +48,10 @@ import { CheckpointSetupModal } from '../components/CheckpointSetupModal';
 import { Modal } from '../components/Modal';
 import { NatureModal } from '../components/NatureModal';
 import { MappingModal } from '../components/MappingModal';
+import {
+  WEEKDAY_OPTIONS,
+  formatItemScheduleBadge,
+} from '../utils/natureScheduling';
 import type { SalaryContract, SalaryAdjustment, FixedExpenseMapping } from '../types';
 
 interface ProfilePageProps {
@@ -161,6 +165,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
   const [newItemQty, setNewItemQty] = useState<Record<string, number | string>>({});
   const [newItemPrice, setNewItemPrice] = useState<Record<string, number | string>>({});
   const [newItemMult, setNewItemMult] = useState<Record<string, number>>({});
+  const [newItemRecurrenceType, setNewItemRecurrenceType] = useState<Record<string, 'SEMANAL' | 'QUINZENAL' | 'MENSAL'>>({});
+  const [newItemDayOfWeek, setNewItemDayOfWeek] = useState<Record<string, 'DOMINGO' | 'SEGUNDA' | 'TERCA' | 'QUARTA' | 'QUINTA' | 'SEXTA' | 'SABADO'>>({});
+  const [newItemDayOfFortnight, setNewItemDayOfFortnight] = useState<Record<string, number>>({});
+  const [newItemDayOfMonth, setNewItemDayOfMonth] = useState<Record<string, number>>({});
 
   // Modais de Criação e Edição de Natureza
   const [isNatureModalOpen, setIsNatureModalOpen] = useState(false);
@@ -2753,12 +2761,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                                 <table className="natureza-items-table">
                                   <thead>
                                     <tr>
-                                      <th style={{ width: '30%' }}>Descrição / Item</th>
-                                      <th style={{ width: '12%' }}>Quantidade</th>
-                                      <th style={{ width: '15%' }}>Preço Unitário</th>
-                                      <th style={{ width: '18%' }}>Multiplicador (Semanas)</th>
-                                      <th style={{ width: '15%' }}>Valor Total</th>
-                                      <th style={{ width: '10%' }}>Ações</th>
+                                      <th style={{ width: '25%' }}>Descrição / Item</th>
+                                      <th style={{ width: '9%' }}>Qtd</th>
+                                      <th style={{ width: '12%' }}>Preço Unit.</th>
+                                      <th style={{ width: '22%' }}>Dia de Manifestação</th>
+                                      <th style={{ width: '12%' }}>Multiplicador</th>
+                                      <th style={{ width: '12%' }}>Valor Total</th>
+                                      <th style={{ width: '8%' }}>Ações</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -2794,12 +2803,26 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                                           })}
                                         </td>
                                         <td>
+                                          {(() => {
+                                            const badge = formatItemScheduleBadge(item);
+                                            return (
+                                              <span
+                                                className={`badge ${badge.badgeClass} flex items-center gap-1 text-[11px] font-medium py-0.5 px-2`}
+                                                title={badge.detail}
+                                              >
+                                                <span>{badge.icon}</span>
+                                                <span>{badge.label}</span>
+                                              </span>
+                                            );
+                                          })()}
+                                        </td>
+                                        <td>
                                           <span className="badge badge-cyan">
                                             {item.multiplierWeeks}x {item.multiplierWeeks === 1 ? 'semana/mês' : 'semanas'}
                                           </span>
                                         </td>
                                         <td>
-                                          <strong className="text-glow-cyan">
+                                          <strong className="text-glow-cyan font-mono">
                                             {item.totalValue.toLocaleString('pt-BR', {
                                               style: 'currency',
                                               currency: 'BRL',
@@ -2837,8 +2860,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                                         <input
                                           type="text"
                                           inputMode="decimal"
-                                          className="form-input form-input-sm text-center"
-                                          placeholder="Qtd (ex: 1 ou 0.350)"
+                                          className="form-input form-input-sm text-center font-mono"
+                                          placeholder="Qtd"
                                           value={newItemQty[mapping.id] !== undefined ? newItemQty[mapping.id] : 1}
                                           onChange={(e) => {
                                             const raw = e.target.value;
@@ -2853,13 +2876,97 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                                         <input
                                           type="text"
                                           inputMode="decimal"
-                                          className="form-input form-input-sm"
+                                          className="form-input form-input-sm font-mono"
                                           placeholder="R$ 0,00"
                                           value={newItemPrice[mapping.id] !== undefined ? newItemPrice[mapping.id] : ''}
                                           onChange={(e) =>
                                             setNewItemPrice((prev) => ({ ...prev, [mapping.id]: e.target.value }))
                                           }
                                         />
+                                      </td>
+                                      <td>
+                                        <div className="flex flex-col gap-1">
+                                          <select
+                                            className="form-input form-input-sm text-xs py-1"
+                                            value={
+                                              newItemRecurrenceType[mapping.id] ||
+                                              (newItemMult[mapping.id] === 2
+                                                ? 'QUINZENAL'
+                                                : newItemMult[mapping.id] === 1
+                                                ? 'MENSAL'
+                                                : 'SEMANAL')
+                                            }
+                                            onChange={(e) => {
+                                              const val = e.target.value as 'SEMANAL' | 'QUINZENAL' | 'MENSAL';
+                                              setNewItemRecurrenceType((prev) => ({ ...prev, [mapping.id]: val }));
+                                              if (val === 'SEMANAL') setNewItemMult((prev) => ({ ...prev, [mapping.id]: 4 }));
+                                              if (val === 'QUINZENAL') setNewItemMult((prev) => ({ ...prev, [mapping.id]: 2 }));
+                                              if (val === 'MENSAL') setNewItemMult((prev) => ({ ...prev, [mapping.id]: 1 }));
+                                            }}
+                                          >
+                                            <option value="SEMANAL">🗓️ Semanal</option>
+                                            <option value="QUINZENAL">🌓 Quinzenal</option>
+                                            <option value="MENSAL">📅 Mensal</option>
+                                          </select>
+
+                                          {(!newItemRecurrenceType[mapping.id] || newItemRecurrenceType[mapping.id] === 'SEMANAL') && (
+                                            <select
+                                              className="form-input form-input-sm text-xs py-1"
+                                              value={newItemDayOfWeek[mapping.id] || 'SABADO'}
+                                              onChange={(e) =>
+                                                setNewItemDayOfWeek((prev) => ({
+                                                  ...prev,
+                                                  [mapping.id]: e.target.value as any,
+                                                }))
+                                              }
+                                            >
+                                              {WEEKDAY_OPTIONS.map((opt) => (
+                                                <option key={opt.value} value={opt.value}>
+                                                  {opt.label}
+                                                </option>
+                                              ))}
+                                            </select>
+                                          )}
+
+                                          {newItemRecurrenceType[mapping.id] === 'QUINZENAL' && (
+                                            <select
+                                              className="form-input form-input-sm text-xs py-1 font-mono"
+                                              value={newItemDayOfFortnight[mapping.id] || 1}
+                                              onChange={(e) =>
+                                                setNewItemDayOfFortnight((prev) => ({
+                                                  ...prev,
+                                                  [mapping.id]: parseInt(e.target.value) || 1,
+                                                }))
+                                              }
+                                            >
+                                              {Array.from({ length: 15 }, (_, i) => i + 1).map((d) => (
+                                                <option key={d} value={d}>
+                                                  Dia {d} (dias {d} e {d + 15})
+                                                </option>
+                                              ))}
+                                            </select>
+                                          )}
+
+                                          {newItemRecurrenceType[mapping.id] === 'MENSAL' && (
+                                            <select
+                                              className="form-input form-input-sm text-xs py-1 font-mono"
+                                              value={newItemDayOfMonth[mapping.id] || 10}
+                                              onChange={(e) =>
+                                                setNewItemDayOfMonth((prev) => ({
+                                                  ...prev,
+                                                  [mapping.id]: parseInt(e.target.value) || 1,
+                                                }))
+                                              }
+                                            >
+                                              {Array.from({ length: 30 }, (_, i) => i + 1).map((d) => (
+                                                <option key={d} value={d}>
+                                                  Dia {d}
+                                                </option>
+                                              ))}
+                                              <option value={31}>Dia 31 (Fim do Mês - ajuste auto 28-31)</option>
+                                            </select>
+                                          )}
+                                        </div>
                                       </td>
                                       <td>
                                         <select
@@ -2878,8 +2985,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                                       </td>
                                       <td>
                                         <div className="quick-item-total-preview">
-                                          <span className="text-xs text-muted">Total:</span>
-                                          <strong>
+                                          <strong className="font-mono">
                                             {(
                                               Math.round(
                                                 (typeof newItemQty[mapping.id] === 'number'
@@ -2930,6 +3036,17 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                                               return;
                                             }
 
+                                            const recType =
+                                              newItemRecurrenceType[mapping.id] ||
+                                              (mult === 4 || mult === 5
+                                                ? 'SEMANAL'
+                                                : mult === 2
+                                                ? 'QUINZENAL'
+                                                : 'MENSAL');
+                                            const dWeek = newItemDayOfWeek[mapping.id] || 'SABADO';
+                                            const dFort = newItemDayOfFortnight[mapping.id] || 1;
+                                            const dMonth = newItemDayOfMonth[mapping.id] || 10;
+
                                             addItemToMapping(selectedNature.id, mapping.id, {
                                               description: desc,
                                               quantity: qty,
@@ -2937,6 +3054,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                                               multiplierWeeks: mult,
                                               realizedValue: 0,
                                               isFulfilled: false,
+                                              recurrenceType: recType,
+                                              dayOfWeek: recType === 'SEMANAL' ? dWeek : undefined,
+                                              dayOfFortnight: recType === 'QUINZENAL' ? dFort : undefined,
+                                              dayOfMonth: recType === 'MENSAL' ? dMonth : undefined,
                                             });
 
                                             // Limpar campos
