@@ -2070,13 +2070,29 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
+                e.preventDefault();
                 handleOpenReceiptEditor(sub);
               }}
-              className="p-1.5 px-2.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/25 text-cyan-400 border border-cyan-500/30 text-xs flex items-center gap-1.5 transition-all cursor-pointer shadow-sm hover:scale-[1.03]"
-              title="Clique para editar este recebimento"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '5px 12px',
+                borderRadius: '8px',
+                background: 'rgba(56, 189, 248, 0.12)',
+                color: '#38bdf8',
+                border: '1px solid rgba(56, 189, 248, 0.35)',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+                flexShrink: 0,
+              }}
+              className="hover:bg-cyan-500/25 cursor-pointer shadow-sm hover:scale-[1.03]"
+              title="Clique para editar este recebimento (Situação, valor, descontos e datas)"
             >
-              <Edit3 size={12} />
-              <span className="hidden sm:inline font-medium">Editar</span>
+              <Edit3 size={13} style={{ color: '#38bdf8' }} />
+              <span>Editar</span>
             </button>
           )}
         </div>
@@ -2118,8 +2134,10 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
   if (!isOpen || !selection || !row) return null;
 
-  return createPortal(
-    <div className="modal-backdrop animate-fade-in" onClick={onClose}>
+  return (
+    <>
+      {createPortal(
+        <div className="modal-backdrop animate-fade-in" onClick={onClose}>
       <div
         className="modal-container glass-card cell-detail-modal-container"
         style={containerStyle}
@@ -2476,29 +2494,35 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
           </div>
         </div>
       </div>
+    </div>,
+    document.body
+  )}
 
-      {/* MODAL POPUP PARA EDITAR LANÇAMENTO DE RECEBIMENTO (STATUS, CANCELADO, DESCONTO, VALOR) */}
-      {editingReceipt && (
+    {/* MODAL POPUP PARA EDITAR LANÇAMENTO DE RECEBIMENTO (STATUS, CANCELADO, DESCONTO, VALOR) */}
+    {editingReceipt &&
+      createPortal(
         <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[130] flex items-center justify-center p-3 sm:p-4 animate-fade-in"
-          onClick={() => setEditingReceipt(null)}
+          className="receipt-editor-backdrop animate-fade-in"
+          onClick={(e) => {
+            e.stopPropagation();
+            setEditingReceipt(null);
+          }}
         >
           <div
-            className="glass-card w-full max-w-lg max-h-[92vh] overflow-y-auto rounded-2xl border border-white/10 shadow-2xl p-4 sm:p-6 flex flex-col gap-4 text-left"
-            style={{ backgroundColor: 'var(--bg-card, #0f172a)' }}
+            className="receipt-editor-modal glass-card"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header do Editor de Recebimento */}
-            <div className="flex items-start justify-between border-b border-border/40 pb-3">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+            <div className="receipt-editor-header">
+              <div className="receipt-editor-title-wrap">
+                <div className="receipt-editor-icon-badge">
                   <Edit3 size={18} />
                 </div>
-                <div className="min-w-0">
-                  <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider block">
+                <div style={{ minWidth: 0 }}>
+                  <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--accent-cyan, #38bdf8)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' }}>
                     Editar Recebimento • {editingReceipt.competenceLabel}
                   </span>
-                  <h3 className="text-base font-bold truncate text-white">
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, margin: '2px 0 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-primary, #fff)' }}>
                     {editingReceipt.title}
                   </h3>
                 </div>
@@ -2506,7 +2530,8 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
               <button
                 type="button"
                 onClick={() => setEditingReceipt(null)}
-                className="p-1.5 rounded-lg text-muted hover:text-white hover:bg-white/10 transition cursor-pointer"
+                style={{ padding: '6px', borderRadius: '8px', color: 'var(--text-muted)', cursor: 'pointer', transition: 'all 0.2s' }}
+                title="Fechar"
               >
                 <X size={18} />
               </button>
@@ -2514,21 +2539,21 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
             {/* Aviso de Ciclo M+1 quando aplicável */}
             {editingReceipt.payInFollowingMonth && (
-              <div className="p-2.5 rounded-lg bg-cyan-500/10 border border-cyan-500/25 flex items-start gap-2">
-                <Calendar size={14} className="text-cyan-400 mt-0.5 flex-shrink-0" />
-                <div className="text-xs text-slate-300">
-                  <strong className="text-cyan-300">Regime M+1:</strong> Este recebimento atende à competência de{' '}
-                  <strong className="text-white">{editingReceipt.competenceLabel}</strong>, com crédito previsto para o mês seguinte (<strong>{formatDueDateBR(editingReceipt.dueDate)}</strong>).
+              <div className="receipt-m1-banner">
+                <Calendar size={15} style={{ color: 'var(--accent-cyan, #38bdf8)', marginTop: '2px', flexShrink: 0 }} />
+                <div>
+                  <strong style={{ color: 'var(--accent-cyan, #38bdf8)' }}>Regime M+1:</strong> Este recebimento atende à competência de{' '}
+                  <strong style={{ color: '#fff' }}>{editingReceipt.competenceLabel}</strong>, com crédito previsto para o mês seguinte (<strong>{formatDueDateBR(editingReceipt.dueDate)}</strong>).
                 </div>
               </div>
             )}
 
             {/* SELEÇÃO DO STATUS DO RECEBIMENTO */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300 block">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary, #cbd5e1)' }}>
                 Situação do Recebimento nesta Competência:
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="receipt-status-grid">
                 {/* Opção 1: Já Aconteceu */}
                 <button
                   type="button"
@@ -2548,17 +2573,13 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                         : null
                     );
                   }}
-                  className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition cursor-pointer ${
-                    editingReceipt.status === 'REALIZADA'
-                      ? 'bg-emerald-500/20 border-emerald-500 ring-2 ring-emerald-500/30'
-                      : 'bg-slate-800/40 border-white/10 hover:bg-slate-800/70'
-                  }`}
+                  className={`receipt-status-card ${editingReceipt.status === 'REALIZADA' ? 'is-active-realizada' : ''}`}
                 >
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
+                  <div className="receipt-status-card-header" style={{ color: '#10b981' }}>
                     <CheckCircle2 size={15} />
                     <span>Já Aconteceu</span>
                   </div>
-                  <span className="text-[10px] text-muted leading-tight">
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.3 }}>
                     Valor creditado na conta bancária.
                   </span>
                 </button>
@@ -2579,17 +2600,13 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                         : null
                     );
                   }}
-                  className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition cursor-pointer ${
-                    editingReceipt.status === 'CANCELADA'
-                      ? 'bg-rose-500/20 border-rose-500 ring-2 ring-rose-500/30'
-                      : 'bg-slate-800/40 border-white/10 hover:bg-slate-800/70'
-                  }`}
+                  className={`receipt-status-card ${editingReceipt.status === 'CANCELADA' ? 'is-active-cancelada' : ''}`}
                 >
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-rose-400">
+                  <div className="receipt-status-card-header" style={{ color: '#ef4444' }}>
                     <XCircle size={15} />
                     <span>Não Ocorrerá</span>
                   </div>
-                  <span className="text-[10px] text-muted leading-tight">
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.3 }}>
                     Não aconteceu nem acontecerá (R$ 0,00).
                   </span>
                 </button>
@@ -2606,18 +2623,14 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                       prev ? { ...prev, status: 'PREVISTA', amount: newAmount } : null
                     );
                   }}
-                  className={`p-3 rounded-xl border text-left flex flex-col gap-1 transition cursor-pointer ${
-                    editingReceipt.status === 'PREVISTA'
-                      ? 'bg-cyan-500/20 border-cyan-500 ring-2 ring-cyan-500/30'
-                      : 'bg-slate-800/40 border-white/10 hover:bg-slate-800/70'
-                  }`}
+                  className={`receipt-status-card ${editingReceipt.status === 'PREVISTA' ? 'is-active-prevista' : ''}`}
                 >
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-400">
+                  <div className="receipt-status-card-header" style={{ color: '#38bdf8' }}>
                     <Clock size={15} />
                     <span>Previsto</span>
                   </div>
-                  <span className="text-[10px] text-muted leading-tight">
-                    Aguardando crédito na data programada.
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', lineHeight: 1.3 }}>
+                    Aguardando crédito programado.
                   </span>
                 </button>
               </div>
@@ -2625,33 +2638,31 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
             {/* DETALHE DO VALOR E DESCONTOS */}
             {editingReceipt.status === 'CANCELADA' ? (
-              <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex flex-col gap-2">
-                <div className="flex items-center gap-2 font-semibold">
-                  <XCircle size={16} className="text-rose-400 flex-shrink-0" />
+              <div className="receipt-cancelled-box">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, color: '#f87171', fontSize: '12px' }}>
+                  <XCircle size={16} />
                   <span>Entrada Suprimida / Cancelada</span>
                 </div>
-                <p className="text-[11px] text-rose-200/80 leading-relaxed">
+                <p style={{ fontSize: '11px', color: 'rgba(254, 202, 202, 0.85)', lineHeight: 1.5, margin: 0 }}>
                   Ao definir que esta entrada <strong>não aconteceu nem acontecerá neste mês</strong>, seu valor será considerado como <strong>R$ 0,00</strong> no orçamento. O total de receitas da competência será atualizado instantaneamente, protegendo a projeção de caixa contra distorções.
                 </p>
               </div>
             ) : (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-slate-300">
-                    Valor Efetivo a Receber (R$):
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary, #cbd5e1)' }}>
+                    Valor Efetivo a Receber:
                   </label>
-                  <div className="text-[11px] text-muted">
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                     Valor Contratual / Previsto:{' '}
-                    <strong className="text-white font-mono">
+                    <strong style={{ color: '#fff', fontFamily: 'monospace' }}>
                       {formatBRL(editingReceipt.originalAmount)}
                     </strong>
                   </div>
                 </div>
 
-                <div className="relative">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted font-mono font-bold text-sm">
-                    R$
-                  </span>
+                <div className="receipt-amount-input-wrap">
+                  <span className="receipt-amount-prefix">R$</span>
                   <input
                     type="number"
                     step="0.01"
@@ -2661,15 +2672,15 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                       setEditingReceipt((prev) => (prev ? { ...prev, amount: val } : null));
                     }}
                     placeholder="0,00"
-                    className="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-base font-mono font-bold text-white focus:outline-none focus:border-cyan-500 transition"
+                    className="receipt-amount-input"
                   />
                 </div>
 
-                {/* Deteção e Motivos de Desconto */}
+                {/* Detecção e Motivos de Desconto */}
                 {editingReceipt.amount < editingReceipt.originalAmount && (
-                  <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex flex-col gap-2.5 animate-fade-in">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold flex items-center gap-1.5 text-amber-400">
+                  <div className="receipt-discount-box animate-fade-in">
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', color: '#fbbf24', fontSize: '12px' }}>
                         <AlertTriangle size={15} />
                         Desconto de {formatBRL(editingReceipt.originalAmount - editingReceipt.amount)} (
                         {Math.round(
@@ -2686,17 +2697,17 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                             prev ? { ...prev, amount: prev.originalAmount } : null
                           )
                         }
-                        className="text-[11px] text-amber-300 underline hover:text-white flex items-center gap-1 cursor-pointer font-medium"
+                        style={{ fontSize: '11px', color: '#fbbf24', textDecoration: 'underline', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
                       >
                         <RotateCcw size={11} /> Restaurar valor original
                       </button>
                     </div>
 
                     <div>
-                      <span className="text-[11px] text-amber-200/80 block mb-1.5 font-medium">
+                      <span style={{ fontSize: '11px', color: 'rgba(253, 230, 138, 0.85)', display: 'block', marginBottom: '6px', fontWeight: 500 }}>
                         Selecione o motivo do desconto ou digite abaixo:
                       </span>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="receipt-tags-row">
                         {[
                           'Desconto em Folha',
                           'Faltas / Atrasos / DSR',
@@ -2714,11 +2725,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                                 prev ? { ...prev, adjustmentReason: tag } : null
                               )
                             }
-                            className={`px-2.5 py-1 rounded-lg text-[10px] font-medium border transition cursor-pointer ${
-                              editingReceipt.adjustmentReason === tag
-                                ? 'bg-amber-500 text-black border-amber-400 font-bold'
-                                : 'bg-slate-800/80 text-amber-300/90 border-slate-700 hover:bg-slate-700'
-                            }`}
+                            className={`receipt-tag-btn ${editingReceipt.adjustmentReason === tag ? 'is-active' : ''}`}
                           >
                             {tag}
                           </button>
@@ -2735,14 +2742,14 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                         )
                       }
                       placeholder="Ex: Desconto de 1 dia de falta e coparticipação odontológica..."
-                      className="w-full bg-slate-900/80 border border-slate-700/80 rounded-lg px-3 py-1.5 text-xs text-white placeholder-muted focus:outline-none focus:border-amber-400"
+                      className="receipt-input"
                     />
                   </div>
                 )}
 
                 {editingReceipt.amount > editingReceipt.originalAmount && (
-                  <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs flex items-center gap-2">
-                    <CheckCircle2 size={15} className="text-cyan-400 flex-shrink-0" />
+                  <div style={{ padding: '12px', borderRadius: '12px', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.3)', color: '#38bdf8', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <CheckCircle2 size={16} style={{ color: '#38bdf8', flexShrink: 0 }} />
                     <span>
                       Acréscimo de{' '}
                       <strong>{formatBRL(editingReceipt.amount - editingReceipt.originalAmount)}</strong>{' '}
@@ -2754,9 +2761,9 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             )}
 
             {/* DADOS DE LIQUIDAÇÃO E BANCO */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-border/30">
+            <div className="receipt-fields-grid" style={{ paddingTop: '8px', borderTop: '1px solid var(--border-subtle, rgba(255, 255, 255, 0.08))' }}>
               <div>
-                <label className="text-[11px] font-medium text-muted block mb-1">
+                <label style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                   Data Prevista / Vencimento:
                 </label>
                 <input
@@ -2767,13 +2774,13 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                       prev ? { ...prev, dueDate: e.target.value } : null
                     )
                   }
-                  className="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono"
+                  className="receipt-input font-mono"
                 />
               </div>
 
               {editingReceipt.status === 'REALIZADA' && (
                 <div>
-                  <label className="text-[11px] font-medium text-emerald-400 block mb-1">
+                  <label style={{ fontSize: '11px', fontWeight: 600, color: '#10b981', display: 'block', marginBottom: '4px' }}>
                     Data Efetiva do Crédito:
                   </label>
                   <input
@@ -2784,13 +2791,14 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                         prev ? { ...prev, paymentDate: e.target.value } : null
                       )
                     }
-                    className="w-full bg-slate-900/80 border border-emerald-500/40 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                    className="receipt-input font-mono"
+                    style={{ borderColor: 'rgba(16, 185, 129, 0.4)' }}
                   />
                 </div>
               )}
 
-              <div className={editingReceipt.status === 'REALIZADA' ? 'sm:col-span-2' : ''}>
-                <label className="text-[11px] font-medium text-muted block mb-1">
+              <div style={{ gridColumn: editingReceipt.status === 'REALIZADA' ? 'span 2' : 'span 1' }}>
+                <label style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                   Conta Bancária de Destino:
                 </label>
                 <select
@@ -2800,22 +2808,22 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                       prev ? { ...prev, bank: e.target.value } : null
                     )
                   }
-                  className="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+                  className="receipt-input"
                 >
                   {banks && banks.length > 0 ? (
                     banks.map((b) => (
-                      <option key={b.id} value={b.name}>
+                      <option key={b.id} value={b.name} style={{ background: '#0f172a', color: '#fff' }}>
                         {b.name}
                       </option>
                     ))
                   ) : (
                     <>
-                      <option value="Conta Corrente">Conta Corrente</option>
-                      <option value="Itaú">Itaú</option>
-                      <option value="Nubank">Nubank</option>
-                      <option value="Inter">Inter</option>
-                      <option value="Bradesco">Bradesco</option>
-                      <option value="Santander">Santander</option>
+                      <option value="Conta Corrente" style={{ background: '#0f172a', color: '#fff' }}>Conta Corrente</option>
+                      <option value="Itaú" style={{ background: '#0f172a', color: '#fff' }}>Itaú</option>
+                      <option value="Nubank" style={{ background: '#0f172a', color: '#fff' }}>Nubank</option>
+                      <option value="Inter" style={{ background: '#0f172a', color: '#fff' }}>Inter</option>
+                      <option value="Bradesco" style={{ background: '#0f172a', color: '#fff' }}>Bradesco</option>
+                      <option value="Santander" style={{ background: '#0f172a', color: '#fff' }}>Santander</option>
                     </>
                   )}
                 </select>
@@ -2824,7 +2832,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
             {/* OBSERVAÇÕES COMPLEMENTARES */}
             <div>
-              <label className="text-[11px] font-medium text-muted block mb-1">
+              <label style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                 Observações / Anotações:
               </label>
               <input
@@ -2834,18 +2842,18 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                   setEditingReceipt((prev) => (prev ? { ...prev, notes: e.target.value } : null))
                 }
                 placeholder="Ex: Recebido via Pix, conferido com holerite..."
-                className="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-muted focus:outline-none focus:border-cyan-500"
+                className="receipt-input"
               />
             </div>
 
             {/* AÇÕES DE RODAPÉ */}
-            <div className="flex items-center justify-between pt-3 border-t border-border/40 mt-1">
+            <div className="receipt-footer-row">
               <div>
                 {editingReceipt.receiptMovementId && (
                   <button
                     type="button"
                     onClick={handleResetToContractDefault}
-                    className="text-[11px] text-muted hover:text-rose-400 flex items-center gap-1 transition cursor-pointer"
+                    style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
                     title="Exclui o ajuste e volta a utilizar o valor automático do contrato"
                   >
                     <RotateCcw size={12} />
@@ -2853,18 +2861,18 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                   </button>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <button
                   type="button"
                   onClick={() => setEditingReceipt(null)}
-                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:bg-slate-800 transition cursor-pointer"
+                  className="receipt-cancel-btn"
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
                   onClick={handleSaveReceipt}
-                  className="px-4 py-2 rounded-xl text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-black shadow-lg shadow-cyan-500/20 transition cursor-pointer flex items-center gap-1.5"
+                  className="receipt-save-btn"
                 >
                   <Check size={14} />
                   <span>Salvar Alterações</span>
@@ -2872,10 +2880,10 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
-    </div>,
-    document.body
+    </>
   );
 };
 
