@@ -11,8 +11,10 @@ import {
   Trash2,
   Plus,
   AlertTriangle,
+  Upload,
 } from 'lucide-react';
 import { Modal } from './Modal';
+import { InvoiceImportModal } from './InvoiceImportModal';
 import { useFinancial } from '../context/FinancialContext';
 import type { Movement, MovementStatus, InvoiceNatureItemBreakdown } from '../types';
 
@@ -98,6 +100,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
 
   // Estados específicos para CARTAO (Detalhamento de Itens por Natureza)
   const [breakdownRows, setBreakdownRows] = useState<ModalBreakdownRow[]>([]);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   // Inicializa o modal quando o movement mudar
   useEffect(() => {
@@ -384,6 +387,35 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
     ]);
   };
 
+  const handleConfirmImport = (
+    importedItems: InvoiceNatureItemBreakdown[],
+    totalAmount: number,
+    shouldUpdateInvoiceAmount: boolean
+  ) => {
+    const newRows: ModalBreakdownRow[] = importedItems.map((item) => {
+      const inst = item.installments || 1;
+      const finalAmt = item.finalAmount ?? (item.amount * inst);
+      return {
+        id: item.id,
+        natureId: item.natureId || (item.natureName === 'Outros' ? 'OUTROS' : ''),
+        natureName: item.natureName,
+        mappingId: item.mappingId,
+        mappingItemId: item.mappingItemId,
+        description: item.description,
+        installments: inst,
+        currentInstallment: item.currentInstallment || 1,
+        amountInput: String(item.amount),
+        finalAmountInput: String(Math.round(finalAmt * 100) / 100),
+      };
+    });
+
+    setBreakdownRows(newRows);
+
+    if (shouldUpdateInvoiceAmount && totalAmount > 0) {
+      setActualAmountInput(String(Math.round(totalAmount * 100) / 100));
+    }
+  };
+
   if (!isOpen || !movement) return null;
 
   // Manipuladores de modos específicos
@@ -599,7 +631,8 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
   };
 
   return (
-    <Modal
+    <>
+      <Modal
       isOpen={isOpen}
       onClose={onClose}
       title={
@@ -993,15 +1026,39 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
               {breakdownRows.length === 0 ? (
                 <div
                   style={{
-                    padding: '0.75rem',
+                    padding: '1rem',
                     borderRadius: '8px',
                     border: '1px dashed rgba(255, 255, 255, 0.15)',
                     textAlign: 'center',
                     fontSize: '0.74rem',
                     color: 'var(--text-muted)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '8px',
                   }}
                 >
-                  Nenhum item destrinchado nesta fatura. Adicione itens abaixo para correlacionar seus gastos com as Naturezas.
+                  <span>Nenhum item destrinchado nesta fatura. Adicione itens manualmente ou importe o extrato do seu banco para o Balder interpretar as naturezas automaticamente.</span>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-xs"
+                      style={{ fontSize: '0.75rem', padding: '5px 12px', gap: '6px' }}
+                      onClick={() => setIsImportModalOpen(true)}
+                    >
+                      <Upload size={13} />
+                      <span>Importar Arquivo da Fatura (OFX, CSV ou Imagem)</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-xs"
+                      style={{ fontSize: '0.75rem', padding: '5px 12px', gap: '4px' }}
+                      onClick={handleAddBreakdownRow}
+                    >
+                      <Plus size={13} />
+                      <span>Adicionar Manualmente</span>
+                    </button>
+                  </div>
                 </div>
               ) : (
                 breakdownRows.map((row) => {
@@ -1172,22 +1229,44 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
             </div>
 
             {/* Ações Rápidas de Linha da Fatura */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', paddingTop: '0.35rem', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
-              <button
-                type="button"
-                className="btn btn-outline btn-xs text-cyan"
-                style={{ fontSize: '0.72rem', padding: '3px 8px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                onClick={handleAddBreakdownRow}
-              >
-                <Plus size={12} />
-                <span>Adicionar Item / Gasto</span>
-              </button>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px', paddingTop: '0.45rem', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-xs text-cyan"
+                  style={{ fontSize: '0.72rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  onClick={handleAddBreakdownRow}
+                >
+                  <Plus size={12} />
+                  <span>Adicionar Item / Gasto</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="btn btn-primary btn-xs"
+                  style={{
+                    fontSize: '0.72rem',
+                    padding: '4px 12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    background: 'linear-gradient(135deg, #0284C7 0%, #38BDF8 100%)',
+                    color: '#030712',
+                    fontWeight: 700,
+                  }}
+                  onClick={() => setIsImportModalOpen(true)}
+                  title="Importar arquivo OFX, CSV, PDF ou Imagem para preenchimento automático das naturezas"
+                >
+                  <Upload size={12} />
+                  <span>Importar Fatura (OFX / CSV / Imagem)</span>
+                </button>
+              </div>
 
               {unanalyzedAmount > 0 && (
                 <button
                   type="button"
                   className="btn btn-outline btn-xs text-amber"
-                  style={{ fontSize: '0.72rem', padding: '3px 8px', display: 'flex', alignItems: 'center', gap: '4px', borderColor: 'rgba(245, 158, 11, 0.4)' }}
+                  style={{ fontSize: '0.72rem', padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px', borderColor: 'rgba(245, 158, 11, 0.4)' }}
                   onClick={handleAllocateRestToOutros}
                   title="Criar uma linha 'Outros' com todo o valor restante não analisado"
                 >
@@ -1601,5 +1680,16 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
         </div>
       </div>
     </Modal>
+
+    {/* Modal de Importação de Arquivo para Detalhamento da Fatura */}
+    {isImportModalOpen && (
+      <InvoiceImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onConfirmImport={handleConfirmImport}
+        currentInvoiceAmount={actualAmountNum}
+      />
+    )}
+    </>
   );
 };

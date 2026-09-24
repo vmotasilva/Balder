@@ -15,11 +15,13 @@ import {
   Trash2,
   Calendar,
   Check,
+  Upload,
 } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import type { Movement, MovementStatus, InvoiceNatureItemBreakdown } from '../types';
 import { MovementDetailModal } from '../components/MovementDetailModal';
 import { NewInvoiceModal } from '../components/NewInvoiceModal';
+import { InvoiceImportModal } from '../components/InvoiceImportModal';
 import { getBankBranding } from '../utils/bankBranding';
 
 export const InvoicesPage: React.FC = () => {
@@ -41,6 +43,10 @@ export const InvoicesPage: React.FC = () => {
 
   // Modal para Criar Nova Fatura
   const [isNewInvoiceModalOpen, setIsNewInvoiceModalOpen] = useState(false);
+
+  // Modal para Importar Extrato de Fatura
+  const [isNewInvoiceImportOpen, setIsNewInvoiceImportOpen] = useState(false);
+  const [importingInvoice, setImportingInvoice] = useState<Movement | null>(null);
 
   // Modal de Detalhamento Pop-up (MovementDetailModal)
   const [selectedMovementForModal, setSelectedMovementForModal] = useState<Movement | null>(null);
@@ -413,6 +419,84 @@ export const InvoicesPage: React.FC = () => {
     });
   };
 
+  // Confirmar importação de extrato para criar uma Nova Fatura
+  const handleConfirmImportForNewInvoice = (
+    items: InvoiceNatureItemBreakdown[],
+    totalAmount: number,
+    _shouldUpdate: boolean
+  ) => {
+    const effectiveBank = selectedBankFilter !== 'ALL' ? selectedBankFilter : (cards[0]?.bank || 'Nubank');
+    const matchedCard = cards.find((c) => c.bank?.toLowerCase() === effectiveBank.toLowerCase());
+    
+    // Data de vencimento sugerida
+    const now = new Date();
+    const targetDay = matchedCard?.dueDay || 10;
+    let dueYear = now.getFullYear();
+    let dueMonth = now.getMonth();
+    if (now.getDate() > targetDay) {
+      dueMonth += 1;
+      if (dueMonth > 11) {
+        dueMonth = 0;
+        dueYear += 1;
+      }
+    }
+    const dueDayStr = String(targetDay).padStart(2, '0');
+    const dueMonthStr = String(dueMonth + 1).padStart(2, '0');
+    const initDueDate = `${dueYear}-${dueMonthStr}-${dueDayStr}`;
+    
+    const dateObj = new Date(initDueDate + 'T12:00:00');
+    const monthLabel = dateObj.toLocaleDateString('pt-BR', { month: 'long' });
+    const capMonth = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
+    const invoiceTitle = `Fatura ${effectiveBank} (${capMonth})`;
+
+    const finalAmount = Math.round(totalAmount * 100) / 100;
+    const allocated = items.reduce((acc, i) => acc + i.amount, 0);
+    const unanalyzed = Math.max(0, finalAmount - allocated);
+
+    addMovement({
+      title: invoiceTitle,
+      type: 'CARTAO',
+      amount: finalAmount,
+      dueDate: initDueDate,
+      bank: effectiveBank,
+      status: 'PREVISTA',
+      category: unanalyzed > 0.01 ? 'Não Analisada' : 'Fatura de Cartão',
+      notes: `Fatura importada via arquivo/extrato com ${items.length} itens classificados`,
+      invoiceBreakdown: items,
+      unanalyzedAmount: unanalyzed,
+    });
+
+    setIsNewInvoiceImportOpen(false);
+  };
+
+  // Confirmar importação de extrato para uma Fatura Existente
+  const handleConfirmImportForExistingInvoice = (
+    items: InvoiceNatureItemBreakdown[],
+    totalAmount: number,
+    shouldUpdateInvoiceAmount: boolean
+  ) => {
+    if (!importingInvoice) return;
+
+    const m = importingInvoice;
+    const newAmount = shouldUpdateInvoiceAmount && totalAmount > 0 
+      ? Math.round(totalAmount * 100) / 100 
+      : m.amount;
+
+    const totalAllocated = items.reduce((acc, i) => acc + i.amount, 0);
+    const unanalyzed = Math.max(0, newAmount - totalAllocated);
+
+    updateMovement(m.id, {
+      amount: newAmount,
+      actualAmount: m.status === 'REALIZADA' ? newAmount : m.actualAmount,
+      invoiceBreakdown: items,
+      unanalyzedAmount: unanalyzed,
+      category: unanalyzed > 0.01 ? 'Não Analisada' : 'Fatura de Cartão',
+      notes: m.notes ? `${m.notes} | Importado extrato (${items.length} itens)` : `Extrato importado com ${items.length} itens`,
+    });
+
+    setImportingInvoice(null);
+  };
+
   return (
     <div className="invoices-page-container page-container animate-fade-in">
       {/* Page Header */}
@@ -427,7 +511,17 @@ export const InvoicesPage: React.FC = () => {
             Monitore o valor real de cada fatura, destrinche seus itens entre as naturezas orçamentárias e acompanhe o que resta pendente de análise.
           </p>
         </div>
-        <div className="page-header-actions">
+        <div className="page-header-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button
+            className="btn btn-secondary"
+            onClick={() => setIsNewInvoiceImportOpen(true)}
+            id="btn-import-invoice-top"
+            title="Importar extrato em OFX, CSV ou Imagem para criar uma nova fatura detalhada"
+          >
+            <Upload size={16} />
+            <span>Importar Extrato</span>
+          </button>
+
           <button
             className="btn btn-primary"
             onClick={() => setIsNewInvoiceModalOpen(true)}
@@ -883,7 +977,7 @@ export const InvoicesPage: React.FC = () => {
                       </strong>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       <button
                         className="btn btn-secondary"
                         style={{ fontSize: '12px', padding: '8px 14px' }}
@@ -892,6 +986,16 @@ export const InvoicesPage: React.FC = () => {
                       >
                         <ArrowUpRight size={14} />
                         <span>Conciliar Itens</span>
+                      </button>
+
+                      <button
+                        className="btn btn-outline"
+                        style={{ fontSize: '12px', padding: '8px 12px', gap: '5px' }}
+                        onClick={() => setImportingInvoice(m)}
+                        title="Importar arquivo (OFX, CSV, Imagem) e interpretar gastos desta fatura"
+                      >
+                        <Upload size={14} />
+                        <span>Importar Extrato</span>
                       </button>
 
                       <button
@@ -1255,6 +1359,26 @@ export const InvoicesPage: React.FC = () => {
           isOpen={!!selectedMovementForModal}
           onClose={() => setSelectedMovementForModal(null)}
           movement={selectedMovementForModal}
+        />
+      )}
+
+      {/* Pop-up de Importação de Extrato para Nova Fatura */}
+      {isNewInvoiceImportOpen && (
+        <InvoiceImportModal
+          isOpen={isNewInvoiceImportOpen}
+          onClose={() => setIsNewInvoiceImportOpen(false)}
+          onConfirmImport={handleConfirmImportForNewInvoice}
+          currentInvoiceAmount={0}
+        />
+      )}
+
+      {/* Pop-up de Importação de Extrato para Fatura Existente */}
+      {importingInvoice && (
+        <InvoiceImportModal
+          isOpen={!!importingInvoice}
+          onClose={() => setImportingInvoice(null)}
+          onConfirmImport={handleConfirmImportForExistingInvoice}
+          currentInvoiceAmount={importingInvoice.actualAmount ?? importingInvoice.amount}
         />
       )}
     </div>
