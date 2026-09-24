@@ -368,6 +368,7 @@ export interface FixedExpenseMapping {
   frequency?: 'SEMANAL' | 'QUINZENAL' | 'MENSAL' | 'PONTUAL'; // Periodicidade da rotina
   dayOfWeek?: string;          // ex: 'Sábado', 'Domingo', 'Segunda'
   dayOfMonth?: number;         // ex: 5, 7, 10
+  keywords?: string[];         // Palavras-chave para a IA associar itens/transações diretamente a este mapeamento
 }
 
 export interface CeilingJustificationRecord {
@@ -389,6 +390,7 @@ export interface ExpenseNature {
   mappings: FixedExpenseMapping[];
   overCeilingJustification?: string;
   justificationHistory?: CeilingJustificationRecord[];
+  keywords?: string[];         // Palavras-chave cadastradas pelo usuário para a IA associar itens a esta natureza
 }
 
 export type SalaryContractType = 'CLT' | 'PJ' | 'PRO_LABORE' | 'ESTAGIO' | 'CONCURSO' | 'AUTONOMO' | 'OUTRO';

@@ -221,6 +221,7 @@ export const SupabaseService = {
         mappings: Array.isArray(row.mappings) ? row.mappings : [],
         overCeilingJustification: row.over_ceiling_justification || undefined,
         justificationHistory: Array.isArray(row.justification_history) ? row.justification_history : [],
+        keywords: Array.isArray(row.keywords) ? row.keywords : [],
       })) as ExpenseNature[];
     } catch (e) {
       console.error('[SupabaseService] Exceção ao buscar naturezas:', e);
@@ -246,6 +247,7 @@ export const SupabaseService = {
         mappings: nature.mappings || [],
         over_ceiling_justification: nature.overCeilingJustification || null,
         justification_history: nature.justificationHistory || [],
+        keywords: nature.keywords || [],
       };
 
       const { data, error } = await supabase
@@ -285,6 +287,7 @@ export const SupabaseService = {
       if (updates.mappings !== undefined) payload.mappings = updates.mappings;
       if (updates.overCeilingJustification !== undefined) payload.over_ceiling_justification = updates.overCeilingJustification;
       if (updates.justificationHistory !== undefined) payload.justification_history = updates.justificationHistory;
+      if (updates.keywords !== undefined) payload.keywords = updates.keywords;
 
       const { error } = await supabase
         .from(TABLES.NATURES)

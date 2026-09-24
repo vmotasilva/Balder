@@ -181,9 +181,63 @@ export function matchNatureForTransaction(
   description: string,
   categoryFromBank: string | undefined,
   natures: ExpenseNature[]
-): { natureId: string; natureName: string; confidence: number; matchedKeyword?: string } {
+): {
+  natureId: string;
+  natureName: string;
+  confidence: number;
+  matchedKeyword?: string;
+  mappingId?: string;
+  mappingName?: string;
+} {
   const normDesc = normalizeText(description);
   const normBankCat = categoryFromBank ? normalizeText(categoryFromBank) : '';
+
+  // 0. PRIORIDADE MÁXIMA: Palavras-chave personalizadas cadastradas pelo usuário
+  // 0.1 Palavras-chave nos Mapeamentos / Rotinas (vínculo específico de natureza + rotina)
+  for (const nat of natures) {
+    if (nat.mappings && Array.isArray(nat.mappings)) {
+      for (const map of nat.mappings) {
+        if (map.keywords && Array.isArray(map.keywords)) {
+          for (const kw of map.keywords) {
+            const normKw = normalizeText(kw);
+            if (
+              normKw.length >= 2 &&
+              (normDesc.includes(normKw) || (normBankCat && normBankCat.includes(normKw)))
+            ) {
+              return {
+                natureId: nat.id,
+                natureName: nat.name,
+                confidence: 0.99,
+                matchedKeyword: kw,
+                mappingId: map.id,
+                mappingName: map.name,
+              };
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // 0.2 Palavras-chave cadastradas diretamente na Natureza
+  for (const nat of natures) {
+    if (nat.keywords && Array.isArray(nat.keywords)) {
+      for (const kw of nat.keywords) {
+        const normKw = normalizeText(kw);
+        if (
+          normKw.length >= 2 &&
+          (normDesc.includes(normKw) || (normBankCat && normBankCat.includes(normKw)))
+        ) {
+          return {
+            natureId: nat.id,
+            natureName: nat.name,
+            confidence: 0.98,
+            matchedKeyword: kw,
+          };
+        }
+      }
+    }
+  }
 
   // 1. Procurar combinação direta com o nome das naturezas do usuário
   for (const nat of natures) {

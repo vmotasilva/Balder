@@ -296,6 +296,7 @@ export const DEMO_NATURES: ExpenseNature[] = [
     description: 'Gastos de sobrevivência alimentar: supermercado mensal, feira livre e açougue.',
     overCeilingJustification: '',
     justificationHistory: [],
+    keywords: ['mercado', 'supermercado', 'feira', 'hortifruti', 'acougue', 'padaria', 'ifood', 'compras'],
     mappings: [
       {
         id: 'map_mercado_mensal',
@@ -304,6 +305,7 @@ export const DEMO_NATURES: ExpenseNature[] = [
         applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
         frequency: 'MENSAL',
         dayOfMonth: 7,
+        keywords: ['mercado', 'supermercado', 'carrefour', 'assai', 'atacadao', 'pao de acucar'],
         items: [
           { id: 'item_m1', description: 'Arroz Nobre Tipo 1 (5kg)', quantity: 2, price: 34.00, multiplierWeeks: 1, totalValue: 68.00, realizedValue: 68.00, isFulfilled: true, paymentMethod: 'CARTAO', cardName: 'Nubank Mastercard Black' },
           { id: 'item_m2', description: 'Feijão Carioca Selecionado (1kg)', quantity: 4, price: 8.50, multiplierWeeks: 1, totalValue: 34.00, realizedValue: 34.00, isFulfilled: true, paymentMethod: 'CARTAO', cardName: 'Nubank Mastercard Black' },
@@ -320,6 +322,7 @@ export const DEMO_NATURES: ExpenseNature[] = [
         applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
         frequency: 'SEMANAL',
         dayOfWeek: 'Sábado',
+        keywords: ['feira', 'hortifruti', 'legumes', 'frutas', 'verduras', 'pastel'],
         items: [
           { id: 'item_f1', description: 'Frutas da Estação (Maçã, Banana, Uva, Mamão)', quantity: 1, price: 65.00, multiplierWeeks: 4, totalValue: 260.00, realizedValue: 65.00, isFulfilled: false, paymentMethod: 'PIX' },
           { id: 'item_f2', description: 'Verduras & Legumes Orgânicos da Semana', quantity: 1, price: 45.00, multiplierWeeks: 4, totalValue: 180.00, realizedValue: 45.00, isFulfilled: false, paymentMethod: 'PIX' },
@@ -333,6 +336,7 @@ export const DEMO_NATURES: ExpenseNature[] = [
         applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
         frequency: 'QUINZENAL',
         dayOfWeek: 'Sábado',
+        keywords: ['acougue', 'carnes', 'bife', 'frango', 'swift', 'peixe'],
         items: [
           { id: 'item_p1', description: 'Peito de Frango & Filé de Coxa (kg)', quantity: 4, price: 26.00, multiplierWeeks: 4, totalValue: 416.00, realizedValue: 104.00, isFulfilled: false, paymentMethod: 'CARTAO', cardName: 'Nubank Mastercard Black' },
           { id: 'item_p2', description: 'Carnes Vermelhas de Primeira (Alcatra/Patinho)', quantity: 3, price: 54.00, multiplierWeeks: 2, totalValue: 324.00, realizedValue: 0.00, isFulfilled: false, paymentMethod: 'CARTAO', cardName: 'Nubank Mastercard Black' },
@@ -350,6 +354,7 @@ export const DEMO_NATURES: ExpenseNature[] = [
     description: 'Custos operacionais e estruturais inegociáveis do imóvel residencial.',
     overCeilingJustification: '',
     justificationHistory: [],
+    keywords: ['aluguel', 'condominio', 'luz', 'energia', 'agua', 'gas', 'internet', 'sabesp', 'enel'],
     mappings: [
       {
         id: 'map_moradia_base',
@@ -357,6 +362,7 @@ export const DEMO_NATURES: ExpenseNature[] = [
         natureId: 'nat_moradia',
         applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
         dayOfMonth: 10,
+        keywords: ['condominio', 'coelba', 'enel', 'luz', 'energia', 'internet', 'fibra', 'gas'],
         items: [
           { id: 'item_m_condo', description: 'Taxa Condominial Residencial', quantity: 1, price: 1250.00, multiplierWeeks: 1, totalValue: 1250.00, realizedValue: 1250.00, isFulfilled: true, paymentMethod: 'BOLETO' },
           { id: 'item_m_energia', description: 'Energia Elétrica Estimada (Coelba)', quantity: 1, price: 420.00, multiplierWeeks: 1, totalValue: 420.00, realizedValue: 420.00, isFulfilled: true, paymentMethod: 'BOLETO' },
@@ -375,12 +381,14 @@ export const DEMO_NATURES: ExpenseNature[] = [
     description: 'Mensalidades escolares e programas contínuos de aprendizado.',
     overCeilingJustification: '',
     justificationHistory: [],
+    keywords: ['escola', 'colegio', 'faculdade', 'curso', 'idiomas', 'ingles', 'mensalidade', 'livro'],
     mappings: [
       {
         id: 'map_edu_padrao',
         name: 'Mensalidade & Atividades',
         natureId: 'nat_educacao',
         applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        keywords: ['escola', 'colegio', 'mensalidade', 'curso', 'ingles'],
         items: [
           { id: 'item_e_escola', description: 'Mensalidade Escolar dos Filhos', quantity: 1, price: 2850.00, multiplierWeeks: 1, totalValue: 2850.00, realizedValue: 2850.00, isFulfilled: true, paymentMethod: 'BOLETO' },
           { id: 'item_e_ingles', description: 'Curso de Idiomas / Inglês Avançado', quantity: 1, price: 380.00, multiplierWeeks: 1, totalValue: 380.00, realizedValue: 0.00, isFulfilled: false, paymentMethod: 'BOLETO' },
@@ -397,12 +405,14 @@ export const DEMO_NATURES: ExpenseNature[] = [
     description: 'Planos de saúde familiares, odontologia e farmácia contínua.',
     overCeilingJustification: '',
     justificationHistory: [],
+    keywords: ['farmacia', 'drogaria', 'remedio', 'medico', 'consulta', 'exame', 'laboratorio', 'drogasil', 'droga raia', 'plano de saude'],
     mappings: [
       {
         id: 'map_saude_fixo',
         name: 'Cobertura Médica & Medicamentos',
         natureId: 'nat_saude',
         applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        keywords: ['plano de saude', 'convenio', 'farmacia', 'drogaria', 'drogasil', 'droga raia', 'remedio'],
         items: [
           { id: 'item_s_plano', description: 'Plano de Saúde Familiar Amplo', quantity: 1, price: 1680.00, multiplierWeeks: 1, totalValue: 1680.00, realizedValue: 1680.00, isFulfilled: true, paymentMethod: 'BOLETO' },
           { id: 'item_s_farmacia', description: 'Farmácia & Suplementação Contínua', quantity: 1, price: 250.00, multiplierWeeks: 1, totalValue: 250.00, realizedValue: 110.00, isFulfilled: false, paymentMethod: 'CARTAO', cardName: 'Nubank Mastercard Black' },
@@ -419,12 +429,14 @@ export const DEMO_NATURES: ExpenseNature[] = [
     description: 'Combustível, pedágios, estacionamento e manutenções do veículo.',
     overCeilingJustification: '',
     justificationHistory: [],
+    keywords: ['posto', 'gasolina', 'etanol', 'combustivel', 'ipiranga', 'shell', 'uber', '99', 'sem parar', 'conectcar', 'pedagio', 'estacionamento'],
     mappings: [
       {
         id: 'map_transp_semanal',
         name: 'Combustível & Rodagem Semanal',
         natureId: 'nat_transporte',
         applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        keywords: ['posto', 'gasolina', 'etanol', 'combustivel', 'ipiranga', 'shell', 'sem parar', 'conectcar', 'pedagio'],
         items: [
           { id: 'item_t_gasolina', description: 'Tanque Gasolina Aditivada (Semanal)', quantity: 1, price: 180.00, multiplierWeeks: 4, totalValue: 720.00, realizedValue: 360.00, isFulfilled: false, paymentMethod: 'CARTAO', cardName: 'Nubank Mastercard Black' },
           { id: 'item_t_pedagio', description: 'Sem Parar / ConectCar Pedágios & Estac.', quantity: 1, price: 120.00, multiplierWeeks: 1, totalValue: 120.00, realizedValue: 95.00, isFulfilled: false, paymentMethod: 'CARTAO', cardName: 'Nubank Mastercard Black' },

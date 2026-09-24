@@ -167,7 +167,14 @@ interface FinancialContextType {
   addNature: (nature: Omit<ExpenseNature, 'id' | 'mappings'> & { mappings?: FixedExpenseMapping[] }) => string;
   updateNature: (id: string, updates: Partial<ExpenseNature>) => void;
   deleteNature: (id: string) => void;
-  addMappingToNature: (natureId: string, name: string, applicableMonths?: number[], dayOfMonth?: number, icon?: string) => string;
+  addMappingToNature: (
+    natureId: string,
+    name: string,
+    applicableMonths?: number[],
+    dayOfMonth?: number,
+    icon?: string,
+    keywords?: string[]
+  ) => string;
   updateMapping: (natureId: string, mappingId: string, updates: Partial<FixedExpenseMapping>) => void;
   deleteMapping: (natureId: string, mappingId: string) => void;
   addItemToMapping: (natureId: string, mappingId: string, item: Omit<MappingItem, 'id' | 'totalValue'>, customId?: string) => string;
@@ -235,6 +242,7 @@ export const buildSuggestedMappingsForNature = (
         applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
         frequency: 'MENSAL',
         dayOfMonth: 7,
+        keywords: ['mercado', 'supermercado', 'carrefour', 'assai', 'atacadao', 'pao de acucar'],
         items: [
           { id: `item_${timestamp}_1`, description: 'Arroz Nobre Tipo 1 (5kg)', quantity: 2, price: 34.0, multiplierWeeks: 1, totalValue: 68.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'CARTAO' },
           { id: `item_${timestamp}_2`, description: 'Feijão Carioca (1kg)', quantity: 4, price: 8.5, multiplierWeeks: 1, totalValue: 34.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'CARTAO' },
@@ -252,6 +260,7 @@ export const buildSuggestedMappingsForNature = (
         applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
         frequency: 'SEMANAL',
         dayOfWeek: 'Sábado',
+        keywords: ['feira', 'hortifruti', 'legumes', 'frutas', 'verduras', 'pastel'],
         items: [
           { id: `item_${timestamp}_7`, description: 'Frutas da Estação (Maçã, Banana, Uva, Mamão)', quantity: 1, price: 65.0, multiplierWeeks: 4, totalValue: 260.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'PIX' },
           { id: `item_${timestamp}_8`, description: 'Verduras & Legumes Orgânicos da Semana', quantity: 1, price: 45.0, multiplierWeeks: 4, totalValue: 180.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'PIX' },
@@ -266,6 +275,7 @@ export const buildSuggestedMappingsForNature = (
         applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
         frequency: 'QUINZENAL',
         dayOfWeek: 'Sábado',
+        keywords: ['acougue', 'carnes', 'bife', 'frango', 'swift', 'peixe'],
         items: [
           { id: `item_${timestamp}_10`, description: 'Peito de Frango & Filé de Coxa (kg)', quantity: 4, price: 26.0, multiplierWeeks: 4, totalValue: 416.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'CARTAO' },
           { id: `item_${timestamp}_11`, description: 'Carnes Vermelhas de Primeira (Alcatra/Patinho)', quantity: 3, price: 54.0, multiplierWeeks: 2, totalValue: 324.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'CARTAO' },
@@ -285,6 +295,7 @@ export const buildSuggestedMappingsForNature = (
         applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
         frequency: 'MENSAL',
         dayOfMonth: 10,
+        keywords: ['luz', 'energia', 'agua', 'sabesp', 'coelba', 'enel', 'internet', 'fibra'],
         items: [
           { id: `item_${timestamp}_1`, description: 'Energia Elétrica (Coelba / Enel)', quantity: 1, price: 250.0, multiplierWeeks: 1, totalValue: 250.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'BOLETO' },
           { id: `item_${timestamp}_2`, description: 'Água & Saneamento Básico', quantity: 1, price: 90.0, multiplierWeeks: 1, totalValue: 90.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'BOLETO' },
@@ -304,6 +315,7 @@ export const buildSuggestedMappingsForNature = (
         applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
         frequency: 'MENSAL',
         dayOfMonth: 15,
+        keywords: ['posto', 'gasolina', 'etanol', 'combustivel', 'ipiranga', 'shell', 'manutencao'],
         items: [
           { id: `item_${timestamp}_1`, description: 'Combustível Mensal (Gasolina/Etanol)', quantity: 4, price: 120.0, multiplierWeeks: 1, totalValue: 480.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'CARTAO' },
           { id: `item_${timestamp}_2`, description: 'Reserva para Manutenção & Troca de Óleo', quantity: 1, price: 150.0, multiplierWeeks: 1, totalValue: 150.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'CONTA' },
@@ -321,6 +333,7 @@ export const buildSuggestedMappingsForNature = (
       applicableMonths: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
       frequency: 'MENSAL',
       dayOfMonth: 10,
+      keywords: [],
       items: [
         { id: `item_${timestamp}_1`, description: `Item Base de ${natureName}`, quantity: 1, price: 100.0, multiplierWeeks: 1, totalValue: 100.0, realizedValue: 0, isFulfilled: false, paymentMethod: 'PIX' },
       ],
@@ -2980,6 +2993,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           mappings: targetNat.mappings,
           overCeilingJustification: targetNat.overCeilingJustification,
           justificationHistory: targetNat.justificationHistory,
+          keywords: targetNat.keywords,
         };
         SupabaseService.updateNature(targetNat.id, payload).catch((err) =>
           console.error(`Erro ao sincronizar natureza ${targetNat.id} no Supabase:`, err)
@@ -3001,6 +3015,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       mappings: natureData.mappings || [],
       overCeilingJustification: '',
       justificationHistory: [],
+      keywords: natureData.keywords || [],
     };
     setNatures((prev) => {
       const next = [...prev, newNature];
@@ -3070,7 +3085,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     name: string,
     applicableMonths?: number[],
     dayOfMonth?: number,
-    icon?: string
+    icon?: string,
+    keywords?: string[]
   ): string => {
     const newMappingId = `map_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
     const newMapping: FixedExpenseMapping = {
@@ -3081,6 +3097,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       applicableMonths: applicableMonths || [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
       items: [],
       dayOfMonth: dayOfMonth ? Math.min(31, Math.max(1, dayOfMonth)) : undefined,
+      keywords: keywords || [],
     };
 
     setNatures((prev) => {

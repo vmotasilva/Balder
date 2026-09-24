@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
 import type { ExpenseNature } from '../types';
-import { Check, Plus, Sparkles, Search } from 'lucide-react';
+import { Check, Plus, Sparkles, Search, X } from 'lucide-react';
 
 interface NatureModalProps {
   isOpen: boolean;
@@ -148,6 +148,8 @@ export const NatureModal: React.FC<NatureModalProps> = ({
   const [color, setColor] = useState('#10B981');
   const [type, setType] = useState<'ESSENCIAL' | 'FIXA' | 'VARIAVEL'>('ESSENCIAL');
   const [description, setDescription] = useState('');
+  const [keywords, setKeywords] = useState<string[]>([]);
+  const [keywordInput, setKeywordInput] = useState('');
 
   const [activeCategory, setActiveCategory] = useState<string>('populares');
   const [searchFilter, setSearchFilter] = useState('');
@@ -161,13 +163,16 @@ export const NatureModal: React.FC<NatureModalProps> = ({
         setColor(natureToEdit.color || '#10B981');
         setType(natureToEdit.type || 'ESSENCIAL');
         setDescription(natureToEdit.description || '');
+        setKeywords(natureToEdit.keywords || []);
       } else {
         setName('');
         setIcon('🏷️');
         setColor('#10B981');
         setType('ESSENCIAL');
         setDescription('');
+        setKeywords([]);
       }
+      setKeywordInput('');
       setSearchFilter('');
     }
   }, [isOpen, natureToEdit]);
@@ -191,6 +196,82 @@ export const NatureModal: React.FC<NatureModalProps> = ({
     return currentCat ? currentCat.emojis : EMOJI_CATEGORIES[0].emojis;
   }, [activeCategory, searchFilter]);
 
+  // Manipulação de palavras-chave
+  const handleAddKeyword = (val?: string) => {
+    const raw = (val !== undefined ? val : keywordInput).trim();
+    if (!raw) return;
+
+    const tokens = raw
+      .split(/[,;\n]+/)
+      .map((t) => t.trim().toLowerCase())
+      .filter((t) => t.length >= 2);
+
+    setKeywords((prev) => {
+      const next = [...prev];
+      tokens.forEach((tok) => {
+        if (!next.includes(tok)) {
+          next.push(tok);
+        }
+      });
+      return next;
+    });
+
+    setKeywordInput('');
+  };
+
+  const handleRemoveKeyword = (indexToRemove: number) => {
+    setKeywords((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  const handleKeyDownKeyword = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      handleAddKeyword();
+    }
+  };
+
+  // Sugestões inteligentes rápidas baseadas no nome e tipo
+  const suggestedPresetKeywords = useMemo(() => {
+    const n = (name + ' ' + description).toLowerCase();
+    const suggestions: string[] = [];
+
+    if (n.includes('aliment') || n.includes('mercado') || n.includes('comida') || n.includes('feira')) {
+      ['mercado', 'supermercado', 'ifood', 'hortifruti', 'feira', 'padaria', 'acougue', 'carrefour', 'assai', 'atacadao'].forEach((kw) => {
+        if (!keywords.includes(kw)) suggestions.push(kw);
+      });
+    } else if (n.includes('transporte') || n.includes('carro') || n.includes('combustivel') || n.includes('veiculo')) {
+      ['uber', '99', 'posto', 'gasolina', 'etanol', 'combustivel', 'pedagio', 'sem parar', 'estacionamento'].forEach((kw) => {
+        if (!keywords.includes(kw)) suggestions.push(kw);
+      });
+    } else if (n.includes('saude') || n.includes('farmacia') || n.includes('medico') || n.includes('remedio')) {
+      ['farmacia', 'drogaria', 'drogasil', 'droga raia', 'consulta', 'exame', 'laboratorio', 'medico', 'remedio'].forEach((kw) => {
+        if (!keywords.includes(kw)) suggestions.push(kw);
+      });
+    } else if (n.includes('moradia') || n.includes('casa') || n.includes('condominio') || n.includes('luz')) {
+      ['aluguel', 'condominio', 'enel', 'luz', 'energia', 'sabesp', 'agua', 'gas', 'internet', 'claro', 'vivo'].forEach((kw) => {
+        if (!keywords.includes(kw)) suggestions.push(kw);
+      });
+    } else if (n.includes('lazer') || n.includes('diversao') || n.includes('jogo') || n.includes('streaming')) {
+      ['netflix', 'spotify', 'cinema', 'ingresso', 'steam', 'playstation', 'bar', 'restaurante', 'airbnb'].forEach((kw) => {
+        if (!keywords.includes(kw)) suggestions.push(kw);
+      });
+    } else if (n.includes('educacao') || n.includes('curso') || n.includes('escola') || n.includes('livro')) {
+      ['curso', 'escola', 'faculdade', 'livro', 'udemy', 'alura', 'idiomas', 'duolingo'].forEach((kw) => {
+        if (!keywords.includes(kw)) suggestions.push(kw);
+      });
+    } else if (n.includes('pet') || n.includes('animal') || n.includes('veterinario')) {
+      ['petz', 'cobasi', 'petshop', 'veterinario', 'racao'].forEach((kw) => {
+        if (!keywords.includes(kw)) suggestions.push(kw);
+      });
+    } else if (n.includes('vestuario') || n.includes('roupa') || n.includes('calcado')) {
+      ['zara', 'renner', 'riachuelo', 'c&a', 'centauro', 'nike', 'adidas', 'shein'].forEach((kw) => {
+        if (!keywords.includes(kw)) suggestions.push(kw);
+      });
+    }
+
+    return suggestions.slice(0, 6);
+  }, [name, description, keywords]);
+
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
@@ -210,6 +291,7 @@ export const NatureModal: React.FC<NatureModalProps> = ({
         color: chosenColor,
         type,
         description: description.trim(),
+        keywords,
       });
       if (onSuccess) onSuccess(natureToEdit.id);
     } else {
@@ -221,6 +303,7 @@ export const NatureModal: React.FC<NatureModalProps> = ({
         description: description.trim(),
         overCeilingJustification: '',
         justificationHistory: [],
+        keywords,
       });
       if (onSuccess) onSuccess('');
     }
@@ -425,6 +508,116 @@ export const NatureModal: React.FC<NatureModalProps> = ({
               <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>Personalizada</span>
             </div>
           </div>
+        </div>
+
+        {/* Linha: Palavras-chave para Reconhecimento da IA (Forseti) */}
+        <div className="form-group mb-4">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+            <label style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Sparkles size={15} className="text-cyan" />
+              <span>Palavras-chave para a IA (Forseti)</span>
+            </label>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+              {keywords.length} cadastrada(s)
+            </span>
+          </div>
+
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0 0 8px', lineHeight: 1.4 }}>
+            Ajude a IA a reconhecer de qual natureza um item faz parte. Quando você enviar fotos de notas ou importar faturas, o Forseti usará estas palavras para classificar os itens de forma 100% automática.
+          </p>
+
+          {/* Input para adicionar nova palavra-chave */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+            <input
+              type="text"
+              className="form-input flex-1"
+              placeholder="Ex: mercado, ifood, hortifruti, padaria (Enter para adicionar)..."
+              value={keywordInput}
+              onChange={(e) => setKeywordInput(e.target.value)}
+              onKeyDown={handleKeyDownKeyword}
+            />
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '0 12px', whiteSpace: 'nowrap' }}
+              onClick={() => handleAddKeyword()}
+              disabled={!keywordInput.trim()}
+            >
+              <Plus size={14} />
+              <span>Adicionar</span>
+            </button>
+          </div>
+
+          {/* Chips das palavras-chave cadastradas */}
+          {keywords.length > 0 ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+              {keywords.map((kw, idx) => (
+                <span
+                  key={idx}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    background: 'rgba(6, 182, 212, 0.15)',
+                    border: '1px solid rgba(6, 182, 212, 0.3)',
+                    color: '#67E8F9',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                  }}
+                >
+                  <span>#{kw}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveKeyword(idx)}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'inherit',
+                      cursor: 'pointer',
+                      padding: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}
+                    title="Remover palavra-chave"
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '8px' }}>
+              Nenhuma palavra-chave personalizada adicionada ainda.
+            </div>
+          )}
+
+          {/* Sugestões inteligentes rápidas com um clique */}
+          {suggestedPresetKeywords.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Sugestões rápidas:</span>
+              {suggestedPresetKeywords.map((sug, sIdx) => (
+                <button
+                  key={sIdx}
+                  type="button"
+                  onClick={() => handleAddKeyword(sug)}
+                  style={{
+                    padding: '2px 7px',
+                    borderRadius: '4px',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px dashed rgba(255, 255, 255, 0.2)',
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.7rem',
+                    cursor: 'pointer',
+                  }}
+                  title={`Adicionar "${sug}"`}
+                >
+                  + {sug}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Linha 4: Seletor Rico de Ícones (Emoji) */}

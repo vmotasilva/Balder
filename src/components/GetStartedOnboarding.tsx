@@ -44,6 +44,7 @@ const DEFAULT_RECOMMENDED_NATURES = [
     type: 'ESSENCIAL' as const,
     description: 'Compras de supermercado, feira, açougue e refeições diárias',
     sampleMappings: ['🛒 Supermercado Mensal', '🥦 Feira Semanal', '🥩 Açougue Quinzenal'],
+    keywords: ['mercado', 'supermercado', 'feira', 'hortifruti', 'acougue', 'padaria', 'ifood', 'compras'],
   },
   {
     id: 'nat_moradia',
@@ -54,6 +55,7 @@ const DEFAULT_RECOMMENDED_NATURES = [
     type: 'FIXA' as const,
     description: 'Aluguel/condomínio, energia, água, internet e serviços essenciais',
     sampleMappings: ['💡 Contas Fixas (Energia, Água, Net)', '🏢 Condomínio/Aluguel'],
+    keywords: ['aluguel', 'condominio', 'luz', 'energia', 'agua', 'gas', 'internet', 'sabesp', 'enel'],
   },
   {
     id: 'nat_transporte',
@@ -64,6 +66,7 @@ const DEFAULT_RECOMMENDED_NATURES = [
     type: 'VARIAVEL' as const,
     description: 'Combustível, aplicativos (Uber/99), estacionamento e manutenção',
     sampleMappings: ['⛽ Combustível Mensal', '📱 Apps (Uber/99)'],
+    keywords: ['posto', 'gasolina', 'etanol', 'combustivel', 'ipiranga', 'shell', 'uber', '99', 'sem parar', 'pedagio'],
   },
   {
     id: 'nat_saude',
@@ -74,6 +77,7 @@ const DEFAULT_RECOMMENDED_NATURES = [
     type: 'ESSENCIAL' as const,
     description: 'Farmácia, consultas, exames, plano de saúde e bem-estar',
     sampleMappings: ['💊 Farmácia Mensal', '🩺 Consultas & Exames'],
+    keywords: ['farmacia', 'drogaria', 'remedio', 'medico', 'consulta', 'exame', 'laboratorio', 'drogasil', 'droga raia', 'plano de saude'],
   },
   {
     id: 'nat_lazer',
@@ -84,6 +88,7 @@ const DEFAULT_RECOMMENDED_NATURES = [
     type: 'VARIAVEL' as const,
     description: 'Restaurantes, saídas, streaming, delivery e passeios',
     sampleMappings: ['🎬 Streaming & Assinaturas', '🍽️ Restaurantes & Delivery'],
+    keywords: ['restaurante', 'bar', 'cinema', 'streaming', 'netflix', 'spotify', 'ifood', 'lazer', 'viagem'],
   },
 ];
 
@@ -826,6 +831,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
               color: nat.color,
               type: nat.type,
               description: nat.description,
+              keywords: (nat as any).keywords || [],
               mappings: suggestedMappings,
             });
           }

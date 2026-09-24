@@ -565,6 +565,66 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                       {selectedNature.description ||
                         'Mapeamentos matemáticos definem a fundamentação do teto de gastos desta natureza. Ajuste os itens abaixo para recalcular o teto.'}
                     </p>
+
+                    {/* Palavras-chave da Natureza para a IA Forseti */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <Sparkles size={11} className="text-cyan" />
+                        <span>Palavras-chave IA:</span>
+                      </span>
+                      {selectedNature.keywords && selectedNature.keywords.length > 0 ? (
+                        <>
+                          {selectedNature.keywords.map((kw, kIdx) => (
+                            <span
+                              key={kIdx}
+                              style={{
+                                fontSize: '0.68rem',
+                                padding: '1px 7px',
+                                borderRadius: '4px',
+                                background: 'rgba(6, 182, 212, 0.12)',
+                                border: '1px solid rgba(6, 182, 212, 0.25)',
+                                color: '#67E8F9',
+                                fontWeight: 500,
+                              }}
+                            >
+                              #{kw}
+                            </span>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditNature(selectedNature)}
+                            style={{
+                              fontSize: '0.68rem',
+                              color: 'var(--text-muted)',
+                              background: 'transparent',
+                              border: 'none',
+                              cursor: 'pointer',
+                              padding: '0 2px',
+                            }}
+                            title="Editar palavras-chave da natureza"
+                          >
+                            <Edit2 size={10} style={{ display: 'inline', opacity: 0.6 }} />
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditNature(selectedNature)}
+                          style={{
+                            fontSize: '0.7rem',
+                            color: 'var(--text-muted)',
+                            background: 'transparent',
+                            border: 'none',
+                            textDecoration: 'underline',
+                            cursor: 'pointer',
+                            padding: 0,
+                          }}
+                          title="Cadastrar palavras-chave para a IA classificar faturas e notas nesta natureza"
+                        >
+                          + Adicionar palavras-chave para a IA
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1130,6 +1190,32 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                               </button>
                             )}
                           </div>
+
+                          {/* Palavras-chave do Mapeamento para a IA Forseti */}
+                          {mapping.keywords && mapping.keywords.length > 0 && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap', width: '100%', marginTop: '5px' }}>
+                              <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                                <Sparkles size={10} className="text-cyan" />
+                                <span>Palavras-chave IA:</span>
+                              </span>
+                              {mapping.keywords.map((kw, kwIdx) => (
+                                <span
+                                  key={kwIdx}
+                                  style={{
+                                    fontSize: '0.65rem',
+                                    padding: '1px 6px',
+                                    borderRadius: '4px',
+                                    background: 'rgba(6, 182, 212, 0.1)',
+                                    border: '1px solid rgba(6, 182, 212, 0.22)',
+                                    color: '#67E8F9',
+                                    fontWeight: 500,
+                                  }}
+                                >
+                                  #{kw}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                           </div>
                           <div className="mapping-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <button

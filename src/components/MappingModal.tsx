@@ -3,7 +3,7 @@ import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
 import { EMOJI_CATEGORIES } from './NatureModal';
 import type { FixedExpenseMapping } from '../types';
-import { Check, Plus, Sparkles, Search, Calendar } from 'lucide-react';
+import { Check, Plus, Sparkles, Search, Calendar, X } from 'lucide-react';
 
 interface MappingModalProps {
   isOpen: boolean;
@@ -31,6 +31,8 @@ export const MappingModal: React.FC<MappingModalProps> = ({
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('📋');
   const [dayOfMonth, setDayOfMonth] = useState<number | ''>('');
+  const [keywords, setKeywords] = useState<string[]>([]);
+  const [keywordInput, setKeywordInput] = useState('');
 
   const [activeCategory, setActiveCategory] = useState<string>('populares');
   const [searchFilter, setSearchFilter] = useState('');
@@ -42,14 +44,109 @@ export const MappingModal: React.FC<MappingModalProps> = ({
         setName(mappingToEdit.name || '');
         setIcon(mappingToEdit.icon || '📋');
         setDayOfMonth(mappingToEdit.dayOfMonth || '');
+        setKeywords(mappingToEdit.keywords || []);
       } else {
         setName('');
         setIcon('📋');
         setDayOfMonth('');
+        setKeywords([]);
       }
+      setKeywordInput('');
       setSearchFilter('');
     }
   }, [isOpen, mappingToEdit]);
+
+  // Manipulação de palavras-chave da rotina
+  const handleAddKeyword = (val?: string) => {
+    const raw = (val !== undefined ? val : keywordInput).trim();
+    if (!raw) return;
+
+    const tokens = raw
+      .split(/[,;\n]+/)
+      .map((t) => t.trim().toLowerCase())
+      .filter((t) => t.length >= 2);
+
+    setKeywords((prev) => {
+      const next = [...prev];
+      tokens.forEach((tok) => {
+        if (!next.includes(tok)) {
+          next.push(tok);
+        }
+      });
+      return next;
+    });
+
+    setKeywordInput('');
+  };
+
+  const handleRemoveKeyword = (indexToRemove: number) => {
+    setKeywords((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  const handleKeyDownKeyword = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      handleAddKeyword();
+    }
+  };
+
+  // Sugestões inteligentes de palavras-chave para a rotina
+  const suggestedPresetKeywords = useMemo(() => {
+    const n = (name + ' ' + natureName).toLowerCase();
+    const suggestions: string[] = [];
+
+    if (n.includes('feira')) {
+      ['feira', 'hortifruti', 'legumes', 'frutas', 'verduras', 'pastel'].forEach((k) => {
+        if (!keywords.includes(k)) suggestions.push(k);
+      });
+    } else if (n.includes('acougue') || n.includes('açougue') || n.includes('carne')) {
+      ['acougue', 'carnes', 'bife', 'frango', 'costela', 'picanha', 'swift'].forEach((k) => {
+        if (!keywords.includes(k)) suggestions.push(k);
+      });
+    } else if (n.includes('mercado') || n.includes('supermercado')) {
+      ['mercado', 'supermercado', 'carrefour', 'pao de acucar', 'atacadao', 'assai'].forEach((k) => {
+        if (!keywords.includes(k)) suggestions.push(k);
+      });
+    } else if (n.includes('padaria') || n.includes('pão') || n.includes('pao') || n.includes('cafe')) {
+      ['padaria', 'panificadora', 'cafe', 'pao', 'lanche'].forEach((k) => {
+        if (!keywords.includes(k)) suggestions.push(k);
+      });
+    } else if (n.includes('farmacia') || n.includes('farmácia') || n.includes('drogaria') || n.includes('remedio')) {
+      ['farmacia', 'drogaria', 'drogasil', 'droga raia', 'remedio', 'panvel'].forEach((k) => {
+        if (!keywords.includes(k)) suggestions.push(k);
+      });
+    } else if (n.includes('combustivel') || n.includes('combustível') || n.includes('posto') || n.includes('gasolina')) {
+      ['posto', 'gasolina', 'etanol', 'combustivel', 'ipiranga', 'shell'].forEach((k) => {
+        if (!keywords.includes(k)) suggestions.push(k);
+      });
+    } else if (n.includes('luz') || n.includes('energia')) {
+      ['luz', 'enel', 'cpfl', 'cemig', 'energia', 'eletricidade'].forEach((k) => {
+        if (!keywords.includes(k)) suggestions.push(k);
+      });
+    } else if (n.includes('agua') || n.includes('água') || n.includes('sanep')) {
+      ['agua', 'sabesp', 'sanepar', 'copasa', 'saneamento'].forEach((k) => {
+        if (!keywords.includes(k)) suggestions.push(k);
+      });
+    } else if (n.includes('internet') || n.includes('wifi') || n.includes('fibra')) {
+      ['internet', 'fibra', 'claro', 'vivo', 'tim', 'provedor'].forEach((k) => {
+        if (!keywords.includes(k)) suggestions.push(k);
+      });
+    } else if (n.includes('aluguel') || n.includes('condominio') || n.includes('condomínio')) {
+      ['aluguel', 'condominio', 'locacao', 'imobiliaria', 'quintoandar'].forEach((k) => {
+        if (!keywords.includes(k)) suggestions.push(k);
+      });
+    } else if (n.includes('pet') || n.includes('veterinario') || n.includes('racao')) {
+      ['pet', 'racao', 'veterinario', 'petz', 'cobasi', 'banho'].forEach((k) => {
+        if (!keywords.includes(k)) suggestions.push(k);
+      });
+    } else if (n.includes('streaming') || n.includes('assinatura')) {
+      ['netflix', 'spotify', 'amazon prime', 'disney', 'youtube', 'hbo'].forEach((k) => {
+        if (!keywords.includes(k)) suggestions.push(k);
+      });
+    }
+
+    return suggestions.slice(0, 6);
+  }, [name, natureName, keywords]);
 
   // Lista filtrada de emojis
   const displayedEmojis = useMemo(() => {
@@ -85,6 +182,7 @@ export const MappingModal: React.FC<MappingModalProps> = ({
         name: trimmedName,
         icon: chosenIcon,
         dayOfMonth: effectiveDay,
+        keywords,
       });
       if (onSuccess) onSuccess(mappingToEdit.id);
     } else {
@@ -93,7 +191,8 @@ export const MappingModal: React.FC<MappingModalProps> = ({
         trimmedName,
         undefined,
         effectiveDay,
-        chosenIcon
+        chosenIcon,
+        keywords
       );
       if (onSuccess) onSuccess(newId);
     }
@@ -256,6 +355,116 @@ export const MappingModal: React.FC<MappingModalProps> = ({
           <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
             O BALDER alertará com antecedência quando esta data estiver próxima para registrar a realização do pagamento.
           </span>
+        </div>
+
+        {/* Linha: Palavras-chave para Reconhecimento da IA (Forseti) */}
+        <div className="form-group mb-4">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+            <label style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Sparkles size={15} className="text-cyan" />
+              <span>Palavras-chave para a IA (Forseti)</span>
+            </label>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+              {keywords.length} cadastrada(s)
+            </span>
+          </div>
+
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0 0 8px', lineHeight: 1.4 }}>
+            Ajude a IA a reconhecer compras desta rotina. Ao enviar fotos de notas ou importar faturas, o Forseti usará estas palavras para associar os itens diretamente a este mapeamento.
+          </p>
+
+          {/* Input para adicionar nova palavra-chave */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+            <input
+              type="text"
+              className="form-input flex-1"
+              placeholder="Ex: feira, legumes, hortifruti, pastel (Enter para adicionar)..."
+              value={keywordInput}
+              onChange={(e) => setKeywordInput(e.target.value)}
+              onKeyDown={handleKeyDownKeyword}
+            />
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '0 12px', whiteSpace: 'nowrap' }}
+              onClick={() => handleAddKeyword()}
+              disabled={!keywordInput.trim()}
+            >
+              <Plus size={14} />
+              <span>Adicionar</span>
+            </button>
+          </div>
+
+          {/* Chips das palavras-chave cadastradas */}
+          {keywords.length > 0 ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+              {keywords.map((kw, idx) => (
+                <span
+                  key={idx}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                    background: 'rgba(6, 182, 212, 0.15)',
+                    border: '1px solid rgba(6, 182, 212, 0.3)',
+                    color: '#67E8F9',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                  }}
+                >
+                  <span>#{kw}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveKeyword(idx)}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'inherit',
+                      cursor: 'pointer',
+                      padding: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}
+                    title="Remover palavra-chave"
+                  >
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '8px' }}>
+              Nenhuma palavra-chave cadastrada para este mapeamento ainda.
+            </div>
+          )}
+
+          {/* Sugestões inteligentes rápidas com um clique */}
+          {suggestedPresetKeywords.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Sugestões rápidas:</span>
+              {suggestedPresetKeywords.map((sug, sIdx) => (
+                <button
+                  key={sIdx}
+                  type="button"
+                  onClick={() => handleAddKeyword(sug)}
+                  style={{
+                    padding: '2px 7px',
+                    borderRadius: '4px',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px dashed rgba(255, 255, 255, 0.2)',
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.7rem',
+                    cursor: 'pointer',
+                  }}
+                  title={`Adicionar "${sug}"`}
+                >
+                  + {sug}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Linha 3: Seletor Rico de Ícones (Emoji) do Mapeamento */}
