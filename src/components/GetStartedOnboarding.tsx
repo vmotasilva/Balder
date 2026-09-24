@@ -196,7 +196,6 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
           if (cd1.bankName) setCardBank(cd1.bankName);
           if (cd1.dueDay) setCardDueDay(cd1.dueDay);
 
-          const currInv = cd1.invoices?.find((inv) => inv.monthIndex === 0);
           const nextInv = (cd1.invoices || []).find((inv) => inv.monthIndex === 1);
           if (nextInv) setCurrentInvoiceAmount(String(nextInv.amount));
 
