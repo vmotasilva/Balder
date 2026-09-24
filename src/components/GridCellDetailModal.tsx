@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import type { MonthlyGridProjectionRow, MappingItem, MovementStatus } from '../types';
 import { buildMonthlyProjectionGrid, resolveSalaryForMonth } from '../utils/projectionMath';
+import type { ProjectionViewMode } from '../utils/projectionMath';
 
 export interface GridCellSelection {
   columnKey:
@@ -47,6 +48,7 @@ export interface GridCellSelection {
   row: MonthlyGridProjectionRow;
   initialNatureId?: string;
   initialNatureName?: string;
+  viewMode?: ProjectionViewMode;
 }
 
 interface GridCellDetailModalProps {
@@ -723,9 +725,16 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
   const dynamicRow = useMemo(() => {
     if (!row) return undefined;
     const initialBalance = activeCheckpoint ? activeCheckpoint.initialBalance : (row.initialBalance ?? 0);
-    const grid = buildMonthlyProjectionGrid(movements, natures, initialBalance, salaryContracts, monthlyClosings);
+    const grid = buildMonthlyProjectionGrid(
+      movements,
+      natures,
+      initialBalance,
+      salaryContracts,
+      monthlyClosings,
+      selection?.viewMode || 'PROJETADO'
+    );
     return grid.find((r) => r.monthKey === row.monthKey) || row;
-  }, [movements, natures, salaryContracts, activeCheckpoint, monthlyClosings, row]);
+  }, [movements, natures, salaryContracts, activeCheckpoint, monthlyClosings, row, selection?.viewMode]);
 
   const currentRow = dynamicRow || row;
 

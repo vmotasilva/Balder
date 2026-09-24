@@ -146,12 +146,23 @@ export function resolveSalaryForMonth(sc: SalaryContract, compKey: string): Sala
  *   - QUINZENAL: dois pagamentos (1ª + 2ª quinzena) com valores específicos ou percentual
  *   - SEMANAL  : N pagamentos por semana no mês (conta ocorrências reais do dia da semana)
  */
+export type ProjectionViewMode = 'PROJETADO' | 'REALIZADO' | 'PREVISTO';
+
+/**
+ * Constrói as linhas do Grid Mensal (Visão Macro & DRE Glanceable)
+ *
+ * Suporta 3 modos de visão (viewMode):
+ *   - PROJETADO : consolidado completo (valores realizados + previstos)
+ *   - REALIZADO : estritamente movimentações e entradas efetivadas (status === 'REALIZADA')
+ *   - PREVISTO  : lançamentos e contratos planejados a vencer (status === 'PREVISTA')
+ */
 export function buildMonthlyProjectionGrid(
   movements: Movement[],
   natures: ExpenseNature[],
   initialBalance: number = 0,
   salaryContracts?: SalaryContract[],
-  monthlyClosings?: MonthlyClosing[]
+  monthlyClosings?: MonthlyClosing[],
+  viewMode: ProjectionViewMode = 'PROJETADO'
 ): MonthlyGridProjectionRow[] {
   const competenceMonths = generateCompetenceMonths();
 
@@ -188,9 +199,6 @@ export function buildMonthlyProjectionGrid(
     const prevMonthKey = idx > 0 ? competenceMonths[idx - 1].key : undefined;
 
     // Determina o Saldo Inicial do mês:
-    // No 1º mês, utiliza o marco ativo (Ponto de Partida).
-    // Nos meses seguintes, se o mês anterior possui Fechamento formalizado (status: FECHADO),
-    // utiliza o closingBalance apurado; caso contrário, utiliza o runningAccumulated do mês anterior.
     let initial = 0;
     if (isFirstMonth) {
       initial = initialBalance;
@@ -207,16 +215,17 @@ export function buildMonthlyProjectionGrid(
 
     // ── 1. Extras / Receitas avulsas (+) ──────────────────────────────────────
     const extrasTotal = movements
-      .filter(
-        (m) =>
-          m.type === 'RECEBER' &&
-          m.category !== 'Salário' &&
-          !m.title.toLowerCase().includes('salário') &&
-          m.dueDate.startsWith(comp.key)
-      )
+      .filter((m) => {
+        if (m.type !== 'RECEBER') return false;
+        if (m.category === 'Salário' || m.title.toLowerCase().includes('salário')) return false;
+        if (!m.dueDate.startsWith(comp.key)) return false;
+        if (viewMode === 'REALIZADO') return m.status === 'REALIZADA';
+        if (viewMode === 'PREVISTO') return m.status === 'PREVISTA';
+        return true;
+      })
       .reduce((acc, m) => acc + m.amount, 0);
 
-    // ── 2. Salário (+) — suporta UNICO, QUINZENAL e SEMANAL com ajustes reais ──
+    // ── 2. Salário (+) ────────────────────────────────────────────────────────
     let salary = 0;
     let salaryFirstInstallment: number | undefined;
     let salarySecondInstallment: number | undefined;
@@ -232,96 +241,243 @@ export function buildMonthlyProjectionGrid(
         (m.dueDate.startsWith(comp.key) || (m.installmentGroupId && m.installmentGroupId.includes(comp.key)))
     );
 
-    if (salaryContracts && salaryContracts.length > 0) {
-      salaryContracts
-        .filter((sc) => sc.isActive)
-        .forEach((sc) => {
-          const res = resolveSalaryForMonth(sc, comp.key);
-          let firstVal = res.first;
-          let secondVal = res.second;
-          let totalVal = res.total;
+    if (viewMode === 'REALIZADO') {
+      // No modo REALIZADO: somente salários que já foram marcados como REALIZADA
+      const realizedSalaries = realSalariesForMonth.filter((m) => m.status === 'REALIZADA');
+      salary = realizedSalaries.reduce((acc, m) => acc + m.amount, 0);
 
-          // Procura lançamentos específicos cadastrados/ajustados pelo usuário para este mês
-          const mQ1 = realSalariesForMonth.find(
-            (m) =>
-              m.title.toLowerCase().includes('1ª') ||
-              m.title.toLowerCase().includes('adiantamento') ||
-              m.installmentGroupId?.includes('q1')
-          );
-          const mQ2 = realSalariesForMonth.find(
-            (m) =>
-              m.title.toLowerCase().includes('2ª') ||
-              m.title.toLowerCase().includes('principal') ||
-              m.installmentGroupId?.includes('q2')
-          );
-          const mUnico = realSalariesForMonth.find(
-            (m) =>
-              !m.title.toLowerCase().includes('1ª') &&
-              !m.title.toLowerCase().includes('2ª') &&
-              !m.title.toLowerCase().includes('adiantamento')
-          );
+      const mQ1 = realizedSalaries.find(
+        (m) =>
+          m.title.toLowerCase().includes('1ª') ||
+          m.title.toLowerCase().includes('adiantamento') ||
+          m.installmentGroupId?.includes('q1')
+      );
+      const mQ2 = realizedSalaries.find(
+        (m) =>
+          m.title.toLowerCase().includes('2ª') ||
+          m.title.toLowerCase().includes('principal') ||
+          m.installmentGroupId?.includes('q2')
+      );
+      if (mQ1) salaryFirstInstallment = mQ1.amount;
+      if (mQ2) salarySecondInstallment = mQ2.amount;
+    } else if (viewMode === 'PREVISTO') {
+      // No modo PREVISTO: contratos ativos pendentes (descontando o que já foi realizado)
+      if (salaryContracts && salaryContracts.length > 0) {
+        salaryContracts
+          .filter((sc) => sc.isActive)
+          .forEach((sc) => {
+            const res = resolveSalaryForMonth(sc, comp.key);
+            const mQ1 = realSalariesForMonth.find(
+              (m) =>
+                m.title.toLowerCase().includes('1ª') ||
+                m.title.toLowerCase().includes('adiantamento') ||
+                m.installmentGroupId?.includes('q1')
+            );
+            const mQ2 = realSalariesForMonth.find(
+              (m) =>
+                m.title.toLowerCase().includes('2ª') ||
+                m.title.toLowerCase().includes('principal') ||
+                m.installmentGroupId?.includes('q2')
+            );
+            const mUnico = realSalariesForMonth.find(
+              (m) =>
+                !m.title.toLowerCase().includes('1ª') &&
+                !m.title.toLowerCase().includes('2ª') &&
+                !m.title.toLowerCase().includes('adiantamento')
+            );
 
-          if (res.first > 0 || res.second > 0) {
-            if (mQ1 !== undefined) {
-              firstVal = mQ1.amount;
+            const q1Pending = mQ1?.status === 'REALIZADA' ? 0 : (mQ1 ? mQ1.amount : res.first);
+            const q2Pending = mQ2?.status === 'REALIZADA' ? 0 : (mQ2 ? mQ2.amount : res.second);
+            let totalVal = 0;
+
+            if (res.first > 0 || res.second > 0) {
+              totalVal = Math.round((q1Pending + q2Pending) * 100) / 100;
+              if (q1Pending > 0) salaryFirstInstallment = Math.round(((salaryFirstInstallment ?? 0) + q1Pending) * 100) / 100;
+              if (q2Pending > 0) salarySecondInstallment = Math.round(((salarySecondInstallment ?? 0) + q2Pending) * 100) / 100;
+            } else if (mUnico !== undefined) {
+              totalVal = mUnico.status === 'REALIZADA' ? 0 : mUnico.amount;
+            } else {
+              totalVal = res.total;
             }
-            if (mQ2 !== undefined) {
-              secondVal = mQ2.amount;
+
+            salary = Math.round((salary + totalVal) * 100) / 100;
+
+            if (res.weeklyCount > 0 && totalVal > 0) {
+              salaryWeeklyAmount = Math.round(((salaryWeeklyAmount ?? 0) + res.weeklyAmount) * 100) / 100;
+              salaryWeeklyInstallments = Math.max(salaryWeeklyInstallments ?? 0, res.weeklyCount);
             }
-            totalVal = Math.round((firstVal + secondVal) * 100) / 100;
-            salaryFirstInstallment = Math.round(((salaryFirstInstallment ?? 0) + firstVal) * 100) / 100;
-            salarySecondInstallment = Math.round(((salarySecondInstallment ?? 0) + secondVal) * 100) / 100;
-          } else if (mUnico !== undefined) {
-            totalVal = mUnico.amount;
-          }
-
-          salary = Math.round((salary + totalVal) * 100) / 100;
-
-          if (res.weeklyCount > 0) {
-            salaryWeeklyAmount = Math.round(((salaryWeeklyAmount ?? 0) + res.weeklyAmount) * 100) / 100;
-            salaryWeeklyInstallments = Math.max(salaryWeeklyInstallments ?? 0, res.weeklyCount);
-          }
-        });
+          });
+      } else {
+        salary = realSalariesForMonth
+          .filter((m) => m.status === 'PREVISTA')
+          .reduce((acc, m) => acc + m.amount, 0);
+      }
     } else {
-      // Fallback: movimentos de salário cadastrados para o mês
-      salary = realSalariesForMonth.reduce((acc, m) => acc + m.amount, 0);
+      // Modo PROJETADO (Consolidado original): Contratos ativos + ajustes reais
+      if (salaryContracts && salaryContracts.length > 0) {
+        salaryContracts
+          .filter((sc) => sc.isActive)
+          .forEach((sc) => {
+            const res = resolveSalaryForMonth(sc, comp.key);
+            let firstVal = res.first;
+            let secondVal = res.second;
+            let totalVal = res.total;
+
+            const mQ1 = realSalariesForMonth.find(
+              (m) =>
+                m.title.toLowerCase().includes('1ª') ||
+                m.title.toLowerCase().includes('adiantamento') ||
+                m.installmentGroupId?.includes('q1')
+            );
+            const mQ2 = realSalariesForMonth.find(
+              (m) =>
+                m.title.toLowerCase().includes('2ª') ||
+                m.title.toLowerCase().includes('principal') ||
+                m.installmentGroupId?.includes('q2')
+            );
+            const mUnico = realSalariesForMonth.find(
+              (m) =>
+                !m.title.toLowerCase().includes('1ª') &&
+                !m.title.toLowerCase().includes('2ª') &&
+                !m.title.toLowerCase().includes('adiantamento')
+            );
+
+            if (res.first > 0 || res.second > 0) {
+              if (mQ1 !== undefined) {
+                firstVal = mQ1.amount;
+              }
+              if (mQ2 !== undefined) {
+                secondVal = mQ2.amount;
+              }
+              totalVal = Math.round((firstVal + secondVal) * 100) / 100;
+              salaryFirstInstallment = Math.round(((salaryFirstInstallment ?? 0) + firstVal) * 100) / 100;
+              salarySecondInstallment = Math.round(((salarySecondInstallment ?? 0) + secondVal) * 100) / 100;
+            } else if (mUnico !== undefined) {
+              totalVal = mUnico.amount;
+            }
+
+            salary = Math.round((salary + totalVal) * 100) / 100;
+
+            if (res.weeklyCount > 0) {
+              salaryWeeklyAmount = Math.round(((salaryWeeklyAmount ?? 0) + res.weeklyAmount) * 100) / 100;
+              salaryWeeklyInstallments = Math.max(salaryWeeklyInstallments ?? 0, res.weeklyCount);
+            }
+          });
+      } else {
+        salary = realSalariesForMonth.reduce((acc, m) => acc + m.amount, 0);
+      }
     }
 
     // ── 3. Cartão de Crédito (-) ───────────────────────────────────────────────
     const creditCardTotal = movements
-      .filter((m) => m.type === 'CARTAO' && m.dueDate.startsWith(comp.key))
+      .filter((m) => {
+        if (m.type !== 'CARTAO') return false;
+        if (!m.dueDate.startsWith(comp.key)) return false;
+        if (viewMode === 'REALIZADO') return m.status === 'REALIZADA';
+        if (viewMode === 'PREVISTO') return m.status === 'PREVISTA';
+        return true;
+      })
       .reduce((acc, m) => acc + m.amount, 0);
 
-    // ── 4. Custo Fixo Mapeado (-) ──────────────────────────────────────────────
-    const fixedCostMapped  = defaultMonthlyFixedCost;
-    const fixedCostOnCard  = defaultFixedOnCard;
-    const fixedCostDirect  = defaultFixedDirect;
+    // ── 4. Custo Fixo Mapeado (-) & 5. Custos Avulsos / Variáveis (-) ─────────
+    let fixedCostMapped = defaultMonthlyFixedCost;
+    let fixedCostOnCard = defaultFixedOnCard;
+    let fixedCostDirect = defaultFixedDirect;
+    let variableCost = 0;
 
-    // ── 5. Custos Avulsos / Variáveis (-) ─────────────────────────────────────
-    const variableCost = movements
-      .filter(
+    if (viewMode === 'REALIZADO') {
+      // No modo REALIZADO: não projeta teto não gasto. Apura despesas pagas.
+      const realizedPagar = movements.filter(
         (m) =>
           m.type === 'PAGAR' &&
           m.category !== 'Cartões' &&
           m.category !== 'Empréstimos' &&
-          m.dueDate.startsWith(comp.key)
-      )
-      .reduce((acc, m) => acc + m.amount, 0);
+          m.dueDate.startsWith(comp.key) &&
+          m.status === 'REALIZADA'
+      );
+
+      let realFixedSum = 0;
+      let realVarSum = 0;
+
+      realizedPagar.forEach((m) => {
+        const isFixed =
+          !!m.natureId ||
+          m.category === 'Custos Fixos' ||
+          m.category === 'Habitação' ||
+          m.category === 'Assinaturas' ||
+          natures.some(
+            (nat) =>
+              nat.name.toLowerCase() === m.category.toLowerCase() ||
+              nat.mappings.some((mp) =>
+                mp.items.some((it) => it.description.toLowerCase() === m.title.toLowerCase())
+              )
+          );
+        if (isFixed) {
+          realFixedSum += m.amount;
+        } else {
+          realVarSum += m.amount;
+        }
+      });
+
+      fixedCostMapped = realFixedSum;
+      fixedCostDirect = realFixedSum;
+      fixedCostOnCard = 0;
+      variableCost = realVarSum;
+    } else if (viewMode === 'PREVISTO') {
+      // No modo PREVISTO: custos fixos orçados + custos variáveis a pagar
+      fixedCostMapped = defaultMonthlyFixedCost;
+      fixedCostOnCard = defaultFixedOnCard;
+      fixedCostDirect = defaultFixedDirect;
+      variableCost = movements
+        .filter(
+          (m) =>
+            m.type === 'PAGAR' &&
+            m.category !== 'Cartões' &&
+            m.category !== 'Empréstimos' &&
+            m.dueDate.startsWith(comp.key) &&
+            m.status === 'PREVISTA'
+        )
+        .reduce((acc, m) => acc + m.amount, 0);
+    } else {
+      // Modo PROJETADO consolidado
+      fixedCostMapped = defaultMonthlyFixedCost;
+      fixedCostOnCard = defaultFixedOnCard;
+      fixedCostDirect = defaultFixedDirect;
+      variableCost = movements
+        .filter(
+          (m) =>
+            m.type === 'PAGAR' &&
+            m.category !== 'Cartões' &&
+            m.category !== 'Empréstimos' &&
+            m.dueDate.startsWith(comp.key)
+        )
+        .reduce((acc, m) => acc + m.amount, 0);
+    }
 
     // ── 6. Empréstimos Recebidos (+) ───────────────────────────────────────────
     const loanReceived = movements
-      .filter((m) => m.type === 'EMPRESTIMO' && m.category === 'Recebimento' && m.dueDate.startsWith(comp.key))
+      .filter((m) => {
+        if (m.type !== 'EMPRESTIMO' || m.category !== 'Recebimento' || !m.dueDate.startsWith(comp.key)) return false;
+        if (viewMode === 'REALIZADO') return m.status === 'REALIZADA';
+        if (viewMode === 'PREVISTO') return m.status === 'PREVISTA';
+        return true;
+      })
       .reduce((acc, m) => acc + m.amount, 0);
 
     // ── 7. Parcelas de Empréstimo (-) ──────────────────────────────────────────
     const loanPayment = loanMovements
-      .filter((m) => m.category !== 'Recebimento' && m.dueDate.startsWith(comp.key))
+      .filter((m) => {
+        if (m.category === 'Recebimento' || !m.dueDate.startsWith(comp.key)) return false;
+        if (viewMode === 'REALIZADO') return m.status === 'REALIZADA';
+        if (viewMode === 'PREVISTO') return m.status === 'PREVISTA';
+        return true;
+      })
       .reduce((acc, m) => acc + m.amount, 0);
 
     // ── 8. Saldo do Mês ────────────────────────────────────────────────────────
-    const totalInflow  = extrasTotal + salary + loanReceived;
+    const totalInflow = extrasTotal + salary + loanReceived;
     const totalOutflow = creditCardTotal + fixedCostDirect + variableCost + loanPayment;
-    const monthNet     = Math.round((totalInflow - totalOutflow) * 100) / 100;
+    const monthNet = Math.round((totalInflow - totalOutflow) * 100) / 100;
 
     // Verificar se o mês atual já possui fechamento formalizado
     const currentClosing = monthlyClosings?.find(

@@ -8025,6 +8025,56 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
 }
 
+/* Seletor de Modo: Real vs Previsto vs Projetado */
+.view-mode-filter-pills {
+  display: flex;
+  background: rgba(11, 19, 36, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.view-mode-filter-pills .pill-btn {
+  padding: 4px 12px;
+  font-size: 0.72rem;
+  border-radius: 18px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 500;
+  transition: all var(--transition-fast);
+}
+
+.view-mode-filter-pills .pill-btn:hover {
+  color: #f1f5f9;
+}
+
+.view-mode-filter-pills .pill-btn.active.mode-projetado {
+  background: var(--accent-cyan);
+  color: #0b1329;
+  font-weight: 700;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+}
+
+.view-mode-filter-pills .pill-btn.active.mode-realizado {
+  background: #10b981;
+  color: #022c22;
+  font-weight: 700;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.35);
+}
+
+.view-mode-filter-pills .pill-btn.active.mode-previsto {
+  background: #f59e0b;
+  color: #451a03;
+  font-weight: 700;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.35);
+}
+
 /* 4 Mini Cards de Indicadores do Grid */
 .grid-summary-kpis-row {
   display: grid;
@@ -9692,6 +9742,38 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   background: #0284C7;
   color: #FFFFFF;
   box-shadow: 0 1px 6px rgba(2, 132, 199, 0.25);
+}
+
+[data-theme="light"] .view-mode-filter-pills {
+  background: #F1F5F9;
+  border-color: #E2E8F0;
+}
+
+[data-theme="light"] .view-mode-filter-pills .pill-btn {
+  color: #64748B;
+}
+
+[data-theme="light"] .view-mode-filter-pills .pill-btn:hover {
+  color: #0F172A;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+[data-theme="light"] .view-mode-filter-pills .pill-btn.active.mode-projetado {
+  background: #0284C7;
+  color: #FFFFFF;
+  box-shadow: 0 1px 6px rgba(2, 132, 199, 0.25);
+}
+
+[data-theme="light"] .view-mode-filter-pills .pill-btn.active.mode-realizado {
+  background: #059669;
+  color: #FFFFFF;
+  box-shadow: 0 1px 6px rgba(5, 150, 105, 0.25);
+}
+
+[data-theme="light"] .view-mode-filter-pills .pill-btn.active.mode-previsto {
+  background: #D97706;
+  color: #FFFFFF;
+  box-shadow: 0 1px 6px rgba(217, 119, 6, 0.25);
 }
 
 [data-theme="light"] .grid-interactive-tip {
