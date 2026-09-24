@@ -478,27 +478,25 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
       description: string;
     }>
   >(() => {
-    // Se o usuário já tiver naturezas, usa as existentes, caso contrário usa as recomendadas
-    if (natures.length > 0) {
-      return natures.map((n) => ({
-        id: n.id,
-        name: n.name,
-        icon: n.icon || '🏷️',
-        color: n.color || '#06b6d4',
-        ceiling: (n as any).ceiling || 1000,
-        type: n.type || 'VARIAVEL',
-        description: n.description || '',
-      }));
-    }
-    return DEFAULT_RECOMMENDED_NATURES.map((d) => ({
-      id: d.id,
-      name: d.name,
-      icon: d.icon,
-      color: d.color,
-      ceiling: d.suggestedCeiling,
-      type: d.type,
-      description: d.description,
-    }));
+    // Pré-seleciona apenas as DEFAULT_RECOMMENDED_NATURES que já existem no contexto
+    // (comparando por id ou nome), ou usa todos os defaults se o usuário não tem nenhuma ainda.
+    // Isso evita o bug "10 de 5 ativas" quando o usuário tem naturezas extras cadastradas.
+    return DEFAULT_RECOMMENDED_NATURES.map((d) => {
+      // Verifica se essa natureza-padrão já existe no contexto
+      const existingNat = natures.find(
+        (n) => n.id === d.id || n.name.toLowerCase().trim() === d.name.toLowerCase().trim()
+      );
+      return {
+        id: existingNat?.id || d.id,
+        name: d.name,
+        icon: d.icon,
+        color: d.color,
+        ceiling: existingNat ? ((existingNat as any).ceiling || d.suggestedCeiling) : d.suggestedCeiling,
+        type: d.type,
+        description: d.description,
+        _alreadyExists: !!existingNat,
+      };
+    });
   });
 
   const [newNatureName, setNewNatureName] = useState('');
@@ -1985,7 +1983,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                     Selecione suas Naturezas & Ajuste os Tetos:
                   </span>
                   <span className="text-xs text-muted">
-                    {selectedNatures.length} de {DEFAULT_RECOMMENDED_NATURES.length} ativas
+                    {selectedNatures.filter((n) => DEFAULT_RECOMMENDED_NATURES.some((d) => d.id === n.id || d.name.toLowerCase() === n.name.toLowerCase())).length} de {DEFAULT_RECOMMENDED_NATURES.length} ativas
                   </span>
                 </div>
 
