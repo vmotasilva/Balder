@@ -542,3 +542,14 @@ export interface SharedSettlementItem {
   status: 'PENDENTE' | 'ACERTADO';
 }
 
+export interface UserProfileSettings {
+  cards?: CreditCardItem[];
+  banks?: BankInstitution[];
+  monthlyClosings?: MonthlyClosing[];
+  sharedScenario?: SharedScenario | null;
+  sharedSettlements?: SharedSettlementItem[];
+  defaultTrackingScope?: TrackingScopeMode;
+  onboardingCompleted?: boolean;
+}
+
+

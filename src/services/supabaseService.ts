@@ -7,6 +7,7 @@ import type {
   SalaryContract,
   FinancialCheckpoint,
   PaymentMethodItem,
+  UserProfileSettings,
 } from '../types';
 
 /**
@@ -509,6 +510,25 @@ export const SupabaseService = {
     }
   },
 
+  async deleteAccount(id: string): Promise<boolean> {
+    if (!isSupabaseConfigured) return false;
+    try {
+      const { error } = await supabase
+        .from(TABLES.ACCOUNTS)
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('[SupabaseService] Erro ao excluir conta:', error.message);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error('[SupabaseService] Exceção ao excluir conta:', e);
+      return false;
+    }
+  },
+
   // ============================================================================
   // SALARY CONTRACTS
   // ============================================================================
@@ -603,6 +623,25 @@ export const SupabaseService = {
     }
   },
 
+  async deleteSalaryContract(id: string): Promise<boolean> {
+    if (!isSupabaseConfigured) return false;
+    try {
+      const { error } = await supabase
+        .from(TABLES.SALARY_CONTRACTS)
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('[SupabaseService] Erro ao excluir contrato:', error.message);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error('[SupabaseService] Exceção ao excluir contrato:', e);
+      return false;
+    }
+  },
+
   // ============================================================================
   // CHECKPOINTS
   // ============================================================================
@@ -682,6 +721,25 @@ export const SupabaseService = {
     }
   },
 
+  async deleteCheckpoint(id: string): Promise<boolean> {
+    if (!isSupabaseConfigured) return false;
+    try {
+      const { error } = await supabase
+        .from(TABLES.CHECKPOINTS)
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('[SupabaseService] Erro ao excluir checkpoint:', error.message);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error('[SupabaseService] Exceção ao excluir checkpoint:', e);
+      return false;
+    }
+  },
+
   // ============================================================================
   // PAYMENT METHODS
   // ============================================================================
@@ -750,6 +808,67 @@ export const SupabaseService = {
       return true;
     } catch (e) {
       console.error('[SupabaseService] Exceção ao salvar método de pagamento:', e);
+      return false;
+    }
+  },
+
+  async deletePaymentMethod(id: string): Promise<boolean> {
+    if (!isSupabaseConfigured) return false;
+    try {
+      const { error } = await supabase
+        .from(TABLES.PAYMENT_METHODS)
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('[SupabaseService] Erro ao excluir método de pagamento:', error.message);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error('[SupabaseService] Exceção ao excluir método de pagamento:', e);
+      return false;
+    }
+  },
+
+  // ============================================================================
+  // USER PROFILE SETTINGS (Cards, Banks, Monthly Closings, Shared Scenarios)
+  // ============================================================================
+  async getUserProfileSettings(): Promise<UserProfileSettings | null> {
+    if (!isSupabaseConfigured) return null;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      return (user.user_metadata?.balder_settings as UserProfileSettings) || null;
+    } catch (e) {
+      console.error('[SupabaseService] Erro ao buscar configurações de perfil:', e);
+      return null;
+    }
+  },
+
+  async saveUserProfileSettings(settings: Partial<UserProfileSettings>): Promise<boolean> {
+    if (!isSupabaseConfigured) return false;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return false;
+      const current = (user.user_metadata?.balder_settings as UserProfileSettings) || {};
+      const updated = {
+        ...current,
+        ...settings,
+      };
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          balder_settings: updated,
+        },
+      });
+
+      if (error) {
+        console.error('[SupabaseService] Erro ao salvar configurações de perfil:', error.message);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error('[SupabaseService] Exceção ao salvar configurações de perfil:', e);
       return false;
     }
   },

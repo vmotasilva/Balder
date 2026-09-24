@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useFinancial, buildSuggestedMappingsForNature } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
+import { SupabaseService } from '../services/supabaseService';
 import {
   Sparkles,
   Flag,
@@ -675,9 +676,10 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
         });
       }
 
-      // Marca onboarding como completado no localStorage
+      // Marca onboarding como completado no localStorage e no Supabase
       if (user && !user.isGuest) {
         localStorage.setItem(`balder_onboarding_completed_${user.$id}`, 'true');
+        SupabaseService.saveUserProfileSettings({ onboardingCompleted: true }).catch(console.error);
       } else {
         localStorage.setItem('balder_onboarding_completed_guest', 'true');
       }

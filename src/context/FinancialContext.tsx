@@ -416,6 +416,10 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
       return next;
     });
+
+    if (user && !user.isGuest) {
+      SupabaseService.upsertCheckpoint(newCp).catch(console.error);
+    }
   };
 
   // Ativar um checkpoint existente pelo ID
@@ -427,6 +431,11 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         localStorage.setItem(storageKey, JSON.stringify(next));
       } catch (e) {
         console.warn('Erro ao ativar checkpoint:', e);
+      }
+      if (user && !user.isGuest) {
+        next.forEach((c) => {
+          SupabaseService.upsertCheckpoint(c).catch(console.error);
+        });
       }
       return next;
     });
@@ -444,6 +453,13 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         localStorage.setItem(storageKey, JSON.stringify(next));
       } catch (e) {
         console.warn('Erro ao excluir checkpoint:', e);
+      }
+      if (user && !user.isGuest) {
+        SupabaseService.deleteCheckpoint(id).catch(console.error);
+        const activeOne = next.find((c) => c.isActive);
+        if (activeOne) {
+          SupabaseService.upsertCheckpoint(activeOne).catch(console.error);
+        }
       }
       return next;
     });
@@ -493,6 +509,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       } catch (e) {
         console.warn('Erro ao salvar fechamento mensal:', e);
       }
+      if (user && !user.isGuest) {
+        SupabaseService.saveUserProfileSettings({ monthlyClosings: next }).catch(console.error);
+      }
       return next;
     });
   };
@@ -506,6 +525,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         localStorage.setItem(storageKey, JSON.stringify(next));
       } catch (e) {
         console.warn('Erro ao reabrir competência:', e);
+      }
+      if (user && !user.isGuest) {
+        SupabaseService.saveUserProfileSettings({ monthlyClosings: next }).catch(console.error);
       }
       return next;
     });
@@ -537,6 +559,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     try {
       localStorage.setItem(storageKey, scope);
     } catch {}
+    if (user && !user.isGuest) {
+      SupabaseService.saveUserProfileSettings({ defaultTrackingScope: scope }).catch(console.error);
+    }
   };
 
   // Cenário de Planejamento Compartilhado
@@ -652,6 +677,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       try {
         localStorage.setItem(storageKey, JSON.stringify(updated));
       } catch {}
+      if (user && !user.isGuest) {
+        SupabaseService.saveUserProfileSettings({ sharedScenario: updated }).catch(console.error);
+      }
       return updated;
     });
   };
@@ -667,6 +695,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       try {
         localStorage.setItem(storageKey, JSON.stringify(next));
       } catch {}
+      if (user && !user.isGuest) {
+        SupabaseService.saveUserProfileSettings({ sharedSettlements: next }).catch(console.error);
+      }
       return next;
     });
   };
@@ -678,6 +709,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       try {
         localStorage.setItem(storageKey, JSON.stringify(next));
       } catch {}
+      if (user && !user.isGuest) {
+        SupabaseService.saveUserProfileSettings({ sharedSettlements: next }).catch(console.error);
+      }
       return next;
     });
   };
@@ -689,6 +723,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       try {
         localStorage.setItem(storageKey, JSON.stringify(next));
       } catch {}
+      if (user && !user.isGuest) {
+        SupabaseService.saveUserProfileSettings({ sharedSettlements: next }).catch(console.error);
+      }
       return next;
     });
   };
@@ -730,16 +767,29 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
       return next;
     });
+    if (user && !user.isGuest) {
+      SupabaseService.upsertAccount(newAcc).catch(console.error);
+    }
   };
 
   const updateAccount = (id: string, updates: Partial<BankAccount>) => {
+    let updatedAcc: BankAccount | null = null;
     setAccounts((prev) => {
-      const next = prev.map((a) => (a.id === id ? { ...a, ...updates } : a));
+      const next = prev.map((a) => {
+        if (a.id === id) {
+          updatedAcc = { ...a, ...updates };
+          return updatedAcc;
+        }
+        return a;
+      });
       if (user && !user.isGuest) {
         localStorage.setItem(`balder_accounts_${user.$id}`, JSON.stringify(next));
       }
       return next;
     });
+    if (user && !user.isGuest && updatedAcc) {
+      SupabaseService.upsertAccount(updatedAcc).catch(console.error);
+    }
   };
 
   const deleteAccount = (id: string) => {
@@ -750,6 +800,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
       return next;
     });
+    if (user && !user.isGuest) {
+      SupabaseService.deleteAccount(id).catch(console.error);
+    }
   };
 
   // Gestão de Cartões de Crédito
@@ -762,6 +815,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const next = [...prev, newCard];
       if (user && !user.isGuest) {
         localStorage.setItem(`balder_cards_${user.$id}`, JSON.stringify(next));
+        SupabaseService.saveUserProfileSettings({ cards: next }).catch(console.error);
       }
       return next;
     });
@@ -772,6 +826,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const next = prev.map((c) => (c.id === id ? { ...c, ...updates } : c));
       if (user && !user.isGuest) {
         localStorage.setItem(`balder_cards_${user.$id}`, JSON.stringify(next));
+        SupabaseService.saveUserProfileSettings({ cards: next }).catch(console.error);
       }
       return next;
     });
@@ -782,6 +837,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const next = prev.filter((c) => c.id !== id);
       if (user && !user.isGuest) {
         localStorage.setItem(`balder_cards_${user.$id}`, JSON.stringify(next));
+        SupabaseService.saveUserProfileSettings({ cards: next }).catch(console.error);
       }
       return next;
     });
@@ -800,16 +856,29 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
       return next;
     });
+    if (user && !user.isGuest) {
+      SupabaseService.upsertPaymentMethod(newMethod).catch(console.error);
+    }
   };
 
   const updatePaymentMethod = (id: string, updates: Partial<PaymentMethodItem>) => {
+    let updatedPm: PaymentMethodItem | null = null;
     setPaymentMethods((prev) => {
-      const next = prev.map((pm) => (pm.id === id ? { ...pm, ...updates } : pm));
+      const next = prev.map((pm) => {
+        if (pm.id === id) {
+          updatedPm = { ...pm, ...updates };
+          return updatedPm;
+        }
+        return pm;
+      });
       if (user && !user.isGuest) {
         localStorage.setItem(`balder_payment_methods_${user.$id}`, JSON.stringify(next));
       }
       return next;
     });
+    if (user && !user.isGuest && updatedPm) {
+      SupabaseService.upsertPaymentMethod(updatedPm).catch(console.error);
+    }
   };
 
   const deletePaymentMethod = (id: string) => {
@@ -820,6 +889,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
       return next;
     });
+    if (user && !user.isGuest) {
+      SupabaseService.deletePaymentMethod(id).catch(console.error);
+    }
   };
 
   // Gestão de Bancos / Instituições
@@ -833,6 +905,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const next = [...prev, newBank];
       if (user && !user.isGuest) {
         localStorage.setItem(`balder_banks_${user.$id}`, JSON.stringify(next));
+        SupabaseService.saveUserProfileSettings({ banks: next }).catch(console.error);
       }
       return next;
     });
@@ -843,6 +916,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const next = prev.map((b) => (b.id === id ? { ...b, ...updates } : b));
       if (user && !user.isGuest) {
         localStorage.setItem(`balder_banks_${user.$id}`, JSON.stringify(next));
+        SupabaseService.saveUserProfileSettings({ banks: next }).catch(console.error);
       }
       return next;
     });
@@ -853,6 +927,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const next = prev.filter((b) => b.id !== id);
       if (user && !user.isGuest) {
         localStorage.setItem(`balder_banks_${user.$id}`, JSON.stringify(next));
+        SupabaseService.saveUserProfileSettings({ banks: next }).catch(console.error);
       }
       return next;
     });
@@ -894,16 +969,29 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
       return next;
     });
+    if (user && !user.isGuest) {
+      SupabaseService.upsertSalaryContract(newContract).catch(console.error);
+    }
   };
 
   const updateSalaryContract = (id: string, updates: Partial<SalaryContract>) => {
+    let updatedSc: SalaryContract | null = null;
     setSalaryContracts((prev) => {
-      const next = prev.map((sc) => (sc.id === id ? { ...sc, ...updates } : sc));
+      const next = prev.map((sc) => {
+        if (sc.id === id) {
+          updatedSc = { ...sc, ...updates };
+          return updatedSc;
+        }
+        return sc;
+      });
       if (user && !user.isGuest) {
         localStorage.setItem(`balder_salaries_${user.$id}`, JSON.stringify(next));
       }
       return next;
     });
+    if (user && !user.isGuest && updatedSc) {
+      SupabaseService.upsertSalaryContract(updatedSc).catch(console.error);
+    }
   };
 
   const deleteSalaryContract = (id: string) => {
@@ -914,9 +1002,13 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
       return next;
     });
+    if (user && !user.isGuest) {
+      SupabaseService.deleteSalaryContract(id).catch(console.error);
+    }
   };
 
   const addSalaryAdjustment = (contractId: string, adjustmentData: Omit<SalaryAdjustment, 'id'>) => {
+    let targetContract: SalaryContract | null = null;
     setSalaryContracts((prev) => {
       const next = prev.map((sc) => {
         if (sc.id !== contractId) return sc;
@@ -938,12 +1030,14 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const updatedHistory = [...sc.history, newAdj].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
         const latestAdj = updatedHistory[updatedHistory.length - 1];
 
-        return {
+        const updated = {
           ...sc,
           currentGrossAmount: latestAdj.grossAmount,
           currentNetAmount: latestAdj.netAmount,
           history: updatedHistory,
         };
+        targetContract = updated;
+        return updated;
       });
 
       if (user && !user.isGuest) {
@@ -951,9 +1045,13 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
       return next;
     });
+    if (user && !user.isGuest && targetContract) {
+      SupabaseService.upsertSalaryContract(targetContract).catch(console.error);
+    }
   };
 
   const updateSalaryAdjustment = (contractId: string, adjustmentId: string, updates: Partial<SalaryAdjustment>) => {
+    let targetContract: SalaryContract | null = null;
     setSalaryContracts((prev) => {
       const next = prev.map((sc) => {
         if (sc.id !== contractId) return sc;
@@ -961,12 +1059,14 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           .sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
         const latestAdj = updatedHistory[updatedHistory.length - 1];
 
-        return {
+        const updated = {
           ...sc,
           currentGrossAmount: latestAdj ? latestAdj.grossAmount : sc.currentGrossAmount,
           currentNetAmount: latestAdj ? latestAdj.netAmount : sc.currentNetAmount,
           history: updatedHistory,
         };
+        targetContract = updated;
+        return updated;
       });
 
       if (user && !user.isGuest) {
@@ -974,21 +1074,27 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
       return next;
     });
+    if (user && !user.isGuest && targetContract) {
+      SupabaseService.upsertSalaryContract(targetContract).catch(console.error);
+    }
   };
 
   const deleteSalaryAdjustment = (contractId: string, adjustmentId: string) => {
+    let targetContract: SalaryContract | null = null;
     setSalaryContracts((prev) => {
       const next = prev.map((sc) => {
         if (sc.id !== contractId) return sc;
         const updatedHistory = sc.history.filter((a) => a.id !== adjustmentId);
         const latestAdj = updatedHistory[updatedHistory.length - 1];
 
-        return {
+        const updated = {
           ...sc,
           currentGrossAmount: latestAdj ? latestAdj.grossAmount : sc.currentGrossAmount,
           currentNetAmount: latestAdj ? latestAdj.netAmount : sc.currentNetAmount,
           history: updatedHistory,
         };
+        targetContract = updated;
+        return updated;
       });
 
       if (user && !user.isGuest) {
@@ -996,6 +1102,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
       return next;
     });
+    if (user && !user.isGuest && targetContract) {
+      SupabaseService.upsertSalaryContract(targetContract).catch(console.error);
+    }
   };
 
   // Retorna a remuneração líquida vigente em determinado mês de competência (YYYY-MM)
@@ -1147,13 +1256,28 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     let isMounted = true;
     async function loadCloudData() {
       try {
-        const [cloudMovements, cloudNatures, cloudGoals] = await Promise.all([
+        const [
+          cloudMovements,
+          cloudNatures,
+          cloudGoals,
+          cloudAccounts,
+          cloudSalaries,
+          cloudCheckpoints,
+          cloudPaymentMethods,
+          cloudProfileSettings,
+        ] = await Promise.all([
           SupabaseService.getMovements(),
           SupabaseService.getNatures(),
           SupabaseService.getGoals(),
+          SupabaseService.getAccounts(),
+          SupabaseService.getSalaryContracts(),
+          SupabaseService.getCheckpoints(),
+          SupabaseService.getPaymentMethods(),
+          SupabaseService.getUserProfileSettings(),
         ]);
+
         if (isMounted) {
-          // Em ambiente autenticado na nuvem, mescla com cache local para resguardar mapeamentos recém-criados
+          // 1. Naturezas: mescla com cache local e sobe para nuvem se necessário
           let finalNatures = cloudNatures || [];
           try {
             const cacheKey = user ? `balder_natures_${user.$id}` : 'balder_natures_guest';
@@ -1162,16 +1286,23 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               const localNatures: ExpenseNature[] = JSON.parse(savedNaturesStr);
               if (finalNatures.length === 0 && localNatures.length > 0) {
                 finalNatures = localNatures;
+                if (user && !user.isGuest) {
+                  localNatures.forEach((nat) => {
+                    SupabaseService.addNature(nat).catch(console.error);
+                  });
+                }
               } else if (localNatures.length > 0) {
                 finalNatures = finalNatures.map((cNat) => {
-                  const localNat = localNatures.find((l) => l.id === cNat.id || l.name.trim().toLowerCase() === cNat.name.trim().toLowerCase());
+                  const localNat = localNatures.find(
+                    (l) => l.id === cNat.id || l.name.trim().toLowerCase() === cNat.name.trim().toLowerCase()
+                  );
                   if (
                     localNat &&
                     (!cNat.mappings || cNat.mappings.length === 0) &&
                     localNat.mappings &&
                     localNat.mappings.length > 0
                   ) {
-                    if (user && !user.isGuest && !cNat.id.startsWith('nat_')) {
+                    if (user && !user.isGuest) {
                       SupabaseService.updateNature(cNat.id, { mappings: localNat.mappings }).catch(console.error);
                     }
                     return { ...cNat, mappings: localNat.mappings };
@@ -1183,41 +1314,229 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           } catch (e) {
             console.warn('Erro ao mesclar cache local de naturezas:', e);
           }
-
-          setMovements(cloudMovements || []);
           setNatures(finalNatures);
-          setGoals(cloudGoals || []);
-
           if (user && !user.isGuest) {
             localStorage.setItem(`balder_natures_${user.$id}`, JSON.stringify(finalNatures));
           }
 
-          try {
-            const savedAccounts = user ? localStorage.getItem(`balder_accounts_${user.$id}`) : null;
-            setAccounts(savedAccounts ? JSON.parse(savedAccounts) : []);
-            const savedCards = user ? localStorage.getItem(`balder_cards_${user.$id}`) : null;
-            setCards(savedCards ? JSON.parse(savedCards) : []);
-            const savedMethods = user ? localStorage.getItem(`balder_payment_methods_${user.$id}`) : null;
-            setPaymentMethods(savedMethods ? JSON.parse(savedMethods) : []);
-            const savedBanks = user ? localStorage.getItem(`balder_banks_${user.$id}`) : null;
-            setBanks(savedBanks ? JSON.parse(savedBanks) : []);
-            const savedSalaries = user ? localStorage.getItem(`balder_salaries_${user.$id}`) : null;
-            setSalaryContracts(savedSalaries ? JSON.parse(savedSalaries) : []);
-            const savedCheckpoints = user
-              ? localStorage.getItem(`balder_checkpoints_${user.$id}`)
-              : localStorage.getItem('balder_checkpoints_guest');
-            if (savedCheckpoints) {
-              const parsed = JSON.parse(savedCheckpoints);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                setCheckpoints(parsed);
-              }
+          // 2. Metas Financeiras
+          setGoals(cloudGoals || []);
+
+          // 3. Contas Bancárias (Nuvem prioritária com migração de cache local)
+          let finalAccounts = cloudAccounts || [];
+          if (finalAccounts.length === 0 && user) {
+            const savedAccStr = localStorage.getItem(`balder_accounts_${user.$id}`) || localStorage.getItem('balder_accounts_guest');
+            if (savedAccStr) {
+              try {
+                const parsed = JSON.parse(savedAccStr);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  finalAccounts = parsed;
+                  if (!user.isGuest) {
+                    parsed.forEach((acc) => SupabaseService.upsertAccount(acc).catch(console.error));
+                  }
+                }
+              } catch {}
             }
-          } catch {
-            setAccounts([]);
-            setCards([]);
-            setPaymentMethods([]);
-            setBanks([]);
-            setSalaryContracts([]);
+          }
+          setAccounts(finalAccounts);
+          if (user && !user.isGuest) {
+            localStorage.setItem(`balder_accounts_${user.$id}`, JSON.stringify(finalAccounts));
+          }
+
+          // 4. Métodos de Pagamento
+          let finalMethods = cloudPaymentMethods || [];
+          if (finalMethods.length === 0 && user) {
+            const savedPmStr = localStorage.getItem(`balder_payment_methods_${user.$id}`) || localStorage.getItem('balder_payment_methods_guest');
+            if (savedPmStr) {
+              try {
+                const parsed = JSON.parse(savedPmStr);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  finalMethods = parsed;
+                  if (!user.isGuest) {
+                    parsed.forEach((pm) => SupabaseService.upsertPaymentMethod(pm).catch(console.error));
+                  }
+                }
+              } catch {}
+            }
+          }
+          setPaymentMethods(finalMethods);
+          if (user && !user.isGuest) {
+            localStorage.setItem(`balder_payment_methods_${user.$id}`, JSON.stringify(finalMethods));
+          }
+
+          // 5. Contratos de Salário / Remuneração
+          let finalSalaries = cloudSalaries || [];
+          if (finalSalaries.length === 0 && user) {
+            const savedSalStr = localStorage.getItem(`balder_salaries_${user.$id}`) || localStorage.getItem('balder_salaries_guest');
+            if (savedSalStr) {
+              try {
+                const parsed = JSON.parse(savedSalStr);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  finalSalaries = parsed;
+                  if (!user.isGuest) {
+                    parsed.forEach((sc) => SupabaseService.upsertSalaryContract(sc).catch(console.error));
+                  }
+                }
+              } catch {}
+            }
+          }
+          setSalaryContracts(finalSalaries);
+          if (user && !user.isGuest) {
+            localStorage.setItem(`balder_salaries_${user.$id}`, JSON.stringify(finalSalaries));
+          }
+
+          // 6. Checkpoints de Partida (Crucial para saldo e métricas)
+          let finalCheckpoints = cloudCheckpoints || [];
+          if (finalCheckpoints.length === 0 && user) {
+            const savedCpStr = localStorage.getItem(`balder_checkpoints_${user.$id}`) || localStorage.getItem('balder_checkpoints_guest');
+            if (savedCpStr) {
+              try {
+                const parsed = JSON.parse(savedCpStr);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  finalCheckpoints = parsed;
+                  if (!user.isGuest) {
+                    parsed.forEach((cp) => SupabaseService.upsertCheckpoint(cp).catch(console.error));
+                  }
+                }
+              } catch {}
+            }
+          }
+          setCheckpoints(finalCheckpoints);
+          if (user && !user.isGuest) {
+            localStorage.setItem(`balder_checkpoints_${user.$id}`, JSON.stringify(finalCheckpoints));
+          }
+
+          // 7. Cartões de Crédito (via Perfil Nuvem ou Cache)
+          let finalCards = cloudProfileSettings?.cards || [];
+          if (finalCards.length === 0 && user) {
+            const savedCardsStr = localStorage.getItem(`balder_cards_${user.$id}`) || localStorage.getItem('balder_cards_guest');
+            if (savedCardsStr) {
+              try {
+                const parsed = JSON.parse(savedCardsStr);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  finalCards = parsed;
+                }
+              } catch {}
+            }
+          }
+          setCards(finalCards);
+          if (user && !user.isGuest) {
+            localStorage.setItem(`balder_cards_${user.$id}`, JSON.stringify(finalCards));
+          }
+
+          // 8. Bancos / Instituições
+          let finalBanks = cloudProfileSettings?.banks || [];
+          if (finalBanks.length === 0 && user) {
+            const savedBanksStr = localStorage.getItem(`balder_banks_${user.$id}`) || localStorage.getItem('balder_banks_guest');
+            if (savedBanksStr) {
+              try {
+                const parsed = JSON.parse(savedBanksStr);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  finalBanks = parsed;
+                }
+              } catch {}
+            }
+          }
+          setBanks(finalBanks);
+          if (user && !user.isGuest) {
+            localStorage.setItem(`balder_banks_${user.$id}`, JSON.stringify(finalBanks));
+          }
+
+          // 9. Fechamentos Mensais de Competência
+          let finalClosings = cloudProfileSettings?.monthlyClosings || [];
+          if (finalClosings.length === 0 && user) {
+            const savedClosingsStr = localStorage.getItem(`balder_monthly_closings_${user.$id}`) || localStorage.getItem('balder_monthly_closings_guest');
+            if (savedClosingsStr) {
+              try {
+                const parsed = JSON.parse(savedClosingsStr);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                  finalClosings = parsed;
+                }
+              } catch {}
+            }
+          }
+          setMonthlyClosings(finalClosings);
+          if (user && !user.isGuest) {
+            localStorage.setItem(`balder_monthly_closings_${user.$id}`, JSON.stringify(finalClosings));
+          }
+
+          // 10. Planejamento Compartilhado & Acertos Mútuos
+          if (cloudProfileSettings?.sharedScenario) {
+            setSharedScenario(cloudProfileSettings.sharedScenario);
+            if (user) {
+              localStorage.setItem(`balder_shared_scenario_${user.$id}`, JSON.stringify(cloudProfileSettings.sharedScenario));
+            }
+          }
+          if (cloudProfileSettings?.sharedSettlements) {
+            setSharedSettlements(cloudProfileSettings.sharedSettlements);
+            if (user) {
+              localStorage.setItem(`balder_shared_settlements_${user.$id}`, JSON.stringify(cloudProfileSettings.sharedSettlements));
+            }
+          }
+          if (cloudProfileSettings?.defaultTrackingScope) {
+            setDefaultTrackingScopeState(cloudProfileSettings.defaultTrackingScope);
+            if (user) {
+              localStorage.setItem(`balder_default_scope_${user.$id}`, cloudProfileSettings.defaultTrackingScope);
+            }
+          }
+          if (cloudProfileSettings?.onboardingCompleted) {
+            if (user) {
+              localStorage.setItem(`balder_onboarding_completed_${user.$id}`, 'true');
+            }
+          }
+
+          // Se tivermos itens locais que ainda não estavam no perfil da nuvem, salva no Supabase
+          if (user && !user.isGuest && (!cloudProfileSettings || Object.keys(cloudProfileSettings).length === 0)) {
+            SupabaseService.saveUserProfileSettings({
+              cards: finalCards,
+              banks: finalBanks,
+              monthlyClosings: finalClosings,
+              onboardingCompleted: localStorage.getItem(`balder_onboarding_completed_${user.$id}`) === 'true',
+            }).catch(console.error);
+          }
+
+          // 11. Movimentações Financeiras (com migração de itens locais/guest para a nuvem)
+          let finalMovements = cloudMovements || [];
+          if (user) {
+            const savedMovStr = localStorage.getItem(`balder_movements_${user.$id}`) || localStorage.getItem('balder_movements_guest');
+            if (savedMovStr) {
+              try {
+                const localMovs: Movement[] = JSON.parse(savedMovStr);
+                if (finalMovements.length === 0 && localMovs.length > 0) {
+                  finalMovements = localMovs;
+                  if (!user.isGuest) {
+                    localMovs.forEach((m) => {
+                      const { id, ...rest } = m;
+                      SupabaseService.addMovement(rest).catch(console.error);
+                    });
+                  }
+                } else if (localMovs.length > 0 && !user.isGuest) {
+                  // Sobe movimentações geradas localmente que ainda não foram persistidas
+                  const unsynced = localMovs.filter(
+                    (lm) =>
+                      lm.id.startsWith('mov_') &&
+                      !finalMovements.some(
+                        (fm) => fm.title === lm.title && fm.dueDate === lm.dueDate && fm.amount === lm.amount
+                      )
+                  );
+                  if (unsynced.length > 0) {
+                    unsynced.forEach((m) => {
+                      const { id, ...rest } = m;
+                      SupabaseService.addMovement(rest).then((created) => {
+                        if (created) {
+                          setMovements((prev) => prev.map((item) => (item.id === m.id ? created : item)));
+                        }
+                      }).catch(console.error);
+                    });
+                    finalMovements = [...unsynced, ...finalMovements];
+                  }
+                }
+              } catch {}
+            }
+          }
+          setMovements(finalMovements);
+          if (user && !user.isGuest) {
+            localStorage.setItem(`balder_movements_${user.$id}`, JSON.stringify(finalMovements));
           }
 
           setIsDataReady(true);
@@ -1242,15 +1561,31 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       ...item,
       id: tempId,
     };
-    setMovements((prev) => [newMovement, ...prev]);
+    setMovements((prev) => {
+      const next = [newMovement, ...prev];
+      if (user && !user.isGuest) {
+        try {
+          localStorage.setItem(`balder_movements_${user.$id}`, JSON.stringify(next));
+        } catch {}
+      } else {
+        try {
+          localStorage.setItem('balder_movements_guest', JSON.stringify(next));
+        } catch {}
+      }
+      return next;
+    });
 
     if (user && !user.isGuest) {
       SupabaseService.addMovement(item)
         .then((created) => {
           if (created) {
-            setMovements((prev) =>
-              prev.map((m) => (m.id === tempId ? { ...m, id: created.id } : m))
-            );
+            setMovements((prev) => {
+              const updated = prev.map((m) => (m.id === tempId ? { ...m, id: created.id } : m));
+              try {
+                localStorage.setItem(`balder_movements_${user.$id}`, JSON.stringify(updated));
+              } catch {}
+              return updated;
+            });
           }
         })
         .catch((err) => console.error('Erro ao persistir no Supabase:', err));
@@ -1264,7 +1599,19 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       ...item,
       id: `mov_${baseTime}_${idx}_${Math.random().toString(36).substr(2, 4)}`,
     }));
-    setMovements((prev) => [...newItems, ...prev]);
+    setMovements((prev) => {
+      const next = [...newItems, ...prev];
+      if (user && !user.isGuest) {
+        try {
+          localStorage.setItem(`balder_movements_${user.$id}`, JSON.stringify(next));
+        } catch {}
+      } else {
+        try {
+          localStorage.setItem('balder_movements_guest', JSON.stringify(next));
+        } catch {}
+      }
+      return next;
+    });
 
     if (user && !user.isGuest) {
       items.forEach((item) => {
@@ -1291,7 +1638,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return next;
     });
 
-    if (user && !user.isGuest && !id.startsWith('rec_') && !id.startsWith('pay_') && !id.startsWith('lia_') && !id.startsWith('cc_')) {
+    if (user && !user.isGuest && !id.startsWith('rec_') && !id.startsWith('pay_') && !id.startsWith('lia_') && !id.startsWith('cc_') && !id.startsWith('mov_')) {
       SupabaseService.updateMovement(id, updates).catch((err) =>
         console.error('Erro ao atualizar movimentação no Supabase:', err)
       );
@@ -1300,8 +1647,21 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Excluir Movimentação
   const deleteMovement = (id: string) => {
-    setMovements((prev) => prev.filter((m) => m.id !== id));
-    if (user && !user.isGuest && !id.startsWith('rec_') && !id.startsWith('pay_') && !id.startsWith('lia_') && !id.startsWith('cc_')) {
+    setMovements((prev) => {
+      const next = prev.filter((m) => m.id !== id);
+      if (user && !user.isGuest) {
+        try {
+          localStorage.setItem(`balder_movements_${user.$id}`, JSON.stringify(next));
+        } catch {}
+      } else {
+        try {
+          localStorage.setItem('balder_movements_guest', JSON.stringify(next));
+        } catch {}
+      }
+      return next;
+    });
+
+    if (user && !user.isGuest && !id.startsWith('rec_') && !id.startsWith('pay_') && !id.startsWith('lia_') && !id.startsWith('cc_') && !id.startsWith('mov_')) {
       SupabaseService.deleteMovement(id).catch((err) =>
         console.error('Erro ao excluir no Supabase:', err)
       );
@@ -1311,8 +1671,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Alternar Status Prevista / Realizada
   const toggleMovementStatus = (id: string) => {
     let nextStatus: MovementStatus = 'REALIZADA';
-    setMovements((prev) =>
-      prev.map((m) => {
+    setMovements((prev) => {
+      const next = prev.map((m) => {
         if (m.id === id) {
           nextStatus = m.status === 'PREVISTA' ? 'REALIZADA' : 'PREVISTA';
           return {
@@ -1321,10 +1681,20 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           };
         }
         return m;
-      })
-    );
+      });
+      if (user && !user.isGuest) {
+        try {
+          localStorage.setItem(`balder_movements_${user.$id}`, JSON.stringify(next));
+        } catch {}
+      } else {
+        try {
+          localStorage.setItem('balder_movements_guest', JSON.stringify(next));
+        } catch {}
+      }
+      return next;
+    });
 
-    if (user && !user.isGuest && !id.startsWith('rec_') && !id.startsWith('pay_') && !id.startsWith('lia_') && !id.startsWith('cc_')) {
+    if (user && !user.isGuest && !id.startsWith('rec_') && !id.startsWith('pay_') && !id.startsWith('lia_') && !id.startsWith('cc_') && !id.startsWith('mov_')) {
       SupabaseService.updateMovement(id, { status: nextStatus }).catch((err) =>
         console.error('Erro ao atualizar status no Supabase:', err)
       );
@@ -2287,7 +2657,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     if (user && !user.isGuest && modifiedNatureId) {
       const targetNat = updatedNatures.find((n) => n.id === modifiedNatureId);
-      if (targetNat && !targetNat.id.startsWith('nat_')) {
+      if (targetNat) {
         const payload: Partial<ExpenseNature> = fieldsToSync || {
           mappings: targetNat.mappings,
           overCeilingJustification: targetNat.overCeilingJustification,
@@ -2369,7 +2739,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       saveNaturesData(next);
       return next;
     });
-    if (user && !user.isGuest && !id.startsWith('nat_')) {
+    if (user && !user.isGuest) {
       SupabaseService.deleteNature(id).catch((err) =>
         console.error('Erro ao excluir natureza no Supabase:', err)
       );
