@@ -197,16 +197,8 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
           if (cd1.dueDay) setCardDueDay(cd1.dueDay);
 
           const currInv = cd1.invoices?.find((inv) => inv.monthIndex === 0);
-          if (currInv) setCurrentInvoiceAmount(String(currInv.amount));
-
-          const futs = (cd1.invoices || [])
-            .filter((inv) => inv.monthIndex > 0)
-            .map((inv) => ({
-              id: `c1_fut_${inv.monthIndex}`,
-              monthOffset: inv.monthIndex,
-              amount: String(inv.amount),
-            }));
-          if (futs.length > 0) setCard1FutureInvoices(futs);
+          const nextInv = (cd1.invoices || []).find((inv) => inv.monthIndex === 1);
+          if (nextInv) setCurrentInvoiceAmount(String(nextInv.amount));
 
           if (activeCheckpoint.cardDebts.length > 1) {
             const cd2 = activeCheckpoint.cardDebts[1];
@@ -215,17 +207,8 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
             if (cd2.bankName) setSecondCardBank(cd2.bankName);
             if (cd2.dueDay) setSecondCardDueDay(cd2.dueDay);
 
-            const currInv2 = cd2.invoices?.find((inv) => inv.monthIndex === 0);
-            if (currInv2) setSecondCurrentInvoice(String(currInv2.amount));
-
-            const futs2 = (cd2.invoices || [])
-              .filter((inv) => inv.monthIndex > 0)
-              .map((inv) => ({
-                id: `c2_fut_${inv.monthIndex}`,
-                monthOffset: inv.monthIndex,
-                amount: String(inv.amount),
-              }));
-            if (futs2.length > 0) setCard2FutureInvoices(futs2);
+            const nextInv2 = (cd2.invoices || []).find((inv) => inv.monthIndex === 1);
+            if (nextInv2) setSecondCurrentInvoice(String(nextInv2.amount));
           }
         }
       }
