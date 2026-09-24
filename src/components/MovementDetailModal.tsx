@@ -258,6 +258,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
   };
 
   const handleImportPlannedCardNatures = () => {
+    const targetMonthNum = dueDate ? parseInt(dueDate.split('-')[1], 10) : undefined;
     const cardNatureItems: {
       natureId: string;
       natureName: string;
@@ -269,6 +270,14 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
 
     natures.forEach((nat) => {
       nat.mappings.forEach((m) => {
+        if (
+          targetMonthNum &&
+          m.applicableMonths &&
+          m.applicableMonths.length > 0 &&
+          !m.applicableMonths.includes(targetMonthNum)
+        ) {
+          return;
+        }
         m.items.forEach((item) => {
           if (item.paymentMethod === 'CARTAO') {
             const val = item.totalValue || item.quantity * item.price * (item.multiplierWeeks || 1);

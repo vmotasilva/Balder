@@ -1132,6 +1132,30 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                 {mapping.items.length === 1 ? 'item' : 'itens'}
                               </span>
 
+                              {/* Badge de Meses de Manifestação */}
+                              {mapping.applicableMonths && mapping.applicableMonths.length > 0 && mapping.applicableMonths.length < 12 ? (
+                                <span
+                                  className="badge badge-purple cursor-pointer hover:border-purple-400"
+                                  onClick={() => handleOpenEditMapping(mapping)}
+                                  title="Clique para alterar os meses de manifestação deste mapeamento"
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                >
+                                  <Calendar size={11} />
+                                  <span>
+                                    {mapping.applicableMonths.length} {mapping.applicableMonths.length === 1 ? 'mês' : 'meses'} ({mapping.applicableMonths.map((m) => ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][m-1]).join(', ')})
+                                  </span>
+                                </span>
+                              ) : (
+                                <span
+                                  className="badge badge-outline text-muted text-xs cursor-pointer hover:border-cyan"
+                                  onClick={() => handleOpenEditMapping(mapping)}
+                                  title="Clique para definir meses específicos de manifestação na projeção"
+                                  style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}
+                                >
+                                  <span>Ano Todo (12m)</span>
+                                </span>
+                              )}
+
                             {/* Badge & Configuração de Vencimento Fixo no Mês */}
                             {editingMappingDueDayId === mapping.id ? (
                               <div className="flex items-center gap-1 bg-[rgba(15,23,42,0.8)] p-1 rounded border border-[var(--border-default)]">

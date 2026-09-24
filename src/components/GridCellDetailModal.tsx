@@ -782,9 +782,18 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
   // Associa gastos fixos/previstos orçados nas naturezas diretamente à fatura
   const handleAutoAssociateCardNatures = (targetMovement: Movement) => {
+    const targetMonthNum = targetMovement.dueDate ? parseInt(targetMovement.dueDate.split('-')[1], 10) : undefined;
     const cardNatureItems: InvoiceNatureItemBreakdown[] = [];
     natures.forEach((nat) => {
       nat.mappings.forEach((map) => {
+        if (
+          targetMonthNum &&
+          map.applicableMonths &&
+          map.applicableMonths.length > 0 &&
+          !map.applicableMonths.includes(targetMonthNum)
+        ) {
+          return;
+        }
         map.items.forEach((item) => {
           if (item.paymentMethod === 'CARTAO') {
             const val = item.totalValue || item.quantity * item.price * (item.multiplierWeeks || 1);
@@ -986,6 +995,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     if (!selection || !currentRow) return [];
     if (columnKey !== 'fixedCost' && columnKey !== 'creditCard' && columnKey !== 'totalExpense') return [];
 
+    const monthNum = parseInt(currentRow.monthKey.split('-')[1], 10);
     const itemsList: {
       natureName: string;
       natureColor: string;
@@ -995,6 +1005,13 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
     natures.forEach((nat) => {
       nat.mappings.forEach((m) => {
+        if (
+          m.applicableMonths &&
+          m.applicableMonths.length > 0 &&
+          !m.applicableMonths.includes(monthNum)
+        ) {
+          return;
+        }
         m.items.forEach((it) => {
           itemsList.push({
             natureName: nat.name,
@@ -1254,7 +1271,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         );
 
         const mNat = natures.find((n) => n.name.toLowerCase() === natName.toLowerCase());
-        const plannedCeiling = mNat ? getNatureCeiling(mNat) : group.totalAmount;
+        const plannedCeiling = mNat ? getNatureCeiling(mNat, parseInt(row.monthKey.split('-')[1], 10)) : group.totalAmount;
         const isOver = group.totalAmount > plannedCeiling && plannedCeiling > 0;
         const hasAtypical = group.items.some((ni) =>
           ATYPICAL_KEYWORD_REGEX.test(`${ni.item.description} ${ni.mappingName || ''}`)
@@ -1438,9 +1455,17 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         });
       }
     } else if (columnKey === 'fixedCost') {
+      const monthNum = parseInt(row.monthKey.split('-')[1], 10);
       natures.forEach((nat) => {
         const natItems: typeof allNatureItems = [];
         nat.mappings.forEach((m) => {
+          if (
+            m.applicableMonths &&
+            m.applicableMonths.length > 0 &&
+            !m.applicableMonths.includes(monthNum)
+          ) {
+            return;
+          }
           m.items.forEach((it) => {
             natItems.push({
               natureName: nat.name,
@@ -1478,7 +1503,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             natItems
           );
 
-          const plannedCeiling = getNatureCeiling(nat);
+          const plannedCeiling = getNatureCeiling(nat, monthNum);
           const isOver = natSum > plannedCeiling && plannedCeiling > 0;
           const hasAtypical = natItems.some((ni) =>
             ATYPICAL_KEYWORD_REGEX.test(`${ni.item.description} ${ni.mappingName || ''}`)
@@ -2220,13 +2245,14 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
       if (columnKey === 'fixedCost') {
         planned = currentRow.fixedCostMapped || dynamicTotalValue;
       } else if (columnKey === 'creditCard') {
+        const currentMonthNum = currentRow ? parseInt(currentRow.monthKey.split('-')[1], 10) : undefined;
         const naturesTotal = breakdownItems.reduce((acc, it) => {
           const mNat = natures.find(
             (n) =>
               n.name.toLowerCase() === it.category.toLowerCase() ||
               n.name.toLowerCase() === it.title.toLowerCase()
           );
-          return acc + (mNat ? getNatureCeiling(mNat) : it.amount);
+          return acc + (mNat ? getNatureCeiling(mNat, currentMonthNum) : it.amount);
         }, 0);
         planned = naturesTotal > 0 ? naturesTotal : (currentRow.creditCardTotal || dynamicTotalValue);
       } else if (columnKey === 'salary') {
@@ -2241,12 +2267,13 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         planned = dynamicTotalValue;
       }
     } else if (activeItem) {
+      const currentMonthNum = currentRow ? parseInt(currentRow.monthKey.split('-')[1], 10) : undefined;
       const mNat = natures.find(
         (n) =>
           n.name.toLowerCase() === activeItem.category.toLowerCase() ||
           n.name.toLowerCase() === activeItem.title.toLowerCase()
       );
-      planned = mNat ? getNatureCeiling(mNat) : activeItem.amount;
+      planned = mNat ? getNatureCeiling(mNat, currentMonthNum) : activeItem.amount;
     }
 
     const realized = currentAmount;

@@ -166,29 +166,6 @@ export function buildMonthlyProjectionGrid(
 ): MonthlyGridProjectionRow[] {
   const competenceMonths = generateCompetenceMonths();
 
-  // ── Custo Fixo das Naturezas (segregado por meio de pagamento) ──────────────
-  let totalFixedFromNatures = 0;
-  let fixedOnCardFromNatures = 0;
-  let fixedDirectFromNatures = 0;
-
-  natures.forEach((nat) => {
-    nat.mappings.forEach((m) => {
-      m.items.forEach((item) => {
-        const itemVal = item.totalValue || item.quantity * item.price * (item.multiplierWeeks || 1);
-        totalFixedFromNatures += itemVal;
-        if (item.paymentMethod === 'CARTAO') {
-          fixedOnCardFromNatures += itemVal;
-        } else {
-          fixedDirectFromNatures += itemVal;
-        }
-      });
-    });
-  });
-
-  const defaultMonthlyFixedCost = totalFixedFromNatures;
-  const defaultFixedOnCard = fixedOnCardFromNatures;
-  const defaultFixedDirect = fixedDirectFromNatures;
-
   const loanMovements = movements.filter((m) => m.type === 'EMPRESTIMO');
 
   const rows: MonthlyGridProjectionRow[] = [];
@@ -379,10 +356,36 @@ export function buildMonthlyProjectionGrid(
       })
       .reduce((acc, m) => acc + m.amount, 0);
 
-    // ── 4. Custo Fixo Mapeado (-) & 5. Custos Avulsos / Variáveis (-) ─────────
-    let fixedCostMapped = defaultMonthlyFixedCost;
-    let fixedCostOnCard = defaultFixedOnCard;
-    let fixedCostDirect = defaultFixedDirect;
+    // ── 4. Custo Fixo Mapeado (-) neste Mês de Competência & 5. Custos Avulsos / Variáveis (-)
+    const compMonthNumber = parseInt(comp.key.split('-')[1], 10);
+    let monthlyFixedFromNatures = 0;
+    let monthlyFixedOnCard = 0;
+    let monthlyFixedDirect = 0;
+
+    natures.forEach((nat) => {
+      nat.mappings.forEach((m) => {
+        if (
+          m.applicableMonths &&
+          m.applicableMonths.length > 0 &&
+          !m.applicableMonths.includes(compMonthNumber)
+        ) {
+          return;
+        }
+        m.items.forEach((item) => {
+          const itemVal = item.totalValue || item.quantity * item.price * (item.multiplierWeeks || 1);
+          monthlyFixedFromNatures += itemVal;
+          if (item.paymentMethod === 'CARTAO') {
+            monthlyFixedOnCard += itemVal;
+          } else {
+            monthlyFixedDirect += itemVal;
+          }
+        });
+      });
+    });
+
+    let fixedCostMapped = monthlyFixedFromNatures;
+    let fixedCostOnCard = monthlyFixedOnCard;
+    let fixedCostDirect = monthlyFixedDirect;
     let variableCost = 0;
 
     if (viewMode === 'REALIZADO') {
@@ -408,9 +411,16 @@ export function buildMonthlyProjectionGrid(
           natures.some(
             (nat) =>
               nat.name.toLowerCase() === m.category.toLowerCase() ||
-              nat.mappings.some((mp) =>
-                mp.items.some((it) => it.description.toLowerCase() === m.title.toLowerCase())
-              )
+              nat.mappings.some((mp) => {
+                if (
+                  mp.applicableMonths &&
+                  mp.applicableMonths.length > 0 &&
+                  !mp.applicableMonths.includes(compMonthNumber)
+                ) {
+                  return false;
+                }
+                return mp.items.some((it) => it.description.toLowerCase() === m.title.toLowerCase());
+              })
           );
         if (isFixed) {
           realFixedSum += m.amount;
@@ -425,9 +435,9 @@ export function buildMonthlyProjectionGrid(
       variableCost = realVarSum;
     } else if (viewMode === 'PREVISTO') {
       // No modo PREVISTO: custos fixos orçados + custos variáveis a pagar
-      fixedCostMapped = defaultMonthlyFixedCost;
-      fixedCostOnCard = defaultFixedOnCard;
-      fixedCostDirect = defaultFixedDirect;
+      fixedCostMapped = monthlyFixedFromNatures;
+      fixedCostOnCard = monthlyFixedOnCard;
+      fixedCostDirect = monthlyFixedDirect;
       variableCost = movements
         .filter(
           (m) =>
@@ -440,9 +450,9 @@ export function buildMonthlyProjectionGrid(
         .reduce((acc, m) => acc + m.amount, 0);
     } else {
       // Modo PROJETADO consolidado
-      fixedCostMapped = defaultMonthlyFixedCost;
-      fixedCostOnCard = defaultFixedOnCard;
-      fixedCostDirect = defaultFixedDirect;
+      fixedCostMapped = monthlyFixedFromNatures;
+      fixedCostOnCard = monthlyFixedOnCard;
+      fixedCostDirect = monthlyFixedDirect;
       variableCost = movements
         .filter(
           (m) =>

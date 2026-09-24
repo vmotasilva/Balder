@@ -15,6 +15,21 @@ interface MappingModalProps {
   onSuccess?: (mappingId: string) => void;
 }
 
+export const MONTH_LABELS = [
+  { num: 1, short: 'Jan', full: 'Janeiro' },
+  { num: 2, short: 'Fev', full: 'Fevereiro' },
+  { num: 3, short: 'Mar', full: 'Março' },
+  { num: 4, short: 'Abr', full: 'Abril' },
+  { num: 5, short: 'Mai', full: 'Maio' },
+  { num: 6, short: 'Jun', full: 'Junho' },
+  { num: 7, short: 'Jul', full: 'Julho' },
+  { num: 8, short: 'Ago', full: 'Agosto' },
+  { num: 9, short: 'Set', full: 'Setembro' },
+  { num: 10, short: 'Out', full: 'Outubro' },
+  { num: 11, short: 'Nov', full: 'Novembro' },
+  { num: 12, short: 'Dez', full: 'Dezembro' },
+];
+
 export const MappingModal: React.FC<MappingModalProps> = ({
   isOpen,
   onClose,
@@ -31,6 +46,7 @@ export const MappingModal: React.FC<MappingModalProps> = ({
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('📋');
   const [dayOfMonth, setDayOfMonth] = useState<number | ''>('');
+  const [applicableMonths, setApplicableMonths] = useState<number[]>([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   const [keywords, setKeywords] = useState<string[]>([]);
   const [keywordInput, setKeywordInput] = useState('');
 
@@ -45,16 +61,55 @@ export const MappingModal: React.FC<MappingModalProps> = ({
         setIcon(mappingToEdit.icon || '📋');
         setDayOfMonth(mappingToEdit.dayOfMonth || '');
         setKeywords(mappingToEdit.keywords || []);
+        setApplicableMonths(
+          mappingToEdit.applicableMonths && mappingToEdit.applicableMonths.length > 0
+            ? mappingToEdit.applicableMonths
+            : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        );
       } else {
         setName('');
         setIcon('📋');
         setDayOfMonth('');
         setKeywords([]);
+        setApplicableMonths([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
       }
       setKeywordInput('');
       setSearchFilter('');
     }
   }, [isOpen, mappingToEdit]);
+
+  const toggleMonth = (mNum: number) => {
+    setApplicableMonths((prev) => {
+      if (prev.includes(mNum)) {
+        return prev.filter((n) => n !== mNum);
+      } else {
+        return [...prev, mNum].sort((a, b) => a - b);
+      }
+    });
+  };
+
+  const setPresetMonths = (preset: 'ALL' | 'SEM1' | 'SEM2' | 'EARLY' | 'LATE' | 'CLEAR') => {
+    switch (preset) {
+      case 'ALL':
+        setApplicableMonths([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+        break;
+      case 'SEM1':
+        setApplicableMonths([1, 2, 3, 4, 5, 6]);
+        break;
+      case 'SEM2':
+        setApplicableMonths([7, 8, 9, 10, 11, 12]);
+        break;
+      case 'EARLY':
+        setApplicableMonths([1, 2, 3]);
+        break;
+      case 'LATE':
+        setApplicableMonths([11, 12]);
+        break;
+      case 'CLEAR':
+        setApplicableMonths([]);
+        break;
+    }
+  };
 
   // Manipulação de palavras-chave da rotina
   const handleAddKeyword = (val?: string) => {
@@ -177,19 +232,25 @@ export const MappingModal: React.FC<MappingModalProps> = ({
     const chosenIcon = icon.trim() || '📋';
     const effectiveDay = dayOfMonth !== '' ? Number(dayOfMonth) : undefined;
 
+    const effectiveMonths =
+      applicableMonths.length === 0
+        ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        : [...applicableMonths].sort((a, b) => a - b);
+
     if (isEditing && mappingToEdit) {
       updateMapping(natureId, mappingToEdit.id, {
         name: trimmedName,
         icon: chosenIcon,
         dayOfMonth: effectiveDay,
         keywords,
+        applicableMonths: effectiveMonths,
       });
       if (onSuccess) onSuccess(mappingToEdit.id);
     } else {
       const newId = addMappingToNature(
         natureId,
         trimmedName,
-        undefined,
+        effectiveMonths,
         effectiveDay,
         chosenIcon,
         keywords
@@ -259,6 +320,21 @@ export const MappingModal: React.FC<MappingModalProps> = ({
                 </span>
               ) : (
                 <span className="badge badge-cyan text-xs">Sem Vencimento Fixo</span>
+              )}
+              {applicableMonths.length === 12 ? (
+                <span className="badge badge-emerald text-xs" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <Calendar size={11} />
+                  <span>Ano Todo (12m)</span>
+                </span>
+              ) : applicableMonths.length > 0 ? (
+                <span className="badge badge-purple text-xs" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <Calendar size={11} />
+                  <span>
+                    {applicableMonths.length} {applicableMonths.length === 1 ? 'mês' : 'meses'} ({applicableMonths.map((m) => MONTH_LABELS.find((ml) => ml.num === m)?.short).filter(Boolean).join(', ')})
+                  </span>
+                </span>
+              ) : (
+                <span className="badge badge-rose text-xs">Sem meses ativos</span>
               )}
             </div>
             <p
@@ -355,6 +431,157 @@ export const MappingModal: React.FC<MappingModalProps> = ({
           <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
             O BALDER alertará com antecedência quando esta data estiver próxima para registrar a realização do pagamento.
           </span>
+        </div>
+
+        {/* Linha 3: Meses de Manifestação na Projeção */}
+        <div className="form-group mb-4">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+            <label style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Calendar size={14} className="text-cyan" />
+              <span>Meses de Manifestação na Projeção</span>
+            </label>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+              {applicableMonths.length === 12
+                ? 'Ano todo (12 meses)'
+                : `${applicableMonths.length} de 12 meses selecionados`}
+            </span>
+          </div>
+
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0 0 8px', lineHeight: 1.4 }}>
+            Defina em quais meses este mapeamento deve se manifestar na projeção orçamentária. Útil para despesas sazonais ou pontuais (ex: IPVA, IPTU, rematrículas, seguros ou compras de datas comemorativas).
+          </p>
+
+          {/* Atalhos Rápidos */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
+            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Atalhos:</span>
+            <button
+              type="button"
+              className={`btn btn-xs ${applicableMonths.length === 12 ? 'btn-primary' : 'btn-outline'}`}
+              style={{ fontSize: '0.7rem', padding: '2px 8px' }}
+              onClick={() => setPresetMonths('ALL')}
+            >
+              Ano Todo (12m)
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline btn-xs"
+              style={{ fontSize: '0.7rem', padding: '2px 8px' }}
+              onClick={() => setPresetMonths('SEM1')}
+            >
+              1º Semestre (Jan-Jun)
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline btn-xs"
+              style={{ fontSize: '0.7rem', padding: '2px 8px' }}
+              onClick={() => setPresetMonths('SEM2')}
+            >
+              2º Semestre (Jul-Dez)
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline btn-xs"
+              style={{ fontSize: '0.7rem', padding: '2px 8px' }}
+              onClick={() => setPresetMonths('EARLY')}
+            >
+              Início de Ano (Jan-Mar)
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline btn-xs"
+              style={{ fontSize: '0.7rem', padding: '2px 8px' }}
+              onClick={() => setPresetMonths('LATE')}
+            >
+              Fim de Ano (Nov-Dez)
+            </button>
+            {applicableMonths.length > 0 && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs text-muted"
+                style={{ fontSize: '0.7rem', padding: '2px 6px' }}
+                onClick={() => setPresetMonths('CLEAR')}
+              >
+                Limpar
+              </button>
+            )}
+          </div>
+
+          {/* Grid dos 12 Meses */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(6, 1fr)',
+              gap: '6px',
+              padding: '10px',
+              borderRadius: '10px',
+              background: 'rgba(0, 0, 0, 0.25)',
+              border: '1px solid var(--border-default)',
+            }}
+          >
+            {MONTH_LABELS.map((m) => {
+              const isSelected = applicableMonths.includes(m.num);
+              return (
+                <button
+                  key={m.num}
+                  type="button"
+                  onClick={() => toggleMonth(m.num)}
+                  style={{
+                    padding: '8px 4px',
+                    borderRadius: '8px',
+                    fontSize: '0.76rem',
+                    fontWeight: isSelected ? 700 : 500,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '2px',
+                    border: isSelected
+                      ? '1px solid rgba(6, 182, 212, 0.8)'
+                      : '1px solid rgba(255, 255, 255, 0.08)',
+                    background: isSelected
+                      ? 'rgba(6, 182, 212, 0.2)'
+                      : 'rgba(255, 255, 255, 0.02)',
+                    color: isSelected ? '#38BDF8' : 'var(--text-secondary)',
+                    boxShadow: isSelected ? '0 0 10px rgba(6, 182, 212, 0.25)' : 'none',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                  title={`${m.full}: clique para ${isSelected ? 'remover' : 'incluir'}`}
+                >
+                  <span style={{ fontSize: '0.66rem', opacity: 0.7 }}>{String(m.num).padStart(2, '0')}</span>
+                  <span>{m.short}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Feedback Reativo */}
+          <div style={{ marginTop: '6px' }}>
+            {applicableMonths.length === 12 ? (
+              <span className="text-xs text-muted" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10B981' }}></span>
+                <span>Projetado continuamente nos 12 meses do ano.</span>
+              </span>
+            ) : applicableMonths.length > 0 ? (
+              <span className="text-xs text-cyan" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#06B6D4' }}></span>
+                <span>
+                  Projetado apenas em {applicableMonths.length} meses:{' '}
+                  <strong>
+                    {MONTH_LABELS.filter((m) => applicableMonths.includes(m.num))
+                      .map((m) => m.short)
+                      .join(', ')}
+                  </strong>
+                  .
+                </span>
+              </span>
+            ) : (
+              <span className="text-xs text-rose" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#F43F5E' }}></span>
+                <span>Atenção: nenhum mês selecionado. O mapeamento não entrará na projeção de nenhum mês.</span>
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Linha: Palavras-chave para Reconhecimento da IA (Forseti) */}

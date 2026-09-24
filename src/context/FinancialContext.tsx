@@ -188,7 +188,7 @@ interface FinancialContextType {
   markMappingItemsFulfilled: (itemsToFulfill: Array<{ natureId: string; mappingId: string; itemId: string; realizedValue?: number }>) => void;
   saveCeilingJustification: (natureId: string, reason: string) => void;
   loadSuggestedMappingsForNature: (natureId: string) => void;
-  getNatureCeiling: (nature: ExpenseNature) => number;
+  getNatureCeiling: (nature: ExpenseNature, month?: number | string) => number;
   getNatureSpent: (nature: ExpenseNature) => number;
   getNatureMissingItems: (nature: ExpenseNature) => Array<{ item: MappingItem; mappingName: string; missingAmount: number }>;
 
@@ -3607,10 +3607,31 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
-  // Cálculo Matemático Rigoroso do Teto da Natureza (Soma de todos os itens de todos os mapeamentos)
-  const getNatureCeiling = (nature: ExpenseNature): number => {
+  // Cálculo Matemático Rigoroso do Teto da Natureza (Soma de todos os itens dos mapeamentos vigentes no mês)
+  const getNatureCeiling = (nature: ExpenseNature, month?: number | string): number => {
     if (!nature || !nature.mappings) return 0;
+
+    let targetMonthNum: number | undefined;
+    if (typeof month === 'number') {
+      targetMonthNum = month;
+    } else if (typeof month === 'string') {
+      const parts = month.split('-');
+      if (parts.length >= 2) {
+        targetMonthNum = parseInt(parts[1], 10);
+      } else if (!isNaN(Number(month))) {
+        targetMonthNum = parseInt(month, 10);
+      }
+    }
+
     const total = nature.mappings.reduce((accMap, map) => {
+      if (
+        targetMonthNum !== undefined &&
+        map.applicableMonths &&
+        map.applicableMonths.length > 0 &&
+        !map.applicableMonths.includes(targetMonthNum)
+      ) {
+        return accMap;
+      }
       const mapTotal = (map.items || []).reduce((accItem, it) => accItem + (it.totalValue || 0), 0);
       return accMap + mapTotal;
     }, 0);

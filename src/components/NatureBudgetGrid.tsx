@@ -107,24 +107,31 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
 
   // Processamento e cálculo de cada linha do Grid de Naturezas
   const natureRows: NatureBudgetRow[] = useMemo(() => {
-    if (!currentRow) return [];
+    const selectedMonthNumber = parseInt(selectedMonthKey.split('-')[1], 10);
 
     return natures.map((nat) => {
-      // 1. Previsto (Teto orçado mensal da natureza)
-      const planned = getNatureCeiling(nat);
+      // 1. Previsto (Teto orçado mensal da natureza específico para este mês de competência)
+      const planned = getNatureCeiling(nat, selectedMonthNumber);
 
       // 2. Realizado: apurado via movimentos reais ou mapeamentos ativos no ciclo
       const matchingMovements = movements.filter((m) => {
         const isExpense = m.type === 'PAGAR' || m.type === 'CARTAO';
         const inMonth = m.dueDate.startsWith(selectedMonthKey);
         const nameMatch = m.category.toLowerCase() === nat.name.toLowerCase();
-        const itemMatch = nat.mappings.some((mp) =>
-          mp.items.some((it) => it.description.toLowerCase() === m.title.toLowerCase())
-        );
+        const itemMatch = nat.mappings.some((mp) => {
+          if (
+            mp.applicableMonths &&
+            mp.applicableMonths.length > 0 &&
+            !mp.applicableMonths.includes(selectedMonthNumber)
+          ) {
+            return false;
+          }
+          return mp.items.some((it) => it.description.toLowerCase() === m.title.toLowerCase());
+        });
         return isExpense && inMonth && (nameMatch || itemMatch);
       });
 
-      // Mapeamentos ativos
+      // Mapeamentos ativos no mês de competência
       const natItems: Array<{
         natureName: string;
         natureColor: string;
@@ -133,6 +140,13 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
       }> = [];
 
       nat.mappings.forEach((m) => {
+        if (
+          m.applicableMonths &&
+          m.applicableMonths.length > 0 &&
+          !m.applicableMonths.includes(selectedMonthNumber)
+        ) {
+          return;
+        }
         m.items.forEach((it) => {
           natItems.push({
             natureName: nat.name,
@@ -212,11 +226,20 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
           const textToScan = `${m.title || ''} ${m.notes || ''} ${m.category || ''}`;
           const hasAtypicalKeyword = ATYPICAL_KEYWORD_REGEX.test(textToScan);
 
-          // Verifica se o título do movimento corresponde a algum item da rotina fixa recorrente
-          const isRecognizedRoutineItem = nat.mappings.some((mp) =>
-            mp.frequency !== 'PONTUAL' &&
-            mp.items.some((it) => it.description.trim().toLowerCase() === m.title.trim().toLowerCase())
-          );
+          // Verifica se o título do movimento corresponde a algum item da rotina fixa recorrente deste mês
+          const isRecognizedRoutineItem = nat.mappings.some((mp) => {
+            if (
+              mp.applicableMonths &&
+              mp.applicableMonths.length > 0 &&
+              !mp.applicableMonths.includes(selectedMonthNumber)
+            ) {
+              return false;
+            }
+            return (
+              mp.frequency !== 'PONTUAL' &&
+              mp.items.some((it) => it.description.trim().toLowerCase() === m.title.trim().toLowerCase())
+            );
+          });
 
           const isAtypical = hasAtypicalKeyword || !isRecognizedRoutineItem;
           allExpenses.push({
@@ -227,6 +250,13 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
         });
       } else if (natItems.length > 0) {
         nat.mappings.forEach((mp) => {
+          if (
+            mp.applicableMonths &&
+            mp.applicableMonths.length > 0 &&
+            !mp.applicableMonths.includes(selectedMonthNumber)
+          ) {
+            return;
+          }
           const isMappingPontual =
             mp.frequency === 'PONTUAL' || ATYPICAL_KEYWORD_REGEX.test(mp.name);
           mp.items.forEach((it) => {
