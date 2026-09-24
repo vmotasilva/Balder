@@ -548,6 +548,7 @@ export const SupabaseService = {
         receivingBankName: row.receiving_bank_name || undefined,
         startDate: row.start_date || '',
         isActive: Boolean(row.is_active),
+        payInFollowingMonth: Boolean(row.pay_in_following_month),
         history: Array.isArray(row.history) ? row.history : [],
       })) as SalaryContract[];
     } catch (e) {
@@ -577,6 +578,7 @@ export const SupabaseService = {
         second_installment_amount: contract.secondInstallmentAmount ?? null,
         weekly_installment_amount: contract.weeklyInstallmentAmount ?? null,
         installment_value_mode: contract.installmentValueMode || 'AUTO',
+        pay_in_following_month: contract.payInFollowingMonth ?? false,
         current_gross_amount: contract.currentGrossAmount,
         current_net_amount: contract.currentNetAmount,
         receiving_bank_account_id: contract.receivingBankAccountId ?? null,

@@ -1368,8 +1368,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                     <div className="salary-contract-grid-info">
                       <div className="info-cell">
                         <span className="info-cell-label">Regime & Formato</span>
-                        <span className="info-cell-val font-semibold">
-                          {activeContract.contractType} • {activeContract.paymentSchedule === 'QUINZENAL' || activeContract.secondPaymentDay ? 'Em 2 Quinzenas' : 'Mensal Integral'}
+                        <span className="info-cell-val font-semibold flex items-center gap-1.5 flex-wrap">
+                          <span>{activeContract.contractType} • {activeContract.paymentSchedule === 'QUINZENAL' || activeContract.secondPaymentDay ? 'Em 2 Quinzenas' : 'Mensal Integral'}</span>
+                          {activeContract.payInFollowingMonth && (
+                            <span className="badge badge-cyan text-[10px]" title="Pagamento referente à competência é creditado no mês seguinte (M+1)">
+                              Mês Seguinte (M+1)
+                            </span>
+                          )}
                         </span>
                       </div>
                       <div className="info-cell">

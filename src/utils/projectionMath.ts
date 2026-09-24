@@ -229,7 +229,7 @@ export function buildMonthlyProjectionGrid(
         (m.category === 'Salário' ||
           m.title.toLowerCase().includes('salário') ||
           m.title.toLowerCase().includes('quinzena')) &&
-        m.dueDate.startsWith(comp.key)
+        (m.dueDate.startsWith(comp.key) || (m.installmentGroupId && m.installmentGroupId.includes(comp.key)))
     );
 
     if (salaryContracts && salaryContracts.length > 0) {

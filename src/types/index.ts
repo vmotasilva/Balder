@@ -407,6 +407,7 @@ export interface SalaryAdjustment {
   secondInstallmentAmount?: number; // Valor da 2ª quinzena (se quinzenal e FIXED)
   weeklyInstallmentAmount?: number; // Valor líquido por semana (se semanal e FIXED)
   installmentValueMode?: 'FIXED' | 'AUTO'; // Como o valor por período é determinado
+  payInFollowingMonth?: boolean; // Se true, o pagamento referente à competência é creditado no mês seguinte (M+1)
 }
 
 export interface SalaryContract {
@@ -423,6 +424,7 @@ export interface SalaryContract {
   secondInstallmentAmount?: number;  // Valor em R$ da 2ª quinzena — usado no modo FIXED
   weeklyInstallmentAmount?: number;  // Valor líquido por semana — usado no modo FIXED
   installmentValueMode?: 'FIXED' | 'AUTO'; // FIXED = valores fixos cadastrados; AUTO = calcula a partir do líquido
+  payInFollowingMonth?: boolean; // Se true, o pagamento referente à competência é creditado no mês seguinte (M+1)
   currentGrossAmount: number;   // Salário Bruto Atual
   currentNetAmount: number;     // Salário Líquido Atual vigente
   receivingBankAccountId?: string; // ID da Conta Bancária cadastrada

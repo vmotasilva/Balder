@@ -92,6 +92,7 @@ export const SalaryAdjustmentModal: React.FC<SalaryAdjustmentModalProps> = ({
   const [receivingBankName, setReceivingBankName] = useState('');
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
   const [isActive, setIsActive] = useState(true);
+  const [payInFollowingMonth, setPayInFollowingMonth] = useState(false);
 
   // States for Adjustment
   const [selectedContractId, setSelectedContractId] = useState('');
@@ -188,6 +189,7 @@ export const SalaryAdjustmentModal: React.FC<SalaryAdjustmentModalProps> = ({
         setReceivingBankName(editContract.receivingBankName || '');
         setStartDate(editContract.startDate);
         setIsActive(editContract.isActive);
+        setPayInFollowingMonth(editContract.payInFollowingMonth ?? false);
       } else {
         setActiveTab(initialMode);
         // Default contract selection
@@ -223,6 +225,7 @@ export const SalaryAdjustmentModal: React.FC<SalaryAdjustmentModalProps> = ({
         setReceivingBankName('');
         setStartDate(new Date().toISOString().slice(0, 7));
         setIsActive(true);
+        setPayInFollowingMonth(false);
       }
     }
   }, [isOpen, editContract, editAdjustment, initialMode, salaryContracts]);
@@ -324,6 +327,7 @@ export const SalaryAdjustmentModal: React.FC<SalaryAdjustmentModalProps> = ({
       receivingBankName: receivingBankName || undefined,
       startDate,
       isActive,
+      payInFollowingMonth,
     };
 
     if (editContract) {
@@ -1344,6 +1348,93 @@ export const SalaryAdjustmentModal: React.FC<SalaryAdjustmentModalProps> = ({
                 </span>
               </div>
             )}
+          </div>
+
+          {/* Opção M+1: Recebimento no mês seguinte à competência trabalhada */}
+          <div
+            className="glass-card"
+            style={{
+              padding: '0.85rem 1rem',
+              borderRadius: '10px',
+              background: payInFollowingMonth ? 'rgba(6, 182, 212, 0.08)' : 'rgba(255, 255, 255, 0.03)',
+              border: `1px solid ${payInFollowingMonth ? 'rgba(6, 182, 212, 0.35)' : 'rgba(255, 255, 255, 0.08)'}`,
+              marginTop: '0.25rem',
+              marginBottom: '1rem',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.75rem',
+                cursor: 'pointer',
+                margin: 0,
+              }}
+            >
+              <input
+                type="checkbox"
+                id="chk-pay-following-month"
+                checked={payInFollowingMonth}
+                onChange={(e) => setPayInFollowingMonth(e.target.checked)}
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  accentColor: 'var(--color-primary)',
+                  marginTop: '3px',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              />
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    Pagamento creditado no mês seguinte à competência (M+1)
+                  </span>
+                  <span
+                    className={`badge ${payInFollowingMonth ? 'badge-cyan' : 'badge-slate'}`}
+                    style={{ fontSize: '0.68rem', padding: '0.15rem 0.45rem' }}
+                  >
+                    {payInFollowingMonth ? 'Ativo (M+1)' : 'Mesmo Mês (M)'}
+                  </span>
+                </div>
+                <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', margin: '0.25rem 0 0 0', lineHeight: 1.4 }}>
+                  Marque esta opção quando o salário referente à competência trabalhada for creditado no mês subsequente.
+                </p>
+
+                <div
+                  style={{
+                    marginTop: '0.5rem',
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '6px',
+                    background: 'rgba(0, 0, 0, 0.25)',
+                    borderLeft: '3px solid var(--accent-cyan)',
+                    fontSize: '0.74rem',
+                    color: 'var(--text-secondary)',
+                  }}
+                >
+                  {payInFollowingMonth ? (
+                    paymentSchedule === 'QUINZENAL' ? (
+                      <>
+                        💡 <strong>Exemplo de fluxo:</strong> Para a competência de <strong>Setembro</strong>, o 1º pagamento ocorre no <strong>dia {firstInstallmentDay} de Outubro</strong> e o 2º pagamento no <strong>dia {isSecondInstallmentLastDay ? 31 : secondInstallmentDay} de Outubro</strong>.
+                      </>
+                    ) : paymentSchedule === 'UNICO' ? (
+                      <>
+                        💡 <strong>Exemplo de fluxo:</strong> Para a competência de <strong>Setembro</strong>, o pagamento ocorre no <strong>dia {isPaymentDayLastDay ? 31 : paymentDay} de Outubro</strong>.
+                      </>
+                    ) : (
+                      <>
+                        💡 <strong>Exemplo de fluxo:</strong> Para a competência de <strong>Setembro</strong>, os repasses semanais ocorrem a partir de <strong>Outubro</strong>.
+                      </>
+                    )
+                  ) : (
+                    <>
+                      ℹ️ Os pagamentos ocorrem dentro do próprio mês trabalhado (ex: Setembro é recebido em Setembro).
+                    </>
+                  )}
+                </div>
+              </div>
+            </label>
           </div>
 
           <div className="form-group">

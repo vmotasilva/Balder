@@ -22,6 +22,7 @@ import {
   Clock,
   RotateCcw,
   Check,
+  Calendar,
 } from 'lucide-react';
 import type { MonthlyGridProjectionRow, MappingItem, MovementStatus } from '../types';
 import { buildMonthlyProjectionGrid, resolveSalaryForMonth } from '../utils/projectionMath';
@@ -80,6 +81,8 @@ export interface CellBreakdownSubItem {
   bank?: string;
   notes?: string;
   adjustmentReason?: string;
+  payInFollowingMonth?: boolean;
+  isFirstInstallment?: boolean;
 }
 
 export interface EditingReceiptData {
@@ -98,6 +101,8 @@ export interface EditingReceiptData {
   notes?: string;
   receiptMovementId?: string;
   installmentGroupId?: string;
+  payInFollowingMonth?: boolean;
+  isFirstInstallment?: boolean;
 }
 
 export interface CellDateGroup {
@@ -355,6 +360,52 @@ export function generateNatureDateGroups(
 }
 
 /**
+ * Calcula a data de vencimento / crédito do salário considerando o mês da competência e se é M+1
+ */
+export function computeSalaryDueDate(monthKey: string, day: number, isFollowingMonth: boolean): string {
+  const [yearStr, monthStr] = monthKey.split('-');
+  let year = parseInt(yearStr, 10);
+  let month = parseInt(monthStr, 10);
+  if (isFollowingMonth) {
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+  }
+  const maxDays = new Date(year, month, 0).getDate();
+  const clampedDay = Math.min(Math.max(1, day), maxDays);
+  return `${year}-${String(month).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`;
+}
+
+/**
+ * Formata data ISO (YYYY-MM-DD) para formato legível DD/MM/AAAA
+ */
+export function formatDueDateBR(dateIso: string): string {
+  if (!dateIso) return '';
+  const parts = dateIso.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return dateIso;
+}
+
+/**
+ * Retorna o nome por extenso do mês seguinte à competência fornecida
+ */
+export function getNextMonthName(monthKey: string): string {
+  const [yearStr, monthStr] = monthKey.split('-');
+  let year = parseInt(yearStr, 10);
+  let month = parseInt(monthStr, 10) + 1;
+  if (month > 12) {
+    month = 1;
+    year += 1;
+  }
+  const d = new Date(year, month - 1, 1);
+  return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+}
+
+/**
  * Construtor inteligente do item contábil de Salário (com quinzenas / semanas e suporte a edições reais)
  */
 export function buildSalaryBreakdownItem(
@@ -364,8 +415,9 @@ export function buildSalaryBreakdownItem(
   salaryContracts: any[],
   banks: any[]
 ): CellBreakdownItem | null {
-  const activeContract = salaryContracts?.find((sc: any) => sc.isActive);
+  const activeContract = salaryContracts?.find((sc: any) => sc.isActive) || salaryContracts?.[0];
   const resolution = activeContract ? resolveSalaryForMonth(activeContract, monthPrefix) : null;
+  const isPayInFollowingMonth = activeContract?.payInFollowingMonth ?? false;
 
   const isSemanal = (currentRow.salaryWeeklyInstallments ?? 0) > 0 || (resolution?.weeklyCount ?? 0) > 0;
   const isQuinzenal =
@@ -373,7 +425,16 @@ export function buildSalaryBreakdownItem(
     ((currentRow.salaryFirstInstallment ?? 0) > 0 ||
       (currentRow.salarySecondInstallment ?? 0) > 0 ||
       (resolution?.first ?? 0) > 0 ||
-      (resolution?.second ?? 0) > 0);
+      (resolution?.second ?? 0) > 0 ||
+      activeContract?.paymentSchedule === 'QUINZENAL');
+
+  const q1Day = activeContract?.secondPaymentDay || 15;
+  const q2Day = activeContract?.paymentDay || (activeContract?.paymentDay === 31 ? 31 : 30);
+  const unicoDay = activeContract?.paymentDay || 5;
+
+  const defaultQ1DueDate = computeSalaryDueDate(monthPrefix, q1Day, isPayInFollowingMonth);
+  const defaultQ2DueDate = computeSalaryDueDate(monthPrefix, q2Day, isPayInFollowingMonth);
+  const defaultUnicoDueDate = computeSalaryDueDate(monthPrefix, unicoDay, isPayInFollowingMonth);
 
   const mQ1 = realSalaries.find(
     (m: any) =>
@@ -417,10 +478,15 @@ export function buildSalaryBreakdownItem(
         ? 'CANCELADA'
         : (mQ2?.status || 'PREVISTA');
 
+    const q1DueDate = mQ1?.dueDate || defaultQ1DueDate;
+    const q2DueDate = mQ2?.dueDate || defaultQ2DueDate;
+
     salarySubItems = [
       {
         id: `sub_sal_q1_${monthPrefix}`,
-        description: '1ª Quinzena (adiantamento)',
+        description: isPayInFollowingMonth
+          ? '1ª Quinzena (adiantamento) · Mês seguinte'
+          : '1ª Quinzena (adiantamento)',
         quantity: 1,
         price: q1Amount,
         multiplierWeeks: 1,
@@ -431,11 +497,17 @@ export function buildSalaryBreakdownItem(
         originalAmount: q1Original,
         receiptMovementId: mQ1?.id,
         receiptType: 'SALARY_Q1',
-        dueDate: mQ1?.dueDate || `${monthPrefix}-15`,
+        dueDate: q1DueDate,
         paymentDate: mQ1?.paymentDate,
         bank: mQ1?.bank || (banks && banks.length > 0 ? banks[0].name : 'Conta Corrente'),
-        notes: mQ1?.notes,
+        notes:
+          mQ1?.notes ||
+          (isPayInFollowingMonth
+            ? `Atende a competência de ${currentRow.competenceLabel}; primeiro pagamento creditado em ${formatDueDateBR(q1DueDate)}.`
+            : undefined),
         adjustmentReason: mQ1?.adjustmentReason,
+        payInFollowingMonth: isPayInFollowingMonth,
+        isFirstInstallment: true,
         attentionReason:
           q1Status === 'CANCELADA'
             ? 'Não Aconteceu / Cancelado no Mês'
@@ -445,7 +517,9 @@ export function buildSalaryBreakdownItem(
       },
       {
         id: `sub_sal_q2_${monthPrefix}`,
-        description: '2ª Quinzena (pagamento principal)',
+        description: isPayInFollowingMonth
+          ? '2ª Quinzena (pagamento principal) · Mês seguinte'
+          : '2ª Quinzena (pagamento principal)',
         quantity: 1,
         price: q2Amount,
         multiplierWeeks: 1,
@@ -456,11 +530,17 @@ export function buildSalaryBreakdownItem(
         originalAmount: q2Original,
         receiptMovementId: mQ2?.id,
         receiptType: 'SALARY_Q2',
-        dueDate: mQ2?.dueDate || `${monthPrefix}-30`,
+        dueDate: q2DueDate,
         paymentDate: mQ2?.paymentDate,
         bank: mQ2?.bank || (banks && banks.length > 0 ? banks[0].name : 'Conta Corrente'),
-        notes: mQ2?.notes,
+        notes:
+          mQ2?.notes ||
+          (isPayInFollowingMonth
+            ? `Atende a competência de ${currentRow.competenceLabel}; saldo creditado em ${formatDueDateBR(q2DueDate)}.`
+            : undefined),
         adjustmentReason: mQ2?.adjustmentReason,
+        payInFollowingMonth: isPayInFollowingMonth,
+        isFirstInstallment: false,
         attentionReason:
           q2Status === 'CANCELADA'
             ? 'Não Aconteceu / Cancelado no Mês'
@@ -502,6 +582,8 @@ export function buildSalaryBreakdownItem(
         bank: mW?.bank || (banks && banks.length > 0 ? banks[0].name : 'Conta Corrente'),
         notes: mW?.notes,
         adjustmentReason: mW?.adjustmentReason,
+        payInFollowingMonth: isPayInFollowingMonth,
+        isFirstInstallment: w === 1,
         attentionReason:
           wStatus === 'CANCELADA'
             ? 'Não Aconteceu / Cancelado no Mês'
@@ -518,11 +600,12 @@ export function buildSalaryBreakdownItem(
       mUnico?.amount === 0 || (mUnico?.adjustmentReason && mUnico.adjustmentReason.toLowerCase().includes('não aconteceu'))
         ? 'CANCELADA'
         : (mUnico?.status || 'PREVISTA');
+    const unicoDueDate = mUnico?.dueDate || defaultUnicoDueDate;
 
     salarySubItems = [
       {
         id: `sub_sal_${monthPrefix}`,
-        description: 'Salário Líquido',
+        description: isPayInFollowingMonth ? 'Salário Líquido · Mês seguinte' : 'Salário Líquido',
         quantity: 1,
         price: unicoAmount,
         multiplierWeeks: 1,
@@ -533,11 +616,17 @@ export function buildSalaryBreakdownItem(
         originalAmount: unicoOriginal,
         receiptMovementId: mUnico?.id,
         receiptType: 'SALARY_FULL',
-        dueDate: mUnico?.dueDate || `${monthPrefix}-05`,
+        dueDate: unicoDueDate,
         paymentDate: mUnico?.paymentDate,
         bank: mUnico?.bank || (banks && banks.length > 0 ? banks[0].name : 'Conta Corrente'),
-        notes: mUnico?.notes,
+        notes:
+          mUnico?.notes ||
+          (isPayInFollowingMonth
+            ? `Atende a competência de ${currentRow.competenceLabel}; creditado em ${formatDueDateBR(defaultUnicoDueDate)}.`
+            : undefined),
         adjustmentReason: mUnico?.adjustmentReason,
+        payInFollowingMonth: isPayInFollowingMonth,
+        isFirstInstallment: true,
         attentionReason:
           unicoStatus === 'CANCELADA'
             ? 'Não Aconteceu / Cancelado no Mês'
@@ -560,17 +649,33 @@ export function buildSalaryBreakdownItem(
     ? 'Salário Líquido (1ª + 2ª Quinzena)'
     : 'Salário Líquido Regular';
 
-  const notes = isSemanal
+  const notes = isPayInFollowingMonth
+    ? `Proventos que atendem à competência de ${currentRow.competenceLabel}, creditados em ${getNextMonthName(monthPrefix)}`
+    : isSemanal
     ? `${currentRow.salaryWeeklyInstallments || 4} pagamentos semanais programados`
     : isQuinzenal
     ? `1ª Quinzena: ${fmt(salarySubItems[0]?.totalValue ?? 0)} · 2ª Quinzena: ${fmt(salarySubItems[1]?.totalValue ?? 0)}`
     : 'Remuneração mensal regular conforme holerite';
 
-  const dateOrDue = isSemanal
+  const dateOrDue = isPayInFollowingMonth
+    ? (isQuinzenal
+      ? `1º Pgto: ${formatDueDateBR(defaultQ1DueDate)} · 2º Pgto: ${formatDueDateBR(defaultQ2DueDate)}`
+      : `Previsão: ${formatDueDateBR(defaultUnicoDueDate)}`)
+    : isSemanal
     ? `Pagamentos semanais em ${currentRow.competenceLabel}`
     : isQuinzenal
     ? `Quinzenas em ${currentRow.competenceLabel}`
     : `5º dia útil (${monthPrefix})`;
+
+  const badge = isPayInFollowingMonth
+    ? 'Mês Seguinte (M+1)'
+    : isSemanal
+    ? 'Semanal'
+    : isQuinzenal
+    ? 'Quinzenal'
+    : 'Proventos';
+
+  const badgeType = isPayInFollowingMonth ? 'cyan' : 'emerald';
 
   const totalCalculated = salarySubItems.reduce((acc, it) => acc + it.totalValue, 0);
 
@@ -580,8 +685,8 @@ export function buildSalaryBreakdownItem(
     bankOrOrigin: realSalaries[0]?.bank || (banks && banks.length > 0 ? banks[0].name : 'Conta Corrente'),
     title,
     notes,
-    badge: isSemanal ? 'Semanal' : isQuinzenal ? 'Quinzenal' : 'Proventos',
-    badgeType: 'emerald',
+    badge,
+    badgeType,
     amount: totalCalculated,
     dateOrDue,
     isProjected: realSalaries.length === 0,
@@ -696,6 +801,8 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
           : sub.receiptType === 'SALARY_Q2' || sub.id.includes('q2')
           ? `sal_q2_${monthKey}`
           : undefined,
+      payInFollowingMonth: sub.payInFollowingMonth,
+      isFirstInstallment: sub.isFirstInstallment,
     });
   };
 
@@ -1877,6 +1984,15 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                 </span>
               ))}
 
+            {sub.payInFollowingMonth && (
+              <span
+                className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1"
+                title="Provento que atende a esta competência creditado no mês seguinte"
+              >
+                <Calendar size={10} /> Mês Seguinte (M+1)
+              </span>
+            )}
+
             {sub.isTopOffender ? (
               <span className="item-attention-tag rose">
                 <AlertTriangle size={11} /> 🚨 Ponto de Atenção: Ofensor de Teto
@@ -1900,6 +2016,14 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             {sub.cardName && <span className="detail-item-card-tag">💳 {sub.cardName}</span>}
             {sub.mappingName && !sub.cardName && (
               <span className="detail-item-mapping-tag">• {sub.mappingName}</span>
+            )}
+            {sub.dueDate && (
+              <span className="text-[11px] font-medium text-slate-300 bg-slate-800/60 px-1.5 py-0.5 rounded border border-white/5 flex items-center gap-1">
+                <span>🗓️ {sub.isFirstInstallment ? '1º Pagamento: ' : 'Vencimento: '}{formatDueDateBR(sub.dueDate)}</span>
+                {sub.payInFollowingMonth && (
+                  <span className="text-cyan-400 font-semibold text-[10px]">(M+1)</span>
+                )}
+              </span>
             )}
             {sub.attentionReason && (
               <span
@@ -2078,6 +2202,31 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
               </div>
             </div>
           )}
+
+          {/* Banner de Ciclo M+1 quando aplicável */}
+          {(columnKey === 'salary' || columnKey === 'totalIncome') && currentRow && (() => {
+            const contract = salaryContracts?.find((sc) => sc.isActive) || salaryContracts?.[0];
+            if (!contract?.payInFollowingMonth) return null;
+            const nextMonth = getNextMonthName(currentRow.monthKey);
+            const firstDay = contract.secondPaymentDay || 1;
+            return (
+              <div
+                className="compact-info-banner mb-2"
+                style={{
+                  background: 'rgba(6, 182, 212, 0.08)',
+                  border: '1px solid rgba(6, 182, 212, 0.25)',
+                }}
+              >
+                <Calendar size={15} className="text-cyan-400 flex-shrink-0" />
+                <div className="text-xs min-w-0 flex-1" style={{ color: 'var(--text-secondary)' }}>
+                  <strong style={{ color: 'var(--text-primary)' }}>
+                    Competência {currentRow.competenceLabel} (Regime M+1):
+                  </strong>{' '}
+                  O pagamento referente a este período é creditado no mês seguinte ({nextMonth}). O 1º pagamento ocorre no dia {firstDay} de {nextMonth}.
+                </div>
+              </div>
+            );
+          })()}
 
           {columnKey === 'totalExpense' && currentRow && (
             <div className="compact-info-banner mb-2">
@@ -2362,6 +2511,17 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                 <X size={18} />
               </button>
             </div>
+
+            {/* Aviso de Ciclo M+1 quando aplicável */}
+            {editingReceipt.payInFollowingMonth && (
+              <div className="p-2.5 rounded-lg bg-cyan-500/10 border border-cyan-500/25 flex items-start gap-2">
+                <Calendar size={14} className="text-cyan-400 mt-0.5 flex-shrink-0" />
+                <div className="text-xs text-slate-300">
+                  <strong className="text-cyan-300">Regime M+1:</strong> Este recebimento atende à competência de{' '}
+                  <strong className="text-white">{editingReceipt.competenceLabel}</strong>, com crédito previsto para o mês seguinte (<strong>{formatDueDateBR(editingReceipt.dueDate)}</strong>).
+                </div>
+              </div>
+            )}
 
             {/* SELEÇÃO DO STATUS DO RECEBIMENTO */}
             <div className="space-y-1.5">
