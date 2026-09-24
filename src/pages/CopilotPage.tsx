@@ -3,6 +3,7 @@ import { useFinancial } from '../context/FinancialContext';
 import { ReceiptReconciliationCard } from '../components/ReceiptReconciliationCard';
 import { Send, Sparkles, User, Image as ImageIcon, X, Paperclip, UploadCloud, Info, Plus, ArrowLeft, ArrowRight, ShieldCheck } from 'lucide-react';
 import type { TabId } from '../components/Sidebar';
+import type { CopilotAttachment } from '../types';
 
 export interface CopilotPageProps {
   onBack?: () => void;
@@ -31,7 +32,7 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
 }) => {
   const { chatHistory, sendMessageToCopilot, respondToCopilotOption, reconcileReceiptData, natures, activeCheckpoint, movements } = useFinancial();
   const [inputQuery, setInputQuery] = useState('');
-  const [attachedImage, setAttachedImage] = useState<{ url: string; name: string; size?: string; revoke?: () => void } | null>(null);
+  const [attachedImages, setAttachedImages] = useState<CopilotAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [showRolesModal, setShowRolesModal] = useState(false);
   const [showPlusMenu, setShowPlusMenu] = useState(false);
@@ -41,7 +42,7 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatHistory, attachedImage]);
+  }, [chatHistory, attachedImages]);
 
   // Fechar popover do '+' e modal ao clicar fora ou pressionar Escape
   useEffect(() => {
@@ -75,15 +76,18 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
       const items = e.clipboardData?.items;
       if (!items) return;
 
+      const pastedFiles: File[] = [];
       for (let i = 0; i < items.length; i++) {
         if (items[i].type.indexOf('image') !== -1) {
           const file = items[i].getAsFile();
           if (file) {
-            e.preventDefault();
-            processImageFile(file);
-            break;
+            pastedFiles.push(file);
           }
         }
+      }
+      if (pastedFiles.length > 0) {
+        e.preventDefault();
+        processImageFiles(pastedFiles);
       }
     };
 
@@ -91,37 +95,49 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
     return () => window.removeEventListener('paste', handlePaste);
   }, []);
 
-  const processImageFile = (file: File) => {
-    if (!file.type.startsWith('image/')) {
-      alert('Por favor, selecione um arquivo de imagem válido (PNG, JPG, WEBP, etc.).');
+  const processImageFiles = (files: FileList | File[]) => {
+    const validFiles = Array.from(files).filter((file) => file.type.startsWith('image/'));
+    if (validFiles.length === 0) {
+      alert('Por favor, selecione arquivos de imagem válidos (PNG, JPG, WEBP, etc.).');
       return;
     }
 
-    // Cria ObjectURL efêmero no navegador para leitura rápida sem sobrecarregar memória com base64
-    const tempUrl = URL.createObjectURL(file);
-    const sizeFormatted = file.size > 1024 * 1024
-      ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
-      : `${Math.round(file.size / 1024)} KB`;
+    const newAttachments: CopilotAttachment[] = validFiles.map((file) => {
+      const tempUrl = URL.createObjectURL(file);
+      const sizeFormatted =
+        file.size > 1024 * 1024
+          ? `${(file.size / (1024 * 1024)).toFixed(1)} MB`
+          : `${Math.round(file.size / 1024)} KB`;
 
-    setAttachedImage({
-      url: tempUrl,
-      name: file.name || 'comprovante_anexo.png',
-      size: sizeFormatted,
-      revoke: () => URL.revokeObjectURL(tempUrl),
+      return {
+        url: tempUrl,
+        name: file.name || 'comprovante.png',
+        size: sizeFormatted,
+        revoke: () => URL.revokeObjectURL(tempUrl),
+      };
+    });
+
+    setAttachedImages((prev) => [...prev, ...newAttachments]);
+  };
+
+  const handleRemoveAttachedImage = (indexToRemove: number) => {
+    setAttachedImages((prev) => {
+      const target = prev[indexToRemove];
+      if (target?.revoke) {
+        target.revoke();
+      }
+      return prev.filter((_, idx) => idx !== indexToRemove);
     });
   };
 
-  const handleRemoveAttachedImage = () => {
-    if (attachedImage?.revoke) {
-      attachedImage.revoke();
-    }
-    setAttachedImage(null);
+  const handleClearAllAttachments = () => {
+    attachedImages.forEach((img) => img.revoke?.());
+    setAttachedImages([]);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      processImageFile(file);
+    if (e.target.files && e.target.files.length > 0) {
+      processImageFiles(e.target.files);
     }
     e.target.value = '';
   };
@@ -139,20 +155,19 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file && file.type.startsWith('image/')) {
-      processImageFile(file);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processImageFiles(e.dataTransfer.files);
     }
   };
 
   const handleSend = (e?: React.FormEvent, customQuery?: string) => {
     if (e) e.preventDefault();
     const query = customQuery || inputQuery;
-    if (!query.trim() && !attachedImage) return;
+    if (!query.trim() && attachedImages.length === 0) return;
 
-    sendMessageToCopilot(query, attachedImage || undefined);
+    sendMessageToCopilot(query, attachedImages.length > 0 ? attachedImages : undefined);
     setInputQuery('');
-    setAttachedImage(null);
+    setAttachedImages([]);
   };
 
   const screenTitle = SCREEN_NAMES[activeScreen] || 'Meu Dinheiro';
@@ -302,34 +317,59 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
                     )}
                   </div>
 
-                  {/* Anexo de Imagem ou Notificação de Espaço Temporário Liberado */}
-                  {(msg.attachmentUrl || msg.isEphemeralPurged) && (
-                    <div className="message-attachment-card animate-fade-in">
-                      <div className="attachment-thumb-wrap">
-                        {msg.attachmentUrl ? (
-                          <img src={msg.attachmentUrl} alt={msg.attachmentName || 'Comprovante Anexo'} className="message-attachment-img" />
-                        ) : (
-                          <div className="attachment-purged-thumb flex items-center justify-center w-full h-full bg-emerald-500/10 text-emerald-400">
-                            <ShieldCheck size={18} />
-                          </div>
+                  {/* Anexos de Imagens ou Notificação de Espaço Temporário Liberado */}
+                  {msg.attachments && msg.attachments.length > 1 ? (
+                    <div className="message-attachment-card animate-fade-in flex flex-col gap-2">
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex items-center gap-1.5 text-cyan-400 font-semibold text-xs">
+                          <Paperclip size={13} />
+                          <span>{msg.attachments.length} Fotos Anexadas</span>
+                        </div>
+                        {msg.isEphemeralPurged && (
+                          <span className="attachment-purged-badge flex items-center gap-1 text-[11px] text-emerald-400 font-medium">
+                            <ShieldCheck size={13} />
+                            <span>Espaço temporário liberado (0 KB mantidos)</span>
+                          </span>
                         )}
                       </div>
-                      <div className="attachment-card-info">
-                        <div className="attachment-card-name-row">
-                          <Paperclip size={13} className="text-cyan" />
-                          <span className="attachment-filename">{msg.attachmentName || 'Comprovante Anexo'}</span>
-                          {msg.attachmentSize && <span className="text-[10px] text-muted">({msg.attachmentSize})</span>}
-                        </div>
-                        {msg.isEphemeralPurged ? (
-                          <span className="attachment-purged-badge flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium">
+                      <div className="flex items-center gap-2 overflow-x-auto py-1 max-w-full">
+                        {msg.attachments.map((att, aIdx) => (
+                          <div key={aIdx} className="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-900/60 border border-slate-700/60 text-xs flex-shrink-0">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                            Espaço temporário liberado com sucesso (0 KB em disco)
-                          </span>
-                        ) : (
-                          <span className="attachment-ocr-badge">Processando no buffer temporário...</span>
-                        )}
+                            <span className="text-slate-300 font-medium max-w-[110px] truncate">{att.name}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
+                  ) : (
+                    (msg.attachmentUrl || msg.isEphemeralPurged) && (
+                      <div className="message-attachment-card animate-fade-in">
+                        <div className="attachment-thumb-wrap">
+                          {msg.attachmentUrl ? (
+                            <img src={msg.attachmentUrl} alt={msg.attachmentName || 'Comprovante Anexo'} className="message-attachment-img" />
+                          ) : (
+                            <div className="attachment-purged-thumb flex items-center justify-center w-full h-full bg-emerald-500/10 text-emerald-400">
+                              <ShieldCheck size={18} />
+                            </div>
+                          )}
+                        </div>
+                        <div className="attachment-card-info">
+                          <div className="attachment-card-name-row">
+                            <Paperclip size={13} className="text-cyan" />
+                            <span className="attachment-filename">{msg.attachmentName || 'Comprovante Anexo'}</span>
+                            {msg.attachmentSize && <span className="text-[10px] text-muted">({msg.attachmentSize})</span>}
+                          </div>
+                          {msg.isEphemeralPurged ? (
+                            <span className="attachment-purged-badge flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                              Espaço temporário liberado com sucesso (0 KB em disco)
+                            </span>
+                          ) : (
+                            <span className="attachment-ocr-badge">Processando no buffer temporário...</span>
+                          )}
+                        </div>
+                      </div>
+                    )
                   )}
 
                   <div className="message-text">
@@ -418,33 +458,63 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
 
         {/* ── Bottom Input Zone ────────────────────────────────── */}
         <div className="chat-bottom-zone">
-          {/* Preview do Anexo antes de Enviar */}
-          {attachedImage && (
-            <div className="chat-attachment-preview-bar animate-fade-in">
-              <div className="attachment-preview-left">
-                <div className="preview-thumb-box">
-                  <img src={attachedImage.url} alt={attachedImage.name} className="preview-thumb-img" />
-                </div>
-                <div className="preview-info-col">
-                  <div className="preview-filename-row">
-                    <Paperclip size={13} className="text-cyan" />
-                    <span className="preview-filename-text">{attachedImage.name}</span>
-                    {attachedImage.size && <span className="text-[10px] text-muted">({attachedImage.size})</span>}
-                  </div>
-                  <span className="preview-status-tag flex items-center gap-1 text-[11px] text-cyan-300">
+          {/* Preview dos Anexos antes de Enviar (Suporte Multi-Fotos) */}
+          {attachedImages.length > 0 && (
+            <div className="chat-attachment-preview-bar animate-fade-in flex flex-col gap-2">
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-2">
+                  <Paperclip size={14} className="text-cyan" />
+                  <span className="text-xs font-semibold text-primary">
+                    {attachedImages.length} {attachedImages.length === 1 ? 'Foto selecionada' : 'Fotos selecionadas'}
+                  </span>
+                  <span className="preview-status-tag flex items-center gap-1 text-[11px] text-cyan-300 ml-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                    Espaço temporário • Auto-liberação imediata após OCR
+                    Buffer efêmero • Descarte automático pós-OCR (0 bytes mantidos)
                   </span>
                 </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    className="text-[11px] text-cyan-400 hover:text-cyan-300 flex items-center gap-1 font-medium cursor-pointer"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Adicionar mais imagens"
+                  >
+                    <Plus size={13} />
+                    <span>Adicionar mais fotos</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="text-[11px] text-muted hover:text-rose-400 cursor-pointer"
+                    onClick={handleClearAllAttachments}
+                    title="Limpar todos os anexos"
+                  >
+                    Limpar todas
+                  </button>
+                </div>
               </div>
-              <button
-                type="button"
-                className="preview-remove-btn"
-                onClick={handleRemoveAttachedImage}
-                title="Remover anexo e liberar espaço"
-              >
-                <X size={15} />
-              </button>
+
+              {/* Strip com miniaturas rolantes */}
+              <div className="flex items-center gap-2.5 overflow-x-auto py-1 max-w-full">
+                {attachedImages.map((img, idx) => (
+                  <div key={idx} className="relative group flex items-center gap-2 px-2 py-1.5 rounded-lg bg-slate-900/80 border border-slate-700/60 flex-shrink-0">
+                    <div className="w-8 h-8 rounded overflow-hidden bg-black flex-shrink-0 border border-slate-700">
+                      <img src={img.url} alt={img.name} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex flex-col max-w-[120px]">
+                      <span className="text-[11px] font-medium text-slate-200 truncate">{img.name}</span>
+                      {img.size && <span className="text-[9px] text-muted">{img.size}</span>}
+                    </div>
+                    <button
+                      type="button"
+                      className="text-slate-400 hover:text-rose-400 p-0.5 ml-1 cursor-pointer transition-colors"
+                      onClick={() => handleRemoveAttachedImage(idx)}
+                      title={`Remover ${img.name}`}
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -455,6 +525,7 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
               type="file"
               ref={fileInputRef}
               accept="image/*"
+              multiple
               onChange={handleFileChange}
               style={{ display: 'none' }}
             />
@@ -463,7 +534,7 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
             <div className="chat-plus-menu-wrapper" ref={plusMenuRef}>
               <button
                 type="button"
-                className={`chat-plus-btn ${showPlusMenu ? 'active' : ''} ${attachedImage ? 'has-attachment' : ''}`}
+                className={`chat-plus-btn ${showPlusMenu ? 'active' : ''} ${attachedImages.length > 0 ? 'has-attachment' : ''}`}
                 onClick={() => setShowPlusMenu(!showPlusMenu)}
                 title="Anexar comprovante ou selecionar ação rápida (+)"
               >
@@ -539,9 +610,9 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
               type="text"
               className="chat-text-input"
               placeholder={
-                attachedImage
-                  ? "Adicione uma instrução sobre o comprovante (ou clique em Enviar)..."
-                  : "Digite algo ou anexe com '+' (Ctrl+V para colar)..."
+                attachedImages.length > 0
+                  ? `Instrução para as ${attachedImages.length} fotos (ex: "considere no valor não mapeado da fatura") ou Enviar...`
+                  : "Digite algo ou anexe fotos com '+' (Ctrl+V para colar)..."
               }
               value={inputQuery}
               onChange={(e) => setInputQuery(e.target.value)}
@@ -550,7 +621,7 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
             <button
               type="submit"
               className="btn btn-primary chat-send-btn"
-              disabled={!inputQuery.trim() && !attachedImage}
+              disabled={!inputQuery.trim() && attachedImages.length === 0}
             >
               <Send size={16} />
               <span className="send-btn-label">Enviar</span>

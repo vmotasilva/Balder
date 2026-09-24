@@ -5,7 +5,7 @@ import { QuickCreateMappingItemModal } from './QuickCreateMappingItemModal';
 import { MappingCombobox } from './MappingCombobox';
 import type { ComboboxOption } from './MappingCombobox';
 import { learnReceiptItemAssociation } from '../services/receiptMemoryService';
-import { Check, Plus, Edit2, AlertCircle, ShoppingBag, Sparkles, Store, Calendar, DollarSign, Wallet, CheckCircle2 } from 'lucide-react';
+import { Check, Plus, Edit2, AlertCircle, ShoppingBag, Sparkles, Store, Calendar, DollarSign, Wallet, CheckCircle2, CreditCard } from 'lucide-react';
 
 interface Props {
   data: ReceiptReconciliationData;
@@ -20,13 +20,20 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
   natures,
   onConfirm,
 }) => {
-  const { addItemToMapping, addMappingToNature } = useFinancial();
+  const { addItemToMapping, addMappingToNature, movements, associateReceiptItemsToInvoice } = useFinancial();
   const [store, setStore] = useState(data.store);
   const [date, setDate] = useState(data.date);
   const [totalAmount, setTotalAmount] = useState(data.totalAmount);
   const [paymentMethod, setPaymentMethod] = useState(data.paymentMethod);
   const [items, setItems] = useState<ReceiptItemLine[]>(data.items);
   const [isEditingHeader, setIsEditingHeader] = useState(false);
+
+  // Faturas de Cartão disponíveis para vínculo direto de itens não mapeados
+  const cardInvoices = movements.filter((m) => m.type === 'CARTAO');
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>(() => {
+    const openWithUnmapped = cardInvoices.find((m) => (m.unanalyzedAmount || 0) > 0.01);
+    return openWithUnmapped?.id || cardInvoices[0]?.id || '';
+  });
 
   // Modal para criar item de mapeamento na hora
   const [modalItem, setModalItem] = useState<ReceiptItemLine | null>(null);
@@ -207,6 +214,27 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
       items,
       isReconciled: true,
     });
+  };
+
+  const handleLinkToInvoice = () => {
+    if (!selectedInvoiceId) return;
+    const res = associateReceiptItemsToInvoice(selectedInvoiceId, items);
+    if (res.success) {
+      setNotificationMsg(
+        `✓ ${res.itemsCount} itens vinculados à fatura ${res.invoiceTitle}! Restante não mapeado: ${res.newUnanalyzed.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
+      );
+      setTimeout(() => {
+        onConfirm(messageId, {
+          ...data,
+          store,
+          date,
+          totalAmount,
+          paymentMethod: 'CARTAO',
+          items,
+          isReconciled: true,
+        });
+      }, 900);
+    }
   };
 
   if (data.isReconciled) {
@@ -418,6 +446,46 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
           </table>
         </div>
       </div>
+
+      {/* Opção de Vincular Diretamente à Fatura de Cartão (Consumir Valor Não Mapeado) */}
+      {cardInvoices.length > 0 && (
+        <div className="reconciliation-invoice-link-card my-3 p-3.5 rounded-xl border border-cyan-500/25 bg-cyan-950/20 flex flex-col gap-2.5">
+          <div className="flex items-center gap-2 text-cyan-400 font-semibold text-xs">
+            <CreditCard size={15} />
+            <span>Vincular Itens a uma Fatura de Cartão (Consumir Valor Não Mapeado)</span>
+          </div>
+          <p className="text-[11px] text-muted leading-relaxed">
+            Se essas fotos pertencem a compras na fatura, você pode associar os itens diretamente à fatura aberta, abatendo o total do valor não mapeado e classificando cada produto na natureza correta.
+          </p>
+
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <select
+              className="rec-inline-select flex-1 min-w-[240px] text-xs py-1.5"
+              value={selectedInvoiceId}
+              onChange={(e) => setSelectedInvoiceId(e.target.value)}
+            >
+              {cardInvoices.map((inv) => {
+                const unmapped = inv.unanalyzedAmount ?? inv.amount;
+                return (
+                  <option key={inv.id} value={inv.id}>
+                    {inv.bank} — {inv.title} (Não mapeado: {unmapped.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
+                  </option>
+                );
+              })}
+            </select>
+
+            <button
+              type="button"
+              className="btn btn-secondary text-xs flex items-center gap-1.5 py-1.5 px-3 bg-cyan-500/15 hover:bg-cyan-500/25 border-cyan-500/30 text-cyan-300 font-medium cursor-pointer"
+              onClick={handleLinkToInvoice}
+              disabled={!selectedInvoiceId}
+            >
+              <Check size={13} />
+              <span>Abater do Não Mapeado desta Fatura</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Rodapé com Ação Principal de Conciliação */}
       <div className="reconciliation-footer-action">

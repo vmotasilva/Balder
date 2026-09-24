@@ -21,6 +21,9 @@ import type {
   MappingItem,
   CeilingJustificationRecord,
   ReceiptReconciliationData,
+  ReceiptItemLine,
+  CopilotAttachment,
+  InvoiceNatureItemBreakdown,
   CreditCardItem,
   PaymentMethodItem,
   BankInstitution,
@@ -34,6 +37,7 @@ import type {
 } from '../types';
 import { recognizeImageOCR } from '../services/ocrService';
 import { learnReceiptItemAssociation } from '../services/receiptMemoryService';
+import { matchNatureForTransaction } from '../services/invoiceFileParser';
 import {
   DEMO_ACCOUNTS,
   DEMO_MOVEMENTS,
@@ -127,7 +131,34 @@ interface FinancialContextType {
   runSimulation: (preset: SimulationPresetId) => SimulationScenario;
   simulateCustomFutureScenario: (input: CustomScenarioInput) => FutureScenarioResult;
   applyScenarioToBudget: (result: FutureScenarioResult) => void;
-  sendMessageToCopilot: (query: string, attachment?: { url: string; name: string; size?: string; revoke?: () => void }) => void;
+  sendMessageToCopilot: (
+    query: string,
+    attachment?:
+      | CopilotAttachment
+      | CopilotAttachment[]
+      | { url: string; name: string; size?: string; revoke?: () => void }
+  ) => void;
+  associateReceiptItemsToInvoice: (
+    invoiceMovementId: string,
+    items: Array<{
+      id?: string;
+      detectedName?: string;
+      rawName?: string;
+      description?: string;
+      price?: number;
+      amount?: number;
+      natureId?: string;
+      natureName?: string;
+      quantity?: number;
+      unit?: string;
+    }>
+  ) => {
+    success: boolean;
+    allocatedAmount: number;
+    newUnanalyzed: number;
+    itemsCount: number;
+    invoiceTitle: string;
+  };
   respondToCopilotOption: (messageId: string, option: CopilotInteractiveOption) => void;
   reconcileReceiptData: (messageId: string, data: ReceiptReconciliationData) => void;
   exportToCSV: () => void;
@@ -1726,6 +1757,95 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     );
   };
 
+  // Associar itens reconhecidos (via foto/OCR ou conciliação) diretamente ao valor não mapeado de uma fatura de cartão
+  const associateReceiptItemsToInvoice = (
+    invoiceMovementId: string,
+    items: Array<{
+      id?: string;
+      detectedName?: string;
+      rawName?: string;
+      description?: string;
+      price?: number;
+      amount?: number;
+      natureId?: string;
+      natureName?: string;
+      quantity?: number;
+      unit?: string;
+    }>
+  ) => {
+    const targetInvoice = movements.find((m) => m.id === invoiceMovementId && m.type === 'CARTAO');
+    if (!targetInvoice) {
+      return {
+        success: false,
+        allocatedAmount: 0,
+        newUnanalyzed: 0,
+        itemsCount: 0,
+        invoiceTitle: '',
+      };
+    }
+
+    const currentBreakdown = targetInvoice.invoiceBreakdown || [];
+
+    const newBreakdownItems: InvoiceNatureItemBreakdown[] = items.map((it, idx) => {
+      const itemAmount =
+        typeof it.price === 'number' && !isNaN(it.price)
+          ? it.price
+          : typeof it.amount === 'number' && !isNaN(it.amount)
+          ? it.amount
+          : 0;
+
+      const itemDesc = it.detectedName || it.description || it.rawName || `Item ${idx + 1}`;
+
+      // Determinar a natureza correta
+      let assignedNatId = it.natureId;
+      let assignedNatName = it.natureName;
+
+      if (!assignedNatId || !assignedNatName) {
+        const match = matchNatureForTransaction(itemDesc, undefined, natures);
+        assignedNatId = match.natureId;
+        assignedNatName = match.natureName;
+      } else {
+        const found = natures.find(
+          (n) => n.id === assignedNatId || n.name.toLowerCase() === assignedNatName?.toLowerCase()
+        );
+        if (found) {
+          assignedNatId = found.id;
+          assignedNatName = found.name;
+        }
+      }
+
+      return {
+        id: `breakdown_photo_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
+        natureId: assignedNatId || 'OUTROS',
+        natureName: assignedNatName || 'Outros',
+        description: itemDesc,
+        amount: Math.round(itemAmount * 100) / 100,
+        isAnalyzed: true,
+        installments: 1,
+        currentInstallment: 1,
+      };
+    });
+
+    const updatedBreakdown = [...currentBreakdown, ...newBreakdownItems];
+    const newTotalAllocated = updatedBreakdown.reduce((sum, row) => sum + row.amount, 0);
+    const newUnanalyzed = Math.max(0, Math.round((targetInvoice.amount - newTotalAllocated) * 100) / 100);
+    const allocatedAmount = Math.round(newBreakdownItems.reduce((sum, row) => sum + row.amount, 0) * 100) / 100;
+
+    updateMovement(targetInvoice.id, {
+      invoiceBreakdown: updatedBreakdown,
+      unanalyzedAmount: newUnanalyzed,
+      category: newUnanalyzed > 0.01 ? 'Não Analisada' : 'Fatura de Cartão',
+    });
+
+    return {
+      success: true,
+      allocatedAmount,
+      newUnanalyzed,
+      itemsCount: newBreakdownItems.length,
+      invoiceTitle: targetInvoice.title || `${targetInvoice.bank} - Fatura`,
+    };
+  };
+
   // Metas
   const addGoal = (item: Omit<Goal, 'id'>) => {
     const tempId = `goal_${Date.now()}`;
@@ -2010,171 +2130,319 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   // Motor Conversacional Inteligente do Forseti (IA) com Retenção Efêmera / Temporária
-  const sendMessageToCopilot = (query: string, attachment?: { url: string; name: string; size?: string; revoke?: () => void }) => {
+  // Motor Conversacional Inteligente do Forseti (IA) com Retenção Efêmera / Temporária & Multi-Fotos
+  const sendMessageToCopilot = (
+    query: string,
+    attachment?:
+      | CopilotAttachment
+      | CopilotAttachment[]
+      | { url: string; name: string; size?: string; revoke?: () => void }
+  ) => {
     const trimmed = query.trim();
-    if (!trimmed && !attachment) return;
+    const attachmentsList: CopilotAttachment[] = Array.isArray(attachment)
+      ? attachment
+      : attachment
+      ? [attachment]
+      : [];
+
+    if (!trimmed && attachmentsList.length === 0) return;
 
     const userMessage: CopilotMessage = {
       id: `usr_${Date.now()}`,
       role: 'user',
-      content: trimmed || (attachment ? `Comprovante anexado: ${attachment.name}` : ''),
+      content:
+        trimmed ||
+        (attachmentsList.length === 1
+          ? `Comprovante anexado: ${attachmentsList[0].name}`
+          : `${attachmentsList.length} fotos anexadas para conciliação`),
       timestamp: 'Agora',
-      attachmentUrl: attachment?.url,
-      attachmentName: attachment?.name,
-      attachmentSize: attachment?.size,
+      attachmentUrl: attachmentsList[0]?.url,
+      attachmentName:
+        attachmentsList.length === 1
+          ? attachmentsList[0].name
+          : `${attachmentsList.length} fotos anexadas`,
+      attachmentSize: attachmentsList.length === 1 ? attachmentsList[0].size : undefined,
+      attachments: attachmentsList,
       isEphemeralPurged: false,
     };
 
-    // 0. Processamento de Imagem Anexada (Visão Computacional / OCR com Forseti em Espaço Temporário)
-    if (attachment) {
+    // 0. Processamento de Imagens Anexadas (Visão Computacional / OCR com Forseti em Espaço Temporário)
+    if (attachmentsList.length > 0) {
       const loadingId = `ast_loading_${Date.now()}`;
       const loadingMessage: CopilotMessage = {
         id: loadingId,
         role: 'assistant',
-        content: '🔍 **Forseti OCR em execução...** Processando pixels da imagem em buffer temporário, identificando estabelecimento e decodificando valores fiscais...',
+        content: `🔍 **Forseti OCR em execução...** Processando ${
+          attachmentsList.length > 1 ? `${attachmentsList.length} fotos` : 'a foto'
+        } em buffer temporário, decodificando itens e valores fiscais...`,
         timestamp: 'Agora',
         actionBadge: 'VISÃO COMPUTACIONAL OCR',
       };
 
       setChatHistory((prev) => [...prev, userMessage, loadingMessage]);
 
-      // Execução do pipeline de OCR e visão determinística
-      recognizeImageOCR(attachment.url, trimmed).then((ocrResult) => {
-        // Imediatamente libera o arquivo do espaço temporário (memória / blob)
-        if (attachment.revoke) {
-          attachment.revoke();
-        } else if (attachment.url.startsWith('blob:')) {
-          URL.revokeObjectURL(attachment.url);
-        }
+      // Execução paralela do pipeline de OCR para todas as fotos enviadas
+      Promise.all(attachmentsList.map((att) => recognizeImageOCR(att.url, trimmed)))
+        .then((ocrResults) => {
+          // Imediatamente libera os arquivos do espaço temporário (memória / blob) para evitar vazamento
+          attachmentsList.forEach((att) => {
+            if (att.revoke) {
+              att.revoke();
+            } else if (att.url.startsWith('blob:')) {
+              URL.revokeObjectURL(att.url);
+            }
+          });
 
-        // Atualiza a mensagem do usuário no histórico para remover a imagem pesada da memória
-        setChatHistory((prev) =>
-          prev.map((msg) =>
-            msg.id === userMessage.id
-              ? { ...msg, attachmentUrl: undefined, isEphemeralPurged: true }
-              : msg
-          )
-        );
+          // Atualiza a mensagem do usuário no histórico para liberar memória efêmera
+          setChatHistory((prev) =>
+            prev.map((msg) =>
+              msg.id === userMessage.id
+                ? {
+                    ...msg,
+                    attachmentUrl: undefined,
+                    attachments: msg.attachments?.map((a) => ({ ...a, url: '', isEphemeralPurged: true })),
+                    isEphemeralPurged: true,
+                  }
+                : msg
+            )
+          );
 
-        const ocrItemsText = ocrResult.detectedItems && ocrResult.detectedItems.length > 0
-          ? `\n• **Itens / Produtos Reconhecidos:** ${ocrResult.detectedItems.join(', ')}`
-          : '';
+          // Consolidar todos os itens e informações extraídas de todas as fotos
+          const allDetectedItems: ReceiptItemLine[] = [];
+          let totalDetectedAmount = 0;
+          let detectedStore = '';
+          let detectedDate = '';
+          let suggestedPaymentMethod: 'CARTAO' | 'DEBITO' | 'DINHEIRO' | 'PIX' = 'CARTAO';
+          let cashPaid: number | undefined;
+          let changeAmount: number | undefined;
 
-        const paymentMethodDetails = ocrResult.cashPaid !== undefined
-          ? `\n• **Forma de Pagamento no Cupom:** Dinheiro em Espécie (Pago: R$ ${ocrResult.cashPaid.toFixed(2).replace('.', ',')} • Troco: R$ ${(ocrResult.changeAmount || 0).toFixed(2).replace('.', ',')})`
-          : (ocrResult.suggestedPaymentMethod === 'DINHEIRO' ? '\n• **Forma de Pagamento no Cupom:** Dinheiro em Espécie' : '');
+          ocrResults.forEach((res, rIdx) => {
+            if (!detectedStore && res.detectedStore) detectedStore = res.detectedStore;
+            if (!detectedDate && res.detectedDate) detectedDate = res.detectedDate;
+            if (res.suggestedPaymentMethod) suggestedPaymentMethod = res.suggestedPaymentMethod;
+            if (res.cashPaid !== undefined) cashPaid = res.cashPaid;
+            if (res.changeAmount !== undefined) changeAmount = res.changeAmount;
 
-        const dynamicOptions: CopilotInteractiveOption[] = ocrResult.suggestedPaymentMethod === 'DINHEIRO'
-          ? [
-              {
-                id: 'opt_ocr_cash',
-                label: 'Dinheiro em Espécie',
-                icon: '💵',
-                badge: 'Identificado no Cupom (Recomendado)',
-                description: `Registrar saída de ${ocrResult.detectedAmountFormatted} do caixa em dinheiro`,
-                payload: { bank: 'Dinheiro', type: 'PAGAR', category: ocrResult.detectedCategory },
+            res.receiptItemLines.forEach((item, iIdx) => {
+              const match = matchNatureForTransaction(item.detectedName, undefined, natures);
+              allDetectedItems.push({
+                ...item,
+                id: `item_rec_${rIdx}_${iIdx}_${Date.now()}`,
+                natureId: item.natureId || match.natureId,
+                newCategoryName: item.newCategoryName || match.natureName,
+              });
+              totalDetectedAmount += item.price;
+            });
+          });
+
+          totalDetectedAmount = Math.round(totalDetectedAmount * 100) / 100;
+
+          // Análise de Intenção do Usuário
+          const lower = (trimmed + ' ' + (userMessage.content || '')).toLowerCase();
+          const isInvoiceIntent =
+            lower.includes('fatura') ||
+            lower.includes('cartao') ||
+            lower.includes('cartão') ||
+            lower.includes('nao mapead') ||
+            lower.includes('não mapead') ||
+            lower.includes('nao analisad') ||
+            lower.includes('não analisad') ||
+            lower.includes('abater') ||
+            lower.includes('abata') ||
+            lower.includes('consumir') ||
+            lower.includes('vincular a fatura') ||
+            lower.includes('vincular à fatura');
+
+          const cardInvoices = movements.filter((m) => m.type === 'CARTAO');
+          const matchedInvoiceByBank = cardInvoices.find(
+            (inv) =>
+              (inv.bank && lower.includes(inv.bank.toLowerCase())) ||
+              (inv.title && lower.includes(inv.title.toLowerCase()))
+          );
+          const targetInvoice =
+            matchedInvoiceByBank ||
+            cardInvoices.find((inv) => (inv.unanalyzedAmount || 0) > 0.01) ||
+            cardInvoices[0];
+
+          // 1. Caso com Intenção Expressa de Abater da Fatura de Cartão e fatura existente
+          if (isInvoiceIntent && targetInvoice) {
+            const assocResult = associateReceiptItemsToInvoice(targetInvoice.id, allDetectedItems);
+
+            const itemsSummaryText = allDetectedItems
+              .map(
+                (it) =>
+                  `• **${it.detectedName}**: ${it.price.toLocaleString('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL',
+                  })} → Natureza: **${it.newCategoryName || 'Alimentação & Mercado'}**`
+              )
+              .join('\n');
+
+            const assistantMsg: CopilotMessage = {
+              id: `ast_${Date.now()}`,
+              role: 'assistant',
+              content: `💳 **Itens Reconhecidos e Associados à Fatura com Sucesso!**\n\nAnalisei ${
+                attachmentsList.length > 1 ? `as **${attachmentsList.length} fotos**` : 'a **foto**'
+              } em espaço temporário e vinculei todos os itens detectados diretamente à fatura do **${
+                targetInvoice.bank
+              }** (${targetInvoice.title}), reduzindo o valor não mapeado:\n\n${itemsSummaryText}\n\n📊 **Resumo da Fatura Atualizada:**\n• **Fatura:** ${targetInvoice.title} (Vencimento ${targetInvoice.dueDate.split('-').reverse().join('/')})\n• **Estabelecimento:** ${
+                detectedStore || 'Diversos'
+              }\n• **Total Mapeado por estas fotos:** **${assocResult.allocatedAmount.toLocaleString('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+              })}** (${assocResult.itemsCount} itens)\n• **Saldo Restante Não Mapeado:** **${assocResult.newUnanalyzed.toLocaleString(
+                'pt-BR',
+                { style: 'currency', currency: 'BRL' }
+              )}** ${assocResult.newUnanalyzed <= 0.01 ? '🎉 *(Fatura 100% categorizada!)*' : ''}\n• 🔒 **Espaço Temporário Liberado:** Imagens processadas em buffer efêmero e **descartadas imediatamente** (0 bytes mantidos na memória).\n\nOs itens já estão visíveis na fatura com suas respectivas naturezas orçamentárias.`,
+              timestamp: 'Agora',
+              actionBadge: 'FATURA CONCILIADA',
+              suggestedFollowUps: ['Ver Faturas', 'Quanto sobrou para gastar no mês?', 'Anexar mais fotos'],
+              receiptReconciliation: {
+                id: `rec_${Date.now()}`,
+                store: detectedStore || 'Comprovantes Fiscais',
+                date: detectedDate || new Date().toISOString().split('T')[0],
+                totalAmount: totalDetectedAmount,
+                paymentMethod: 'CARTAO',
+                items: allDetectedItems,
+                isReconciled: true,
               },
-              {
-                id: 'opt_ocr_inter',
-                label: 'Conta Inter (Débito / PIX)',
-                icon: '🟠',
-                badge: 'Conta Corrente',
-                description: 'Debitar da conta caso tenha pago via PIX/Débito',
-                payload: { bank: 'Inter', type: 'PAGAR', category: ocrResult.detectedCategory },
-              },
-              {
-                id: 'opt_ocr_nubank',
-                label: 'Cartão Nubank Black',
-                icon: '💳',
-                badge: 'Fatura de Cartão',
-                description: 'Lançar na fatura aberta com vencimento dia 06/10',
-                payload: { bank: 'Nubank', type: 'CARTAO', category: ocrResult.detectedCategory },
-              },
-              {
-                id: 'opt_ocr_adjust',
-                label: 'Ajustar Valor / Categoria',
-                icon: '✏️',
-                badge: 'Personalizar',
-                description: 'Informar outro valor ou alterar favorecido',
-                payload: { action: 'ADJUST_AMOUNT', category: ocrResult.detectedCategory },
-              },
-            ]
-          : [
-              {
-                id: 'opt_ocr_inter',
-                label: 'Conta Inter (Débito / PIX)',
-                icon: '🟠',
-                badge: 'PIX / Débito',
-                description: 'Debitar imediatamente do saldo em caixa',
-                payload: { bank: 'Inter', type: 'PAGAR', category: ocrResult.detectedCategory },
-              },
-              {
-                id: 'opt_ocr_nubank',
-                label: 'Cartão Nubank Black',
-                icon: '💳',
-                badge: 'Fatura de Cartão',
-                description: 'Lançar na fatura aberta com vencimento dia 06/10',
-                payload: { bank: 'Nubank', type: 'CARTAO', category: ocrResult.detectedCategory },
-              },
-              {
-                id: 'opt_ocr_cash',
-                label: 'Dinheiro / Caixa Físico',
-                icon: '💵',
-                badge: 'Espécie',
-                description: 'Registrar como saída avulsa em dinheiro',
-                payload: { bank: 'Dinheiro', type: 'PAGAR', category: ocrResult.detectedCategory },
-              },
-              {
-                id: 'opt_ocr_adjust',
-                label: 'Ajustar Valor / Categoria',
-                icon: '✏️',
-                badge: 'Personalizar',
-                description: 'Informar outro valor ou alterar favorecido',
-                payload: { action: 'ADJUST_AMOUNT', category: ocrResult.detectedCategory },
-              },
-            ];
+            };
 
-        const pendingConfirmation: CopilotPendingConfirmation = {
-          step: 'PAYMENT_METHOD',
-          pendingData: {
-            rawTitle: `${ocrResult.detectedStore}`,
-            amount: ocrResult.detectedAmount,
-            dueDate: ocrResult.detectedDate,
-            type: 'PAGAR',
-            category: ocrResult.detectedCategory,
-            notes: ocrResult.notes || `Lançamento extraído via Forseti OCR (${attachment.name}).`,
-          },
-          question: 'Em qual conta ou forma de pagamento você deseja conciliar esta despesa?',
-          options: dynamicOptions,
-        };
+            setChatHistory((prev) => prev.filter((m) => m.id !== loadingId).concat(assistantMsg));
+            return;
+          }
 
-        const ocrText = `📄 **Interpretação de Imagem / Comprovante (Forseti OCR):**\n\nAnalisei o anexo **"${attachment.name}"** através da visão determinística do Balder:\n\n• **Tipo de Registro:** Cupom Fiscal / NFC-e\n• **Favorecido / Estabelecimento:** **${ocrResult.detectedStore}**\n• **Data do Documento:** ${ocrResult.detectedDate.split('-').reverse().join('/')} (Competência Atual)\n• **Valor Reconhecido:** **${ocrResult.detectedAmountFormatted}**${ocrResult.isEstimatedAmount ? ' *(estimado)*' : ''}${paymentMethodDetails}\n• **Natureza Orçamentária Sugerida:** **${ocrResult.detectedCategory}** (${ocrResult.detectedSubcategory || 'Geral'})${ocrItemsText}\n• **Status Orçamentário:** Despesa compatível com o teto previsto para a semana.\n• 🔒 **Espaço Temporário Liberado:** O arquivo da imagem foi processado em buffer temporário e **descartado imediatamente** da memória (0 bytes retidos no armazenamento).\n\nComo você deseja lançar ou conciliar essa despesa no seu fluxo de caixa?`;
+          // 2. Fluxo Regular com opção prioritária de fatura
+          const dynamicOptions: CopilotInteractiveOption[] = [];
 
-        const receiptReconciliation: ReceiptReconciliationData = {
-          id: `rec_${Date.now()}`,
-          store: ocrResult.detectedStore,
-          date: ocrResult.detectedDate,
-          totalAmount: ocrResult.detectedAmount,
-          paymentMethod: ocrResult.suggestedPaymentMethod,
-          cashPaid: ocrResult.cashPaid,
-          changeAmount: ocrResult.changeAmount,
-          items: ocrResult.receiptItemLines,
-          isReconciled: false,
-        };
+          if (targetInvoice) {
+            const unanalyzedVal = targetInvoice.unanalyzedAmount ?? targetInvoice.amount;
+            dynamicOptions.push({
+              id: 'opt_link_invoice',
+              label: `Abater da Fatura ${targetInvoice.bank} (Não Mapeado)`,
+              icon: '💳',
+              badge: `R$ ${unanalyzedVal.toFixed(2).replace('.', ',')} não mapeado`,
+              description: `Associar os itens e abater do valor não mapeado desta fatura`,
+              payload: { action: 'LINK_TO_INVOICE', invoiceId: targetInvoice.id },
+            });
+          }
 
-        const assistantMessage: CopilotMessage = {
-          id: `ast_${Date.now()}`,
-          role: 'assistant',
-          content: ocrText,
-          timestamp: 'Agora',
-          actionBadge: 'VISÃO COMPUTACIONAL OCR',
-          suggestedFollowUps: ['Confirmar no Dinheiro', 'Debitar da Conta Inter', 'Confirmar no Cartão Nubank', 'Anexar outro comprovante'],
-          pendingConfirmation,
-          receiptReconciliation,
-        };
+          dynamicOptions.push(
+            {
+              id: 'opt_ocr_inter',
+              label: 'Conta Inter (Débito / PIX)',
+              icon: '🟠',
+              badge: 'Conta Corrente',
+              description: 'Debitar imediatamente do saldo em caixa',
+              payload: { bank: 'Inter', type: 'PAGAR', category: 'Alimentação & Mercado' },
+            },
+            {
+              id: 'opt_ocr_cash',
+              label: 'Dinheiro em Espécie',
+              icon: '💵',
+              badge: 'Caixa Físico',
+              description: `Registrar saída de ${totalDetectedAmount.toLocaleString('pt-BR', {
+                style: 'currency',
+                currency: 'BRL',
+              })} em dinheiro`,
+              payload: { bank: 'Dinheiro', type: 'PAGAR', category: 'Alimentação & Mercado' },
+            },
+            {
+              id: 'opt_ocr_adjust',
+              label: 'Ajustar / Conciliar Itens',
+              icon: '✏️',
+              badge: 'Personalizar',
+              description: 'Editar valores, vincular rotinas fixas ou alterar fatura',
+              payload: { action: 'ADJUST_AMOUNT', category: 'Alimentação & Mercado' },
+            }
+          );
 
-        setChatHistory((prev) => prev.filter((m) => m.id !== loadingId).concat(assistantMessage));
-      });
+          const pendingConfirmation: CopilotPendingConfirmation = {
+            step: 'PAYMENT_METHOD',
+            pendingData: {
+              rawTitle: `${detectedStore || 'Compras'}`,
+              amount: totalDetectedAmount,
+              dueDate: detectedDate || new Date().toISOString().split('T')[0],
+              type: 'CARTAO',
+              category: 'Alimentação & Mercado',
+              notes: `Lançamento extraído via Forseti OCR (${attachmentsList.length} ${
+                attachmentsList.length === 1 ? 'foto' : 'fotos'
+              }).`,
+            },
+            question: 'Em qual conta ou fatura você deseja conciliar esta despesa?',
+            options: dynamicOptions,
+          };
+
+          const ocrItemsText =
+            allDetectedItems.length > 0
+              ? `\n• **Itens / Produtos Reconhecidos (${allDetectedItems.length}):**\n` +
+                allDetectedItems
+                  .map(
+                    (it) =>
+                      `  - **${it.detectedName}**: ${it.price.toLocaleString('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL',
+                      })} → ${it.newCategoryName || 'Alimentação'}`
+                  )
+                  .join('\n')
+              : '';
+
+          const ocrText = `📄 **Interpretação de ${
+            attachmentsList.length > 1
+              ? `${attachmentsList.length} Fotos / Comprovantes`
+              : 'Foto / Comprovante'
+          } (Forseti OCR):**\n\nAnalisei os anexos através da visão determinística do Balder:\n\n• **Tipo de Registro:** Cupom Fiscal / NFC-e\n• **Estabelecimento:** **${
+            detectedStore || 'Identificado'
+          }**\n• **Data:** ${(detectedDate || '').split('-').reverse().join('/')}\n• **Valor Total dos Itens:** **${totalDetectedAmount.toLocaleString(
+            'pt-BR',
+            {
+              style: 'currency',
+              currency: 'BRL',
+            }
+          )}**${ocrItemsText}\n• 🔒 **Espaço Temporário Liberado:** Os arquivos foram processados em buffer efêmero e **descartados imediatamente** da memória (0 bytes retidos no armazenamento).\n\nVocê pode vincular diretamente à fatura para abater do valor não mapeado ou escolher outra forma de conciliação abaixo:`;
+
+          const receiptReconciliation: ReceiptReconciliationData = {
+            id: `rec_${Date.now()}`,
+            store: detectedStore || 'Cupom Fiscal',
+            date: detectedDate || new Date().toISOString().split('T')[0],
+            totalAmount: totalDetectedAmount,
+            paymentMethod: suggestedPaymentMethod,
+            cashPaid,
+            changeAmount,
+            items: allDetectedItems,
+            isReconciled: false,
+          };
+
+          const assistantMessage: CopilotMessage = {
+            id: `ast_${Date.now()}`,
+            role: 'assistant',
+            content: ocrText,
+            timestamp: 'Agora',
+            actionBadge: 'VISÃO COMPUTACIONAL OCR',
+            suggestedFollowUps: [
+              'Abater da Fatura de Cartão',
+              'Debitar da Conta Inter',
+              'Confirmar no Dinheiro',
+              'Anexar mais fotos',
+            ],
+            pendingConfirmation,
+            receiptReconciliation,
+          };
+
+          setChatHistory((prev) => prev.filter((m) => m.id !== loadingId).concat(assistantMessage));
+        })
+        .catch((err) => {
+          console.error('Erro no processamento de fotos OCR:', err);
+          setChatHistory((prev) =>
+            prev.filter((m) => m.id !== loadingId).concat({
+              id: `ast_${Date.now()}`,
+              role: 'assistant',
+              content:
+                '⚠️ Não foi possível decodificar os pixels das imagens enviadas. Por favor, tente enviar fotos com iluminação mais clara.',
+              timestamp: 'Agora',
+            })
+          );
+        });
 
       return;
     }
@@ -2424,6 +2692,56 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       setChatHistory((prev) =>
         prev.map((m) => (m.id === messageId ? { ...m, pendingConfirmation: undefined } : m)).concat(userAdjustMsg, assistantAdjustReply)
+      );
+      return;
+    }
+
+    // Caso o usuário opte por abater diretamente de uma fatura de cartão aberta
+    if (option.payload.action === 'LINK_TO_INVOICE') {
+      const cardInvoices = movements.filter((m) => m.type === 'CARTAO');
+      const targetInvoice =
+        cardInvoices.find((m) => m.id === option.payload.invoiceId) ||
+        cardInvoices.find((m) => (m.unanalyzedAmount || 0) > 0.01) ||
+        cardInvoices[0];
+
+      const itemsToLink = targetMsg.receiptReconciliation?.items || [];
+
+      if (!targetInvoice || itemsToLink.length === 0) {
+        return;
+      }
+
+      const res = associateReceiptItemsToInvoice(targetInvoice.id, itemsToLink);
+
+      const userConfirmMsg: CopilotMessage = {
+        id: `usr_${Date.now()}`,
+        role: 'user',
+        content: `💳 Vincular ${itemsToLink.length} itens à fatura do ${targetInvoice.bank} para abater do valor não mapeado`,
+        timestamp: 'Agora',
+      };
+
+      const botConfirmMsg: CopilotMessage = {
+        id: `ast_${Date.now()}`,
+        role: 'assistant',
+        content: `✅ **Itens Vinculados à Fatura com Sucesso!**\n\nAdicionei os **${res.itemsCount} itens** do comprovante diretamente à fatura do **${targetInvoice.bank}** (${res.invoiceTitle}), abatendo do valor não mapeado:\n\n• **Valor Alocado:** ${res.allocatedAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}\n• **Saldo Restante Não Mapeado:** ${res.newUnanalyzed.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}${res.newUnanalyzed <= 0.01 ? ' 🎉 *(Fatura 100% categorizada!)*' : ''}\n• **Status:** Fatura atualizada e categorizada nas naturezas corretas.`,
+        timestamp: 'Agora',
+        actionBadge: 'FATURA CONCILIADA',
+        suggestedFollowUps: ['Ver Faturas', 'Quanto sobrou para gastar no mês?', 'Anexar outro comprovante'],
+      };
+
+      setChatHistory((prev) =>
+        prev
+          .map((m) =>
+            m.id === messageId
+              ? {
+                  ...m,
+                  pendingConfirmation: undefined,
+                  receiptReconciliation: m.receiptReconciliation
+                    ? { ...m.receiptReconciliation, isReconciled: true }
+                    : undefined,
+                }
+              : m
+          )
+          .concat(userConfirmMsg, botConfirmMsg)
       );
       return;
     }
@@ -3226,6 +3544,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         simulateCustomFutureScenario,
         applyScenarioToBudget,
         sendMessageToCopilot,
+        associateReceiptItemsToInvoice,
         respondToCopilotOption,
         exportToCSV,
         addNature,

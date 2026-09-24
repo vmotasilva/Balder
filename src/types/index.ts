@@ -264,6 +264,14 @@ export interface ReceiptReconciliationData {
   isReconciled?: boolean;
 }
 
+export interface CopilotAttachment {
+  url: string;
+  name: string;
+  size?: string;
+  revoke?: () => void;
+  isEphemeralPurged?: boolean;
+}
+
 export interface CopilotMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -272,6 +280,7 @@ export interface CopilotMessage {
   attachmentUrl?: string;
   attachmentName?: string;
   attachmentSize?: string;
+  attachments?: CopilotAttachment[];
   isEphemeralPurged?: boolean;
   actionBadge?: string;
   suggestedFollowUps?: string[];
