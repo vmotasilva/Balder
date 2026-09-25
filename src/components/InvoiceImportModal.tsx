@@ -201,6 +201,41 @@ export const InvoiceImportModal: React.FC<InvoiceImportModalProps> = ({
   const activeSelectedItems = reviewedItems.filter((i) => selectedItemIds.has(i.id));
   const activeTotalAmount = activeSelectedItems.reduce((acc, i) => acc + i.amount, 0);
 
+  // Diferença entre os itens lidos e o valor atual
+  const totalDifference = activeTotalAmount - currentInvoiceAmount;
+  const hasSignificantDifference = currentInvoiceAmount > 0 && totalDifference > 0.01;
+
+  const handleAddDiscount = () => {
+    // Procura natureza com nome "Fatura do cartão" ou similar
+    let targetNature = natures.find(n => 
+      n.name.toLowerCase().includes('fatura') || 
+      n.name.toLowerCase().includes('cartão') || 
+      n.name.toLowerCase().includes('cartao')
+    );
+    if (!targetNature && natures.length > 0) {
+      targetNature = natures[0];
+    }
+    
+    // Procura mapeamento com nome "Desconto"
+    let targetMapping = targetNature?.mappings?.find(m => m.name.toLowerCase().includes('desconto'))?.id || 'OUTROS';
+
+    const newItem: ParsedInvoiceItem = {
+      id: `discount_${Date.now()}`,
+      description: 'Desconto Fatura (Bônus)',
+      amount: -totalDifference,
+      natureId: targetNature?.id || 'OUTROS',
+      natureName: targetNature?.name || 'Outros',
+      mappingId: targetMapping,
+      confidence: 1,
+      installments: 1,
+      currentInstallment: 1,
+      finalAmount: -totalDifference,
+    };
+
+    setReviewedItems(prev => [...prev, newItem]);
+    setSelectedItemIds(prev => new Set(prev).add(newItem.id));
+  };
+
   // Submeter importação
   const handleConfirm = () => {
     if (activeSelectedItems.length === 0) {
@@ -478,6 +513,39 @@ export const InvoiceImportModal: React.FC<InvoiceImportModalProps> = ({
                 </button>
               </div>
             </div>
+
+            {/* Banner de Diferença / Desconto */}
+            {hasSignificantDifference && (
+              <div
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: '10px',
+                  background: 'rgba(245, 158, 11, 0.1)',
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#FBBF24', fontSize: '13px' }}>
+                  <AlertCircle size={18} />
+                  <span>
+                    A soma dos itens (<strong>{fmtBRL(activeTotalAmount)}</strong>) é maior que o valor da fatura (<strong>{fmtBRL(currentInvoiceAmount)}</strong>). Existe uma diferença de <strong>{fmtBRL(totalDifference)}</strong>.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ fontSize: '11px', padding: '6px 12px', background: '#F59E0B', color: '#fff', border: 'none' }}
+                  onClick={handleAddDiscount}
+                >
+                  <Sparkles size={14} />
+                  Computar Diferença como Desconto (Bônus)
+                </button>
+              </div>
+            )}
 
             {/* Tabela de Revisão dos Itens e Naturezas */}
             <div style={{ maxHeight: '320px', overflowY: 'auto', border: '1px solid var(--border-default)', borderRadius: '12px' }}>
