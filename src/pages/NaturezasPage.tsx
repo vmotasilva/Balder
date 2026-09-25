@@ -1367,7 +1367,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                             onChange={(e) => {
                                               const val = e.target.value as 'SEMANAL' | 'QUINZENAL' | 'MENSAL';
                                               setEditRecurrenceType(val);
-                                              if (val === 'SEMANAL' && editMult < 4) setEditMult(4);
+                                              if (val === 'SEMANAL' && editMult < 5) setEditMult(5);
                                               if (val === 'QUINZENAL') setEditMult(2);
                                               if (val === 'MENSAL') setEditMult(1);
                                             }}
@@ -1427,10 +1427,10 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                           value={editMult}
                                           onChange={(e) => setEditMult(parseInt(e.target.value) || 1)}
                                         >
-                                          <option value={1}>1x (Pontual / Mensal)</option>
-                                          <option value={2}>2x (Quinzenal)</option>
+                                          <option value={5}>5x (Semanal Padrão - 5 sem)</option>
                                           <option value={4}>4x (Semanal - 4 sem)</option>
-                                          <option value={5}>5x (Semanal longo - 5 sem)</option>
+                                          <option value={2}>2x (Quinzenal)</option>
+                                          <option value={1}>1x (Pontual / Mensal)</option>
                                         </select>
                                       </td>
                                       <td>
@@ -1654,7 +1654,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                       onChange={(e) => {
                                         const val = e.target.value as 'SEMANAL' | 'QUINZENAL' | 'MENSAL';
                                         setNewItemRecurrenceType((prev) => ({ ...prev, [mapping.id]: val }));
-                                        if (val === 'SEMANAL') setNewItemMult((prev) => ({ ...prev, [mapping.id]: 4 }));
+                                        if (val === 'SEMANAL') setNewItemMult((prev) => ({ ...prev, [mapping.id]: 5 }));
                                         if (val === 'QUINZENAL') setNewItemMult((prev) => ({ ...prev, [mapping.id]: 2 }));
                                         if (val === 'MENSAL') setNewItemMult((prev) => ({ ...prev, [mapping.id]: 1 }));
                                       }}
@@ -1729,7 +1729,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                     value={
                                       newItemMult[mapping.id] !== undefined
                                         ? newItemMult[mapping.id]
-                                        : 4
+                                        : 5
                                     }
                                     onChange={(e) =>
                                       setNewItemMult((prev) => ({
@@ -1738,10 +1738,10 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                       }))
                                     }
                                   >
-                                    <option value={1}>1x (Pontual / Mensal)</option>
-                                    <option value={2}>2x (Quinzenal)</option>
+                                    <option value={5}>5x (Semanal Padrão - 5 sem)</option>
                                     <option value={4}>4x (Semanal - 4 sem)</option>
-                                    <option value={5}>5x (Semanal longo - 5 sem)</option>
+                                    <option value={2}>2x (Quinzenal)</option>
+                                    <option value={1}>1x (Pontual / Mensal)</option>
                                   </select>
                                 </td>
                                 <td>
@@ -1756,7 +1756,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                             : parseFloat(String(newItemPrice[mapping.id] || '0').replace(',', '.')) || 0) *
                                           (newItemMult[mapping.id] !== undefined
                                             ? newItemMult[mapping.id]
-                                            : 4) *
+                                            : 5) *
                                           1000
                                       ) / 1000
                                     ).toLocaleString('pt-BR', {
@@ -1786,7 +1786,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                       const mult =
                                         newItemMult[mapping.id] !== undefined
                                           ? newItemMult[mapping.id]
-                                          : 4;
+                                          : 5;
 
                                       if (!desc) {
                                         alert('Informe a descrição do item.');

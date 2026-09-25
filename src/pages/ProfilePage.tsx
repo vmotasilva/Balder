@@ -3360,7 +3360,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                                             onChange={(e) => {
                                               const val = e.target.value as 'SEMANAL' | 'QUINZENAL' | 'MENSAL';
                                               setNewItemRecurrenceType((prev) => ({ ...prev, [mapping.id]: val }));
-                                              if (val === 'SEMANAL') setNewItemMult((prev) => ({ ...prev, [mapping.id]: 4 }));
+                                              if (val === 'SEMANAL') setNewItemMult((prev) => ({ ...prev, [mapping.id]: 5 }));
                                               if (val === 'QUINZENAL') setNewItemMult((prev) => ({ ...prev, [mapping.id]: 2 }));
                                               if (val === 'MENSAL') setNewItemMult((prev) => ({ ...prev, [mapping.id]: 1 }));
                                             }}
@@ -3432,16 +3432,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                                       <td>
                                         <select
                                           className="form-input form-input-sm"
-                                          value={newItemMult[mapping.id] !== undefined ? newItemMult[mapping.id] : 4}
+                                          value={newItemMult[mapping.id] !== undefined ? newItemMult[mapping.id] : 5}
                                           onChange={(e) =>
                                             setNewItemMult((prev) => ({ ...prev, [mapping.id]: parseInt(e.target.value) || 1 }))
                                           }
                                         >
-                                          <option value={4}>4 Semanas (Mês Padrão)</option>
+                                          <option value={5}>5 Semanas (Semanal Padrão)</option>
+                                          <option value={4}>4 Semanas (Semanal Curto)</option>
                                           <option value={2}>2 Semanas (Quinzenal)</option>
                                           <option value={1}>1 Semana / Compra Única</option>
                                           <option value={3}>3 Semanas</option>
-                                          <option value={5}>5 Semanas (Mês Longo)</option>
                                         </select>
                                       </td>
                                       <td>
@@ -3455,7 +3455,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                                                   (typeof newItemPrice[mapping.id] === 'number'
                                                     ? (newItemPrice[mapping.id] as number)
                                                     : parseFloat(String(newItemPrice[mapping.id] || '0').replace(',', '.')) || 0) *
-                                                  (newItemMult[mapping.id] !== undefined ? newItemMult[mapping.id] : 4) *
+                                                  (newItemMult[mapping.id] !== undefined ? newItemMult[mapping.id] : 5) *
                                                   1000
                                               ) / 1000
                                             ).toLocaleString('pt-BR', {
@@ -3482,7 +3482,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                                               typeof rawPrice === 'number'
                                                 ? rawPrice
                                                 : parseFloat(String(rawPrice || '0').replace(',', '.')) || 0;
-                                            const mult = newItemMult[mapping.id] !== undefined ? newItemMult[mapping.id] : 4;
+                                            const mult = newItemMult[mapping.id] !== undefined ? newItemMult[mapping.id] : 5;
 
                                             if (!desc) {
                                               alert('Informe a descrição do item.');
