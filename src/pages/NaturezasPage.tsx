@@ -1378,10 +1378,11 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                           transition: 'all 0.15s ease',
                         }}
                       >
-                        <div className="mapping-card-header">
-                          <div className="mapping-header-info" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <div className="mapping-card-header" style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px' }}>
+                          {/* LINHA 1: Ícones de Arraste, Emoji e Título */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                             {/* Alça de Arraste e Setas de Ordenação */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', marginRight: '2px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
                               <div
                                 style={{
                                   cursor: 'grab',
@@ -1440,15 +1441,15 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                             <div
                               className="mapping-icon-badge"
                               style={{
-                                width: '38px',
-                                height: '38px',
-                                borderRadius: '10px',
+                                width: '32px',
+                                height: '32px',
+                                borderRadius: '8px',
                                 background: 'rgba(255, 255, 255, 0.05)',
                                 border: '1px solid rgba(255, 255, 255, 0.12)',
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                fontSize: '1.4rem',
+                                fontSize: '1.1rem',
                                 cursor: 'pointer',
                                 flexShrink: 0,
                                 boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
@@ -1460,43 +1461,49 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                               {mapping.icon || '📋'}
                             </div>
 
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                              <h5 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>{mapping.name}</h5>
-                              <span className="badge badge-cyan">
-                                Subtotal:{' '}
-                                {mappingTotal.toLocaleString('pt-BR', {
-                                  style: 'currency',
-                                  currency: 'BRL',
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 3,
-                                })}
-                              </span>
-                              <span className="badge badge-emerald">
-                                {mapping.items.length}{' '}
-                                {mapping.items.length === 1 ? 'item' : 'itens'}
-                              </span>
-
-                              <button
-                                type="button"
-                                className="badge badge-outline text-cyan hover:border-cyan cursor-pointer"
-                                onClick={() => setKeywordsModalMapping(mapping)}
-                                title="Gerenciar palavras-chave da IA"
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: 'rgba(6, 182, 212, 0.05)' }}
-                              >
-                                <Tag size={12} />
-                                <span className="hidden sm:inline">Palavras-chave</span>
-                              </button>
-                            </div>
+                            <h5 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                              {mapping.name}
+                            </h5>
                           </div>
-                          <div className="mapping-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            {/* Botão de Recolher / Expandir Mapeamento */}
+
+                          {/* LINHA 2: Subtotal (apenas o valor), qtd Itens e o simbolo de palavras chave */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <span className="badge badge-cyan" style={{ fontSize: '12px', padding: '4px 10px', fontWeight: 600 }}>
+                              {mappingTotal.toLocaleString('pt-BR', {
+                                style: 'currency',
+                                currency: 'BRL',
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 3,
+                              })}
+                            </span>
+                            <span className="badge badge-emerald" style={{ fontSize: '12px', padding: '4px 10px', fontWeight: 600 }}>
+                              {mapping.items.length}{' '}
+                              {mapping.items.length === 1 ? 'ITEM' : 'ITENS'}
+                            </span>
                             <button
                               type="button"
-                              className="btn btn-outline btn-xs"
+                              className="badge badge-outline text-cyan hover:border-cyan cursor-pointer"
+                              onClick={() => setKeywordsModalMapping(mapping)}
+                              title="Gerenciar palavras-chave da IA"
+                              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '26px', height: '26px', padding: 0, background: 'rgba(6, 182, 212, 0.05)' }}
+                            >
+                              <Tag size={13} />
+                            </button>
+                          </div>
+
+                          {/* LINHA 3: Botões (Expandir, editar e Excluir) */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              className="btn btn-outline"
                               style={{
+                                flex: 1,
+                                padding: '6px 0',
+                                fontSize: '12px',
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '4px',
+                                justifyContent: 'center',
+                                gap: '6px',
                                 color: isCollapsed ? '#FCD34D' : '#94A3B8',
                                 borderColor: isCollapsed ? 'rgba(252, 211, 77, 0.4)' : 'rgba(255, 255, 255, 0.12)',
                                 background: isCollapsed ? 'rgba(252, 211, 77, 0.08)' : 'transparent',
@@ -1504,30 +1511,30 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                               title={isCollapsed ? 'Expandir itens deste mapeamento' : 'Recolher itens deste mapeamento'}
                               onClick={() => toggleMappingCollapse(mapping.id)}
                             >
-                              {isCollapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
+                              {isCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
                               <span>{isCollapsed ? 'Expandir' : 'Recolher'}</span>
                             </button>
 
                             <button
                               type="button"
-                              className="btn btn-outline btn-xs text-cyan"
+                              className="btn btn-outline text-cyan"
                               title="Editar Nome, Emoji e Vencimento deste Mapeamento"
                               onClick={() => handleOpenEditMapping(mapping)}
-                              style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+                              style={{ flex: 1, padding: '6px 0', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                             >
-                              <Edit2 size={12} />
+                              <Edit2 size={13} />
                               <span>Editar</span>
                             </button>
 
                             <button
-                              className="btn btn-ghost btn-xs text-rose"
+                              className="btn btn-outline text-rose"
                               title="Excluir Mapeamento"
                               onClick={() => {
                                 if (confirm(`Deseja remover o mapeamento "${mapping.name}"?`)) {
                                   deleteMapping(selectedNature.id, mapping.id);
                                 }
                               }}
-                              style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+                              style={{ flex: 1, padding: '6px 0', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                             >
                               <Trash2 size={13} />
                               <span>Excluir</span>
@@ -1535,39 +1542,8 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                           </div>
                         </div>
 
-                        {/* Visualização quando o Mapeamento estiver recolhido */}
-                        {isCollapsed ? (
-                          <div
-                            style={{
-                              padding: '10px 14px',
-                              background: 'rgba(255, 255, 255, 0.02)',
-                              borderTop: '1px solid rgba(255, 255, 255, 0.05)',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              fontSize: '12px',
-                              color: 'var(--text-muted)',
-                              cursor: 'pointer',
-                            }}
-                            onClick={() => toggleMappingCollapse(mapping.id)}
-                          >
-                            <span>
-                              {mapping.items.length}{' '}
-                              {mapping.items.length === 1 ? 'item cadastrado' : 'itens cadastrados'} • Subtotal:{' '}
-                              <strong style={{ color: '#67E8F9' }}>
-                                {mappingTotal.toLocaleString('pt-BR', {
-                                  style: 'currency',
-                                  currency: 'BRL',
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 3,
-                                })}
-                              </strong>
-                            </span>
-                            <span style={{ color: 'var(--accent-cyan)', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              Clique para expandir itens <ChevronDown size={12} />
-                            </span>
-                          </div>
-                        ) : (
+                        {/* Visualização da Tabela de Itens (ocultada se recolhido) */}
+                        {!isCollapsed && (
                           <>
                             {/* TABELA DE ITENS DO MAPEAMENTO COM EDIÇÃO INLINE */}
                             <div className="mapping-items-table-wrapper mt-3">

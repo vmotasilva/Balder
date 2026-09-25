@@ -35,6 +35,7 @@ export const InvoiceImportModal: React.FC<InvoiceImportModalProps> = ({
   onClose,
   onConfirmImport,
   currentInvoiceAmount = 0,
+}) => {
   const { natures, updateNature, updateMapping } = useFinancial();
 
   // Estados de navegação interna
