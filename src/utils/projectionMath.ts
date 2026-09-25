@@ -1,4 +1,4 @@
-import type { Movement, ExpenseNature, MonthlyGridProjectionRow, SalaryContract, SalaryAdjustment, MonthlyClosing } from '../types';
+import type { Movement, ExpenseNature, MonthlyGridProjectionRow, MonthlyClosing } from '../types';
 
 export interface ProjectionGridConfig {
   initialBalance?: number;
@@ -49,92 +49,6 @@ function countWeekdayOccurrencesInMonth(year: number, month: number, dayOfWeek: 
 /**
  * Resultado da resolução do salário para uma competência.
  */
-export interface SalaryResolution {
-  total: number;
-  first: number;          // 1ª quinzena (QUINZENAL)
-  second: number;         // 2ª quinzena (QUINZENAL)
-  weeklyAmount: number;   // Valor por semana (SEMANAL)
-  weeklyCount: number;    // Nº de pagamentos semanais no mês (SEMANAL)
-}
-
-/**
- * Retorna o valor líquido total de um contrato para uma competência específica,
- * respeitando o histórico de reajustes e o formato de pagamento:
- *   - UNICO    : pagamento único mensal = netAmount
- *   - QUINZENAL: soma de 1ª + 2ª quinzena
- *   - SEMANAL  : weeklyAmount × nº de pagamentos do dia da semana no mês
- *
- * installmentValueMode:
- *   - 'FIXED' → usa os valores por período exatamente como cadastrados
- *   - 'AUTO'  → recalcula a partir do netAmount a cada resolução (ignora valores fixados)
- *   - undefined → comportamento legado: tenta FIXED; se não houver, cai em AUTO
- */
-export function resolveSalaryForMonth(sc: SalaryContract, compKey: string): SalaryResolution {
-  const zero: SalaryResolution = { total: 0, first: 0, second: 0, weeklyAmount: 0, weeklyCount: 0 };
-
-  if (!sc.startDate || sc.startDate > compKey) return zero;
-
-  // ── Encontrar a entrada de histórico aplicável ──────────────────────────────
-  let applicableEntry: SalaryAdjustment | null = null;
-  if (sc.history && sc.history.length > 0) {
-    const sorted = [...sc.history].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
-    applicableEntry = sorted.filter((a) => a.effectiveDate <= compKey).pop() ?? null;
-  }
-
-  // Valores base: preferir entrada do histórico
-  const baseNetAmount = applicableEntry?.netAmount ?? sc.currentNetAmount;
-
-  // O modo vigente: a entrada do histórico pode sobrescrever o do contrato
-  const mode = applicableEntry?.installmentValueMode ?? sc.installmentValueMode;
-
-  // Valores explícitos por período (só relevantes no modo FIXED ou legado)
-  const storedFirst       = applicableEntry?.firstInstallmentAmount  ?? sc.firstInstallmentAmount  ?? 0;
-  const storedSecond      = applicableEntry?.secondInstallmentAmount ?? sc.secondInstallmentAmount ?? 0;
-  const storedWeeklyValue = applicableEntry?.weeklyInstallmentAmount ?? sc.weeklyInstallmentAmount ?? 0;
-
-  const schedule = sc.paymentSchedule ?? 'UNICO';
-
-  // ── UNICO ──────────────────────────────────────────────────────────────────
-  if (schedule === 'UNICO') {
-    return { total: baseNetAmount, first: 0, second: 0, weeklyAmount: 0, weeklyCount: 0 };
-  }
-
-  // ── QUINZENAL ──────────────────────────────────────────────────────────────
-  if (schedule === 'QUINZENAL') {
-    const isFixed = mode === 'FIXED' || (mode === undefined && storedFirst > 0);
-
-    if (isFixed && storedFirst > 0) {
-      const first  = storedFirst;
-      const second = storedSecond > 0 ? storedSecond : Math.round((baseNetAmount - first) * 100) / 100;
-      return { total: first + second, first, second, weeklyAmount: 0, weeklyCount: 0 };
-    }
-
-    // AUTO: derivar do percentual ou 40/60 padrão
-    const pct    = sc.firstInstallmentPercent ?? 40;
-    const first  = Math.round((baseNetAmount * pct) / 100 * 100) / 100;
-    const second = Math.round((baseNetAmount - first) * 100) / 100;
-    return { total: baseNetAmount, first, second, weeklyAmount: 0, weeklyCount: 0 };
-  }
-
-  // ── SEMANAL ────────────────────────────────────────────────────────────────
-  const dayOfWeek = sc.weeklyPaymentDayOfWeek ?? 5;
-  const [yearStr, monthStr] = compKey.split('-');
-  const year      = parseInt(yearStr, 10);
-  const month     = parseInt(monthStr, 10);
-  const weeklyCount = countWeekdayOccurrencesInMonth(year, month, dayOfWeek);
-
-  const isFixed = mode === 'FIXED' || (mode === undefined && storedWeeklyValue > 0);
-
-  if (isFixed && storedWeeklyValue > 0) {
-    const total = Math.round(storedWeeklyValue * weeklyCount * 100) / 100;
-    return { total, first: 0, second: 0, weeklyAmount: storedWeeklyValue, weeklyCount };
-  }
-
-  // AUTO: deriva semanalmente do líquido anual ÷ 52
-  const weeklyFromAnnual = Math.round((baseNetAmount * 12 / 52) * 100) / 100;
-  const total = Math.round(weeklyFromAnnual * weeklyCount * 100) / 100;
-  return { total, first: 0, second: 0, weeklyAmount: weeklyFromAnnual, weeklyCount };
-}
 
 /**
  * Constrói o grid de projeção financeira mês a mês.
@@ -160,7 +74,6 @@ export function buildMonthlyProjectionGrid(
   movements: Movement[],
   natures: ExpenseNature[],
   initialBalance: number = 0,
-  salaryContracts?: SalaryContract[],
   monthlyClosings?: MonthlyClosing[],
   viewMode: ProjectionViewMode = 'PROJETADO'
 ): MonthlyGridProjectionRow[] {
@@ -218,132 +131,29 @@ export function buildMonthlyProjectionGrid(
         (m.dueDate.startsWith(comp.key) || (m.installmentGroupId && m.installmentGroupId.includes(comp.key)))
     );
 
+    let applicableSalaries = realSalariesForMonth;
     if (viewMode === 'REALIZADO') {
-      // No modo REALIZADO: somente salários que já foram marcados como REALIZADA
-      const realizedSalaries = realSalariesForMonth.filter((m) => m.status === 'REALIZADA');
-      salary = realizedSalaries.reduce((acc, m) => acc + m.amount, 0);
-
-      const mQ1 = realizedSalaries.find(
-        (m) =>
-          m.title.toLowerCase().includes('1ª') ||
-          m.title.toLowerCase().includes('adiantamento') ||
-          m.installmentGroupId?.includes('q1')
-      );
-      const mQ2 = realizedSalaries.find(
-        (m) =>
-          m.title.toLowerCase().includes('2ª') ||
-          m.title.toLowerCase().includes('principal') ||
-          m.installmentGroupId?.includes('q2')
-      );
-      if (mQ1) salaryFirstInstallment = mQ1.amount;
-      if (mQ2) salarySecondInstallment = mQ2.amount;
+      applicableSalaries = realSalariesForMonth.filter((m) => m.status === 'REALIZADA');
     } else if (viewMode === 'PREVISTO') {
-      // No modo PREVISTO: contratos ativos pendentes (descontando o que já foi realizado)
-      if (salaryContracts && salaryContracts.length > 0) {
-        salaryContracts
-          .filter((sc) => sc.isActive)
-          .forEach((sc) => {
-            const res = resolveSalaryForMonth(sc, comp.key);
-            const mQ1 = realSalariesForMonth.find(
-              (m) =>
-                m.title.toLowerCase().includes('1ª') ||
-                m.title.toLowerCase().includes('adiantamento') ||
-                m.installmentGroupId?.includes('q1')
-            );
-            const mQ2 = realSalariesForMonth.find(
-              (m) =>
-                m.title.toLowerCase().includes('2ª') ||
-                m.title.toLowerCase().includes('principal') ||
-                m.installmentGroupId?.includes('q2')
-            );
-            const mUnico = realSalariesForMonth.find(
-              (m) =>
-                !m.title.toLowerCase().includes('1ª') &&
-                !m.title.toLowerCase().includes('2ª') &&
-                !m.title.toLowerCase().includes('adiantamento')
-            );
-
-            const q1Pending = mQ1?.status === 'REALIZADA' ? 0 : (mQ1 ? mQ1.amount : res.first);
-            const q2Pending = mQ2?.status === 'REALIZADA' ? 0 : (mQ2 ? mQ2.amount : res.second);
-            let totalVal = 0;
-
-            if (res.first > 0 || res.second > 0) {
-              totalVal = Math.round((q1Pending + q2Pending) * 100) / 100;
-              if (q1Pending > 0) salaryFirstInstallment = Math.round(((salaryFirstInstallment ?? 0) + q1Pending) * 100) / 100;
-              if (q2Pending > 0) salarySecondInstallment = Math.round(((salarySecondInstallment ?? 0) + q2Pending) * 100) / 100;
-            } else if (mUnico !== undefined) {
-              totalVal = mUnico.status === 'REALIZADA' ? 0 : mUnico.amount;
-            } else {
-              totalVal = res.total;
-            }
-
-            salary = Math.round((salary + totalVal) * 100) / 100;
-
-            if (res.weeklyCount > 0 && totalVal > 0) {
-              salaryWeeklyAmount = Math.round(((salaryWeeklyAmount ?? 0) + res.weeklyAmount) * 100) / 100;
-              salaryWeeklyInstallments = Math.max(salaryWeeklyInstallments ?? 0, res.weeklyCount);
-            }
-          });
-      } else {
-        salary = realSalariesForMonth
-          .filter((m) => m.status === 'PREVISTA')
-          .reduce((acc, m) => acc + m.amount, 0);
-      }
-    } else {
-      // Modo PROJETADO (Consolidado original): Contratos ativos + ajustes reais
-      if (salaryContracts && salaryContracts.length > 0) {
-        salaryContracts
-          .filter((sc) => sc.isActive)
-          .forEach((sc) => {
-            const res = resolveSalaryForMonth(sc, comp.key);
-            let firstVal = res.first;
-            let secondVal = res.second;
-            let totalVal = res.total;
-
-            const mQ1 = realSalariesForMonth.find(
-              (m) =>
-                m.title.toLowerCase().includes('1ª') ||
-                m.title.toLowerCase().includes('adiantamento') ||
-                m.installmentGroupId?.includes('q1')
-            );
-            const mQ2 = realSalariesForMonth.find(
-              (m) =>
-                m.title.toLowerCase().includes('2ª') ||
-                m.title.toLowerCase().includes('principal') ||
-                m.installmentGroupId?.includes('q2')
-            );
-            const mUnico = realSalariesForMonth.find(
-              (m) =>
-                !m.title.toLowerCase().includes('1ª') &&
-                !m.title.toLowerCase().includes('2ª') &&
-                !m.title.toLowerCase().includes('adiantamento')
-            );
-
-            if (res.first > 0 || res.second > 0) {
-              if (mQ1 !== undefined) {
-                firstVal = mQ1.amount;
-              }
-              if (mQ2 !== undefined) {
-                secondVal = mQ2.amount;
-              }
-              totalVal = Math.round((firstVal + secondVal) * 100) / 100;
-              salaryFirstInstallment = Math.round(((salaryFirstInstallment ?? 0) + firstVal) * 100) / 100;
-              salarySecondInstallment = Math.round(((salarySecondInstallment ?? 0) + secondVal) * 100) / 100;
-            } else if (mUnico !== undefined) {
-              totalVal = mUnico.amount;
-            }
-
-            salary = Math.round((salary + totalVal) * 100) / 100;
-
-            if (res.weeklyCount > 0) {
-              salaryWeeklyAmount = Math.round(((salaryWeeklyAmount ?? 0) + res.weeklyAmount) * 100) / 100;
-              salaryWeeklyInstallments = Math.max(salaryWeeklyInstallments ?? 0, res.weeklyCount);
-            }
-          });
-      } else {
-        salary = realSalariesForMonth.reduce((acc, m) => acc + m.amount, 0);
-      }
+      applicableSalaries = realSalariesForMonth.filter((m) => m.status === 'PREVISTA');
     }
+    
+    salary = applicableSalaries.reduce((acc, m) => acc + m.amount, 0);
+
+    const mQ1 = applicableSalaries.find(
+      (m) =>
+        m.title.toLowerCase().includes('1ª') ||
+        m.title.toLowerCase().includes('adiantamento') ||
+        m.installmentGroupId?.includes('q1')
+    );
+    const mQ2 = applicableSalaries.find(
+      (m) =>
+        m.title.toLowerCase().includes('2ª') ||
+        m.title.toLowerCase().includes('principal') ||
+        m.installmentGroupId?.includes('q2')
+    );
+    if (mQ1) salaryFirstInstallment = mQ1.amount;
+    if (mQ2) salarySecondInstallment = mQ2.amount;
 
     // ── 3. Cartão de Crédito (-) ───────────────────────────────────────────────
     const creditCardTotal = movements
@@ -533,121 +343,4 @@ export function buildMonthlyProjectionGrid(
   return rows;
 }
 
-/**
- * Gera movimentos VIRTUAIS (previstos) a partir dos contratos de salário cadastrados.
- * Esses movimentos não existem no Supabase — são projetados para exibição na tela
- * de Movimentações → Receber → Previstas.
- *
- * Geração: mês atual + próximos 11 meses (12 meses no total).
- * Retorna objetos com id prefixado em "salary_virtual_" para diferenciá-los.
- */
-export function generateSalaryVirtualMovements(
-  salaryContracts: SalaryContract[]
-): (Movement & { isSalaryVirtual: true })[] {
-  if (!salaryContracts || salaryContracts.length === 0) return [];
-
-  const result: (Movement & { isSalaryVirtual: true })[] = [];
-  const now = new Date();
-
-  for (let i = 0; i < 12; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-    const year = d.getFullYear();
-    const month = d.getMonth() + 1; // 1-indexed
-    const compKey = `${year}-${String(month).padStart(2, '0')}`;
-
-    for (const sc of salaryContracts) {
-      if (!sc.startDate || sc.startDate > compKey) continue;
-      if (!sc.isActive) continue;
-
-      const resolution = resolveSalaryForMonth(sc, compKey);
-      if (resolution.total <= 0) continue;
-
-      // Título a exibir: usa o employer + role como label
-      const contractTitle = [sc.employer, sc.role].filter(Boolean).join(' — ') || 'Salário';
-      const bankName = sc.receivingBankName ?? '';
-      const baseId = `salary_virtual_${sc.id}_${compKey}`;
-      const schedule = sc.paymentSchedule ?? 'UNICO';
-
-      if (schedule === 'QUINZENAL') {
-        // 1ª quinzena: usa secondPaymentDay (adiantamento, ex: dia 15)
-        const day1 = sc.secondPaymentDay ?? 15;
-        const date1 = `${year}-${String(month).padStart(2, '0')}-${String(day1).padStart(2, '0')}`;
-        result.push({
-          id: `${baseId}_1`,
-          title: `${contractTitle} (1ª quinzena)`,
-          type: 'RECEBER',
-          amount: resolution.first,
-          dueDate: date1,
-          bank: bankName,
-          status: 'PREVISTA',
-          category: 'Salário',
-          notes: `Contrato: ${sc.employer}`,
-          isSalaryVirtual: true,
-        });
-
-        // 2ª quinzena: usa paymentDay (principal, ex: dia 5 do mês seguinte ou dia 1)
-        const day2 = sc.paymentDay;
-        const daysInMonth = new Date(year, month, 0).getDate();
-        const clampedDay2 = Math.min(day2, daysInMonth);
-        const date2 = `${year}-${String(month).padStart(2, '0')}-${String(clampedDay2).padStart(2, '0')}`;
-        result.push({
-          id: `${baseId}_2`,
-          title: `${contractTitle} (2ª quinzena)`,
-          type: 'RECEBER',
-          amount: resolution.second,
-          dueDate: date2,
-          bank: bankName,
-          status: 'PREVISTA',
-          category: 'Salário',
-          notes: `Contrato: ${sc.employer}`,
-          isSalaryVirtual: true,
-        });
-
-      } else if (schedule === 'SEMANAL') {
-        const dayOfWeek = sc.weeklyPaymentDayOfWeek ?? 5;
-        const daysInMonth = new Date(year, month, 0).getDate();
-        let weekIdx = 0;
-        for (let day = 1; day <= daysInMonth; day++) {
-          const wd = new Date(year, month - 1, day).getDay();
-          if (wd === dayOfWeek) {
-            weekIdx++;
-            const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            result.push({
-              id: `${baseId}_w${weekIdx}`,
-              title: `${contractTitle} (semana ${weekIdx})`,
-              type: 'RECEBER',
-              amount: resolution.weeklyAmount,
-              dueDate: dateStr,
-              bank: bankName,
-              status: 'PREVISTA',
-              category: 'Salário',
-              notes: `Contrato: ${sc.employer}`,
-              isSalaryVirtual: true,
-            });
-          }
-        }
-
-      } else {
-        // UNICO
-        const daysInMonth = new Date(year, month, 0).getDate();
-        const clampedDay = Math.min(sc.paymentDay, daysInMonth);
-        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(clampedDay).padStart(2, '0')}`;
-        result.push({
-          id: baseId,
-          title: contractTitle,
-          type: 'RECEBER',
-          amount: resolution.total,
-          dueDate: dateStr,
-          bank: bankName,
-          status: 'PREVISTA',
-          category: 'Salário',
-          notes: `Contrato: ${sc.employer}`,
-          isSalaryVirtual: true,
-        });
-      }
-    }
-  }
-
-  return result.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
-}
 

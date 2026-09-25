@@ -1,6 +1,5 @@
 import type {
   FinancialCheckpoint,
-  SalaryContract,
   Movement,
   CreditCardItem,
   BankAccount,
@@ -35,8 +34,7 @@ export interface OnboardingAuditResult {
 
 export interface AuditInputData {
   activeCheckpoint: FinancialCheckpoint | null;
-  salaryContracts: SalaryContract[];
-  movements: Movement[];
+    movements: Movement[];
   cards: CreditCardItem[];
   accounts: BankAccount[];
   banks: BankInstitution[];
@@ -50,7 +48,6 @@ export interface AuditInputData {
 export function auditOnboardingProgress(data: AuditInputData): OnboardingAuditResult {
   const {
     activeCheckpoint,
-    salaryContracts,
     movements,
     cards,
     accounts,

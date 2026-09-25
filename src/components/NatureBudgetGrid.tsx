@@ -12,7 +12,6 @@ import {
   Table,
 } from 'lucide-react';
 import type { ExpenseNature, MonthlyGridProjectionRow, MappingItem } from '../types';
-import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
 import { GridCellDetailModal, generateNatureDateGroups } from './GridCellDetailModal';
 import type { GridCellSelection } from './GridCellDetailModal';
 
@@ -51,7 +50,6 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
   const {
     movements,
     natures,
-    salaryContracts,
     getNatureCeiling,
     updateNature,
     activeCheckpoint,
@@ -81,10 +79,9 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
       movements,
       natures,
       initialBalance,
-      salaryContracts,
       monthlyClosings
     );
-  }, [movements, natures, initialBalance, salaryContracts, monthlyClosings]);
+  }, [movements, natures, initialBalance, monthlyClosings]);
 
   // Lista de competências disponíveis
   const availableMonths = useMemo(() => {

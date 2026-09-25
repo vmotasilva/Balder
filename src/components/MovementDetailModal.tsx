@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Modal } from './Modal';
 import { InvoiceImportModal } from './InvoiceImportModal';
+import { ConfirmDialog, useConfirmDialog } from './ConfirmDialog';
 import { useFinancial } from '../context/FinancialContext';
 import type { Movement, MovementStatus, InvoiceNatureItemBreakdown } from '../types';
 
@@ -696,11 +697,18 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
     onClose();
   };
 
+  const { confirm: confirmAction, dialogProps: confirmDialogProps } = useConfirmDialog();
+
   const handleDelete = () => {
-    if (confirm(`Deseja realmente excluir a movimentação "${movement.title}"?`)) {
-      deleteMovement(movement.id);
-      onClose();
-    }
+    confirmAction({
+      title: 'Excluir Movimentação',
+      message: `Deseja realmente excluir a movimentação "${movement.title}"? Esta ação não pode ser desfeita.`,
+      confirmLabel: 'Excluir',
+      onConfirm: () => {
+        deleteMovement(movement.id);
+        onClose();
+      },
+    });
   };
 
   return (
@@ -1792,6 +1800,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
         currentInvoiceAmount={actualAmountNum}
       />
     )}
+    <ConfirmDialog {...confirmDialogProps} />
     </>
   );
 };

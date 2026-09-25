@@ -31,7 +31,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     emergencyReserveMonths,
     nextCriticalEvent,
     activeCheckpoint,
-    salaryContracts,
     movements,
     cards,
     accounts,
@@ -46,14 +45,13 @@ export const Navbar: React.FC<NavbarProps> = ({
     () =>
       auditOnboardingProgress({
         activeCheckpoint,
-        salaryContracts,
         movements,
         cards,
         accounts,
         banks,
         natures,
       }),
-    [activeCheckpoint, salaryContracts, movements, cards, accounts, banks, natures]
+    [activeCheckpoint, movements, cards, accounts, banks, natures]
   );
 
   const pendingCount = onboardingAudit.missingStepsCount + (nextCriticalEvent ? 1 : 0);

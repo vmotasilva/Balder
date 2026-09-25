@@ -29,7 +29,7 @@ import { calculatePresentValue, groupLoanMovements } from '../utils/loanMath';
 import { LoanPrepaymentModal } from '../components/LoanPrepaymentModal';
 import { MovementDetailModal } from '../components/MovementDetailModal';
 import { ImmediateActionsModal } from '../components/ImmediateActionsModal';
-import { getSalarySuggestion } from '../utils/salarySuggestion';
+import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
 import { getPendingFixedBills, type PendingFixedBill } from '../utils/fixedBillsAlert';
 
 interface MovementsPageProps {
@@ -56,7 +56,6 @@ const getCompetenceLabel = (yearMonthStr: string): string => {
 export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementModal }) => {
   const {
     movements,
-    salaryContracts,
     natures,
     addMovement,
     deleteMovement,
@@ -65,6 +64,9 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
     exportToCSV,
     activeCheckpoint,
   } = useFinancial();
+
+  // Confirm Dialog
+  const { confirm: confirmAction, dialogProps: confirmDialogProps } = useConfirmDialog();
 
   const [includePreCheckpoint, setIncludePreCheckpoint] = useState(false);
   const [isSalaryPromptDismissed, setIsSalaryPromptDismissed] = useState(false);
@@ -123,7 +125,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
   // Sugestão inteligente de recebimento salarial para o período corrente
   const salarySuggestion = useMemo(
     () => getSalarySuggestion(salaryContracts ?? [], movements),
-    [salaryContracts, movements]
+    [movements]
   );
 
   const handleSalaryQuickAction = () => {
@@ -491,7 +493,12 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
               className="delete-action-btn"
               onClick={(e) => {
                 e.stopPropagation();
-                deleteMovement(item.id);
+                confirmAction({
+                  title: 'Excluir Movimentação',
+                  message: `Deseja excluir a movimentação "${item.notes}"? Esta ação não pode ser desfeita.`,
+                  confirmLabel: 'Excluir',
+                  onConfirm: () => deleteMovement(item.id),
+                });
               }}
               title="Excluir movimentação"
             >
@@ -1190,6 +1197,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
         movement={selectedMovementForDetail}
         onOpenPrepaymentSimulator={handleOpenPrepayment}
       />
+      <ConfirmDialog {...confirmDialogProps} />
     </div>
   );
 };

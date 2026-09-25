@@ -6,8 +6,7 @@ import type {
   CreditCardItem,
   PaymentMethodItem,
   BankInstitution,
-  SalaryContract,
-} from '../types';
+  } from '../types';
 
 export const DEMO_BANKS: BankInstitution[] = [
   { id: 'bank_nubank', name: 'Nubank S.A.', code: '260', color: '#8A05BE', icon: '🟣', status: 'CONECTADO', syncedAt: 'há 12 minutos' },

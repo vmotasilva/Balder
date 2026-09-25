@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { Download, Info, Lock, CheckCircle2, ArrowRight, ChevronDown, ChevronUp, Clock, Layers } from 'lucide-react';
-import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
 import type { ProjectionViewMode } from '../utils/projectionMath';
 import type { MonthlyGridProjectionRow } from '../types';
 import { GridCellDetailModal } from './GridCellDetailModal';
@@ -52,7 +51,6 @@ export const MonthlyProjectionGrid: React.FC = () => {
   const {
     movements,
     natures,
-    salaryContracts,
     activeCheckpoint,
     monthlyClosings,
     closeMonth,
@@ -81,11 +79,10 @@ export const MonthlyProjectionGrid: React.FC = () => {
       movements,
       natures,
       initialBalance,
-      salaryContracts,
       monthlyClosings,
       viewMode
     );
-  }, [movements, natures, initialBalance, salaryContracts, monthlyClosings, viewMode]);
+  }, [movements, natures, initialBalance, monthlyClosings, viewMode]);
 
   // Anos disponíveis na base projetada
   const availableYears = useMemo(() => {

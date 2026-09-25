@@ -21,7 +21,6 @@ export const ForsetiSetupChecklist: React.FC<ForsetiSetupChecklistProps> = ({
 }) => {
   const {
     activeCheckpoint,
-    salaryContracts,
     movements,
     cards,
     accounts,
@@ -35,14 +34,13 @@ export const ForsetiSetupChecklist: React.FC<ForsetiSetupChecklistProps> = ({
     () =>
       auditOnboardingProgress({
         activeCheckpoint,
-        salaryContracts,
         movements,
         cards,
         accounts,
         banks,
         natures,
       }),
-    [activeCheckpoint, salaryContracts, movements, cards, accounts, banks, natures]
+    [activeCheckpoint, movements, cards, accounts, banks, natures]
   );
 
   // Se tudo estiver concluído e o usuário tiver recolhido, exibe apenas um mini badge discreto

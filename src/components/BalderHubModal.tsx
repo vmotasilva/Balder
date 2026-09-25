@@ -48,7 +48,6 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
 }) => {
   const {
     activeCheckpoint,
-    salaryContracts,
     movements,
     cards,
     accounts,
@@ -98,14 +97,13 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
     () =>
       auditOnboardingProgress({
         activeCheckpoint,
-        salaryContracts,
         movements,
         cards,
         accounts,
         banks,
         natures,
       }),
-    [activeCheckpoint, salaryContracts, movements, cards, accounts, banks, natures]
+    [activeCheckpoint, movements, cards, accounts, banks, natures]
   );
 
   // 2. Geração Dinâmica de Notificações Inteligentes

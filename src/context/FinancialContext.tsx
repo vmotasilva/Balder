@@ -61,7 +61,6 @@ interface FinancialContextType {
   cards: CreditCardItem[];
   paymentMethods: PaymentMethodItem[];
   banks: BankInstitution[];
-  salaryContracts: SalaryContract[];
   movements: Movement[];
   goals: Goal[];
   criticalEvents: CriticalEvent[];
@@ -124,7 +123,6 @@ interface FinancialContextType {
   // Gestão de Salários & Evolução Salarial
   addSalaryContract: (contract: Omit<SalaryContract, 'id' | 'history'> & { initialAdjustment?: Omit<SalaryAdjustment, 'id'> }) => void;
   updateSalaryContract: (id: string, updates: Partial<SalaryContract>) => void;
-  deleteSalaryContract: (id: string) => void;
   addSalaryAdjustment: (contractId: string, adjustment: Omit<SalaryAdjustment, 'id'>) => void;
   updateSalaryAdjustment: (contractId: string, adjustmentId: string, updates: Partial<SalaryAdjustment>) => void;
   deleteSalaryAdjustment: (contractId: string, adjustmentId: string) => void;
@@ -958,7 +956,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const updateAccount = (id: string, updates: Partial<BankAccount>) => {
     let updatedAcc: BankAccount | null = null;
     setAccounts((prev) => {
-      const next = prev.map((a) => {
+      const next = prev.map((a: any) => {
         if (a.id === id) {
           updatedAcc = { ...a, ...updates };
           return updatedAcc;
@@ -977,7 +975,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const deleteAccount = (id: string) => {
     setAccounts((prev) => {
-      const next = prev.filter((a) => a.id !== id);
+      const next = prev.filter((a: any) => a.id !== id);
       if (user && !user.isGuest) {
         localStorage.setItem(`balder_accounts_${user.$id}`, JSON.stringify(next));
       }
@@ -1184,8 +1182,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (user && !user.isGuest) {
       SupabaseService.upsertSalaryContract(newContract).catch(console.error);
       SupabaseService.saveUserProfileSettings({
-        salaryContracts: [...salaryContracts, newContract],
-      }).catch(console.error);
+              }).catch(console.error);
     }
   };
 
@@ -1234,8 +1231,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const next = prev.map((sc) => {
         if (sc.id !== contractId) return sc;
 
-        const sortedHistory = [...sc.history].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
-        const previousAdj = sortedHistory.filter((a) => a.effectiveDate <= adjustmentData.effectiveDate).pop() || sortedHistory[sortedHistory.length - 1];
+        const sortedHistory = [...sc.history].sort((a: any, b: any) => a.effectiveDate.localeCompare(b.effectiveDate));
+        const previousAdj = sortedHistory.filter((a: any) => a.effectiveDate <= adjustmentData.effectiveDate).pop() || sortedHistory[sortedHistory.length - 1];
 
         let pct = adjustmentData.percentageIncrease;
         if (pct === undefined && previousAdj && previousAdj.netAmount > 0) {
@@ -1248,7 +1245,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           percentageIncrease: pct || 0,
         };
 
-        const updatedHistory = [...sc.history, newAdj].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
+        const updatedHistory = [...sc.history, newAdj].sort((a: any, b: any) => a.effectiveDate.localeCompare(b.effectiveDate));
         const latestAdj = updatedHistory[updatedHistory.length - 1];
 
         const updated = {
@@ -1280,8 +1277,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setSalaryContracts((prev) => {
       const next = prev.map((sc) => {
         if (sc.id !== contractId) return sc;
-        const updatedHistory = sc.history.map((a) => (a.id === adjustmentId ? { ...a, ...updates } : a))
-          .sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
+        const updatedHistory = sc.history.map((a: any) => (a.id === adjustmentId ? { ...a, ...updates } : a))
+          .sort((a: any, b: any) => a.effectiveDate.localeCompare(b.effectiveDate));
         const latestAdj = updatedHistory[updatedHistory.length - 1];
 
         const updated = {
@@ -1313,7 +1310,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setSalaryContracts((prev) => {
       const next = prev.map((sc) => {
         if (sc.id !== contractId) return sc;
-        const updatedHistory = sc.history.filter((a) => a.id !== adjustmentId);
+        const updatedHistory = sc.history.filter((a: any) => a.id !== adjustmentId);
         const latestAdj = updatedHistory[updatedHistory.length - 1];
 
         const updated = {
@@ -1349,9 +1346,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           return total + sc.currentNetAmount;
         }
 
-        const sorted = [...sc.history].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate));
+        const sorted = [...sc.history].sort((a: any, b: any) => a.effectiveDate.localeCompare(b.effectiveDate));
         // Buscar o reajuste vigente na data (último cujo effectiveDate <= monthKey)
-        const applicable = sorted.filter((a) => a.effectiveDate <= monthKey).pop();
+        const applicable = sorted.filter((a: any) => a.effectiveDate <= monthKey).pop();
 
         if (applicable) {
           return total + applicable.netAmount;
@@ -1385,7 +1382,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         } as CriticalEvent;
       })
       .filter((ev) => ev.daysRemaining >= -30 && ev.daysRemaining <= 15)
-      .sort((a, b) => a.daysRemaining - b.daysRemaining);
+      .sort((a: any, b: any) => a.daysRemaining - b.daysRemaining);
   }, [movements]);
 
   // Próximo evento crítico mais próximo
@@ -1406,7 +1403,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
     // Fallback legado: soma de contas correntes/carteira
     return accounts
-      .filter((a) => a.type === 'CORRENTE' || a.type === 'CARTEIRA')
+      .filter((a: any) => a.type === 'CORRENTE' || a.type === 'CARTEIRA')
       .reduce((acc, cur) => acc + cur.balance, 0);
   }, [activeCheckpoint, movements, accounts]);
 
@@ -1422,7 +1419,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, [activeCheckpoint, availableBalance, accounts]);
 
   const emergencyReserveAmount = useMemo(() => {
-    const res = accounts.filter((a) => a.id === 'acc_reserva' || a.type === 'POUPANCA');
+    const res = accounts.filter((a: any) => a.id === 'acc_reserva' || a.type === 'POUPANCA');
     return res.reduce((acc, cur) => acc + cur.balance, 0);
   }, [accounts]);
 
@@ -2828,7 +2825,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                 ? {
                     ...msg,
                     attachmentUrl: undefined,
-                    attachments: msg.attachments?.map((a) => ({ ...a, url: '', isEphemeralPurged: true })),
+                    attachments: msg.attachments?.map((a: any) => ({ ...a, url: '', isEphemeralPurged: true })),
                     isEphemeralPurged: true,
                   }
                 : msg
@@ -4261,7 +4258,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
 
     // Ordenar pelos que mais faltam em valor
-    return missingList.sort((a, b) => b.missingAmount - a.missingAmount);
+    return missingList.sort((a: any, b: any) => b.missingAmount - a.missingAmount);
   };
 
   return (

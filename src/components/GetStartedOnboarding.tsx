@@ -117,7 +117,6 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
     activeCheckpoint,
     addSalaryContract,
     updateSalaryContract,
-    salaryContracts,
     movements,
     cards,
   } = useFinancial();
@@ -129,14 +128,13 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
     () =>
       auditOnboardingProgress({
         activeCheckpoint,
-        salaryContracts,
         movements,
         cards,
         accounts,
         banks,
         natures,
       }),
-    [activeCheckpoint, salaryContracts, movements, cards, accounts, banks, natures]
+    [activeCheckpoint, movements, cards, accounts, banks, natures]
   );
 
   // -------------------------------------------------------------
@@ -216,7 +214,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
       }
 
       if (salaryContracts && salaryContracts.length > 0) {
-        const prim = salaryContracts.find((s) => s.isActive) || salaryContracts[0];
+        const prim = salaryContracts.find((s: any) => s.isActive) || salaryContracts[0];
         setHasSalary(true);
         if (prim.employer) setSalaryEmployer(prim.employer);
         if (prim.role) setSalaryRole(prim.role);
@@ -241,7 +239,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
         );
       }
     }
-  }, [isOpen, initialStep, activeCheckpoint, salaryContracts, banks]);
+  }, [isOpen, initialStep, activeCheckpoint, banks]);
 
   // Manipuladores de Seleção de Bancos
   const handleTogglePopularBank = (bankName: string) => {
@@ -733,7 +731,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
         const parsedSalary = parseNumber(salaryAmount);
         const safeMainBank = salaryReceivingBank || mainBankName || selectedBanks[0]?.name || 'Nubank';
         if (hasSalary && parsedSalary > 0) {
-          const existingSalary = salaryContracts?.find((s) => s.isActive) || salaryContracts?.[0];
+          const existingSalary = salaryContracts?.find((s: any) => s.isActive) || salaryContracts?.[0];
           if (existingSalary) {
             updateSalaryContract(existingSalary.id, {
               employer: salaryEmployer.trim() || 'Empregador Principal',
@@ -906,7 +904,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
               }`}
             >
               <span>1. Ponto de Partida</span>
-              {onboardingAudit.steps.find((s) => s.id === 'checkpoint')?.isComplete ? (
+              {onboardingAudit.steps.find((s: any) => s.id === 'checkpoint')?.isComplete ? (
                 <CheckCircle2 size={13} className="text-emerald-400" />
               ) : (
                 <Clock size={13} className="text-amber-400" />
@@ -923,7 +921,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
               }`}
             >
               <span>2. Salário & Renda</span>
-              {onboardingAudit.steps.find((s) => s.id === 'salary')?.isComplete ? (
+              {onboardingAudit.steps.find((s: any) => s.id === 'salary')?.isComplete ? (
                 <CheckCircle2 size={13} className="text-emerald-400" />
               ) : (
                 <Clock size={13} className="text-amber-400" />
@@ -940,7 +938,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
               }`}
             >
               <span>3. Cartões & Faturas</span>
-              {onboardingAudit.steps.find((s) => s.id === 'invoices')?.isComplete ? (
+              {onboardingAudit.steps.find((s: any) => s.id === 'invoices')?.isComplete ? (
                 <CheckCircle2 size={13} className="text-emerald-400" />
               ) : (
                 <Clock size={13} className="text-amber-400" />
@@ -957,7 +955,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
               }`}
             >
               <span>4. Naturezas & Tetos</span>
-              {onboardingAudit.steps.find((s) => s.id === 'natures')?.isComplete ? (
+              {onboardingAudit.steps.find((s: any) => s.id === 'natures')?.isComplete ? (
                 <CheckCircle2 size={13} className="text-emerald-400" />
               ) : (
                 <Clock size={13} className="text-amber-400" />
@@ -974,7 +972,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
               }`}
             >
               <span>5. Mapeamentos & IA</span>
-              {onboardingAudit.steps.find((s) => s.id === 'ai_mappings')?.isComplete ? (
+              {onboardingAudit.steps.find((s: any) => s.id === 'ai_mappings')?.isComplete ? (
                 <CheckCircle2 size={13} className="text-emerald-400" />
               ) : (
                 <Clock size={13} className="text-amber-400" />

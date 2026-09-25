@@ -23,6 +23,7 @@ import type { Movement, MovementStatus, InvoiceNatureItemBreakdown } from '../ty
 import { MovementDetailModal } from '../components/MovementDetailModal';
 import { NewInvoiceModal } from '../components/NewInvoiceModal';
 import { InvoiceImportModal } from '../components/InvoiceImportModal';
+import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
 import { getBankBranding } from '../utils/bankBranding';
 
 export const InvoicesPage: React.FC = () => {
@@ -34,6 +35,9 @@ export const InvoicesPage: React.FC = () => {
     cards,
     natures,
   } = useFinancial();
+
+  // Confirm Dialog
+  const { confirm: confirmAction, dialogProps: confirmDialogProps } = useConfirmDialog();
 
   // Estados de Filtros e Busca
   const [searchTerm, setSearchTerm] = useState('');
@@ -1223,9 +1227,12 @@ export const InvoicesPage: React.FC = () => {
                         className="btn btn-outline"
                         style={{ padding: '8px 10px', color: 'var(--accent-rose)' }}
                         onClick={() => {
-                          if (window.confirm(`Deseja realmente excluir esta fatura (${m.title} - ${fmtBRL(m.amount)})?`)) {
-                            deleteMovement(m.id);
-                          }
+                          confirmAction({
+                            title: 'Excluir Fatura',
+                            message: `Deseja realmente excluir a fatura "${m.title}" (${fmtBRL(m.amount)})? Esta ação não pode ser desfeita.`,
+                            confirmLabel: 'Excluir',
+                            onConfirm: () => deleteMovement(m.id),
+                          });
                         }}
                         title="Excluir fatura"
                       >
@@ -1432,7 +1439,14 @@ export const InvoicesPage: React.FC = () => {
                                         padding: '4px',
                                         borderRadius: '6px',
                                       }}
-                                      onClick={() => handleDeleteBreakdownItem(m, item.id)}
+                                      onClick={() => {
+                                        confirmAction({
+                                          title: 'Remover Item',
+                                          message: `Remover "${item.description}" do detalhamento da fatura?`,
+                                          confirmLabel: 'Remover',
+                                          onConfirm: () => handleDeleteBreakdownItem(m, item.id),
+                                        });
+                                      }}
                                       title="Remover item do detalhamento"
                                     >
                                       <Trash2 size={14} />
@@ -1584,6 +1598,7 @@ export const InvoicesPage: React.FC = () => {
           currentInvoiceAmount={importingInvoice.actualAmount ?? importingInvoice.amount}
         />
       )}
+      <ConfirmDialog {...confirmDialogProps} />
     </div>
   );
 };

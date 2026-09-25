@@ -400,57 +400,6 @@ export interface ExpenseNature {
   keywords?: string[];         // Palavras-chave cadastradas pelo usuário para a IA associar itens a esta natureza
 }
 
-export type SalaryContractType = 'CLT' | 'PJ' | 'PRO_LABORE' | 'ESTAGIO' | 'CONCURSO' | 'AUTONOMO' | 'OUTRO';
-
-export type SalaryAdjustmentReason =
-  | 'DISSÍDIO_CONVENÇÃO'
-  | 'MÉRITO'
-  | 'PROMOÇÃO'
-  | 'MUDANÇA_EMPREGO'
-  | 'INFLAÇÃO_CORREÇÃO'
-  | 'OUTRO';
-
-export type SalaryPaymentSchedule = 'UNICO' | 'QUINZENAL' | 'SEMANAL';
-
-export interface SalaryAdjustment {
-  id: string;
-  effectiveDate: string;        // YYYY-MM (Mês de início da vigência do reajuste, ex: '2026-05')
-  grossAmount: number;          // Salário Bruto reajustado
-  netAmount: number;            // Salário Líquido que entra no fluxo de caixa
-  percentageIncrease?: number;  // Ganho percentual em relação ao salário imediatamente anterior (ex: 8.5 para +8.5%)
-  reason: SalaryAdjustmentReason;
-  title?: string;               // Título descritivo (ex: 'Acordo Coletivo 2026', 'Promoção para Tech Lead')
-  notes?: string;               // Detalhes, observações sobre novos benefícios, etc.
-  firstInstallmentAmount?: number;  // Valor da 1ª quinzena (se quinzenal e FIXED)
-  secondInstallmentAmount?: number; // Valor da 2ª quinzena (se quinzenal e FIXED)
-  weeklyInstallmentAmount?: number; // Valor líquido por semana (se semanal e FIXED)
-  installmentValueMode?: 'FIXED' | 'AUTO'; // Como o valor por período é determinado
-  payInFollowingMonth?: boolean; // Se true, o pagamento referente à competência é creditado no mês seguinte (M+1)
-}
-
-export interface SalaryContract {
-  id: string;
-  employer: string;             // Nome da Empresa / Empregador (ex: 'Tech Inovação S.A.')
-  role: string;                 // Cargo ou Função (ex: 'Especialista de Sistemas')
-  contractType: SalaryContractType;
-  paymentSchedule?: SalaryPaymentSchedule; // 'UNICO', 'QUINZENAL' ou 'SEMANAL'
-  paymentDay: number;           // Dia do mês do pagamento principal / 2ª quinzena (ex: 1 ou 5)
-  secondPaymentDay?: number;    // Dia do mês da 1ª quinzena / adiantamento (ex: 15 ou 20)
-  weeklyPaymentDayOfWeek?: number;   // Dia da semana do pagamento semanal (0=Dom … 6=Sáb, padrão 5=Sex)
-  firstInstallmentPercent?: number;  // % da 1ª quinzena (ex: 40 ou 50) — usado no modo AUTO
-  firstInstallmentAmount?: number;   // Valor em R$ da 1ª quinzena — usado no modo FIXED
-  secondInstallmentAmount?: number;  // Valor em R$ da 2ª quinzena — usado no modo FIXED
-  weeklyInstallmentAmount?: number;  // Valor líquido por semana — usado no modo FIXED
-  installmentValueMode?: 'FIXED' | 'AUTO'; // FIXED = valores fixos cadastrados; AUTO = calcula a partir do líquido
-  payInFollowingMonth?: boolean; // Se true, o pagamento referente à competência é creditado no mês seguinte (M+1)
-  currentGrossAmount: number;   // Salário Bruto Atual
-  currentNetAmount: number;     // Salário Líquido Atual vigente
-  receivingBankAccountId?: string; // ID da Conta Bancária cadastrada
-  receivingBankName?: string;   // Nome do Banco (ex: 'Banco Inter', 'Nubank')
-  startDate: string;            // Data de início / admissão (YYYY-MM-DD ou YYYY-MM)
-  isActive: boolean;
-  history: SalaryAdjustment[];  // Histórico cronológico de reajustes
-}
 
 export interface InvoiceNatureItemBreakdown {
   id: string;
@@ -570,7 +519,6 @@ export interface UserProfileSettings {
   sharedSettlements?: SharedSettlementItem[];
   defaultTrackingScope?: TrackingScopeMode;
   onboardingCompleted?: boolean;
-  salaryContracts?: SalaryContract[];
   checkpoints?: FinancialCheckpoint[];
 }
 

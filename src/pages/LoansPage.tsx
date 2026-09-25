@@ -20,7 +20,6 @@ import {
 import { calculateLoanSpreadsheet } from '../utils/loanSpreadsheetMath';
 import type { LoanSpreadsheetInput } from '../utils/loanSpreadsheetMath';
 import { groupLoanMovements, calculatePresentValue } from '../utils/loanMath';
-import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
 import { Modal } from '../components/Modal';
 
 export type RowSimMode = 'NORMAL' | 'ANTECIPAR' | 'PAUSAR' | 'CUSTOM';
@@ -34,7 +33,6 @@ export const LoansPage: React.FC = () => {
   const {
     movements,
     natures,
-    salaryContracts,
     addMovement,
     prepayInstallments,
     toggleMovementStatus,
@@ -106,10 +104,9 @@ export const LoansPage: React.FC = () => {
       movements,
       natures,
       initialBalance,
-      salaryContracts,
       monthlyClosings
     );
-  }, [movements, natures, initialBalance, salaryContracts, monthlyClosings]);
+  }, [movements, natures, initialBalance, monthlyClosings]);
 
   // Função utilitária para calcular o valor presente e economia ao antecipar parcela k no mês m
   const calculateAdvanceDetails = (k: number, m: number, pmt: number, rate: number) => {

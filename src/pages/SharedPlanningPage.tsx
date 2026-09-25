@@ -29,8 +29,7 @@ export const SharedPlanningPage: React.FC = () => {
     addSharedSettlement,
     toggleSharedSettlementStatus,
     settleAllSharedDebts,
-    salaryContracts,
-  } = useFinancial();
+    } = useFinancial();
 
   const [copiedInvite, setCopiedInvite] = useState(false);
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);

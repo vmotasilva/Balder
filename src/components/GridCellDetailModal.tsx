@@ -26,7 +26,6 @@ import {
   Sparkles,
 } from 'lucide-react';
 import type { MonthlyGridProjectionRow, MappingItem, MovementStatus, Movement, InvoiceNatureItemBreakdown } from '../types';
-import { buildMonthlyProjectionGrid, resolveSalaryForMonth } from '../utils/projectionMath';
 import type { ProjectionViewMode } from '../utils/projectionMath';
 import { getItemManifestationDays } from '../utils/natureScheduling';
 import { MovementDetailModal } from './MovementDetailModal';
@@ -649,7 +648,6 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     getNatureCeiling,
     activeCheckpoint,
     monthlyClosings,
-    salaryContracts,
     addMovement,
     updateMovement,
     deleteMovement,
@@ -673,12 +671,11 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
       movements,
       natures,
       initialBalance,
-      salaryContracts,
       monthlyClosings,
       selection?.viewMode || 'PROJETADO'
     );
-    return grid.find((r) => r.monthKey === row.monthKey) || row;
-  }, [movements, natures, salaryContracts, activeCheckpoint, monthlyClosings, row, selection?.viewMode]);
+    return grid.find((r: any) => r.monthKey === row.monthKey) || row;
+  }, [movements, natures, activeCheckpoint, monthlyClosings, row, selection?.viewMode]);
 
   const currentRow = dynamicRow || row;
 
@@ -1346,7 +1343,6 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         monthPrefix,
         currentRow,
         realSalaries,
-        salaryContracts,
         banks
       );
       if (salItem) {
@@ -1522,7 +1518,6 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         monthPrefix,
         currentRow,
         realSalaries,
-        salaryContracts,
         banks
       );
       if (salItem) {
@@ -2686,7 +2681,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
           {/* Banner de Ciclo M+1 quando aplicável */}
           {(columnKey === 'salary' || columnKey === 'totalIncome') && currentRow && (() => {
-            const contract = salaryContracts?.find((sc) => sc.isActive) || salaryContracts?.[0];
+            const contract = salaryContracts?.find((sc: any) => sc.isActive) || salaryContracts?.[0];
             if (!contract?.payInFollowingMonth) return null;
             const nextMonth = getNextMonthName(currentRow.monthKey);
             const firstDay = contract.secondPaymentDay || 1;

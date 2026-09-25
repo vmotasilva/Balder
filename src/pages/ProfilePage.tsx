@@ -29,7 +29,6 @@ import {
   Wallet,
   Landmark,
   Edit2,
-  Briefcase,
   TrendingUp,
   Calendar,
   Flag,
@@ -47,7 +46,6 @@ import {
   Eye,
 } from 'lucide-react';
 import { FinanceEntityModal, type EntityTab } from '../components/FinanceEntityModal';
-import { SalaryAdjustmentModal, type SalaryModalMode } from '../components/SalaryAdjustmentModal';
 import { CheckpointSetupModal } from '../components/CheckpointSetupModal';
 import { Modal } from '../components/Modal';
 import { NatureModal } from '../components/NatureModal';
@@ -57,6 +55,7 @@ import {
   formatItemScheduleBadge,
 } from '../utils/natureScheduling';
 import type { SalaryContract, SalaryAdjustment, FixedExpenseMapping, FinancialCheckpoint, CheckpointBankDebt } from '../types';
+import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
 
 interface ProfilePageProps {
   onOpenOnboarding?: (stepIndex?: number) => void;
@@ -84,9 +83,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
     getNatureCeiling,
     getNatureSpent,
     getNatureMissingItems,
-    salaryContracts,
-    deleteSalaryContract,
-    deleteSalaryAdjustment,
     checkpoints,
     activeCheckpoint,
     activateCheckpoint,
@@ -100,19 +96,21 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
   } = useFinancial();
   const { theme, setTheme } = useTheme();
 
+  // Confirm Dialog
+  const { confirm: confirmAction, dialogProps: confirmDialogProps } = useConfirmDialog();
+
   // Auditoria dinâmica dos 5 pilares do Get Started
   const onboardingAudit = useMemo(
     () =>
       auditOnboardingProgress({
         activeCheckpoint,
-        salaryContracts,
         movements,
         cards,
         accounts,
         banks,
         natures,
       }),
-    [activeCheckpoint, salaryContracts, movements, cards, accounts, banks, natures]
+    [activeCheckpoint, movements, cards, accounts, banks, natures]
   );
   const completionPercentage = onboardingAudit.percent;
   const completedSteps = onboardingAudit.completedCount;
@@ -145,27 +143,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
     });
     return dups;
   }, [checkpoints]);
-
-  // Estados de Modal para Salários e Reajustes
-  const [salaryModalOpen, setSalaryModalOpen] = useState(false);
-  const [salaryModalMode, setSalaryModalMode] = useState<SalaryModalMode>('ADJUSTMENT');
-  const [salaryEditContract, setSalaryEditContract] = useState<SalaryContract | null>(null);
-  const [salaryEditAdjustment, setSalaryEditAdjustment] = useState<{
-    contractId: string;
-    adjustment: SalaryAdjustment;
-  } | null>(null);
-  const [selectedContractIdForView, setSelectedContractIdForView] = useState<string>('');
-
-  const handleOpenSalaryModal = (
-    mode: SalaryModalMode,
-    contractToEdit: SalaryContract | null = null,
-    adjToEdit: { contractId: string; adjustment: SalaryAdjustment } | null = null
-  ) => {
-    setSalaryModalMode(mode);
-    setSalaryEditContract(contractToEdit);
-    setSalaryEditAdjustment(adjToEdit);
-    setSalaryModalOpen(true);
-  };
 
   // Estados de Modal para Entidades Financeiras (Contas, Cartões, Pagamentos, Bancos)
   const [entityModalOpen, setEntityModalOpen] = useState(false);
@@ -236,49 +213,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
   const isCeilingFar = natureCeiling > 0 && !isCeilingOver && natureSpent < natureCeiling * 0.75;
   const missingItems = selectedNature ? getNatureMissingItems(selectedNature) : [];
 
-  // Cálculos e helpers para Remuneração e Salários
-  const currentMonthKey = new Date().toISOString().slice(0, 7);
-  const activeContract =
-    salaryContracts.find((c) => c.id === selectedContractIdForView) ||
-    salaryContracts.find((c) => c.isActive) ||
-    salaryContracts[0];
-
-  const sortedHistory = activeContract
-    ? [...activeContract.history].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))
-    : [];
-  const oldestAdjustment = activeContract && activeContract.history.length > 0
-    ? [...activeContract.history].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate))[0]
-    : null;
-  const initialNet = oldestAdjustment ? oldestAdjustment.netAmount : (activeContract?.currentNetAmount || 0);
-  const currentNet = activeContract?.currentNetAmount || 0;
-  const totalGrowthPercent = initialNet > 0 && currentNet > 0
-    ? Number((((currentNet - initialNet) / initialNet) * 100).toFixed(2))
-    : 0;
-  const lastAdjustment = sortedHistory.length > 0 ? sortedHistory[0] : null;
-  const annualNetProjected = currentNet * (activeContract?.contractType === 'CLT' ? 13.33 : 12);
-
-  const formatMonthYearLabel = (ym: string) => {
-    if (!ym) return '';
-    const [y, m] = ym.split('-');
-    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    const mIndex = parseInt(m, 10) - 1;
-    return `${months[mIndex] || m}/${y}`;
-  };
-
-  const formatMonthYearFull = (ym: string) => {
-    if (!ym) return '';
-    const [y, m] = ym.split('-');
-    const months = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-    const mIndex = parseInt(m, 10) - 1;
-    return `${months[mIndex] || m} de ${y}`;
-  };
-
   // Itens de navegação do perfil correspondentes ao card principal (Imagem 2)
   const PROFILE_NAV_ITEMS = [
     { id: 'PERFIL' as const, label: 'Perfil & Dados Pessoais', icon: User, count: null },
     { id: 'ASSINATURA' as const, label: 'Plano & Assinatura', icon: Crown, count: 'PRO' },
     { id: 'APP_ANDROID' as const, label: 'Aplicativo Android (APK)', icon: Smartphone, count: 'v1.0' },
-    { id: 'SALARIO' as const, label: 'Remuneração & Salário', icon: Briefcase, count: salaryContracts.length },
     { id: 'MARCOS' as const, label: 'Marcos de Início', icon: Flag, count: checkpoints.length },
     { id: 'CONTAS' as const, label: 'Contas & Meios', icon: CreditCard, count: accounts.length + cards.length },
     { id: 'BANCOS' as const, label: 'Bancos & Instituições', icon: Building, count: banks.length },
@@ -1039,367 +978,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
             </div>
           )}
 
-          {activeSubTab === 'SALARIO' && (
-            <div className="subtab-content animate-fade-in">
-              {/* Header com Ações */}
-              <div className="naturezas-header-row mb-4">
-                <div>
-                  <div className="kicker-badge" style={{ marginBottom: '0.25rem' }}>
-                    <span>FONTES DE RENDA & PROJEÇÃO</span>
-                  </div>
-                  <h3>Remuneração & Evolução Salarial</h3>
-                  <p className="subtab-desc">
-                    Cadastre seus vínculos empregatícios, acompanhe o histórico de reajustes e garanta que competências futuras considerem novos valores.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    className="btn btn-primary btn-sm"
-                    onClick={() => handleOpenSalaryModal('ADJUSTMENT')}
-                    title="Registrar novo reajuste ou promoção salarial"
-                  >
-                    <TrendingUp size={15} />
-                    <span>+ Novo Reajuste</span>
-                  </button>
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => handleOpenSalaryModal('CONTRACT')}
-                    title="Cadastrar novo contrato ou fonte de renda"
-                  >
-                    <Briefcase size={15} />
-                    <span>+ Novo Contrato</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Seletor de Contratos se houver mais de um */}
-              {salaryContracts.length > 1 && (
-                <div className="entity-filters-bar mb-4">
-                  {salaryContracts.map((c) => (
-                    <button
-                      key={c.id}
-                      className={`entity-filter-chip ${activeContract?.id === c.id ? 'active' : ''}`}
-                      onClick={() => setSelectedContractIdForView(c.id)}
-                    >
-                      <Briefcase size={13} />
-                      <span>
-                        {c.employer} — {c.role} ({c.contractType})
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Estado Vazio caso o usuário ainda não tenha cadastrado contratos */}
-              {salaryContracts.length === 0 ? (
-                <div className="glass-card text-center p-8 mt-4" style={{ borderRadius: '12px' }}>
-                  <div
-                    style={{
-                      width: '56px',
-                      height: '56px',
-                      borderRadius: '50%',
-                      background: 'rgba(6, 182, 212, 0.1)',
-                      color: 'var(--color-primary)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      margin: '0 auto 1rem auto',
-                    }}
-                  >
-                    <Briefcase size={28} />
-                  </div>
-                  <h4 style={{ fontSize: '1.2rem', marginBottom: '0.5rem' }}>Nenhum Vínculo Salarial Cadastrado</h4>
-                  <p className="text-muted text-sm max-w-md mx-auto mb-4">
-                    Cadastre seu salário e contrato de trabalho para acompanhar o histórico de ganhos, dissídios, méritos e alimentar automaticamente as projeções do fluxo de caixa.
-                  </p>
-                  <button className="btn btn-primary" onClick={() => handleOpenSalaryModal('CONTRACT')}>
-                    <Briefcase size={16} />
-                    <span>Cadastrar Primeiro Contrato Salarial</span>
-                  </button>
-                </div>
-              ) : activeContract ? (
-                <>
-                  {/* Grid de 4 KPIs Estratégicos de Salário */}
-                  <div className="salary-kpi-grid mb-4">
-                    <div className="salary-kpi-card glass-card">
-                      <div className="salary-kpi-header">
-                        <span className="salary-kpi-title">Salário Líquido Atual</span>
-                        <span className="badge badge-emerald">{activeContract.contractType}</span>
-                      </div>
-                      <div className="salary-kpi-val text-glow-cyan">
-                        R$ {activeContract.currentNetAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                      <div className="salary-kpi-subtitle">
-                        Bruto: R$ {activeContract.currentGrossAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} • {activeContract.role}
-                      </div>
-                    </div>
-
-                    <div className="salary-kpi-card glass-card">
-                      <div className="salary-kpi-header">
-                        <span className="salary-kpi-title">Último Reajuste Registrado</span>
-                        {lastAdjustment?.percentageIncrease !== undefined && (
-                          <span className="badge badge-emerald">+{lastAdjustment.percentageIncrease}%</span>
-                        )}
-                      </div>
-                      <div className="salary-kpi-val" style={{ color: 'var(--color-emerald, #10b981)' }}>
-                        {lastAdjustment?.title || lastAdjustment?.reason || 'Admissão'}
-                      </div>
-                      <div className="salary-kpi-subtitle">
-                        {lastAdjustment ? `Vigência a partir de ${formatMonthYearLabel(lastAdjustment.effectiveDate)}` : 'Sem reajustes adicionais'}
-                      </div>
-                    </div>
-
-                    <div className="salary-kpi-card glass-card">
-                      <div className="salary-kpi-header">
-                        <span className="salary-kpi-title">Evolução Acumulada</span>
-                        <span className="badge badge-cyan">TOTAL</span>
-                      </div>
-                      <div className="salary-kpi-val text-cyan">
-                        {totalGrowthPercent > 0 ? `+${totalGrowthPercent}%` : 'Base Inicial'}
-                      </div>
-                      <div className="salary-kpi-subtitle">
-                        De R$ {initialNet.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} para R$ {currentNet.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </div>
-                    </div>
-
-                    <div className="salary-kpi-card glass-card">
-                      <div className="salary-kpi-header">
-                        <span className="salary-kpi-title">Renda Anual Projetada</span>
-                        <span className="badge badge-purple">{activeContract.contractType === 'CLT' ? '13,33x' : '12x'}</span>
-                      </div>
-                      <div className="salary-kpi-val" style={{ color: '#C084FC' }}>
-                        R$ {annualNetProjected.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                      <div className="salary-kpi-subtitle">
-                        {activeContract.contractType === 'CLT' ? 'Líquido anual (12 salários + 13º + 1/3 férias)' : 'Líquido anual contratual'}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Card do Vínculo Empregatício */}
-                  <div className="salary-contract-details-card glass-card mb-4">
-                    <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-                      <div className="flex items-center gap-3">
-                        <div className="salary-contract-avatar">
-                          <Briefcase size={22} />
-                        </div>
-                        <div>
-                          <h4 style={{ fontSize: '1.1rem', fontWeight: 600 }}>{activeContract.employer}</h4>
-                          <span className="text-xs text-muted">
-                            {activeContract.role} • Admissão: {formatMonthYearLabel(activeContract.startDate)}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => handleOpenSalaryModal('CONTRACT', activeContract)}
-                        >
-                          <Edit2 size={13} />
-                          <span>Editar Contrato</span>
-                        </button>
-                        <button
-                          className="btn btn-secondary btn-sm text-rose"
-                          onClick={() => {
-                            if (confirm(`Deseja realmente remover o contrato com ${activeContract.employer}?`)) {
-                              deleteSalaryContract(activeContract.id);
-                            }
-                          }}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="salary-contract-grid-info">
-                      <div className="info-cell">
-                        <span className="info-cell-label">Regime & Formato</span>
-                        <span className="info-cell-val font-semibold flex items-center gap-1.5 flex-wrap">
-                          <span>{activeContract.contractType} • {activeContract.paymentSchedule === 'QUINZENAL' || activeContract.secondPaymentDay ? 'Em 2 Quinzenas' : 'Mensal Integral'}</span>
-                          {activeContract.payInFollowingMonth && (
-                            <span className="badge badge-cyan text-[10px]" title="Pagamento referente à competência é creditado no mês seguinte (M+1)">
-                              Mês Seguinte (M+1)
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                      <div className="info-cell">
-                        <span className="info-cell-label">
-                          {activeContract.paymentSchedule === 'QUINZENAL' || activeContract.secondPaymentDay ? '1ª Quinzena (Adiantamento)' : 'Dia de Pagamento'}
-                        </span>
-                        <span className="info-cell-val font-semibold">
-                          {activeContract.paymentSchedule === 'QUINZENAL' || activeContract.secondPaymentDay ? (() => {
-                            const first = activeContract.firstInstallmentAmount || Math.round(activeContract.currentNetAmount * ((activeContract.firstInstallmentPercent || 40) / 100) * 100) / 100;
-                            return (
-                              <>
-                                Dia {activeContract.secondPaymentDay || 15}
-                                {first > 0 && (
-                                  <span className="text-glow-cyan" style={{ marginLeft: '6px' }}>
-                                    (R$ {first.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})
-                                  </span>
-                                )}
-                              </>
-                            );
-                          })() : (
-                            activeContract.paymentDay === 31 ? 'Último dia do mês' : `Dia ${activeContract.paymentDay}`
-                          )}
-                        </span>
-                      </div>
-                      <div className="info-cell">
-                        <span className="info-cell-label">
-                          {activeContract.paymentSchedule === 'QUINZENAL' || activeContract.secondPaymentDay ? '2ª Quinzena (Saldo)' : 'Banco de Recebimento'}
-                        </span>
-                        <span className="info-cell-val font-semibold">
-                          {activeContract.paymentSchedule === 'QUINZENAL' || activeContract.secondPaymentDay ? (() => {
-                            const first = activeContract.firstInstallmentAmount || Math.round(activeContract.currentNetAmount * ((activeContract.firstInstallmentPercent || 40) / 100) * 100) / 100;
-                            const second = activeContract.secondInstallmentAmount || Math.round((activeContract.currentNetAmount - first) * 100) / 100;
-                            return (
-                              <>
-                                {activeContract.paymentDay === 31 ? 'Último dia do mês' : `Dia ${activeContract.paymentDay || 1}`}
-                                {second > 0 && (
-                                  <span className="text-glow-cyan" style={{ marginLeft: '6px' }}>
-                                    (R$ {second.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})
-                                  </span>
-                                )}
-                              </>
-                            );
-                          })() : (
-                            activeContract.receivingBankName || 'Conta Padrão'
-                          )}
-                        </span>
-                      </div>
-                      <div className="info-cell">
-                        <span className="info-cell-label">Banco / Status</span>
-                        <span className="info-cell-val font-semibold flex items-center gap-2">
-                          <span>{activeContract.receivingBankName || 'Conta Padrão'}</span>
-                          <span className="badge badge-emerald">
-                            {activeContract.isActive ? 'Ativo' : 'Inativo'}
-                          </span>
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Linha do Tempo / Histórico de Reajustes */}
-                  <div className="salary-timeline-container glass-card">
-                    <div className="salary-timeline-header flex items-center justify-between flex-wrap gap-2 mb-4">
-                      <div>
-                        <h4 className="flex items-center gap-2" style={{ fontSize: '1.05rem', fontWeight: 600 }}>
-                          <TrendingUp size={18} className="text-emerald" />
-                          <span>Histórico Cronológico de Reajustes & Vigência</span>
-                        </h4>
-                        <p className="text-xs text-muted">
-                          Competências a partir da data de vigência utilizam o novo salário líquido nas projeções futuras.
-                        </p>
-                      </div>
-                      <button
-                        className="btn btn-primary btn-sm"
-                        onClick={() => handleOpenSalaryModal('ADJUSTMENT')}
-                      >
-                        <Plus size={14} />
-                        <span>Novo Reajuste Salarial</span>
-                      </button>
-                    </div>
-
-                    {sortedHistory.length === 0 ? (
-                      <div className="text-center p-6 text-muted text-sm">
-                        Nenhum marco de reajuste cadastrado. Clique no botão acima para registrar o primeiro reajuste.
-                      </div>
-                    ) : (
-                      <div className="salary-timeline-list">
-                        {sortedHistory.map((adj, index) => {
-                          const isFuture = adj.effectiveDate > currentMonthKey;
-                          const isLatest = index === 0;
-
-                          return (
-                            <div key={adj.id} className="salary-timeline-item">
-                              <div className="salary-timeline-marker">
-                                <div className={`salary-timeline-dot ${isLatest ? 'latest' : ''}`} />
-                                {index < sortedHistory.length - 1 && <div className="salary-timeline-line" />}
-                              </div>
-
-                              <div className="salary-timeline-card glass-card">
-                                <div className="salary-timeline-card-header flex items-center justify-between flex-wrap gap-2">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="salary-timeline-date-badge">
-                                      <Calendar size={13} />
-                                      {formatMonthYearFull(adj.effectiveDate)}
-                                    </span>
-                                    {isFuture ? (
-                                      <span className="badge badge-purple">Projetado (Futuro)</span>
-                                    ) : (
-                                      <span className="badge badge-emerald">Vigente</span>
-                                    )}
-                                    <span className="badge badge-cyan">{adj.reason.replace('_', ' ')}</span>
-                                  </div>
-
-                                  <div className="flex items-center gap-1">
-                                    <button
-                                      className="btn btn-ghost btn-xs"
-                                      title="Editar Reajuste"
-                                      onClick={() =>
-                                        handleOpenSalaryModal('ADJUSTMENT', null, {
-                                          contractId: activeContract.id,
-                                          adjustment: adj,
-                                        })
-                                      }
-                                    >
-                                      <Edit2 size={13} />
-                                    </button>
-                                    <button
-                                      className="btn btn-ghost btn-xs text-rose"
-                                      title="Excluir Reajuste"
-                                      onClick={() => {
-                                        if (confirm(`Deseja remover este marco de reajuste de ${adj.effectiveDate}?`)) {
-                                          deleteSalaryAdjustment(activeContract.id, adj.id);
-                                        }
-                                      }}
-                                    >
-                                      <Trash2 size={13} />
-                                    </button>
-                                  </div>
-                                </div>
-
-                                <div className="salary-timeline-card-body mt-2">
-                                  <div className="flex items-center justify-between flex-wrap gap-2">
-                                    <div>
-                                      <div className="font-semibold" style={{ fontSize: '0.95rem' }}>
-                                        {adj.title || adj.reason}
-                                      </div>
-                                      {adj.notes && (
-                                        <div className="text-xs text-muted mt-1">{adj.notes}</div>
-                                      )}
-                                    </div>
-
-                                    <div className="text-right">
-                                      <div className="flex items-center gap-2 justify-end">
-                                        <span className="text-lg font-bold text-glow-cyan">
-                                          R$ {adj.netAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                        </span>
-                                        {adj.percentageIncrease !== undefined && (
-                                          <span className="badge badge-emerald font-bold">
-                                            +{adj.percentageIncrease}%
-                                          </span>
-                                        )}
-                                      </div>
-                                      <div className="text-xs text-muted">
-                                        Bruto: R$ {adj.grossAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </>
-              ) : null}
-            </div>
-          )}
+          
 
           {activeSubTab === 'MARCOS' && (
             <div className="subtab-content animate-fade-in">
@@ -2399,9 +1978,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                                   className="btn btn-ghost btn-xs text-muted hover:text-rose"
                                   title="Excluir Cartão"
                                   onClick={() => {
-                                    if (confirm(`Deseja realmente excluir o cartão "${c.name}"?`)) {
-                                      deleteCard(c.id);
-                                    }
+                                    confirmAction({
+                                  title: 'Excluir Cartão',
+                                  message: `Deseja realmente excluir o cartão "${c.name}"? Esta ação não pode ser desfeita.`,
+                                  confirmLabel: 'Excluir',
+                                  onConfirm: () => deleteCard(c.id),
+                                });
                                   }}
                                 >
                                   <Trash2 size={13} />
@@ -2773,11 +2355,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                                   className="btn btn-ghost btn-xs text-rose"
                                   title="Excluir esta Natureza"
                                   onClick={() => {
-                                    if (confirm(`Deseja realmente excluir a natureza "${selectedNature.name}" e todos os seus mapeamentos?`)) {
-                                      deleteNature(selectedNature.id);
-                                      const next = natures.find((n) => n.id !== selectedNature.id);
-                                      if (next) setSelectedNatureId(next.id);
-                                    }
+                                    confirmAction({
+                                      title: 'Excluir Natureza',
+                                      message: `Deseja realmente excluir a natureza "${selectedNature.name}" e todos os seus mapeamentos? Esta ação não pode ser desfeita.`,
+                                      confirmLabel: 'Excluir',
+                                      onConfirm: () => {
+                                        deleteNature(selectedNature.id);
+                                        const next = natures.find((n) => n.id !== selectedNature.id);
+                                        if (next) setSelectedNatureId(next.id);
+                                      },
+                                    });
                                   }}
                                   style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
                                 >
@@ -3725,13 +3312,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
       />
 
       {/* Modal para Cadastro de Salários e Registro de Reajustes com Vigência */}
-      <SalaryAdjustmentModal
-        isOpen={salaryModalOpen}
-        onClose={() => setSalaryModalOpen(false)}
-        initialMode={salaryModalMode}
-        editContract={salaryEditContract}
-        editAdjustment={salaryEditAdjustment}
-      />
+      
 
       {/* Modal para Marco de Acompanhamento Financeiro */}
       <CheckpointSetupModal
@@ -4000,6 +3581,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
           </div>
         </Modal>
       )}
+      <ConfirmDialog {...confirmDialogProps} />
     </div>
   );
 };

@@ -28,6 +28,7 @@ import {
 import { Modal } from '../components/Modal';
 import { NatureModal } from '../components/NatureModal';
 import { MappingModal } from '../components/MappingModal';
+import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
 import {
   WEEKDAY_OPTIONS,
   formatItemScheduleBadge,
@@ -60,6 +61,9 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
     addMovement,
     loadSuggestedMappingsForNature,
   } = useFinancial();
+
+  // Confirm Dialog
+  const { confirm: confirmAction, dialogProps: confirmDialogProps } = useConfirmDialog();
 
   // Selected Natureza
   const [selectedNatureId, setSelectedNatureId] = useState<string>(
@@ -792,15 +796,16 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                             className="btn btn-ghost btn-xs text-rose"
                             title="Excluir esta Natureza"
                             onClick={() => {
-                              if (
-                                confirm(
-                                  `Deseja realmente excluir a natureza "${selectedNature.name}" e todos os seus mapeamentos?`
-                                )
-                              ) {
-                                deleteNature(selectedNature.id);
-                                const next = natures.find((n) => n.id !== selectedNature.id);
-                                if (next) setSelectedNatureId(next.id);
-                              }
+                              confirmAction({
+                                title: 'Excluir Natureza',
+                                message: `Deseja realmente excluir a natureza "${selectedNature.name}" e todos os seus mapeamentos e itens? Esta ação não pode ser desfeita.`,
+                                confirmLabel: 'Sim, Excluir',
+                                onConfirm: () => {
+                                  deleteNature(selectedNature.id);
+                                  const next = natures.find((n) => n.id !== selectedNature.id);
+                                  if (next) setSelectedNatureId(next.id);
+                                },
+                              });
                             }}
                             style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
                           >
@@ -1534,9 +1539,12 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                               className="btn btn-outline text-rose"
                               title="Excluir Mapeamento"
                               onClick={() => {
-                                if (confirm(`Deseja remover o mapeamento "${mapping.name}"?`)) {
-                                  deleteMapping(selectedNature.id, mapping.id);
-                                }
+                                confirmAction({
+                                  title: 'Excluir Mapeamento',
+                                  message: `Deseja remover o mapeamento "${mapping.name}" e todos os seus itens? Esta ação não pode ser desfeita.`,
+                                  confirmLabel: 'Sim, Excluir',
+                                  onConfirm: () => deleteMapping(selectedNature.id, mapping.id),
+                                });
                               }}
                               style={{ flex: 1, padding: '6px 0', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                             >
@@ -1913,13 +1921,14 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                         <button
                                           className="btn btn-ghost btn-xs text-rose"
                                           title="Excluir item"
-                                          onClick={() =>
-                                            deleteMappingItem(
-                                              selectedNature.id,
-                                              mapping.id,
-                                              item.id
-                                            )
-                                          }
+                                          onClick={() => {
+                                            confirmAction({
+                                              title: 'Excluir Item',
+                                              message: `Excluir "${item.description}" do mapeamento? Esta ação não pode ser desfeita.`,
+                                              confirmLabel: 'Excluir',
+                                              onConfirm: () => deleteMappingItem(selectedNature.id, mapping.id, item.id),
+                                            });
+                                          }}
                                         >
                                           <Trash2 size={13} />
                                         </button>
@@ -2693,6 +2702,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
           </div>
         </Modal>
       )}
+      <ConfirmDialog {...confirmDialogProps} />
     </div>
   );
 };
