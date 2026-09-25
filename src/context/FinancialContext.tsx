@@ -1694,10 +1694,21 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
           // 5. Contratos de Salário / Remuneração (Nuvem prioritária com dupla camada de resiliência)
           let finalSalaries = cloudSalaries || [];
-          if (finalSalaries.length === 0 && cloudProfileSettings?.salaryContracts && cloudProfileSettings.salaryContracts.length > 0) {
-            finalSalaries = cloudProfileSettings.salaryContracts;
-            if (user && !user.isGuest) {
-              finalSalaries.forEach((sc) => SupabaseService.upsertSalaryContract(sc).catch(console.error));
+          if (cloudProfileSettings?.salaryContracts && cloudProfileSettings.salaryContracts.length > 0) {
+            if (finalSalaries.length === 0) {
+              finalSalaries = cloudProfileSettings.salaryContracts;
+              if (user && !user.isGuest) {
+                finalSalaries.forEach((sc) => SupabaseService.upsertSalaryContract(sc).catch(console.error));
+              }
+            } else {
+              // Recupera flags (como payInFollowingMonth) que podem estar ausentes no schema relacional, lendo do backup JSON do profile
+              finalSalaries = finalSalaries.map(sc => {
+                const backup = cloudProfileSettings.salaryContracts!.find((b: any) => b.id === sc.id);
+                if (backup && backup.payInFollowingMonth !== undefined) {
+                  return { ...sc, payInFollowingMonth: backup.payInFollowingMonth };
+                }
+                return sc;
+              });
             }
           }
           if (finalSalaries.length === 0 && user) {
