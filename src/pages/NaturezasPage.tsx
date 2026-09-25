@@ -124,6 +124,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
   const [newKeywordVal, setNewKeywordVal] = useState('');
 
   // Mapeamentos Recolhidos / Expandidos (Persistidos localmente)
+  // Default: mappings start collapsed (true). Undefined = not yet toggled = collapsed.
   const [collapsedMappings, setCollapsedMappings] = useState<Record<string, boolean>>(() => {
     try {
       const saved = localStorage.getItem('balder_collapsed_mappings');
@@ -135,7 +136,9 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
 
   const toggleMappingCollapse = (mappingId: string) => {
     setCollapsedMappings((prev) => {
-      const next = { ...prev, [mappingId]: !prev[mappingId] };
+      // undefined = collapsed by default, so toggling means expanding (false)
+      const currentlyCollapsed = prev[mappingId] !== false;
+      const next = { ...prev, [mappingId]: !currentlyCollapsed };
       try {
         localStorage.setItem('balder_collapsed_mappings', JSON.stringify(next));
       } catch {}
@@ -1352,7 +1355,8 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                   </div>
 
                   {selectedNature.mappings.map((mapping, mappingIndex) => {
-                    const isCollapsed = !!collapsedMappings[mapping.id];
+                    // Default to collapsed (true) when mapping has no saved state
+                    const isCollapsed = collapsedMappings[mapping.id] !== false;
                     const isDragging = draggedMappingId === mapping.id;
                     const isOver = dragOverMappingId === mapping.id;
                     const mappingTotal = (mapping.items || []).reduce(
