@@ -16850,3 +16850,76 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   color: #0f172a;
 }
 
+/* Mobile adjustments for Natureza Items Table */
+@media (max-width: 768px) {
+  .natureza-items-table, 
+  .natureza-items-table tbody, 
+  .natureza-items-table tr, 
+  .natureza-items-table td {
+    display: block;
+    width: 100%;
+  }
+  .natureza-items-table thead {
+    display: none;
+  }
+  .natureza-items-table tr {
+    margin-bottom: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.02);
+    overflow: hidden;
+  }
+  .natureza-items-table td {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 12px 14px 12px 42%;
+    position: relative;
+    min-height: 44px;
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-end;
+  }
+  .natureza-items-table td > div,
+  .natureza-items-table td > input,
+  .natureza-items-table td > select {
+    width: 100%;
+  }
+  .natureza-items-table td:last-child {
+    border-bottom: none;
+    align-items: center;
+    flex-direction: row;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .natureza-items-table td::before {
+    content: attr(data-label);
+    position: absolute;
+    left: 14px;
+    top: 14px;
+    width: 35%;
+    white-space: normal;
+    text-align: left;
+    font-weight: 700;
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+  .natureza-items-table td:nth-of-type(1)::before { content: "Descrição / Item"; }
+  .natureza-items-table td:nth-of-type(2)::before { content: "Qtd"; }
+  .natureza-items-table td:nth-of-type(3)::before { content: "Preço Unit."; }
+  .natureza-items-table td:nth-of-type(4)::before { content: "Frequência"; }
+  .natureza-items-table td:nth-of-type(5)::before { content: "Multiplicador"; }
+  .natureza-items-table td:nth-of-type(6)::before { content: "Valor Total"; }
+  .natureza-items-table td:nth-of-type(7)::before { content: "Ações"; }
+
+  [data-theme="light"] .natureza-items-table tr {
+    background: #FFFFFF;
+    border-color: var(--border-default);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  }
+  [data-theme="light"] .natureza-items-table td {
+    border-bottom-color: var(--border-default);
+  }
+}
+
