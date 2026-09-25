@@ -81,9 +81,12 @@ CREATE TABLE IF NOT EXISTS public.natures (
   mappings JSONB DEFAULT '[]'::jsonb,
   over_ceiling_justification TEXT,
   justification_history JSONB DEFAULT '[]'::jsonb,
+  keywords JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE public.natures ADD COLUMN IF NOT EXISTS keywords JSONB DEFAULT '[]'::jsonb;
 
 ALTER TABLE public.natures ENABLE ROW LEVEL SECURITY;
 

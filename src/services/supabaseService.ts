@@ -250,17 +250,30 @@ export const SupabaseService = {
         keywords: nature.keywords || [],
       };
 
-      const { data, error } = await supabase
+      let insertResult = await supabase
         .from(TABLES.NATURES)
         .upsert(payload)
         .select()
         .single();
 
-      if (error) {
-        console.error('[SupabaseService] Erro ao salvar natureza:', error.message);
+      // Fallback gracioso caso a coluna 'keywords' ainda não exista no schema do Supabase do usuário
+      if (insertResult.error && (insertResult.error.message?.includes('keywords') || (insertResult.error as any).code === '42703')) {
+        console.warn('[SupabaseService] Coluna keywords ausente na tabela natures do Supabase. Retentando sem keywords...');
+        const payloadNoKeywords = { ...payload };
+        delete payloadNoKeywords.keywords;
+        insertResult = await supabase
+          .from(TABLES.NATURES)
+          .upsert(payloadNoKeywords)
+          .select()
+          .single();
+      }
+
+      if (insertResult.error) {
+        console.error('[SupabaseService] Erro ao salvar natureza:', insertResult.error.message);
         return null;
       }
 
+      const data = insertResult.data;
       return {
         ...nature,
         id: String(data.id),
@@ -289,13 +302,24 @@ export const SupabaseService = {
       if (updates.justificationHistory !== undefined) payload.justification_history = updates.justificationHistory;
       if (updates.keywords !== undefined) payload.keywords = updates.keywords;
 
-      const { error } = await supabase
+      let updateResult = await supabase
         .from(TABLES.NATURES)
         .update(payload)
         .eq('id', id);
 
-      if (error) {
-        console.error('[SupabaseService] Erro ao atualizar natureza:', error.message);
+      // Fallback gracioso caso a coluna 'keywords' ainda não exista no schema do Supabase do usuário
+      if (updateResult.error && (updateResult.error.message?.includes('keywords') || (updateResult.error as any).code === '42703')) {
+        console.warn('[SupabaseService] Coluna keywords ausente na tabela natures do Supabase. Retentando update sem keywords...');
+        const payloadNoKeywords = { ...payload };
+        delete payloadNoKeywords.keywords;
+        updateResult = await supabase
+          .from(TABLES.NATURES)
+          .update(payloadNoKeywords)
+          .eq('id', id);
+      }
+
+      if (updateResult.error) {
+        console.error('[SupabaseService] Erro ao atualizar natureza:', updateResult.error.message);
         return false;
       }
       return true;

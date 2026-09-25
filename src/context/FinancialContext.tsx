@@ -923,6 +923,10 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       try {
         const userNatures = localStorage.getItem(`balder_natures_${user.$id}`);
         if (userNatures) return JSON.parse(userNatures);
+        const backupNatures =
+          localStorage.getItem(`balder_natures_backup_${user.$id}`) ||
+          localStorage.getItem('balder_natures');
+        if (backupNatures) return JSON.parse(backupNatures);
       } catch {}
     }
     return [];
@@ -1475,47 +1479,140 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ]);
 
         if (isMounted) {
-          // 1. Naturezas: mescla com cache local e sobe para nuvem se necessário
-          let finalNatures = cloudNatures || [];
+          // 1. Naturezas: mescla NÃO-DESTRUTIVA entre nuvem, cache local, backups e recuperação de órfãs
+          let finalNatures: ExpenseNature[] = [...(cloudNatures || [])];
           try {
             const cacheKey = user ? `balder_natures_${user.$id}` : 'balder_natures_guest';
-            const savedNaturesStr = localStorage.getItem(cacheKey);
-            if (savedNaturesStr) {
-              const localNatures: ExpenseNature[] = JSON.parse(savedNaturesStr);
-              if (finalNatures.length === 0 && localNatures.length > 0) {
-                finalNatures = localNatures;
+            const deletedKey = user ? `balder_deleted_natures_${user.$id}` : 'balder_deleted_natures_guest';
+            const deletedIds: string[] = JSON.parse(localStorage.getItem(deletedKey) || '[]');
+
+            // Fontes candidatas para garantir que nenhuma natureza criada localmente seja perdida
+            const candidateLists: ExpenseNature[][] = [];
+
+            const primaryStr = localStorage.getItem(cacheKey);
+            if (primaryStr) {
+              try { candidateLists.push(JSON.parse(primaryStr)); } catch {}
+            }
+            if (user && !user.isGuest) {
+              const backupStr = localStorage.getItem(`balder_natures_backup_${user.$id}`);
+              if (backupStr) {
+                try { candidateLists.push(JSON.parse(backupStr)); } catch {}
+              }
+              const legacyStr = localStorage.getItem('balder_natures');
+              if (legacyStr) {
+                try { candidateLists.push(JSON.parse(legacyStr)); } catch {}
+              }
+            }
+
+            // Consolidar todas as naturezas locais únicas não deletadas
+            const localNaturesPool: ExpenseNature[] = [];
+            const seenIds = new Set<string>();
+            const seenNames = new Set<string>();
+
+            for (const list of candidateLists) {
+              if (Array.isArray(list)) {
+                for (const nat of list) {
+                  if (!nat || !nat.name || deletedIds.includes(nat.id)) continue;
+                  const normName = nat.name.trim().toLowerCase();
+                  if (!seenIds.has(nat.id) && !seenNames.has(normName)) {
+                    seenIds.add(nat.id);
+                    seenNames.add(normName);
+                    localNaturesPool.push(nat);
+                  }
+                }
+              }
+            }
+
+            if (finalNatures.length === 0 && localNaturesPool.length > 0) {
+              finalNatures = localNaturesPool;
+              if (user && !user.isGuest) {
+                localNaturesPool.forEach((nat) => {
+                  SupabaseService.addNature(nat).catch(console.error);
+                });
+              }
+            } else if (localNaturesPool.length > 0) {
+              // Enriquece naturezas da nuvem com mapeamentos e keywords locais mais recentes
+              finalNatures = finalNatures.map((cNat) => {
+                const localNat = localNaturesPool.find(
+                  (l) => l.id === cNat.id || l.name.trim().toLowerCase() === cNat.name.trim().toLowerCase()
+                );
+                if (localNat) {
+                  const mergedMappings =
+                    (!cNat.mappings || cNat.mappings.length === 0) && localNat.mappings && localNat.mappings.length > 0
+                      ? localNat.mappings
+                      : cNat.mappings;
+                  const mergedKeywords =
+                    (!cNat.keywords || cNat.keywords.length === 0) && localNat.keywords && localNat.keywords.length > 0
+                      ? localNat.keywords
+                      : cNat.keywords;
+                  return { ...cNat, mappings: mergedMappings, keywords: mergedKeywords };
+                }
+                return cNat;
+              });
+
+              // PRESERVA QUALQUER NATUREZA LOCAL QUE NÃO ESTEJA NA NUVEM!
+              const unpushedLocalNatures = localNaturesPool.filter(
+                (l) =>
+                  !finalNatures.some(
+                    (c) => c.id === l.id || c.name.trim().toLowerCase() === l.name.trim().toLowerCase()
+                  )
+              );
+
+              if (unpushedLocalNatures.length > 0) {
+                console.log(
+                  '[FinancialContext] Preservando e sincronizando naturezas locais não encontradas na nuvem:',
+                  unpushedLocalNatures.map((n) => n.name)
+                );
+                finalNatures = [...finalNatures, ...unpushedLocalNatures];
                 if (user && !user.isGuest) {
-                  localNatures.forEach((nat) => {
+                  unpushedLocalNatures.forEach((nat) => {
                     SupabaseService.addNature(nat).catch(console.error);
                   });
                 }
-              } else if (localNatures.length > 0) {
-                finalNatures = finalNatures.map((cNat) => {
-                  const localNat = localNatures.find(
-                    (l) => l.id === cNat.id || l.name.trim().toLowerCase() === cNat.name.trim().toLowerCase()
-                  );
-                  if (
-                    localNat &&
-                    (!cNat.mappings || cNat.mappings.length === 0) &&
-                    localNat.mappings &&
-                    localNat.mappings.length > 0
-                  ) {
-                    if (user && !user.isGuest) {
-                      SupabaseService.updateNature(cNat.id, { mappings: localNat.mappings }).catch(console.error);
-                    }
-                    return { ...cNat, mappings: localNat.mappings };
-                  }
-                  return cNat;
-                });
+              }
+            }
+
+            // AUTO-RECUPERAÇÃO DE NATUREZAS ÓRFÃS:
+            // Se existirem despesas cadastradas com uma categoria que não possui natureza correspondente, recria-a automaticamente!
+            const existingNatureNames = new Set(finalNatures.map((n) => n.name.trim().toLowerCase()));
+            const orphanCategories = new Set<string>();
+            const movsToCheck = [...(cloudMovements || [])];
+            for (const mov of movsToCheck) {
+              const cat = mov.category?.trim();
+              if (cat && !existingNatureNames.has(cat.toLowerCase()) && (mov.type === 'PAGAR' || mov.type === 'CARTAO')) {
+                orphanCategories.add(cat);
+              }
+            }
+
+            for (const orphanName of orphanCategories) {
+              console.log('[FinancialContext] Recuperando natureza órfã detectada nas despesas:', orphanName);
+              const recovered: ExpenseNature = {
+                id: `nat_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+                name: orphanName,
+                color: '#6366f1',
+                icon: '🏷️',
+                type: 'FIXA',
+                description: `Natureza restaurada automaticamente para a categoria ${orphanName}`,
+                mappings: [],
+                overCeilingJustification: '',
+                justificationHistory: [],
+                keywords: [orphanName.toLowerCase()],
+              };
+              finalNatures.push(recovered);
+              existingNatureNames.add(orphanName.toLowerCase());
+              if (user && !user.isGuest) {
+                SupabaseService.addNature(recovered).catch(console.error);
               }
             }
           } catch (e) {
             console.warn('Erro ao mesclar cache local de naturezas:', e);
           }
+
           if (Date.now() - lastLocalNatureMutationRef.current >= 6000) {
             setNatures(finalNatures);
             if (user && !user.isGuest) {
               localStorage.setItem(`balder_natures_${user.$id}`, JSON.stringify(finalNatures));
+              localStorage.setItem(`balder_natures_backup_${user.$id}`, JSON.stringify(finalNatures));
             }
           }
 
@@ -1885,11 +1982,41 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           localStorage.setItem(`balder_accounts_${user.$id}`, JSON.stringify(cloudAccounts));
         }
 
-        // Naturezas (pilares 4 e 5 do Get Started — crítico para mobile)
+        // Naturezas (sincronização não-destrutiva — preserva naturezas locais não sincronizadas)
         if (cloudNatures && cloudNatures.length > 0) {
           if (Date.now() - lastLocalNatureMutationRef.current >= 6000) {
-            setNatures(cloudNatures);
-            localStorage.setItem(`balder_natures_${user.$id}`, JSON.stringify(cloudNatures));
+            setNatures((currentNatures) => {
+              const deletedKey = user ? `balder_deleted_natures_${user.$id}` : 'balder_deleted_natures_guest';
+              const deletedIds: string[] = JSON.parse(localStorage.getItem(deletedKey) || '[]');
+
+              let merged = cloudNatures.filter((c) => !deletedIds.includes(c.id));
+
+              // Preserva naturezas locais que ainda não subiram para a nuvem
+              const unpushed = currentNatures.filter(
+                (loc) =>
+                  !deletedIds.includes(loc.id) &&
+                  !merged.some(
+                    (c) => c.id === loc.id || c.name?.trim().toLowerCase() === loc.name?.trim().toLowerCase()
+                  )
+              );
+
+              if (unpushed.length > 0) {
+                console.log('[FinancialContext] silentRefetch preservando naturezas locais:', unpushed.map((u) => u.name));
+                merged = [...merged, ...unpushed];
+                if (user && !user.isGuest) {
+                  unpushed.forEach((nat) => {
+                    SupabaseService.addNature(nat).catch(console.error);
+                  });
+                }
+              }
+
+              try {
+                localStorage.setItem(`balder_natures_${user.$id}`, JSON.stringify(merged));
+                localStorage.setItem(`balder_natures_backup_${user.$id}`, JSON.stringify(merged));
+              } catch {}
+
+              return merged;
+            });
           }
         }
 
