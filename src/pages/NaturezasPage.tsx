@@ -22,6 +22,8 @@ import {
   ChevronUp,
   Sparkles,
   Tag,
+  ArrowRightLeft,
+  GripVertical,
 } from 'lucide-react';
 import { Modal } from '../components/Modal';
 import { NatureModal } from '../components/NatureModal';
@@ -47,6 +49,9 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
     addItemToMapping,
     updateMappingItem,
     deleteMappingItem,
+    moveMappingItem,
+    moveMappingOrder,
+    reorderMappings,
     toggleItemFulfilled,
     saveCeilingJustification,
     getNatureCeiling,
@@ -101,6 +106,80 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
     item: MappingItem;
   } | null>(null);
   const [tagInputText, setTagInputText] = useState<string>('');
+
+  // Modal para Mover Item entre Mapeamentos / Naturezas
+  const [moveItemModalData, setMoveItemModalData] = useState<{
+    item: MappingItem;
+    sourceNatureId: string;
+    sourceMappingId: string;
+    targetNatureId: string;
+    targetMappingId: string;
+  } | null>(null);
+
+  // Mapeamentos Recolhidos / Expandidos (Persistidos localmente)
+  const [collapsedMappings, setCollapsedMappings] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('balder_collapsed_mappings');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const toggleMappingCollapse = (mappingId: string) => {
+    setCollapsedMappings((prev) => {
+      const next = { ...prev, [mappingId]: !prev[mappingId] };
+      try {
+        localStorage.setItem('balder_collapsed_mappings', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleExpandCollapseAll = (collapse: boolean) => {
+    if (!selectedNature) return;
+    const next: Record<string, boolean> = { ...collapsedMappings };
+    selectedNature.mappings.forEach((m) => {
+      next[m.id] = collapse;
+    });
+    setCollapsedMappings(next);
+    try {
+      localStorage.setItem('balder_collapsed_mappings', JSON.stringify(next));
+    } catch {}
+  };
+
+  // Drag and Drop para reordenar mapeamentos
+  const [draggedMappingId, setDraggedMappingId] = useState<string | null>(null);
+  const [dragOverMappingId, setDragOverMappingId] = useState<string | null>(null);
+
+  const handleDragStart = (e: React.DragEvent, mappingId: string) => {
+    setDraggedMappingId(mappingId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, mappingId: string) => {
+    e.preventDefault();
+    if (mappingId !== dragOverMappingId) {
+      setDragOverMappingId(mappingId);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetMappingId: string) => {
+    e.preventDefault();
+    setDragOverMappingId(null);
+    if (!draggedMappingId || draggedMappingId === targetMappingId || !selectedNature) return;
+
+    const currentMappings = [...selectedNature.mappings];
+    const fromIndex = currentMappings.findIndex((m) => m.id === draggedMappingId);
+    const toIndex = currentMappings.findIndex((m) => m.id === targetMappingId);
+
+    if (fromIndex !== -1 && toIndex !== -1) {
+      const [moved] = currentMappings.splice(fromIndex, 1);
+      currentMappings.splice(toIndex, 0, moved);
+      reorderMappings(selectedNature.id, currentMappings);
+    }
+    setDraggedMappingId(null);
+  };
 
   // Modais de Criação e Edição de Natureza
   const [isNatureModalOpen, setIsNatureModalOpen] = useState(false);
@@ -1178,16 +1257,140 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                 </div>
               ) : (
                 <div className="mappings-list-container">
-                  {selectedNature.mappings.map((mapping) => {
+                  {/* Barra de Ferramentas dos Mapeamentos: Contagem, Instrução e Recolher/Expandir Todos */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      marginTop: '16px',
+                      marginBottom: '6px',
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      border: '1px solid rgba(255, 255, 255, 0.06)',
+                      flexWrap: 'wrap',
+                      gap: '8px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        {selectedNature.mappings.length}{' '}
+                        {selectedNature.mappings.length === 1 ? 'Mapeamento' : 'Mapeamentos'} nesta Natureza
+                      </span>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        • Arraste ou use as setas para ordenar
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-xs text-muted hover:text-white"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '3px 8px' }}
+                        onClick={() => handleExpandCollapseAll(false)}
+                        title="Expandir todos os mapeamentos desta natureza"
+                      >
+                        <ChevronDown size={13} />
+                        <span>Expandir Todos</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-xs text-muted hover:text-white"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px', padding: '3px 8px' }}
+                        onClick={() => handleExpandCollapseAll(true)}
+                        title="Recolher todos os mapeamentos desta natureza"
+                      >
+                        <ChevronUp size={13} />
+                        <span>Recolher Todos</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {selectedNature.mappings.map((mapping, mappingIndex) => {
+                    const isCollapsed = !!collapsedMappings[mapping.id];
+                    const isDragging = draggedMappingId === mapping.id;
+                    const isOver = dragOverMappingId === mapping.id;
                     const mappingTotal = (mapping.items || []).reduce(
                       (acc, it) => acc + it.totalValue,
                       0
                     );
 
                     return (
-                      <div key={mapping.id} className="mapping-card glass-card mt-4">
+                      <div
+                        key={mapping.id}
+                        className={`mapping-card glass-card mt-4 ${isCollapsed ? 'mapping-collapsed' : ''}`}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, mapping.id)}
+                        onDragOver={(e) => handleDragOver(e, mapping.id)}
+                        onDrop={(e) => handleDrop(e, mapping.id)}
+                        onDragEnd={() => {
+                          setDraggedMappingId(null);
+                          setDragOverMappingId(null);
+                        }}
+                        style={{
+                          opacity: isDragging ? 0.35 : 1,
+                          border: isOver ? '2px dashed var(--accent-cyan)' : undefined,
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
                         <div className="mapping-card-header">
-                          <div className="mapping-header-info" style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                          <div className="mapping-header-info" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            {/* Alça de Arraste e Setas de Ordenação */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', marginRight: '2px' }}>
+                              <div
+                                style={{
+                                  cursor: 'grab',
+                                  color: 'var(--text-muted)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  padding: '2px',
+                                }}
+                                title="Arraste para reordenar este mapeamento"
+                              >
+                                <GripVertical size={16} />
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-xs p-0 text-slate-400 hover:text-white"
+                                  style={{
+                                    height: '13px',
+                                    width: '18px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                  }}
+                                  disabled={mappingIndex === 0}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    moveMappingOrder(selectedNature.id, mapping.id, 'UP');
+                                  }}
+                                  title="Mover mapeamento para cima"
+                                >
+                                  <ChevronUp size={11} style={{ opacity: mappingIndex === 0 ? 0.2 : 1 }} />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-xs p-0 text-slate-400 hover:text-white"
+                                  style={{
+                                    height: '13px',
+                                    width: '18px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                  }}
+                                  disabled={mappingIndex === selectedNature.mappings.length - 1}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    moveMappingOrder(selectedNature.id, mapping.id, 'DOWN');
+                                  }}
+                                  title="Mover mapeamento para baixo"
+                                >
+                                  <ChevronDown size={11} style={{ opacity: mappingIndex === selectedNature.mappings.length - 1 ? 0.2 : 1 }} />
+                                </button>
+                              </div>
+                            </div>
+
                             {/* Emoji Próprio do Mapeamento */}
                             <div
                               className="mapping-icon-badge"
@@ -1338,6 +1541,25 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                           )}
                           </div>
                           <div className="mapping-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {/* Botão de Recolher / Expandir Mapeamento */}
+                            <button
+                              type="button"
+                              className="btn btn-outline btn-xs"
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                color: isCollapsed ? '#FCD34D' : '#94A3B8',
+                                borderColor: isCollapsed ? 'rgba(252, 211, 77, 0.4)' : 'rgba(255, 255, 255, 0.12)',
+                                background: isCollapsed ? 'rgba(252, 211, 77, 0.08)' : 'transparent',
+                              }}
+                              title={isCollapsed ? 'Expandir itens deste mapeamento' : 'Recolher itens deste mapeamento'}
+                              onClick={() => toggleMappingCollapse(mapping.id)}
+                            >
+                              {isCollapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
+                              <span>{isCollapsed ? 'Expandir' : 'Recolher'}</span>
+                            </button>
+
                             <button
                               type="button"
                               className="btn btn-outline btn-xs text-cyan"
@@ -1346,7 +1568,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                               style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
                             >
                               <Edit2 size={12} />
-                              <span>Editar Mapeamento</span>
+                              <span>Editar</span>
                             </button>
 
                             <button
@@ -1365,9 +1587,43 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                           </div>
                         </div>
 
-                        {/* TABELA DE ITENS DO MAPEAMENTO COM EDIÇÃO INLINE */}
-                        <div className="mapping-items-table-wrapper mt-3">
-                          <table className="natureza-items-table">
+                        {/* Visualização quando o Mapeamento estiver recolhido */}
+                        {isCollapsed ? (
+                          <div
+                            style={{
+                              padding: '10px 14px',
+                              background: 'rgba(255, 255, 255, 0.02)',
+                              borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              fontSize: '12px',
+                              color: 'var(--text-muted)',
+                              cursor: 'pointer',
+                            }}
+                            onClick={() => toggleMappingCollapse(mapping.id)}
+                          >
+                            <span>
+                              {mapping.items.length}{' '}
+                              {mapping.items.length === 1 ? 'item cadastrado' : 'itens cadastrados'} • Subtotal:{' '}
+                              <strong style={{ color: '#67E8F9' }}>
+                                {mappingTotal.toLocaleString('pt-BR', {
+                                  style: 'currency',
+                                  currency: 'BRL',
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 3,
+                                })}
+                              </strong>
+                            </span>
+                            <span style={{ color: 'var(--accent-cyan)', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              Clique para expandir itens <ChevronDown size={12} />
+                            </span>
+                          </div>
+                        ) : (
+                          <>
+                            {/* TABELA DE ITENS DO MAPEAMENTO COM EDIÇÃO INLINE */}
+                            <div className="mapping-items-table-wrapper mt-3">
+                              <table className="natureza-items-table">
                             <thead>
                               <tr>
                                 <th style={{ width: '25%' }}>Descrição / Item</th>
@@ -1690,6 +1946,22 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                     <td>
                                       <div className="flex items-center gap-1">
                                         <button
+                                          type="button"
+                                          className="btn btn-ghost btn-xs text-amber-400 hover:text-amber-300"
+                                          title="Mover item para outra natureza ou mapeamento"
+                                          onClick={() => {
+                                            setMoveItemModalData({
+                                              item,
+                                              sourceNatureId: selectedNature.id,
+                                              sourceMappingId: mapping.id,
+                                              targetNatureId: selectedNature.id,
+                                              targetMappingId: mapping.id,
+                                            });
+                                          }}
+                                        >
+                                          <ArrowRightLeft size={13} />
+                                        </button>
+                                        <button
                                           className="btn btn-ghost btn-xs text-cyan"
                                           title="Ajustar item / dia"
                                           onClick={() => startEditingItem(item)}
@@ -1969,8 +2241,10 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                             </tbody>
                           </table>
                         </div>
-                      </div>
-                    );
+                      </>
+                    )}
+                  </div>
+                );
                   })}
                 </div>
               )}
@@ -2200,6 +2474,164 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                 onClick={() => setKeywordModalData(null)}
               >
                 Concluir
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal para Mover Item entre Mapeamentos / Naturezas */}
+      {moveItemModalData && (
+        <Modal
+          isOpen={!!moveItemModalData}
+          onClose={() => setMoveItemModalData(null)}
+          title={`Mover Item: "${moveItemModalData.item.description}"`}
+          maxWidth="520px"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Informações Atuais */}
+            <div
+              style={{
+                padding: '12px 14px',
+                borderRadius: '10px',
+                background: 'rgba(255, 255, 255, 0.04)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                fontSize: '12.5px',
+                color: 'var(--text-secondary)',
+                lineHeight: '1.6',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                <span className="badge badge-cyan font-semibold">Origem</span>
+                <span style={{ color: '#fff', fontWeight: 600 }}>
+                  {natures.find((n) => n.id === moveItemModalData.sourceNatureId)?.name || 'Natureza Atual'}
+                </span>
+                <span>➔</span>
+                <span style={{ color: 'var(--accent-cyan)', fontWeight: 600 }}>
+                  {natures
+                    .find((n) => n.id === moveItemModalData.sourceNatureId)
+                    ?.mappings.find((m) => m.id === moveItemModalData.sourceMappingId)?.name || 'Mapeamento Atual'}
+                </span>
+              </div>
+              <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                Item: <strong style={{ color: '#fff' }}>{moveItemModalData.item.description}</strong> • Valor:{' '}
+                <strong style={{ color: '#67E8F9' }}>
+                  {moveItemModalData.item.totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </strong>
+              </div>
+            </div>
+
+            {/* Selecionar Natureza de Destino */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
+                Natureza de Destino:
+              </label>
+              <select
+                className="form-input form-input-sm"
+                style={{ width: '100%' }}
+                value={moveItemModalData.targetNatureId}
+                onChange={(e) => {
+                  const newNatId = e.target.value;
+                  const newNat = natures.find((n) => n.id === newNatId);
+                  const firstMapId = newNat?.mappings[0]?.id || '';
+                  setMoveItemModalData((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          targetNatureId: newNatId,
+                          targetMappingId: firstMapId,
+                        }
+                      : null
+                  );
+                }}
+              >
+                {natures.map((nat) => (
+                  <option key={nat.id} value={nat.id}>
+                    {nat.icon || '🏷️'} {nat.name} ({nat.mappings.length} {nat.mappings.length === 1 ? 'mapeamento' : 'mapeamentos'})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Selecionar Mapeamento de Destino */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
+                Mapeamento de Destino:
+              </label>
+              {(() => {
+                const targetNat = natures.find((n) => n.id === moveItemModalData.targetNatureId);
+                const availableMappings = targetNat?.mappings || [];
+
+                if (availableMappings.length === 0) {
+                  return (
+                    <div
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                        color: '#FCA5A5',
+                        fontSize: '12px',
+                      }}
+                    >
+                      ⚠️ A natureza selecionada ainda não possui nenhum mapeamento cadastrado. Crie um mapeamento nela primeiro.
+                    </div>
+                  );
+                }
+
+                return (
+                  <select
+                    className="form-input form-input-sm"
+                    style={{ width: '100%' }}
+                    value={moveItemModalData.targetMappingId}
+                    onChange={(e) => {
+                      const newMapId = e.target.value;
+                      setMoveItemModalData((prev) => (prev ? { ...prev, targetMappingId: newMapId } : null));
+                    }}
+                  >
+                    {availableMappings.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.icon || '📋'} {m.name} ({m.items.length} {m.items.length === 1 ? 'item' : 'itens'})
+                      </option>
+                    ))}
+                  </select>
+                );
+              })()}
+            </div>
+
+            {/* Botões de Ação */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '12px', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => setMoveItemModalData(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}
+                disabled={
+                  !moveItemModalData.targetMappingId ||
+                  (moveItemModalData.sourceNatureId === moveItemModalData.targetNatureId &&
+                    moveItemModalData.sourceMappingId === moveItemModalData.targetMappingId)
+                }
+                onClick={() => {
+                  const success = moveMappingItem(
+                    moveItemModalData.sourceNatureId,
+                    moveItemModalData.sourceMappingId,
+                    moveItemModalData.targetNatureId,
+                    moveItemModalData.targetMappingId,
+                    moveItemModalData.item.id
+                  );
+                  if (success) {
+                    setMoveItemModalData(null);
+                  }
+                }}
+              >
+                <ArrowRightLeft size={14} />
+                <span>Confirmar e Mover Item</span>
               </button>
             </div>
           </div>

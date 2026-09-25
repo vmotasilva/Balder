@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
+import React, { createContext, useContext, useState, useMemo, useEffect, useRef } from 'react';
 import { SupabaseService } from '../services/supabaseService';
 import { supabase, isSupabaseConfigured, TABLES } from '../lib/supabase';
 import { useAuth } from './AuthContext';
@@ -189,6 +189,9 @@ interface FinancialContextType {
   addItemToMapping: (natureId: string, mappingId: string, item: Omit<MappingItem, 'id' | 'totalValue'>, customId?: string) => string;
   updateMappingItem: (natureId: string, mappingId: string, itemId: string, updates: Partial<MappingItem>) => void;
   deleteMappingItem: (natureId: string, mappingId: string, itemId: string) => void;
+  moveMappingItem: (fromNatureId: string, fromMappingId: string, toNatureId: string, toMappingId: string, itemId: string) => boolean;
+  moveMappingOrder: (natureId: string, mappingId: string, direction: 'UP' | 'DOWN') => void;
+  reorderMappings: (natureId: string, newMappings: FixedExpenseMapping[]) => void;
   toggleItemFulfilled: (natureId: string, mappingId: string, itemId: string) => void;
   markMappingItemsFulfilled: (itemsToFulfill: Array<{ natureId: string; mappingId: string; itemId: string; realizedValue?: number }>) => void;
   saveCeilingJustification: (natureId: string, reason: string) => void;
@@ -925,6 +928,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return [];
   });
 
+  // Timestamp da última mutação local em naturezas (protege contra race condition com leituras atrasadas do Supabase)
+  const lastLocalNatureMutationRef = useRef<number>(0);
+
   // Gestão de Contas Bancárias
   const addAccount = (accountData: Omit<BankAccount, 'id'>) => {
     const newAcc: BankAccount = {
@@ -1506,9 +1512,11 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           } catch (e) {
             console.warn('Erro ao mesclar cache local de naturezas:', e);
           }
-          setNatures(finalNatures);
-          if (user && !user.isGuest) {
-            localStorage.setItem(`balder_natures_${user.$id}`, JSON.stringify(finalNatures));
+          if (Date.now() - lastLocalNatureMutationRef.current >= 6000) {
+            setNatures(finalNatures);
+            if (user && !user.isGuest) {
+              localStorage.setItem(`balder_natures_${user.$id}`, JSON.stringify(finalNatures));
+            }
           }
 
           // 2. Metas Financeiras
@@ -1879,8 +1887,10 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
         // Naturezas (pilares 4 e 5 do Get Started — crítico para mobile)
         if (cloudNatures && cloudNatures.length > 0) {
-          setNatures(cloudNatures);
-          localStorage.setItem(`balder_natures_${user.$id}`, JSON.stringify(cloudNatures));
+          if (Date.now() - lastLocalNatureMutationRef.current >= 6000) {
+            setNatures(cloudNatures);
+            localStorage.setItem(`balder_natures_${user.$id}`, JSON.stringify(cloudNatures));
+          }
         }
 
         // Cartões e bancos (pilar 3 do Get Started)
@@ -3405,6 +3415,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     modifiedNatureId?: string,
     fieldsToSync?: Partial<ExpenseNature>
   ) => {
+    lastLocalNatureMutationRef.current = Date.now();
     try {
       const storageKey = user && !user.isGuest ? `balder_natures_${user.$id}` : 'balder_natures_guest';
       localStorage.setItem(storageKey, JSON.stringify(updatedNatures));
@@ -3421,9 +3432,13 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           justificationHistory: targetNat.justificationHistory,
           keywords: targetNat.keywords,
         };
-        SupabaseService.updateNature(targetNat.id, payload).catch((err) =>
-          console.error(`Erro ao sincronizar natureza ${targetNat.id} no Supabase:`, err)
-        );
+        SupabaseService.updateNature(targetNat.id, payload)
+          .then(() => {
+            lastLocalNatureMutationRef.current = Date.now();
+          })
+          .catch((err) =>
+            console.error(`Erro ao sincronizar natureza ${targetNat.id} no Supabase:`, err)
+          );
       }
     }
   };
@@ -3711,6 +3726,131 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return nat;
       });
       saveNaturesData(next, natureId, { mappings: updatedMappings });
+      return next;
+    });
+  };
+
+  // Mover Item de Mapeamento para outro Mapeamento (na mesma Natureza ou entre Naturezas)
+  const moveMappingItem = (
+    fromNatureId: string,
+    fromMappingId: string,
+    toNatureId: string,
+    toMappingId: string,
+    itemId: string
+  ): boolean => {
+    let movedItem: MappingItem | null = null;
+
+    setNatures((prev) => {
+      // 1. Localizar o item a ser movido
+      for (const nat of prev) {
+        if (nat.id === fromNatureId) {
+          const m = nat.mappings.find((x) => x.id === fromMappingId);
+          if (m) {
+            const it = m.items.find((x) => x.id === itemId);
+            if (it) {
+              movedItem = it;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!movedItem) return prev;
+
+      let updatedFromMappings: FixedExpenseMapping[] = [];
+      let updatedToMappings: FixedExpenseMapping[] = [];
+
+      const next = prev.map((nat) => {
+        // Se a movimentação for dentro da mesma natureza
+        if (fromNatureId === toNatureId && nat.id === fromNatureId) {
+          const newMappings = nat.mappings.map((m) => {
+            if (m.id === fromMappingId && m.id === toMappingId) {
+              return m; // sem alteração se o destino for o mesmo
+            }
+            if (m.id === fromMappingId) {
+              return { ...m, items: m.items.filter((x) => x.id !== itemId) };
+            }
+            if (m.id === toMappingId) {
+              return { ...m, items: [...m.items, movedItem!] };
+            }
+            return m;
+          });
+          updatedFromMappings = newMappings;
+          return { ...nat, mappings: newMappings };
+        }
+
+        // Movimentação entre naturezas distintas
+        if (nat.id === fromNatureId) {
+          const newMappings = nat.mappings.map((m) => {
+            if (m.id === fromMappingId) {
+              return { ...m, items: m.items.filter((x) => x.id !== itemId) };
+            }
+            return m;
+          });
+          updatedFromMappings = newMappings;
+          return { ...nat, mappings: newMappings };
+        }
+
+        if (nat.id === toNatureId) {
+          const newMappings = nat.mappings.map((m) => {
+            if (m.id === toMappingId) {
+              return { ...m, items: [...m.items, movedItem!] };
+            }
+            return m;
+          });
+          updatedToMappings = newMappings;
+          return { ...nat, mappings: newMappings };
+        }
+
+        return nat;
+      });
+
+      if (fromNatureId === toNatureId) {
+        saveNaturesData(next, fromNatureId, { mappings: updatedFromMappings });
+      } else {
+        saveNaturesData(next, fromNatureId, { mappings: updatedFromMappings });
+        saveNaturesData(next, toNatureId, { mappings: updatedToMappings });
+      }
+
+      return next;
+    });
+
+    return !!movedItem;
+  };
+
+  // Mover posição do Mapeamento (para cima ou para baixo)
+  const moveMappingOrder = (natureId: string, mappingId: string, direction: 'UP' | 'DOWN') => {
+    setNatures((prev) => {
+      let updatedMappings: FixedExpenseMapping[] = [];
+      const next = prev.map((nat) => {
+        if (nat.id === natureId) {
+          const list = [...nat.mappings];
+          const idx = list.findIndex((m) => m.id === mappingId);
+          if (idx === -1) return nat;
+          const targetIdx = direction === 'UP' ? idx - 1 : idx + 1;
+          if (targetIdx < 0 || targetIdx >= list.length) return nat;
+          const [removed] = list.splice(idx, 1);
+          list.splice(targetIdx, 0, removed);
+          updatedMappings = list;
+          return { ...nat, mappings: list };
+        }
+        return nat;
+      });
+      saveNaturesData(next, natureId, { mappings: updatedMappings });
+      return next;
+    });
+  };
+
+  // Reordenar todos os mapeamentos de uma natureza
+  const reorderMappings = (natureId: string, newMappings: FixedExpenseMapping[]) => {
+    setNatures((prev) => {
+      const next = prev.map((nat) => {
+        if (nat.id === natureId) {
+          return { ...nat, mappings: newMappings };
+        }
+        return nat;
+      });
+      saveNaturesData(next, natureId, { mappings: newMappings });
       return next;
     });
   };
@@ -4025,6 +4165,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         addItemToMapping,
         updateMappingItem,
         deleteMappingItem,
+        moveMappingItem,
+        moveMappingOrder,
+        reorderMappings,
         toggleItemFulfilled,
         markMappingItemsFulfilled,
         saveCeilingJustification,

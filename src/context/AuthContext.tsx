@@ -34,11 +34,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Escuta mudanças de autenticação no Supabase em tempo real
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
-        setUser({
-          $id: session.user.id,
-          name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Usuário',
-          email: session.user.email || '',
-          isGuest: false,
+        setUser((prev) => {
+          if (prev && !prev.isGuest && prev.$id === session.user.id && prev.email === (session.user.email || '')) {
+            return prev;
+          }
+          return {
+            $id: session.user.id,
+            name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Usuário',
+            email: session.user.email || '',
+            isGuest: false,
+          };
         });
         sessionStorage.removeItem('balder_guest_user');
       } else {
@@ -67,11 +72,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (isSupabaseConfigured) {
         const { data: { session }, error } = await supabase.auth.getSession();
         if (session?.user && !error) {
-          setUser({
-            $id: session.user.id,
-            name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Usuário',
-            email: session.user.email || '',
-            isGuest: false,
+          setUser((prev) => {
+            if (prev && !prev.isGuest && prev.$id === session.user.id && prev.email === (session.user.email || '')) {
+              return prev;
+            }
+            return {
+              $id: session.user.id,
+              name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Usuário',
+              email: session.user.email || '',
+              isGuest: false,
+            };
           });
           setIsLoading(false);
           return;
