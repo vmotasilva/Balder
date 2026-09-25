@@ -21,7 +21,9 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles,
+  Tag,
 } from 'lucide-react';
+import { Modal } from '../components/Modal';
 import { NatureModal } from '../components/NatureModal';
 import { MappingModal } from '../components/MappingModal';
 import {
@@ -90,6 +92,15 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
   const [editDayOfWeek, setEditDayOfWeek] = useState<'DOMINGO' | 'SEGUNDA' | 'TERCA' | 'QUARTA' | 'QUINTA' | 'SEXTA' | 'SABADO'>('SABADO');
   const [editDayOfFortnight, setEditDayOfFortnight] = useState<number>(1);
   const [editDayOfMonth, setEditDayOfMonth] = useState<number>(10);
+  const [editKeywords, setEditKeywords] = useState<string>('');
+
+  // Modal para Gerenciar Palavras-chave da IA por Item
+  const [keywordModalData, setKeywordModalData] = useState<{
+    natureId: string;
+    mappingId: string;
+    item: MappingItem;
+  } | null>(null);
+  const [tagInputText, setTagInputText] = useState<string>('');
 
   // Modais de Criação e Edição de Natureza
   const [isNatureModalOpen, setIsNatureModalOpen] = useState(false);
@@ -108,6 +119,54 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
   // Modais de Criação e Edição de Mapeamento
   const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
   const [mappingToEdit, setMappingToEdit] = useState<FixedExpenseMapping | null>(null);
+
+  // Palavras-chave em tempo real para o modal de tags
+  const currentModalItemKeywords: string[] = useMemo(() => {
+    if (!keywordModalData) return [];
+    const targetNat = natures.find((n) => n.id === keywordModalData.natureId);
+    const targetMap = targetNat?.mappings.find((m) => m.id === keywordModalData.mappingId);
+    const liveItem = targetMap?.items.find((i) => i.id === keywordModalData.item.id);
+    return liveItem?.keywords || keywordModalData.item.keywords || [];
+  }, [keywordModalData, natures]);
+
+  const updateItemKeywords = (newKeywords: string[]) => {
+    if (!keywordModalData) return;
+    const cleanList = Array.from(new Set(newKeywords.map((k) => k.toLowerCase().trim()).filter((k) => k.length >= 2)));
+    updateMappingItem(keywordModalData.natureId, keywordModalData.mappingId, keywordModalData.item.id, {
+      keywords: cleanList,
+    });
+  };
+
+  const handleAddSingleKeyword = (kw: string) => {
+    const clean = kw.toLowerCase().trim();
+    if (!clean || currentModalItemKeywords.includes(clean)) return;
+    updateItemKeywords([...currentModalItemKeywords, clean]);
+  };
+
+  const handleAddTagFromInput = () => {
+    if (!tagInputText.trim()) return;
+    const rawItems = tagInputText.split(/[,;\n]+/).map((s) => s.trim().toLowerCase()).filter((s) => s.length >= 2);
+    if (rawItems.length === 0) return;
+    updateItemKeywords([...currentModalItemKeywords, ...rawItems]);
+    setTagInputText('');
+  };
+
+  const suggestedKeywords = useMemo(() => {
+    if (!keywordModalData) return [];
+    const desc = keywordModalData.item.description.toLowerCase().trim();
+    const cleanDesc = desc.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const tokens = cleanDesc.split(/[\s,.\-\/]+/).filter((t) => t.length >= 3);
+    const suggestions: string[] = [];
+
+    if (cleanDesc && cleanDesc.length >= 3 && !currentModalItemKeywords.includes(cleanDesc)) {
+      suggestions.push(cleanDesc);
+    }
+    tokens.forEach((t) => {
+      if (!currentModalItemKeywords.includes(t)) suggestions.push(t);
+    });
+
+    return suggestions.slice(0, 5);
+  }, [keywordModalData, currentModalItemKeywords]);
   const [isMappingHelpOpen, setIsMappingHelpOpen] = useState(false);
 
   const handleOpenCreateMapping = () => {
@@ -217,6 +276,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
     setEditDayOfWeek(item.dayOfWeek || 'SABADO');
     setEditDayOfFortnight(item.dayOfFortnight || 1);
     setEditDayOfMonth(item.dayOfMonth !== undefined && item.dayOfMonth > 0 ? item.dayOfMonth : 10);
+    setEditKeywords(item.keywords ? item.keywords.join(', ') : '');
   };
 
   const handleSaveItemEdit = (mappingId: string, itemId: string) => {
@@ -230,6 +290,11 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
         ? editPrice
         : parseFloat(String(editPrice).replace(',', '.')) || 0;
 
+    const parsedKeywords = editKeywords
+      .split(/[,;\n]+/)
+      .map((k) => k.trim().toLowerCase())
+      .filter((k) => k.length >= 2);
+
     updateMappingItem(selectedNature.id, mappingId, itemId, {
       description: editDesc.trim(),
       quantity: parsedQty > 0 ? Math.round(parsedQty * 1000) / 1000 : 0.001,
@@ -239,6 +304,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
       dayOfWeek: editRecurrenceType === 'SEMANAL' ? editDayOfWeek : undefined,
       dayOfFortnight: editRecurrenceType === 'QUINZENAL' ? editDayOfFortnight : undefined,
       dayOfMonth: editRecurrenceType === 'MENSAL' ? editDayOfMonth : undefined,
+      keywords: Array.from(new Set(parsedKeywords)),
     });
     setEditingItemId(null);
   };
@@ -1331,13 +1397,24 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                   return (
                                     <tr key={item.id} className="item-row-editing bg-[rgba(2,132,199,0.08)]">
                                       <td>
-                                        <input
-                                          type="text"
-                                          className="form-input form-input-sm"
-                                          value={editDesc}
-                                          onChange={(e) => setEditDesc(e.target.value)}
-                                          autoFocus
-                                        />
+                                        <div className="flex flex-col gap-1">
+                                          <input
+                                            type="text"
+                                            className="form-input form-input-sm"
+                                            value={editDesc}
+                                            onChange={(e) => setEditDesc(e.target.value)}
+                                            autoFocus
+                                            placeholder="Descrição do item"
+                                          />
+                                          <input
+                                            type="text"
+                                            className="form-input form-input-sm text-xs py-1"
+                                            placeholder="🏷️ Palavras-chave p/ IA (ex: pilão, melitta, 500g)"
+                                            value={editKeywords}
+                                            onChange={(e) => setEditKeywords(e.target.value)}
+                                            title="Palavras-chave ou termos de notas fiscais separadas por vírgula"
+                                          />
+                                        </div>
                                       </td>
                                       <td>
                                         <input
@@ -1471,8 +1548,9 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                     className={item.isFulfilled ? 'item-row-fulfilled' : ''}
                                   >
                                     <td>
-                                      <div className="item-desc-cell">
-                                        <button
+                                      <div className="item-desc-cell" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                          <button
                                           className={`item-check-circle ${
                                             item.isFulfilled ? 'checked' : ''
                                           }`}
@@ -1492,14 +1570,66 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                           {item.isFulfilled ? '✓' : ''}
                                         </button>
                                         <span
-                                          className={
-                                            item.isFulfilled
-                                              ? 'line-through text-muted'
-                                              : 'font-semibold'
-                                          }
-                                        >
-                                          {item.description}
-                                        </span>
+                                            className={
+                                              item.isFulfilled
+                                                ? 'line-through text-muted'
+                                                : 'font-semibold text-white'
+                                            }
+                                          >
+                                            {item.description}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            className="btn btn-ghost btn-xs text-indigo-400 hover:text-indigo-300 p-0.5 ml-1 transition-all"
+                                            style={{ padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                            title="Gerenciar palavras-chave da IA para este item"
+                                            onClick={() => {
+                                              setKeywordModalData({
+                                                natureId: selectedNature.id,
+                                                mappingId: mapping.id,
+                                                item,
+                                              });
+                                              setTagInputText('');
+                                            }}
+                                          >
+                                            <Tag size={12} />
+                                            {item.keywords && item.keywords.length > 0 ? (
+                                              <span className="text-[10px] font-mono font-bold text-indigo-300">
+                                                {item.keywords.length}
+                                              </span>
+                                            ) : (
+                                              <span className="text-[10px] text-indigo-400/80 hover:underline">
+                                                + palavras-chave
+                                              </span>
+                                            )}
+                                          </button>
+                                        </div>
+
+                                        {item.keywords && item.keywords.length > 0 && (
+                                          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', paddingLeft: '24px', marginTop: '4px' }}>
+                                            {item.keywords.map((kw, kwIdx) => (
+                                              <span
+                                                key={kwIdx}
+                                                className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 font-mono"
+                                                title={`Palavra-chave cadastrada para a IA: "${kw}"`}
+                                              >
+                                                <span>#{kw}</span>
+                                                <button
+                                                  type="button"
+                                                  className="hover:text-rose-400 ml-0.5 text-[11px]"
+                                                  title={`Remover palavra-chave "${kw}"`}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const nextKws = (item.keywords || []).filter((_, idx) => idx !== kwIdx);
+                                                    updateMappingItem(selectedNature.id, mapping.id, item.id, { keywords: nextKws });
+                                                  }}
+                                                >
+                                                  ×
+                                                </button>
+                                              </span>
+                                            ))}
+                                          </div>
+                                        )}
                                       </div>
                                     </td>
                                     <td>
@@ -1883,6 +2013,197 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
           natureColor={selectedNature.color}
           mappingToEdit={mappingToEdit}
         />
+      )}
+
+      {/* Modal Interativo de Palavras-Chave para IA & Notas Fiscais */}
+      {keywordModalData && (
+        <Modal
+          isOpen={!!keywordModalData}
+          onClose={() => setKeywordModalData(null)}
+          title={`Palavras-chave da IA — ${keywordModalData.item.description}`}
+          subtitle="Ensinar a IA a reconhecer este item automaticamente em notas fiscais e fotos"
+          maxWidth="560px"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Box explicativo */}
+            <div
+              style={{
+                padding: '12px 14px',
+                borderRadius: '10px',
+                background: 'rgba(99, 102, 241, 0.1)',
+                border: '1px solid rgba(99, 102, 241, 0.25)',
+                fontSize: '12.5px',
+                color: '#C7D2FE',
+                lineHeight: '1.5',
+              }}
+            >
+              <strong style={{ color: '#fff', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                <Sparkles size={14} className="text-indigo-400" />
+                Como o Forseti IA usa as palavras-chave:
+              </strong>
+              Ao anexar fotos de cupons fiscais ou faturas, a IA lê o texto impresso (ex: <em>CAFE PILAO TRAD 500G</em>). Com as palavras-chave abaixo cadastradas, a IA reconhece o item imediatamente com 100% de assertividade!
+            </div>
+
+            {/* Input de Adição de Tags */}
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>
+                Adicionar palavra-chave ou termo de nota fiscal:
+              </label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  className="form-input form-input-sm"
+                  style={{ flex: 1 }}
+                  placeholder="Ex: pilao, cafe 500g, melitta (use vírgula para várias)..."
+                  value={tagInputText}
+                  onChange={(e) => setTagInputText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddTagFromInput();
+                    }
+                  }}
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}
+                  onClick={handleAddTagFromInput}
+                >
+                  <Plus size={14} />
+                  <span>Adicionar</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Sugestões Inteligentes */}
+            {suggestedKeywords.length > 0 && (
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '6px' }}>
+                  Sugestões Rápidas:
+                </span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {suggestedKeywords.map((sug, sIdx) => (
+                    <button
+                      key={sIdx}
+                      type="button"
+                      style={{
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        border: '1px dashed rgba(99, 102, 241, 0.4)',
+                        color: '#A5B4FC',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                      onClick={() => handleAddSingleKeyword(sug)}
+                      title="Clique para adicionar esta palavra-chave"
+                    >
+                      <Plus size={10} />
+                      <span>{sug}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Lista Atual de Palavras-Chave */}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Palavras-chave Cadastradas ({currentModalItemKeywords.length})
+                </span>
+                {currentModalItemKeywords.length > 0 && (
+                  <button
+                    type="button"
+                    style={{ background: 'none', border: 'none', color: '#F87171', fontSize: '11px', cursor: 'pointer', textDecoration: 'underline' }}
+                    onClick={() => {
+                      if (window.confirm('Deseja limpar todas as palavras-chave deste item?')) {
+                        updateItemKeywords([]);
+                      }
+                    }}
+                  >
+                    Limpar todas
+                  </button>
+                )}
+              </div>
+
+              {currentModalItemKeywords.length === 0 ? (
+                <div
+                  style={{
+                    padding: '16px',
+                    borderRadius: '8px',
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    border: '1px dashed rgba(255, 255, 255, 0.08)',
+                    textAlign: 'center',
+                    fontSize: '12px',
+                    color: 'var(--text-muted)',
+                  }}
+                >
+                  Nenhuma palavra-chave cadastrada ainda. Adicione termos acima para acelerar a IA!
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', maxHeight: '180px', overflowY: 'auto', padding: '4px' }}>
+                  {currentModalItemKeywords.map((kw, idx) => (
+                    <span
+                      key={idx}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: '8px',
+                        background: 'rgba(99, 102, 241, 0.18)',
+                        border: '1px solid rgba(99, 102, 241, 0.35)',
+                        color: '#C7D2FE',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        fontFamily: 'monospace',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <span>#{kw}</span>
+                      <button
+                        type="button"
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#A5B4FC',
+                          cursor: 'pointer',
+                          padding: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                        }}
+                        className="hover:text-rose-400"
+                        onClick={() => {
+                          const next = currentModalItemKeywords.filter((_, i) => i !== idx);
+                          updateItemKeywords(next);
+                        }}
+                        title={`Remover #${kw}`}
+                      >
+                        <X size={13} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Rodapé com botão de fechar */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '12px', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => setKeywordModalData(null)}
+              >
+                Concluir
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

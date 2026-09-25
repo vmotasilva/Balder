@@ -3235,17 +3235,32 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                                     {mapping.items.map((item) => (
                                       <tr key={item.id} className={item.isFulfilled ? 'item-row-fulfilled' : ''}>
                                         <td>
-                                          <div className="item-desc-cell">
-                                            <button
-                                              className={`item-check-circle ${item.isFulfilled ? 'checked' : ''}`}
-                                              title={item.isFulfilled ? 'Realizado no mês' : 'Pendente de compra'}
-                                              onClick={() => toggleItemFulfilled(selectedNature.id, mapping.id, item.id)}
-                                            >
-                                              {item.isFulfilled ? '✓' : ''}
-                                            </button>
-                                            <span className={item.isFulfilled ? 'line-through text-muted' : 'font-semibold'}>
-                                              {item.description}
-                                            </span>
+                                          <div className="item-desc-cell" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                              <button
+                                                className={`item-check-circle ${item.isFulfilled ? 'checked' : ''}`}
+                                                title={item.isFulfilled ? 'Realizado no mês' : 'Pendente de compra'}
+                                                onClick={() => toggleItemFulfilled(selectedNature.id, mapping.id, item.id)}
+                                              >
+                                                {item.isFulfilled ? '✓' : ''}
+                                              </button>
+                                              <span className={item.isFulfilled ? 'line-through text-muted' : 'font-semibold'}>
+                                                {item.description}
+                                              </span>
+                                            </div>
+                                            {item.keywords && item.keywords.length > 0 && (
+                                              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', paddingLeft: '24px', marginTop: '2px' }}>
+                                                {item.keywords.map((kw, kwIdx) => (
+                                                  <span
+                                                    key={kwIdx}
+                                                    className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 font-mono"
+                                                    title={`Palavra-chave cadastrada para a IA: "${kw}"`}
+                                                  >
+                                                    #{kw}
+                                                  </span>
+                                                ))}
+                                              </div>
+                                            )}
                                           </div>
                                         </td>
                                         <td>

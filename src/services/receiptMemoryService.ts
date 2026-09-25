@@ -106,16 +106,115 @@ export function learnReceiptItemAssociation(keyword: string, mappingItemId: stri
   }
 }
 
-export function matchItemToLearnedRecord(itemName: string): LearnedItemRecord | null {
-  const lower = itemName.toLowerCase().trim();
-  const dict = getLearnedDictionary();
+import type { ExpenseNature, MappingItem } from '../types';
 
-  // 1. Busca por palavra-chave exata ou inclusão
+export function getActiveNaturesFromStorage(): ExpenseNature[] {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('balder_natures_') || key === 'balder_natures')) {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      }
+    }
+  } catch {}
+  return [];
+}
+
+export function matchItemToLearnedRecord(itemName: string, natures?: ExpenseNature[]): LearnedItemRecord | null {
+  if (!itemName) return null;
+  const lower = itemName.toLowerCase().trim();
+  const lowerNorm = lower.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const tokens = lowerNorm.split(/[\s,.\-\/]+/).filter((t) => t.length >= 3);
+
+  // 1. Prioridade Máxima: Pesquisa direta nos itens e palavras-chave dos Mapeamentos do Usuário
+  const activeNatures = (natures && natures.length > 0) ? natures : getActiveNaturesFromStorage();
+  if (activeNatures && activeNatures.length > 0) {
+    for (const nat of activeNatures) {
+      for (const map of (nat.mappings || [])) {
+        for (const item of (map.items || [])) {
+          const itemDescNorm = item.description.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+
+          // A) Correspondência exata ou inclusão da descrição do item
+          if (lowerNorm.includes(itemDescNorm) || itemDescNorm.includes(lowerNorm)) {
+            return {
+              keyword: itemDescNorm,
+              mappingItemId: item.id,
+              targetMappingId: map.id,
+              natureId: nat.id,
+            };
+          }
+
+          // B) Correspondência com palavras-chave cadastradas no item
+          if (item.keywords && item.keywords.length > 0) {
+            for (const kw of item.keywords) {
+              const kwNorm = kw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+              if (
+                kwNorm &&
+                (lowerNorm.includes(kwNorm) ||
+                  kwNorm.includes(lowerNorm) ||
+                  tokens.some((tok) => kwNorm.includes(tok) || tok.includes(kwNorm)))
+              ) {
+                return {
+                  keyword: kwNorm,
+                  mappingItemId: item.id,
+                  targetMappingId: map.id,
+                  natureId: nat.id,
+                };
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Busca no dicionário aprendido / padrão global
+  const dict = getLearnedDictionary();
   for (const record of dict) {
-    if (lower.includes(record.keyword) || record.keyword.includes(lower)) {
+    const recKw = record.keyword.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (lowerNorm.includes(recKw) || recKw.includes(lowerNorm)) {
       return record;
     }
   }
 
   return null;
 }
+
+/**
+ * Associa automaticamente o texto detectado na nota fiscal/comprovante
+ * como palavra-chave do item mapeado no Balder, além de memorizar na IA.
+ */
+export function autoAssociateReceiptTextToItemKeywords(
+  receiptText: string,
+  mappingItemId: string,
+  natureId: string,
+  mappingId: string,
+  updateMappingItem?: (natureId: string, mappingId: string, itemId: string, updates: Partial<MappingItem>) => void,
+  natures?: ExpenseNature[]
+) {
+  if (!receiptText || !mappingItemId) return;
+  const cleanKeyword = receiptText.toLowerCase().trim().replace(/[^\w\sÀ-ÿ]/g, '');
+  if (!cleanKeyword || cleanKeyword.length < 2) return;
+
+  // 1. Aprende no dicionário efêmero e permanente de IA
+  learnReceiptItemAssociation(cleanKeyword, mappingItemId, mappingId, natureId);
+
+  // 2. Adiciona como palavra-chave do item no cadastro do usuário se updateMappingItem estiver disponível
+  if (updateMappingItem && natures) {
+    const targetNat = natures.find((n) => n.id === natureId);
+    const targetMap = targetNat?.mappings.find((m) => m.id === mappingId);
+    const targetItem = targetMap?.items.find((i) => i.id === mappingItemId);
+    if (targetItem) {
+      const currentKeywords = targetItem.keywords || [];
+      if (!currentKeywords.some((k) => k.toLowerCase().trim() === cleanKeyword)) {
+        const nextKeywords = [...currentKeywords, cleanKeyword];
+        updateMappingItem(natureId, mappingId, mappingItemId, { keywords: nextKeywords });
+      }
+    }
+  }
+}
+

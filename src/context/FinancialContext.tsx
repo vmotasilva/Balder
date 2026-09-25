@@ -2217,6 +2217,59 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const newUnanalyzed = Math.max(0, Math.round((targetInvoice.amount - newTotalAllocated) * 100) / 100);
     const allocatedAmount = Math.round(newBreakdownItems.reduce((sum, row) => sum + row.amount, 0) * 100) / 100;
 
+    // Treinar e associar palavras-chave automaticamente aos itens de mapeamento das naturezas
+    items.forEach((it) => {
+      const detected = (it.detectedName || it.description || it.rawName || '').trim();
+      if (!detected || detected.length < 2) return;
+
+      let matchedItemRef: { natId: string; mapId: string; itemId: string } | null = null;
+      for (const nat of natures) {
+        for (const map of nat.mappings) {
+          for (const mItem of map.items) {
+            const descNorm = mItem.description.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const detNorm = detected.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            if (
+              detNorm.includes(descNorm) ||
+              descNorm.includes(detNorm) ||
+              mItem.keywords?.some((k) => detNorm.includes(k.toLowerCase()))
+            ) {
+              matchedItemRef = { natId: nat.id, mapId: map.id, itemId: mItem.id };
+              break;
+            }
+          }
+          if (matchedItemRef) break;
+        }
+        if (matchedItemRef) break;
+      }
+
+      if (matchedItemRef) {
+        const cleanKw = detected.toLowerCase().replace(/[^\w\sÀ-ÿ]/g, '').trim();
+        if (cleanKw) {
+          learnReceiptItemAssociation(cleanKw, matchedItemRef.itemId, matchedItemRef.mapId, matchedItemRef.natId);
+          setNatures((prevNats) =>
+            prevNats.map((nat) => {
+              if (nat.id !== matchedItemRef?.natId) return nat;
+              return {
+                ...nat,
+                mappings: nat.mappings.map((m) => {
+                  if (m.id !== matchedItemRef?.mapId) return m;
+                  return {
+                    ...m,
+                    items: m.items.map((i) => {
+                      if (i.id !== matchedItemRef?.itemId) return i;
+                      const kws = i.keywords || [];
+                      if (kws.includes(cleanKw)) return i;
+                      return { ...i, keywords: [...kws, cleanKw] };
+                    }),
+                  };
+                }),
+              };
+            })
+          );
+        }
+      }
+    });
+
     updateMovement(targetInvoice.id, {
       invoiceBreakdown: updatedBreakdown,
       unanalyzedAmount: newUnanalyzed,

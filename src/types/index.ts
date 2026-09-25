@@ -362,6 +362,7 @@ export interface MappingItem {
   dayOfWeek?: 'DOMINGO' | 'SEGUNDA' | 'TERCA' | 'QUARTA' | 'QUINTA' | 'SEXTA' | 'SABADO';
   dayOfFortnight?: number; // 1 a 15 (dia específico da quinzena)
   dayOfMonth?: number;     // 1 a 31 (com ajuste automático para o último dia do mês quando o mês tiver < 31 dias)
+  keywords?: string[];     // Palavras-chave / Sinônimos de notas fiscais (ex: ['cafe pilao', 'cafe 500g', 'melitta'])
 }
 
 export interface FixedExpenseMapping {

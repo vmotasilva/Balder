@@ -4,7 +4,7 @@ import { useFinancial } from '../context/FinancialContext';
 import { QuickCreateMappingItemModal } from './QuickCreateMappingItemModal';
 import { MappingCombobox } from './MappingCombobox';
 import type { ComboboxOption } from './MappingCombobox';
-import { learnReceiptItemAssociation } from '../services/receiptMemoryService';
+import { learnReceiptItemAssociation, autoAssociateReceiptTextToItemKeywords } from '../services/receiptMemoryService';
 import { Check, Plus, Edit2, AlertCircle, ShoppingBag, Sparkles, Store, Calendar, DollarSign, Wallet, CheckCircle2, CreditCard } from 'lucide-react';
 
 interface Props {
@@ -20,7 +20,7 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
   natures,
   onConfirm,
 }) => {
-  const { addItemToMapping, addMappingToNature, movements, associateReceiptItemsToInvoice } = useFinancial();
+  const { addItemToMapping, updateMappingItem, addMappingToNature, movements, associateReceiptItemsToInvoice } = useFinancial();
   const [store, setStore] = useState(data.store);
   const [date, setDate] = useState(data.date);
   const [totalAmount, setTotalAmount] = useState(data.totalAmount);
@@ -103,6 +103,17 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
       multiplierWeeks: number;
     }
   ) => {
+    const targetItem = items.find((it) => it.id === receiptItemId);
+    const initialKeywords = Array.from(
+      new Set(
+        [
+          itemData.description.toLowerCase().trim(),
+          targetItem?.detectedName?.toLowerCase()?.trim(),
+          targetItem?.rawName?.toLowerCase()?.trim(),
+        ].filter((k): k is string => Boolean(k && k.length >= 2))
+      )
+    );
+
     // 1. Criar o item no mapeamento de gastos fixos da natureza no Balder
     const createdItemId = addItemToMapping(natureId, mappingId, {
       description: itemData.description,
@@ -112,10 +123,10 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
       multiplierWeeks: itemData.multiplierWeeks,
       realizedValue: itemData.price,
       isFulfilled: true,
+      keywords: initialKeywords,
     });
 
     // 2. Treinar Forseti imediatamente para este e futuros cupons
-    const targetItem = items.find((it) => it.id === receiptItemId);
     if (targetItem) {
       learnReceiptItemAssociation(
         targetItem.detectedName,
@@ -178,6 +189,17 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
     }
 
     const foundOpt = availableMappingOptions.find((opt) => opt.id === targetOptId);
+    if (targetIt && foundOpt) {
+      autoAssociateReceiptTextToItemKeywords(
+        targetIt.rawName || targetIt.detectedName,
+        targetOptId,
+        foundOpt.natureId,
+        foundOpt.routineId,
+        updateMappingItem,
+        natures
+      );
+    }
+
     setItems((prev) =>
       prev.map((it) => {
         if (it.id !== itemId) return it;
@@ -205,6 +227,19 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
   };
 
   const handleConfirm = () => {
+    items.forEach((it) => {
+      if (it.matchedMappingItemId && it.natureId && it.targetMappingId) {
+        autoAssociateReceiptTextToItemKeywords(
+          it.rawName || it.detectedName,
+          it.matchedMappingItemId,
+          it.natureId,
+          it.targetMappingId,
+          updateMappingItem,
+          natures
+        );
+      }
+    });
+
     onConfirm(messageId, {
       ...data,
       store,
@@ -218,6 +253,20 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
 
   const handleLinkToInvoice = () => {
     if (!selectedInvoiceId) return;
+
+    items.forEach((it) => {
+      if (it.matchedMappingItemId && it.natureId && it.targetMappingId) {
+        autoAssociateReceiptTextToItemKeywords(
+          it.rawName || it.detectedName,
+          it.matchedMappingItemId,
+          it.natureId,
+          it.targetMappingId,
+          updateMappingItem,
+          natures
+        );
+      }
+    });
+
     const res = associateReceiptItemsToInvoice(selectedInvoiceId, items);
     if (res.success) {
       setNotificationMsg(
