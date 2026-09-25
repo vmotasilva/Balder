@@ -358,7 +358,7 @@ export interface MappingItem {
   cardName?: string;       // ex: 'Nubank Mastercard Black', 'XP Visa Infinite'
 
   // Período e dia específico de manifestação do item dentro do mapeamento:
-  recurrenceType?: 'SEMANAL' | 'QUINZENAL' | 'MENSAL';
+  recurrenceType?: 'DIARIO' | 'SEMANAL' | 'QUINZENAL' | 'MENSAL';
   dayOfWeek?: 'DOMINGO' | 'SEGUNDA' | 'TERCA' | 'QUARTA' | 'QUINTA' | 'SEXTA' | 'SABADO';
   dayOfFortnight?: number; // 1 a 15 (dia específico da quinzena)
   dayOfMonth?: number;     // 1 a 31 (com ajuste automático para o último dia do mês quando o mês tiver < 31 dias)
@@ -372,7 +372,7 @@ export interface FixedExpenseMapping {
   icon?: string;               // Emoji próprio do mapeamento (ex: '🥩', '🥦', '💡', '⛽', '🛒')
   applicableMonths?: number[]; // [1..12] ou vazio para todos os meses
   items: MappingItem[];
-  frequency?: 'SEMANAL' | 'QUINZENAL' | 'MENSAL' | 'PONTUAL'; // Periodicidade da rotina
+  frequency?: 'DIARIO' | 'SEMANAL' | 'QUINZENAL' | 'MENSAL' | 'PONTUAL'; // Periodicidade da rotina
   dayOfWeek?: string;          // ex: 'Sábado', 'Domingo', 'Segunda'
   dayOfMonth?: number;         // ex: 5, 7, 10
   keywords?: string[];         // Palavras-chave para a IA associar itens/transações diretamente a este mapeamento

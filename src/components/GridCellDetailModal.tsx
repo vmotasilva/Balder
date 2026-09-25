@@ -117,7 +117,7 @@ export interface CellDateGroup {
   dateStr: string;        // ex: '2026-09-05'
   dateFormatted: string;  // ex: '05/09/2026 (Sábado)'
   eventTitle: string;     // ex: '1ª Semana — Feira Livre & Hortifrúti'
-  periodType: 'SEMANAL' | 'QUINZENAL' | 'MENSAL' | 'PONTUAL';
+  periodType: 'DIARIO' | 'SEMANAL' | 'QUINZENAL' | 'MENSAL' | 'PONTUAL';
   subtotal: number;
   items: CellBreakdownSubItem[];
 }
@@ -185,7 +185,7 @@ export function generateNatureDateGroups(
       dateStr: string;
       dateFormatted: string;
       day: number;
-      periodTypes: Set<'SEMANAL' | 'QUINZENAL' | 'MENSAL'>;
+      periodTypes: Set<'DIARIO' | 'SEMANAL' | 'QUINZENAL' | 'MENSAL'>;
       mappingNames: Set<string>;
       items: CellBreakdownSubItem[];
       subtotal: number;
@@ -246,9 +246,11 @@ export function generateNatureDateGroups(
 
   // Converter o agrupamento por data para CellDateGroup[]
   const dateGroups: CellDateGroup[] = Array.from(groupsByDate.values()).map((g) => {
-    let resolvedPeriodType: 'SEMANAL' | 'QUINZENAL' | 'MENSAL' | 'PONTUAL' = 'MENSAL';
+    let resolvedPeriodType: 'DIARIO' | 'SEMANAL' | 'QUINZENAL' | 'MENSAL' | 'PONTUAL' = 'MENSAL';
     if (g.periodTypes.size === 1) {
       resolvedPeriodType = Array.from(g.periodTypes)[0];
+    } else if (g.periodTypes.has('DIARIO')) {
+      resolvedPeriodType = 'DIARIO';
     } else if (g.periodTypes.has('SEMANAL')) {
       resolvedPeriodType = 'SEMANAL';
     } else if (g.periodTypes.has('QUINZENAL')) {
@@ -262,7 +264,7 @@ export function generateNatureDateGroups(
     let titlePrefix = '🛒';
     const lowerNat = natureName.toLowerCase();
     if (lowerNat.includes('alimentaç') || lowerNat.includes('mercado')) {
-      titlePrefix = resolvedPeriodType === 'SEMANAL' ? '🛒' : resolvedPeriodType === 'QUINZENAL' ? '🥩' : '🏬';
+      titlePrefix = resolvedPeriodType === 'DIARIO' ? '☀️' : resolvedPeriodType === 'SEMANAL' ? '🛒' : resolvedPeriodType === 'QUINZENAL' ? '🥩' : '🏬';
     } else if (lowerNat.includes('moradia') || lowerNat.includes('casa') || lowerNat.includes('aluguel')) {
       titlePrefix = '🏠';
     } else if (lowerNat.includes('transporte') || lowerNat.includes('combust') || lowerNat.includes('veículo')) {

@@ -82,7 +82,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
   const [newItemQty, setNewItemQty] = useState<Record<string, number>>({});
   const [newItemPrice, setNewItemPrice] = useState<Record<string, number>>({});
   const [newItemMult, setNewItemMult] = useState<Record<string, number>>({});
-  const [newItemRecurrenceType, setNewItemRecurrenceType] = useState<Record<string, 'SEMANAL' | 'QUINZENAL' | 'MENSAL'>>({});
+  const [newItemRecurrenceType, setNewItemRecurrenceType] = useState<Record<string, 'DIARIO' | 'SEMANAL' | 'QUINZENAL' | 'MENSAL'>>({});
   const [newItemDayOfWeek, setNewItemDayOfWeek] = useState<Record<string, 'DOMINGO' | 'SEGUNDA' | 'TERCA' | 'QUARTA' | 'QUINTA' | 'SEXTA' | 'SABADO'>>({});
   const [newItemDayOfFortnight, setNewItemDayOfFortnight] = useState<Record<string, number>>({});
   const [newItemDayOfMonth, setNewItemDayOfMonth] = useState<Record<string, number>>({});
@@ -93,7 +93,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
   const [editQty, setEditQty] = useState<number | string>(1);
   const [editPrice, setEditPrice] = useState<number | string>(0);
   const [editMult, setEditMult] = useState(1);
-  const [editRecurrenceType, setEditRecurrenceType] = useState<'SEMANAL' | 'QUINZENAL' | 'MENSAL'>('MENSAL');
+  const [editRecurrenceType, setEditRecurrenceType] = useState<'DIARIO' | 'SEMANAL' | 'QUINZENAL' | 'MENSAL'>('MENSAL');
   const [editDayOfWeek, setEditDayOfWeek] = useState<'DOMINGO' | 'SEGUNDA' | 'TERCA' | 'QUARTA' | 'QUINTA' | 'SEXTA' | 'SABADO'>('SABADO');
   const [editDayOfFortnight, setEditDayOfFortnight] = useState<number>(1);
   const [editDayOfMonth, setEditDayOfMonth] = useState<number>(10);
@@ -339,7 +339,9 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
 
     const rec =
       item.recurrenceType ||
-      (item.dayOfWeek
+      ((item.multiplierWeeks && item.multiplierWeeks >= 20)
+        ? 'DIARIO'
+        : item.dayOfWeek
         ? 'SEMANAL'
         : item.dayOfFortnight !== undefined && item.dayOfFortnight > 0
         ? 'QUINZENAL'
@@ -1698,17 +1700,25 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                             className="form-input form-input-sm text-xs py-1"
                                             value={editRecurrenceType}
                                             onChange={(e) => {
-                                              const val = e.target.value as 'SEMANAL' | 'QUINZENAL' | 'MENSAL';
+                                              const val = e.target.value as 'DIARIO' | 'SEMANAL' | 'QUINZENAL' | 'MENSAL';
                                               setEditRecurrenceType(val);
+                                              if (val === 'DIARIO') setEditMult(30);
                                               if (val === 'SEMANAL' && editMult < 5) setEditMult(5);
                                               if (val === 'QUINZENAL') setEditMult(2);
                                               if (val === 'MENSAL') setEditMult(1);
                                             }}
                                           >
+                                            <option value="DIARIO">☀️ Diário</option>
                                             <option value="SEMANAL">🗓️ Semanal</option>
                                             <option value="QUINZENAL">🌓 Quinzenal</option>
                                             <option value="MENSAL">📅 Mensal</option>
                                           </select>
+
+                                          {editRecurrenceType === 'DIARIO' && (
+                                            <span className="text-[11px] text-amber-300/90 font-mono py-0.5">
+                                              ☀️ Todos os dias do mês
+                                            </span>
+                                          )}
 
                                           {editRecurrenceType === 'SEMANAL' && (
                                             <select
@@ -1760,6 +1770,10 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                           value={editMult}
                                           onChange={(e) => setEditMult(parseInt(e.target.value) || 1)}
                                         >
+                                          <option value={30}>30x (Diário Padrão - 30 dias)</option>
+                                          <option value={31}>31x (Mês Longo - 31 dias)</option>
+                                          <option value={22}>22x (Dias Úteis - 22 dias)</option>
+                                          <option value={20}>20x (Dias Úteis - 20 dias)</option>
                                           <option value={5}>5x (Semanal Padrão - 5 sem)</option>
                                           <option value={4}>4x (Semanal - 4 sem)</option>
                                           <option value={2}>2x (Quinzenal)</option>
@@ -1928,7 +1942,9 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                     <td>
                                       <span className="badge badge-cyan">
                                         {item.multiplierWeeks}x{' '}
-                                        {item.multiplierWeeks === 1
+                                        {item.multiplierWeeks >= 20
+                                          ? 'dias'
+                                          : item.multiplierWeeks === 1
                                           ? 'semana/mês'
                                           : 'semanas'}
                                       </span>
@@ -2047,24 +2063,34 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                       className="form-input form-input-sm text-xs py-1"
                                       value={
                                         newItemRecurrenceType[mapping.id] ||
-                                        (newItemMult[mapping.id] === 2
+                                        (newItemMult[mapping.id] >= 20
+                                          ? 'DIARIO'
+                                          : newItemMult[mapping.id] === 2
                                           ? 'QUINZENAL'
                                           : newItemMult[mapping.id] === 1
                                           ? 'MENSAL'
                                           : 'SEMANAL')
                                       }
                                       onChange={(e) => {
-                                        const val = e.target.value as 'SEMANAL' | 'QUINZENAL' | 'MENSAL';
+                                        const val = e.target.value as 'DIARIO' | 'SEMANAL' | 'QUINZENAL' | 'MENSAL';
                                         setNewItemRecurrenceType((prev) => ({ ...prev, [mapping.id]: val }));
+                                        if (val === 'DIARIO') setNewItemMult((prev) => ({ ...prev, [mapping.id]: 30 }));
                                         if (val === 'SEMANAL') setNewItemMult((prev) => ({ ...prev, [mapping.id]: 5 }));
                                         if (val === 'QUINZENAL') setNewItemMult((prev) => ({ ...prev, [mapping.id]: 2 }));
                                         if (val === 'MENSAL') setNewItemMult((prev) => ({ ...prev, [mapping.id]: 1 }));
                                       }}
                                     >
+                                      <option value="DIARIO">☀️ Diário</option>
                                       <option value="SEMANAL">🗓️ Semanal</option>
                                       <option value="QUINZENAL">🌓 Quinzenal</option>
                                       <option value="MENSAL">📅 Mensal</option>
                                     </select>
+
+                                    {newItemRecurrenceType[mapping.id] === 'DIARIO' && (
+                                      <span className="text-[11px] text-amber-300/90 font-mono py-0.5">
+                                        ☀️ Todos os dias do mês
+                                      </span>
+                                    )}
 
                                     {(!newItemRecurrenceType[mapping.id] || newItemRecurrenceType[mapping.id] === 'SEMANAL') && (
                                       <select
@@ -2131,6 +2157,8 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                     value={
                                       newItemMult[mapping.id] !== undefined
                                         ? newItemMult[mapping.id]
+                                        : newItemRecurrenceType[mapping.id] === 'DIARIO'
+                                        ? 30
                                         : 5
                                     }
                                     onChange={(e) =>
@@ -2140,6 +2168,10 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                       }))
                                     }
                                   >
+                                    <option value={30}>30x (Diário Padrão - 30 dias)</option>
+                                    <option value={31}>31x (Mês Longo - 31 dias)</option>
+                                    <option value={22}>22x (Dias Úteis - 22 dias)</option>
+                                    <option value={20}>20x (Dias Úteis - 20 dias)</option>
                                     <option value={5}>5x (Semanal Padrão - 5 sem)</option>
                                     <option value={4}>4x (Semanal - 4 sem)</option>
                                     <option value={2}>2x (Quinzenal)</option>
@@ -2205,7 +2237,9 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
 
                                       const recType =
                                         newItemRecurrenceType[mapping.id] ||
-                                        (mult === 4 || mult === 5
+                                        (mult >= 20
+                                          ? 'DIARIO'
+                                          : mult === 4 || mult === 5
                                           ? 'SEMANAL'
                                           : mult === 2
                                           ? 'QUINZENAL'

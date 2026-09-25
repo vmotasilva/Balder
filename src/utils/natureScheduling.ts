@@ -61,12 +61,14 @@ export function getItemManifestationDays(
   item: MappingItem,
   year: number,
   month: number
-): { days: number[]; periodType: 'SEMANAL' | 'QUINZENAL' | 'MENSAL' } {
+): { days: number[]; periodType: 'DIARIO' | 'SEMANAL' | 'QUINZENAL' | 'MENSAL' } {
   const daysInMonth = new Date(year, month, 0).getDate();
 
-  const recType: 'SEMANAL' | 'QUINZENAL' | 'MENSAL' =
+  const recType: 'DIARIO' | 'SEMANAL' | 'QUINZENAL' | 'MENSAL' =
     item.recurrenceType ||
-    (item.dayOfWeek
+    ((item.multiplierWeeks && item.multiplierWeeks >= 20)
+      ? 'DIARIO'
+      : item.dayOfWeek
       ? 'SEMANAL'
       : item.dayOfFortnight !== undefined && item.dayOfFortnight > 0
       ? 'QUINZENAL'
@@ -77,6 +79,14 @@ export function getItemManifestationDays(
       : item.multiplierWeeks === 2
       ? 'QUINZENAL'
       : 'MENSAL');
+
+  if (recType === 'DIARIO') {
+    const days: number[] = [];
+    for (let d = 1; d <= daysInMonth; d++) {
+      days.push(d);
+    }
+    return { days, periodType: 'DIARIO' };
+  }
 
   if (recType === 'SEMANAL') {
     const targetJsDay = WEEKDAY_JS_INDEX[item.dayOfWeek || 'SABADO'] ?? 6;
@@ -114,7 +124,7 @@ export function getItemManifestationDays(
  * Retorna o texto formatado do dia/frequência de manifestação do item para exibição em badges e tabelas.
  */
 export function formatItemScheduleBadge(item: {
-  recurrenceType?: 'SEMANAL' | 'QUINZENAL' | 'MENSAL';
+  recurrenceType?: 'DIARIO' | 'SEMANAL' | 'QUINZENAL' | 'MENSAL';
   dayOfWeek?: string;
   dayOfFortnight?: number;
   dayOfMonth?: number;
@@ -122,7 +132,9 @@ export function formatItemScheduleBadge(item: {
 }): { label: string; icon: string; badgeClass: string; detail: string } {
   const rec =
     item.recurrenceType ||
-    (item.dayOfWeek
+    ((item.multiplierWeeks && item.multiplierWeeks >= 20)
+      ? 'DIARIO'
+      : item.dayOfWeek
       ? 'SEMANAL'
       : item.dayOfFortnight !== undefined && item.dayOfFortnight > 0
       ? 'QUINZENAL'
@@ -133,6 +145,15 @@ export function formatItemScheduleBadge(item: {
       : item.multiplierWeeks === 2
       ? 'QUINZENAL'
       : 'MENSAL');
+
+  if (rec === 'DIARIO') {
+    return {
+      label: 'Todos os dias',
+      icon: '☀️',
+      badgeClass: 'badge-amber',
+      detail: 'Diário (todos os dias do mês)',
+    };
+  }
 
   if (rec === 'SEMANAL') {
     const dayName = WEEKDAY_LABEL_MAP[item.dayOfWeek || 'SABADO'] || 'Sábado';
