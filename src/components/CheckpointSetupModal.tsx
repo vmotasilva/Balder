@@ -18,12 +18,14 @@ import {
   ArrowRight,
   ArrowLeft,
 } from 'lucide-react';
-import type { CreditCardItem, CheckpointBankDebt, InvoiceNatureItemBreakdown } from '../types';
+import type { CreditCardItem, CheckpointBankDebt, InvoiceNatureItemBreakdown, FinancialCheckpoint } from '../types';
 
 interface CheckpointSetupModalProps {
   isOpen: boolean;
   onClose: () => void;
   isInitialSetup?: boolean;
+  mode?: 'CREATE' | 'EDIT';
+  checkpointToEdit?: FinancialCheckpoint | null;
 }
 
 // Utilitário robusto de conversão para moeda brasileira (trata milhares com ponto, vírgula e decimais)
@@ -146,6 +148,8 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
   isOpen,
   onClose,
   isInitialSetup = false,
+  mode = 'CREATE',
+  checkpointToEdit,
 }) => {
   const {
     addCheckpoint,
@@ -185,7 +189,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
   // Estado para Detalhamento das Faturas em Aberto (Etapa 2), indexado por bankId
   const [breakdownsByBank, setBreakdownsByBank] = useState<Record<string, InvoiceBreakdownRow[]>>({});
 
-  // Carrega / restaura os dados do checkpoint vigente ao abrir o modal
+  // Carrega / restaura os dados apenas se estiver no modo EDIÇÃO ('EDIT')
   useEffect(() => {
     if (isOpen) {
       setStep(1);
@@ -193,36 +197,59 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
       const todayStr = getTodayString();
       const firstDay = getFirstDayOfMonthString();
 
-      if (activeCheckpoint && !isInitialSetup) {
-        const cDate = activeCheckpoint.startDate || todayStr;
-        setStartDate(cDate);
-        setInitialBalance(String(activeCheckpoint.initialBalance || 0));
-        setLabel(activeCheckpoint.label || `Recomeço ${new Date().toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })}`);
+      // MODO EDIÇÃO: apenas se mode === 'EDIT'
+      const targetCheckpoint = mode === 'EDIT' ? (checkpointToEdit || activeCheckpoint) : null;
 
-        if (activeCheckpoint.cardDebts && activeCheckpoint.cardDebts.length > 0) {
+      if (targetCheckpoint) {
+        const cDate = targetCheckpoint.startDate || todayStr;
+        setStartDate(cDate);
+        setInitialBalance(String(targetCheckpoint.initialBalance || 0));
+        setLabel(targetCheckpoint.label || `Recomeço ${new Date().toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })}`);
+
+        if (targetCheckpoint.cardDebts && targetCheckpoint.cardDebts.length > 0) {
           setHasCreditCardDebt(true);
-          const restored: BankDebtFormItem[] = activeCheckpoint.cardDebts.map((bd) => ({
-            id: bd.id,
-            cardId: bd.cardId,
-            bankName: bd.bankName,
-            cardName: bd.cardName,
-            dueDay: bd.dueDay || 10,
-            invoices: bd.invoices.map((inv, idx) => ({
-              id: `inv_${bd.id}_${idx}`,
-              monthIndex: inv.monthIndex,
-              monthLabel: inv.monthLabel,
-              dueDate: inv.dueDate,
-              amountInput: String(inv.amount),
-            })),
-            showQuickDivide: false,
-            quickTotalInput: '',
-            quickInstallments: 3,
-          }));
+          const restored: BankDebtFormItem[] = targetCheckpoint.cardDebts.map((bd) => {
+            // Deduplica faturas por dueDate para garantir que NUNCA apareça mais de uma fatura para a mesma data
+            const seenDates = new Set<string>();
+            const cleanInvoices: BankDebtInvoiceItem[] = [];
+            bd.invoices.forEach((inv) => {
+              if (!seenDates.has(inv.dueDate)) {
+                seenDates.add(inv.dueDate);
+                cleanInvoices.push({
+                  id: `inv_${bd.id}_${cleanInvoices.length}`,
+                  monthIndex: cleanInvoices.length,
+                  monthLabel: inv.monthLabel,
+                  dueDate: inv.dueDate,
+                  amountInput: String(inv.amount),
+                });
+              }
+            });
+
+            return {
+              id: bd.id,
+              cardId: bd.cardId,
+              bankName: bd.bankName,
+              cardName: bd.cardName,
+              dueDay: bd.dueDay || 10,
+              invoices: cleanInvoices.length > 0 ? cleanInvoices : [
+                {
+                  id: `inv_${bd.id}_0`,
+                  monthIndex: 0,
+                  monthLabel: computeDueDateForMonth(cDate, bd.dueDay || 10, 0).monthLabel,
+                  dueDate: computeDueDateForMonth(cDate, bd.dueDay || 10, 0).dueDate,
+                  amountInput: '0',
+                },
+              ],
+              showQuickDivide: false,
+              quickTotalInput: '',
+              quickInstallments: 3,
+            };
+          });
           setBankDebts(restored);
 
           // Restaura detalhamentos se existirem no checkpoint anterior
           const restoredBreakdowns: Record<string, InvoiceBreakdownRow[]> = {};
-          activeCheckpoint.cardDebts.forEach((bd) => {
+          targetCheckpoint.cardDebts.forEach((bd) => {
             const firstInv = bd.invoices[0];
             if (firstInv?.breakdown && firstInv.breakdown.length > 0) {
               restoredBreakdowns[bd.id] = firstInv.breakdown.map((item) => ({
@@ -237,12 +264,12 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
             }
           });
           setBreakdownsByBank(restoredBreakdowns);
-        } else if (activeCheckpoint.creditCardDebt && activeCheckpoint.creditCardDebt > 0) {
+        } else if (targetCheckpoint.creditCardDebt && targetCheckpoint.creditCardDebt > 0) {
           setHasCreditCardDebt(true);
-          const total = activeCheckpoint.creditCardDebt;
-          const inst = activeCheckpoint.cardInstallments || 1;
+          const total = targetCheckpoint.creditCardDebt;
+          const inst = targetCheckpoint.cardInstallments || 1;
           const perM = Math.round((total / inst) * 100) / 100;
-          const dueDay = activeCheckpoint.cardDueDate ? parseInt(activeCheckpoint.cardDueDate.split('-')[2], 10) || 10 : 10;
+          const dueDay = targetCheckpoint.cardDueDate ? parseInt(targetCheckpoint.cardDueDate.split('-')[2], 10) || 10 : 10;
 
           const invs: BankDebtInvoiceItem[] = [];
           for (let i = 0; i < inst; i++) {
@@ -251,15 +278,15 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
               id: `inv_restored_${i}`,
               monthIndex: i,
               monthLabel,
-              dueDate: i === 0 && activeCheckpoint.cardDueDate ? activeCheckpoint.cardDueDate : dueDate,
+              dueDate: i === 0 && targetCheckpoint.cardDueDate ? targetCheckpoint.cardDueDate : dueDate,
               amountInput: String(i === inst - 1 ? Math.round((total - perM * (inst - 1)) * 100) / 100 : perM),
             });
           }
           setBankDebts([
             {
               id: `bank_restored_${Date.now()}`,
-              bankName: activeCheckpoint.cardName || 'Cartão de Crédito',
-              cardName: activeCheckpoint.cardName || 'Cartão de Crédito',
+              bankName: targetCheckpoint.cardName || 'Cartão de Crédito',
+              cardName: targetCheckpoint.cardName || 'Cartão de Crédito',
               dueDay,
               invoices: invs,
               showQuickDivide: false,
@@ -274,6 +301,8 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
           setBreakdownsByBank({});
         }
       } else {
+        // MODO CRIAÇÃO (NOVO MARCO / PONTO DE PARTIDA):
+        // NUNCA acusa faturas passadas! Inicia completamente limpo com checkbox desmarcado e valores zerados.
         setStartDate(firstDay);
         setInitialBalance('0');
         setLabel(isInitialSetup ? 'Ponto de Partida Inicial' : '');
@@ -282,7 +311,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
         setBreakdownsByBank({});
       }
     }
-  }, [isOpen, activeCheckpoint, isInitialSetup, cards]);
+  }, [isOpen, activeCheckpoint, isInitialSetup, mode, checkpointToEdit, cards]);
 
   // Atualiza datas de vencimento quando o startDate do checkpoint muda
   const handleStartDateChange = (newStartDate: string) => {
@@ -1065,7 +1094,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', paddingTop: '0.35rem', borderTop: '1px solid rgba(244, 63, 94, 0.15)' }}>
                 {banksWithTotals.map((b) => {
                   const currentInvoice = b.invoices.find((inv) => inv.monthIndex === 0) || b.invoices[0];
-                  const futureInvoices = b.invoices.filter((inv) => inv.monthIndex > 0);
+                  const futureInvoices = b.invoices.filter((inv) => inv.id !== currentInvoice?.id);
 
                   return (
                     <div

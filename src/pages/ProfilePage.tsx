@@ -124,6 +124,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
   const [subscriptionSuccessMsg, setSubscriptionSuccessMsg] = useState<string | null>(null);
   const [advancedModalOpen, setAdvancedModalOpen] = useState(false);
   const [checkpointModalOpen, setCheckpointModalOpen] = useState(false);
+  const [checkpointModalMode, setCheckpointModalMode] = useState<'CREATE' | 'EDIT'>('CREATE');
 
   // Estados para Gestão & Arquivamento de Marcos e Simulações
   const [checkpointTabFilter, setCheckpointTabFilter] = useState<'ACTIVE_AND_SIMS' | 'ARCHIVED' | 'ALL'>('ACTIVE_AND_SIMS');
@@ -1696,7 +1697,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                     type="button"
                     className="btn btn-primary btn-sm"
                     style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}
-                    onClick={() => setCheckpointModalOpen(true)}
+                    onClick={() => {
+                      setCheckpointModalMode('CREATE');
+                      setCheckpointModalOpen(true);
+                    }}
                   >
                     <Plus size={15} />
                     <span>Novo Ponto de Partida</span>
@@ -1810,7 +1814,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                     type="button"
                     className="btn btn-primary"
                     style={{ padding: '10px 20px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-                    onClick={() => setCheckpointModalOpen(true)}
+                    onClick={() => {
+                      setCheckpointModalMode('CREATE');
+                      setCheckpointModalOpen(true);
+                    }}
                   >
                     <Flag size={16} />
                     <span>Definir Ponto de Partida Agora</span>
@@ -1924,7 +1931,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                               alignItems: 'center',
                               gap: '5px',
                             }}
-                            onClick={() => setCheckpointModalOpen(true)}
+                            onClick={() => {
+                              setCheckpointModalMode('EDIT');
+                              setCheckpointModalOpen(true);
+                            }}
                             title="Editar valores e recalibrar este ponto de partida"
                           >
                             <Edit2 size={13} />
@@ -3877,6 +3887,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
         isOpen={checkpointModalOpen}
         onClose={() => setCheckpointModalOpen(false)}
         isInitialSetup={!activeCheckpoint}
+        mode={checkpointModalMode}
+        checkpointToEdit={checkpointModalMode === 'EDIT' ? activeCheckpoint : null}
       />
     </div>
   );
