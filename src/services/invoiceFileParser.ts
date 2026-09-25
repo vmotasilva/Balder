@@ -10,6 +10,8 @@ export interface ParsedInvoiceItem {
   natureName: string;
   confidence: number; // 0 to 1
   matchedKeyword?: string;
+  mappingId?: string;
+  mappingName?: string;
   installments: number;
   currentInstallment: number;
   finalAmount: number;
@@ -373,6 +375,8 @@ export function parseOFXInvoice(content: string, natures: ExpenseNature[]): Invo
             amount: Math.round(absAmount * 100) / 100,
             natureId: natureMatch.natureId,
             natureName: natureMatch.natureName,
+            mappingId: natureMatch.mappingId,
+            mappingName: natureMatch.mappingName,
             confidence: natureMatch.confidence,
             matchedKeyword: natureMatch.matchedKeyword,
             installments,
@@ -415,6 +419,8 @@ export function parseOFXInvoice(content: string, natures: ExpenseNature[]): Invo
             amount: Math.round(absAmount * 100) / 100,
             natureId: natureMatch.natureId,
             natureName: natureMatch.natureName,
+            mappingId: natureMatch.mappingId,
+            mappingName: natureMatch.mappingName,
             confidence: natureMatch.confidence,
             matchedKeyword: natureMatch.matchedKeyword,
             installments,
@@ -514,6 +520,8 @@ export function parseCSVInvoice(content: string, natures: ExpenseNature[]): Invo
       amount: Math.round(amount * 100) / 100,
       natureId: natureMatch.natureId,
       natureName: natureMatch.natureName,
+      mappingId: natureMatch.mappingId,
+      mappingName: natureMatch.mappingName,
       confidence: natureMatch.confidence,
       matchedKeyword: natureMatch.matchedKeyword,
       installments,
@@ -573,6 +581,8 @@ export function parseRawTextInvoice(content: string, natures: ExpenseNature[]): 
             amount: Math.round(amount * 100) / 100,
             natureId: natureMatch.natureId,
             natureName: natureMatch.natureName,
+            mappingId: natureMatch.mappingId,
+            mappingName: natureMatch.mappingName,
             confidence: natureMatch.confidence,
             matchedKeyword: natureMatch.matchedKeyword,
             installments,
@@ -685,6 +695,7 @@ export function convertToBreakdownItems(items: ParsedInvoiceItem[]): InvoiceNatu
     id: `breakdown_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
     natureId: item.natureId,
     natureName: item.natureName,
+    mappingId: item.mappingId || 'OUTROS',
     description: item.installments > 1
       ? `${item.description} (${item.currentInstallment}/${item.installments})`
       : item.description,

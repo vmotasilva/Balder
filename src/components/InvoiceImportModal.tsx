@@ -138,6 +138,21 @@ export const InvoiceImportModal: React.FC<InvoiceImportModalProps> = ({
             natureId: newNatureId,
             natureName: newNatureId === 'OUTROS' ? 'Outros' : matchedNat?.name || 'Natureza',
             confidence: 1.0,
+            mappingId: 'OUTROS',
+          };
+        }
+        return item;
+      })
+    );
+  };
+
+  const handleMappingChange = (itemId: string, newMappingId: string) => {
+    setReviewedItems((prev) =>
+      prev.map((item) => {
+        if (item.id === itemId) {
+          return {
+            ...item,
+            mappingId: newMappingId,
           };
         }
         return item;
@@ -211,8 +226,8 @@ export const InvoiceImportModal: React.FC<InvoiceImportModalProps> = ({
         onClose();
       }}
       title="Importar & Interpretar Fatura de Cartão"
-      subtitle="Faça upload do extrato (OFX, CSV, TXT ou Imagem) para leitura e classificação automática nas suas Naturezas"
-      maxWidth="780px"
+      subtitle="Faça upload do extrato (OFX, CSV, TXT ou Imagem) para leitura e classificação automática nas suas Naturezas e Mapeamentos"
+      maxWidth="860px"
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         {errorMsg && (
@@ -457,9 +472,10 @@ export const InvoiceImportModal: React.FC<InvoiceImportModalProps> = ({
                       />
                     </th>
                     <th>Descrição da Despesa</th>
-                    <th style={{ width: '180px' }}>Natureza Interpretada</th>
-                    <th style={{ width: '80px', textAlign: 'center' }}>Parcela</th>
-                    <th style={{ width: '110px', textAlign: 'right' }}>Valor (R$)</th>
+                    <th style={{ width: '160px' }}>Natureza</th>
+                    <th style={{ width: '160px' }}>Mapeamento</th>
+                    <th style={{ width: '70px', textAlign: 'center' }}>Parcela</th>
+                    <th style={{ width: '100px', textAlign: 'right' }}>Valor (R$)</th>
                     <th style={{ width: '36px', textAlign: 'center' }}></th>
                   </tr>
                 </thead>
@@ -525,6 +541,27 @@ export const InvoiceImportModal: React.FC<InvoiceImportModalProps> = ({
                             {natures.map((n) => (
                               <option key={n.id} value={n.id}>
                                 {n.name}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          <select
+                            className="form-select"
+                            style={{
+                              fontSize: '11px',
+                              padding: '4px 8px',
+                              fontWeight: 700,
+                              borderColor: (!item.mappingId || item.mappingId === 'OUTROS') ? 'rgba(245, 158, 11, 0.4)' : 'rgba(56, 189, 248, 0.4)',
+                              color: (!item.mappingId || item.mappingId === 'OUTROS') ? '#FBBF24' : '#38BDF8',
+                            }}
+                            value={item.mappingId || 'OUTROS'}
+                            onChange={(e) => handleMappingChange(item.id, e.target.value)}
+                          >
+                            <option value="OUTROS">Outros</option>
+                            {natures.find(n => n.id === item.natureId)?.mappings?.map(m => (
+                              <option key={m.id} value={m.id}>
+                                {m.name}
                               </option>
                             ))}
                           </select>
