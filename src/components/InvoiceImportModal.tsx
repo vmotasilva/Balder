@@ -35,8 +35,7 @@ export const InvoiceImportModal: React.FC<InvoiceImportModalProps> = ({
   onClose,
   onConfirmImport,
   currentInvoiceAmount = 0,
-}) => {
-  const { natures } = useFinancial();
+  const { natures, updateNature, updateMapping } = useFinancial();
 
   // Estados de navegação interna
   const [activeTab, setActiveTab] = useState<'FILE' | 'PASTE'>('FILE');
@@ -208,6 +207,29 @@ export const InvoiceImportModal: React.FC<InvoiceImportModalProps> = ({
       setErrorMsg('Selecione pelo menos um item para importar.');
       return;
     }
+
+    // Auto-associação de palavras-chave
+    activeSelectedItems.forEach(item => {
+      if (item.natureId && item.natureId !== 'OUTROS') {
+        const cleanDesc = item.description.toLowerCase().trim();
+        const nat = natures.find(n => n.id === item.natureId);
+        
+        if (nat) {
+          // Atualiza a palavra-chave na Natureza
+          if (!nat.keywords?.includes(cleanDesc)) {
+            updateNature(nat.id, { keywords: [...(nat.keywords || []), cleanDesc] });
+          }
+          
+          // Atualiza a palavra-chave no Mapeamento
+          if (item.mappingId && item.mappingId !== 'OUTROS') {
+            const map = nat.mappings?.find(m => m.id === item.mappingId);
+            if (map && !map.keywords?.includes(cleanDesc)) {
+              updateMapping(nat.id, map.id, { keywords: [...(map.keywords || []), cleanDesc] });
+            }
+          }
+        }
+      }
+    });
 
     const breakdownItems = convertToBreakdownItems(activeSelectedItems);
     onConfirmImport(breakdownItems, activeTotalAmount, shouldUpdateInvoiceAmount);
