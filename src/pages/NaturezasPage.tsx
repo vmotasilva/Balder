@@ -265,10 +265,6 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
     setIsMappingModalOpen(true);
   };
 
-  // Edição rápida do dia de vencimento de um mapeamento
-  const [editingMappingDueDayId, setEditingMappingDueDayId] = useState<string | null>(null);
-  const [editMappingDueDayVal, setEditMappingDueDayVal] = useState<number | ''>('');
-
   // Contas fixas pendentes dispensadas temporariamente nesta sessão
   const [dismissedBills, setDismissedBills] = useState<Record<string, boolean>>({});
 
