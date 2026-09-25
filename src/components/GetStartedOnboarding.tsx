@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import type { SalaryContractType } from '../types';
 import { getBankBranding, POPULAR_BANKS } from '../utils/bankBranding';
+import { normalizeBankKey } from '../utils/cardUtils';
 
 interface GetStartedOnboardingProps {
   isOpen: boolean;
@@ -105,6 +106,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
     addCheckpoint,
     addAccount,
     addCard,
+    updateCard,
     addMovement,
     updateMovement,
     addNature,
@@ -614,8 +616,9 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
       // 3. Cadastra o(s) Cartão(ões) de Crédito com fatura do mês seguinte
       try {
         if (hasCards) {
+          const targetKey = normalizeBankKey(cardBank || cardName || 'Nubank');
           const existingCard = cards.find(
-            (c) => (c.bank || '').toLowerCase() === (cardBank || '').toLowerCase()
+            (c) => normalizeBankKey(c.bank || c.name || '') === targetKey
           );
           if (!existingCard) {
             addCard({
@@ -627,6 +630,13 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
               dueDay: cardDueDay,
               color: '#8b5cf6',
             });
+          } else {
+            // Atualiza parâmetros do cartão existente caso o usuário tenha refinado limite ou dia
+            updateCard(existingCard.id, {
+              limitTotal: Math.max(existingCard.limitTotal, parsedCurrentInv * 1.5),
+              dueDay: cardDueDay,
+              closingDay: Math.max(1, cardDueDay - 7),
+            });
           }
 
           // Adiciona ou atualiza movimento previsto para a fatura do mês seguinte (evita duplicações)
@@ -637,7 +647,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
               (m) =>
                 m.type === 'CARTAO' &&
                 m.status === 'PREVISTA' &&
-                (m.bank || '').toLowerCase() === (cardBank || '').toLowerCase() &&
+                normalizeBankKey(m.bank || '') === targetKey &&
                 m.dueDate.startsWith(targetMonth)
             );
 
@@ -663,8 +673,9 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
         }
 
         if (hasSecondCard && parsedSecondCurr > 0) {
+          const targetSecondKey = normalizeBankKey(secondCardBank || secondCardName || 'Inter');
           const existingSecondCard = cards.find(
-            (c) => (c.bank || '').toLowerCase() === (secondCardBank || '').toLowerCase()
+            (c) => normalizeBankKey(c.bank || c.name || '') === targetSecondKey
           );
           if (!existingSecondCard) {
             addCard({
@@ -676,6 +687,12 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
               dueDay: secondCardDueDay,
               color: '#f59e0b',
             });
+          } else {
+            updateCard(existingSecondCard.id, {
+              limitTotal: Math.max(existingSecondCard.limitTotal, parsedSecondCurr * 1.5),
+              dueDay: secondCardDueDay,
+              closingDay: Math.max(1, secondCardDueDay - 7),
+            });
           }
 
           const targetSecondDueDate = getMonthDueDate(safeStartDate, 1, secondCardDueDay);
@@ -684,7 +701,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
             (m) =>
               m.type === 'CARTAO' &&
               m.status === 'PREVISTA' &&
-              (m.bank || '').toLowerCase() === (secondCardBank || '').toLowerCase() &&
+              normalizeBankKey(m.bank || '') === targetSecondKey &&
               m.dueDate.startsWith(targetSecondMonth)
           );
 

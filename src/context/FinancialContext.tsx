@@ -52,6 +52,7 @@ import {
   DEMO_BANKS,
   DEMO_SALARY_CONTRACTS,
 } from '../utils/demoData';
+import { deduplicateCards, getCardIdentityKey } from '../utils/cardUtils';
 
 interface FinancialContextType {
   // Estado
@@ -110,6 +111,7 @@ interface FinancialContextType {
   addCard: (card: Omit<CreditCardItem, 'id'>) => void;
   updateCard: (id: string, updates: Partial<CreditCardItem>) => void;
   deleteCard: (id: string) => void;
+  mergeAndCleanDuplicateCards: () => void;
 
   addPaymentMethod: (method: Omit<PaymentMethodItem, 'id'>) => void;
   updatePaymentMethod: (id: string, updates: Partial<PaymentMethodItem>) => void;
@@ -383,12 +385,12 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (isCloudUser && user) {
       try {
         const saved = localStorage.getItem(`balder_cards_${user.$id}`);
-        return saved ? JSON.parse(saved) : [];
+        return saved ? deduplicateCards(JSON.parse(saved)) : [];
       } catch {
         return [];
       }
     }
-    return DEMO_CARDS;
+    return deduplicateCards(DEMO_CARDS);
   });
 
   // Formas de Pagamento (armazenadas por usuário)
@@ -988,17 +990,46 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Gestão de Cartões de Crédito
   const addCard = (cardData: Omit<CreditCardItem, 'id'>) => {
-    const newCard: CreditCardItem = {
-      ...cardData,
-      id: `card_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-    };
     setCards((prev) => {
-      const next = [...prev, newCard];
-      if (user && !user.isGuest) {
-        localStorage.setItem(`balder_cards_${user.$id}`, JSON.stringify(next));
-        SupabaseService.saveUserProfileSettings({ cards: next }).catch(console.error);
+      const targetKey = getCardIdentityKey(cardData);
+      const existingIndex = prev.findIndex((c) => getCardIdentityKey(c) === targetKey);
+
+      let next: CreditCardItem[];
+      if (existingIndex >= 0) {
+        // Atualiza cartão existente mantendo o maior limite e saldo usado ao invés de duplicar
+        next = [...prev];
+        const existing = next[existingIndex];
+        next[existingIndex] = {
+          ...existing,
+          ...cardData,
+          limitTotal: Math.max(existing.limitTotal || 0, cardData.limitTotal || 0),
+          limitUsed: Math.max(existing.limitUsed || 0, cardData.limitUsed || 0),
+        };
+      } else {
+        const newCard: CreditCardItem = {
+          ...cardData,
+          id: `card_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        };
+        next = [...prev, newCard];
       }
-      return next;
+
+      const deduplicated = deduplicateCards(next);
+      if (user && !user.isGuest) {
+        localStorage.setItem(`balder_cards_${user.$id}`, JSON.stringify(deduplicated));
+        SupabaseService.saveUserProfileSettings({ cards: deduplicated }).catch(console.error);
+      }
+      return deduplicated;
+    });
+  };
+
+  const mergeAndCleanDuplicateCards = () => {
+    setCards((prev) => {
+      const cleaned = deduplicateCards(prev);
+      if (user && !user.isGuest) {
+        localStorage.setItem(`balder_cards_${user.$id}`, JSON.stringify(cleaned));
+        SupabaseService.saveUserProfileSettings({ cards: cleaned }).catch(console.error);
+      }
+      return cleaned;
     });
   };
 
@@ -1771,9 +1802,15 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               } catch {}
             }
           }
-          setCards(finalCards);
+          const deduplicatedCards = deduplicateCards(finalCards);
+          setCards(deduplicatedCards);
           if (user && !user.isGuest) {
-            localStorage.setItem(`balder_cards_${user.$id}`, JSON.stringify(finalCards));
+            localStorage.setItem(`balder_cards_${user.$id}`, JSON.stringify(deduplicatedCards));
+            // Se encontrou cartões duplicados antigos salvos no Supabase, limpa imediatamente na nuvem
+            if (deduplicatedCards.length !== finalCards.length) {
+              console.log(`[FinancialContext] Limpeza automática de cartões duplicados: ${finalCards.length} -> ${deduplicatedCards.length}`);
+              SupabaseService.saveUserProfileSettings({ cards: deduplicatedCards }).catch(console.error);
+            }
           }
 
           // 8. Bancos / Instituições
@@ -2022,8 +2059,12 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
         // Cartões e bancos (pilar 3 do Get Started)
         if (cloudProfileSettings?.cards?.length) {
-          setCards(cloudProfileSettings.cards);
-          localStorage.setItem(`balder_cards_${user.$id}`, JSON.stringify(cloudProfileSettings.cards));
+          const cleanRefetchCards = deduplicateCards(cloudProfileSettings.cards);
+          setCards(cleanRefetchCards);
+          localStorage.setItem(`balder_cards_${user.$id}`, JSON.stringify(cleanRefetchCards));
+          if (user && !user.isGuest && cleanRefetchCards.length !== cloudProfileSettings.cards.length) {
+            SupabaseService.saveUserProfileSettings({ cards: cleanRefetchCards }).catch(console.error);
+          }
         }
         if (cloudProfileSettings?.banks?.length) {
           setBanks(cloudProfileSettings.banks);
@@ -4255,6 +4296,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         addCard,
         updateCard,
         deleteCard,
+        mergeAndCleanDuplicateCards,
         addPaymentMethod,
         updatePaymentMethod,
         deletePaymentMethod,
