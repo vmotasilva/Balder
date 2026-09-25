@@ -16850,86 +16850,178 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   color: #0f172a;
 }
 
-/* Mobile adjustments for Natureza Items Table */
+/* Mobile layout for Natureza Items Table
+   Columns: [1]Descrição [2]Qtd [3]Preço [4]Frequência [5]Multiplicador [6]Total [7]Ações
+   Mobile order: L1=Descrição | L2=Freq+Mult | L3=Qtd+Preço+Total | L4=Ações
+*/
 @media (max-width: 768px) {
   .mapping-items-table-wrapper {
     overflow-x: hidden;
   }
 
-  .natureza-items-table, 
-  .natureza-items-table tbody, 
-  .natureza-items-table tr, 
-  .natureza-items-table td {
-    display: block;
+  .natureza-items-table {
     width: 100%;
     box-sizing: border-box;
   }
   .natureza-items-table thead {
     display: none;
   }
+  .natureza-items-table tbody {
+    display: block;
+    width: 100%;
+  }
+  /* Each row becomes a flex-wrap card */
   .natureza-items-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    box-sizing: border-box;
     margin-bottom: 12px;
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 12px;
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(255, 255, 255, 0.025);
     overflow: hidden;
-    padding: 0;
   }
+  /* Base td: no labels, minimal padding */
   .natureza-items-table td {
     display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    padding: 10px 14px;
+    align-items: center;
+    box-sizing: border-box;
+    padding: 8px 12px;
     font-size: 12px;
+    border-bottom: none;
   }
+  /* No pseudo-element labels */
   .natureza-items-table td::before {
-    flex: 0 0 90px;
-    font-weight: 700;
-    font-size: 10px;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    padding-top: 3px;
-    white-space: nowrap;
+    display: none;
   }
+
+  /* --- LINE 1: Descrição (full width, bold) + keyword button --- */
+  /* td:nth-of-type(1) = Descrição */
+  .natureza-items-table td:nth-of-type(1) {
+    order: 1;
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 12px 12px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  /* Make the description text bold */
+  .natureza-items-table td:nth-of-type(1) .item-desc-cell span,
+  .natureza-items-table td:nth-of-type(1) span.font-semibold {
+    font-weight: 700;
+    font-size: 13px;
+  }
+
+  /* --- LINE 2: Frequência + Multiplicador --- */
+  /* td:nth-of-type(4) = Frequência */
+  .natureza-items-table td:nth-of-type(4) {
+    order: 2;
+    width: 60%;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    padding: 6px 12px;
+  }
+  /* td:nth-of-type(5) = Multiplicador */
+  .natureza-items-table td:nth-of-type(5) {
+    order: 2;
+    width: 40%;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    padding: 6px 12px;
+  }
+
+  /* --- LINE 3: Qtd + Preço + Total --- */
+  /* td:nth-of-type(2) = Qtd */
+  .natureza-items-table td:nth-of-type(2) {
+    order: 3;
+    width: 33.333%;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    padding: 6px 12px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  /* td:nth-of-type(3) = Preço Unit */
+  .natureza-items-table td:nth-of-type(3) {
+    order: 3;
+    width: 33.333%;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    padding: 6px 12px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
+  /* td:nth-of-type(6) = Total */
+  .natureza-items-table td:nth-of-type(6) {
+    order: 3;
+    width: 33.333%;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    padding: 6px 12px;
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--accent-cyan);
+  }
+
+  /* --- LINE 4: Ações --- */
+  /* td:nth-of-type(7) = Ações (last child) */
+  .natureza-items-table td:nth-of-type(7),
+  .natureza-items-table td:last-child {
+    order: 4;
+    width: 100%;
+    justify-content: flex-end;
+    gap: 6px;
+    padding: 8px 12px;
+    border-bottom: none;
+  }
+  .natureza-items-table td:nth-of-type(7)::before,
+  .natureza-items-table td:last-child::before {
+    display: none;
+  }
+
+  /* Inputs/selects no modo edição ficam 100% */
   .natureza-items-table td input,
   .natureza-items-table td select {
     width: 100%;
     box-sizing: border-box;
     min-width: 0;
   }
-  .natureza-items-table td:nth-of-type(1) {
-    flex-direction: column;
-    gap: 6px;
+
+  /* --- Linha de edição (item-row-editing): coluna simples --- */
+  .item-row-editing {
+    display: block !important;
   }
-  .natureza-items-table td:nth-of-type(1)::before {
-    flex: none;
-    content: "Item";
+  .item-row-editing td {
+    display: block;
+    width: 100%;
+    order: unset;
+    padding: 6px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   }
-  .natureza-items-table td:nth-of-type(2)::before { content: "Qtd"; }
-  .natureza-items-table td:nth-of-type(3)::before { content: "Preco"; }
-  .natureza-items-table td:nth-of-type(4)::before { content: "Freq."; }
-  .natureza-items-table td:nth-of-type(5)::before { content: "Mult."; }
-  .natureza-items-table td:nth-of-type(6)::before { content: "Total"; }
-  .natureza-items-table td:last-child {
-    border-bottom: none;
+  .item-row-editing td:last-child {
     justify-content: flex-end;
-    padding: 8px 14px;
-    gap: 6px;
-  }
-  .natureza-items-table td:last-child::before {
-    display: none;
+    display: flex;
+    border-bottom: none;
   }
 
+  /* --- Linha de adição rápida (quick-add): coluna simples --- */
+  .quick-add-item-row {
+    display: block !important;
+  }
   .quick-add-item-row td {
-    flex-direction: column;
-    gap: 6px;
+    display: block;
+    width: 100%;
+    order: unset;
+    padding: 6px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .quick-add-item-row td:last-child {
+    justify-content: flex-end;
+    display: flex;
+    border-bottom: none;
   }
   .quick-add-item-row td::before {
     display: none;
   }
 
+  /* Light theme overrides */
   [data-theme="light"] .natureza-items-table tr {
     background: #FFFFFF;
     border-color: var(--border-default);
