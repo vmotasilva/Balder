@@ -552,6 +552,15 @@ export interface UserProfileSettings {
   checkpoints?: FinancialCheckpoint[];
   /** Quando cada grupo foi formatado (ISO). Impede que caches locais antigos restaurem dados apagados. */
   formattedAt?: Partial<Record<DataFormatCategory, string>>;
+  /** Exibição de cada natureza no detalhamento da grade, por id da natureza (padrão: 'ITENS'). */
+  natureDetailModes?: Record<string, NatureDetailMode>;
 }
+
+/**
+ * Como uma natureza aparece no detalhamento da grade:
+ * - ITENS: cada item mapeado (padrão)
+ * - MAPEAMENTOS: só o título de cada mapeamento com o valor total previsto
+ */
+export type NatureDetailMode = 'ITENS' | 'MAPEAMENTOS';
 
 

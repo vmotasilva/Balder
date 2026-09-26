@@ -180,6 +180,73 @@ function natureItemStateFields(ni: NatureItemEntry, monthKey: string): Partial<C
 }
 
 /**
+ * Naturezas configuradas para exibir só os mapeamentos: troca os itens de cada mapeamento (separados por
+ * cartão / demais formas de pagamento) por uma linha-resumo com o nome do mapeamento e o total previsto no mês.
+ * As linhas-resumo não têm natureItemRef (a situação é definida por item, na exibição detalhada).
+ */
+function summarizeNatureEntries(
+  entries: NatureItemEntry[],
+  monthKey: string,
+  isSummarized: (natureId?: string) => boolean
+): NatureItemEntry[] {
+  const result: NatureItemEntry[] = [];
+  const groups = new Map<string, { entry: NatureItemEntry; items: MappingItem[]; mappingKey: string }>();
+  const payGroupsByMapping = new Map<string, Set<string>>();
+
+  entries.forEach((ni) => {
+    if (!isSummarized(ni.natureId)) {
+      result.push(ni);
+      return;
+    }
+    const payGroup = ni.item.paymentMethod === 'CARTAO' ? 'CARTAO' : 'OUTROS';
+    const mappingKey = `${ni.natureId}_${ni.mappingId ?? ni.mappingName}`;
+    const key = `${mappingKey}_${payGroup}`;
+    let group = groups.get(key);
+    if (!group) {
+      group = {
+        entry: { natureName: ni.natureName, natureColor: ni.natureColor, mappingName: ni.mappingName, item: ni.item },
+        items: [],
+        mappingKey,
+      };
+      groups.set(key, group);
+      result.push(group.entry); // mantém a posição do mapeamento; o item-resumo é preenchido abaixo
+    }
+    group.items.push(ni.item);
+    const payGroups = payGroupsByMapping.get(mappingKey) || new Set<string>();
+    payGroups.add(payGroup);
+    payGroupsByMapping.set(mappingKey, payGroups);
+  });
+
+  groups.forEach((group, key) => {
+    const first = group.items[0];
+    const total = group.items.reduce((acc, it) => acc + mappingItemMonthValue(it, monthKey), 0);
+    const allRealized = group.items.every((it) => {
+      const state = resolveMappingItemState(it, monthKey);
+      return state.realized || state.paidByOthers;
+    });
+    const days = group.items.map((it) => it.dayOfMonth).filter((d): d is number => !!d && d > 0);
+    const isMixed = (payGroupsByMapping.get(group.mappingKey)?.size || 0) > 1;
+    const suffix = isMixed ? (first.paymentMethod === 'CARTAO' ? ' (cartão)' : ' (conta)') : '';
+
+    group.entry.item = {
+      id: `summary_${key}`,
+      description: `${group.entry.mappingName}${suffix}`,
+      quantity: 1,
+      price: total,
+      multiplierWeeks: 1,
+      totalValue: total,
+      paymentMethod: first.paymentMethod,
+      cardName: first.cardName,
+      recurrenceType: 'MENSAL',
+      dayOfMonth: days.length > 0 ? Math.min(...days) : undefined,
+      monthStates: allRealized ? { [monthKey]: { realized: true } } : undefined,
+    };
+  });
+
+  return result;
+}
+
+/**
  * Motor contábil que gera agrupamentos inteligentes por Data de Gasto dentro da Natureza.
  * Exemplo: se uma pessoa faz feira toda semana e compra de estoque mensal,
  * calcula as datas de manifestação de cada item (semanal, quinzenal e mensal com ajuste automático do fim do mês)
@@ -727,7 +794,12 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     banks,
     cards,
     toggleMovementStatus,
+    natureDetailModes,
   } = useFinancial();
+
+  // Naturezas configuradas para exibir só o título de cada mapeamento com o total previsto
+  const isNatureSummarized = (natureId?: string) =>
+    !!natureId && natureDetailModes[natureId] === 'MAPEAMENTOS';
 
   const columnKey = selection?.columnKey;
   const baseRow = selection?.row;
@@ -1077,8 +1149,8 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
       });
     });
 
-    return itemsList;
-  }, [natures, columnKey, selection, currentRow]);
+    return summarizeNatureEntries(itemsList, currentRow.monthKey, isNatureSummarized);
+  }, [natures, columnKey, selection, currentRow, natureDetailModes]);
 
   // Lista detalhada e reconciliada de todos os lançamentos que geraram o valor da célula
   const breakdownItems = useMemo<CellBreakdownItem[]>(() => {
@@ -1493,7 +1565,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     } else if (columnKey === 'fixedCost') {
       const monthNum = parseInt(row.monthKey.split('-')[1], 10);
       natures.forEach((nat) => {
-        const natItems: typeof allNatureItems = [];
+        let natItems: typeof allNatureItems = [];
         nat.mappings.forEach((m) => {
           if (
             m.applicableMonths &&
@@ -1513,6 +1585,9 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             });
           });
         });
+
+        natItems = summarizeNatureEntries(natItems, row.monthKey, isNatureSummarized);
+
 
         const natSum = natItems.reduce((acc, ni) => {
           const val = mappingItemMonthValue(ni.item, monthPrefix);
@@ -1848,7 +1923,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
       // 2. Custos Fixos Mapeados pelas Naturezas
       if (row.fixedCostMapped > 0) {
         natures.forEach((nat) => {
-          const natItems: typeof allNatureItems = [];
+          let natItems: typeof allNatureItems = [];
           nat.mappings.forEach((m) => {
             m.items.forEach((it) => {
               natItems.push({
@@ -1861,6 +1936,9 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
               });
             });
           });
+
+          natItems = summarizeNatureEntries(natItems, row.monthKey, isNatureSummarized);
+
 
           const natSum = natItems.reduce((acc, ni) => {
             const val = mappingItemMonthValue(ni.item, monthPrefix);
@@ -2009,7 +2087,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     }
 
     return items;
-  }, [selection, movements, columnKey, row, totalValue, allNatureItems, natures, competenceLabel, formattedCompetence, columnTitle, activeCheckpoint, monthlyClosings]);
+  }, [selection, movements, columnKey, row, totalValue, allNatureItems, natures, natureDetailModes, competenceLabel, formattedCompetence, columnTitle, activeCheckpoint, monthlyClosings]);
 
   // Aba ativa atual (título/categoria), para reencontrá-la quando a lista mudar (troca de mês ou edição)
   const activeTabRef = useRef<{ title: string; category: string } | null>(null);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
-import type { ExpenseNature } from '../types';
+import type { ExpenseNature, NatureDetailMode } from '../types';
 import { Check, Plus, Sparkles, Search, X } from 'lucide-react';
 
 interface NatureModalProps {
@@ -139,7 +139,7 @@ export const NatureModal: React.FC<NatureModalProps> = ({
   natureToEdit,
   onSuccess,
 }) => {
-  const { addNature, updateNature } = useFinancial();
+  const { addNature, updateNature, natureDetailModes, setNatureDetailMode } = useFinancial();
 
   const isEditing = !!natureToEdit;
 
@@ -150,6 +150,8 @@ export const NatureModal: React.FC<NatureModalProps> = ({
   const [description, setDescription] = useState('');
   const [keywords, setKeywords] = useState<string[]>([]);
   const [keywordInput, setKeywordInput] = useState('');
+  // Exibição no detalhamento da grade: cada item ou só os mapeamentos com o total
+  const [detailMode, setDetailMode] = useState<NatureDetailMode>('ITENS');
 
   const [activeCategory, setActiveCategory] = useState<string>('populares');
   const [searchFilter, setSearchFilter] = useState('');
@@ -164,6 +166,7 @@ export const NatureModal: React.FC<NatureModalProps> = ({
         setType(natureToEdit.type || 'ESSENCIAL');
         setDescription(natureToEdit.description || '');
         setKeywords(natureToEdit.keywords || []);
+        setDetailMode(natureDetailModes[natureToEdit.id] || 'ITENS');
       } else {
         setName('');
         setIcon('🏷️');
@@ -171,6 +174,7 @@ export const NatureModal: React.FC<NatureModalProps> = ({
         setType('ESSENCIAL');
         setDescription('');
         setKeywords([]);
+        setDetailMode('ITENS');
       }
       setKeywordInput('');
       setSearchFilter('');
@@ -293,9 +297,10 @@ export const NatureModal: React.FC<NatureModalProps> = ({
         description: description.trim(),
         keywords,
       });
+      setNatureDetailMode(natureToEdit.id, detailMode);
       if (onSuccess) onSuccess(natureToEdit.id);
     } else {
-      addNature({
+      const newNatureId = addNature({
         name: trimmedName,
         icon: chosenIcon,
         color: chosenColor,
@@ -305,6 +310,7 @@ export const NatureModal: React.FC<NatureModalProps> = ({
         justificationHistory: [],
         keywords,
       });
+      setNatureDetailMode(newNatureId, detailMode);
       if (onSuccess) onSuccess('');
     }
 
@@ -433,6 +439,52 @@ export const NatureModal: React.FC<NatureModalProps> = ({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
+          </div>
+        </div>
+
+        {/* Exibição no detalhamento da grade */}
+        <div className="form-group mb-3">
+          <label>Exibição no detalhamento da grade</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {(
+              [
+                {
+                  value: 'ITENS',
+                  label: 'Itens detalhados',
+                  hint: 'Mostra cada item mapeado com seu valor',
+                },
+                {
+                  value: 'MAPEAMENTOS',
+                  label: 'Só os mapeamentos',
+                  hint: 'Mostra o título de cada mapeamento com o total previsto',
+                },
+              ] as { value: NatureDetailMode; label: string; hint: string }[]
+            ).map((opt) => {
+              const active = detailMode === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setDetailMode(opt.value)}
+                  aria-pressed={active}
+                  style={{
+                    flex: '1 1 200px',
+                    textAlign: 'left',
+                    padding: '10px 12px',
+                    borderRadius: '10px',
+                    cursor: 'pointer',
+                    border: `1px solid ${active ? `${color}99` : 'rgba(255, 255, 255, 0.1)'}`,
+                    background: active ? `${color}1F` : 'rgba(255, 255, 255, 0.03)',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 700 }}>{opt.label}</span>
+                  <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                    {opt.hint}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 

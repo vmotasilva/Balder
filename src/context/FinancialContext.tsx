@@ -31,6 +31,7 @@ import type {
   MovementType,
   DataFormatCategory,
   UserProfileSettings,
+  NatureDetailMode,
   MovementStatus,
   CriticalEvent,
   Goal,
@@ -230,6 +231,10 @@ interface FinancialContextType {
   sharedScenario: SharedScenario | null;
   updateSharedScenario: (updates: Partial<SharedScenario>) => void;
   sharedSettlements: SharedSettlementItem[];
+
+  // Exibição das naturezas no detalhamento da grade (itens ou só mapeamentos)
+  natureDetailModes: Record<string, NatureDetailMode>;
+  setNatureDetailMode: (natureId: string, mode: NatureDetailMode) => void;
   addSharedSettlement: (item: Omit<SharedSettlementItem, 'id'>) => void;
   toggleSharedSettlementStatus: (id: string) => void;
   settleAllSharedDebts: () => void;
@@ -780,6 +785,31 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   });
 
   // Lista de Despesas e Acertos Mútuos Compartilhados
+  // Exibição das naturezas no detalhamento (guardada no perfil: não exige coluna nova na tabela natures)
+  const natureDetailModesKey = user && !user.isGuest ? `balder_nature_detail_modes_${user.$id}` : 'balder_nature_detail_modes_guest';
+  const [natureDetailModes, setNatureDetailModes] = useState<Record<string, NatureDetailMode>>(() => {
+    try {
+      const saved = localStorage.getItem(natureDetailModesKey);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {};
+  });
+
+  const setNatureDetailMode = (natureId: string, mode: NatureDetailMode) => {
+    setNatureDetailModes((prev) => {
+      const next = { ...prev };
+      if (mode === 'ITENS') delete next[natureId];
+      else next[natureId] = mode;
+      try {
+        localStorage.setItem(natureDetailModesKey, JSON.stringify(next));
+      } catch {}
+      if (user && !user.isGuest) {
+        SupabaseService.saveUserProfileSettings({ natureDetailModes: next }).catch(console.error);
+      }
+      return next;
+    });
+  };
+
   const [sharedSettlements, setSharedSettlements] = useState<SharedSettlementItem[]>(() => {
     try {
       const storageKey = user && !user.isGuest ? `balder_shared_settlements_${user.$id}` : 'balder_shared_settlements';
@@ -1620,6 +1650,12 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             setSharedSettlements(cloudProfileSettings.sharedSettlements);
             if (user) {
               localStorage.setItem(`balder_shared_settlements_${user.$id}`, JSON.stringify(cloudProfileSettings.sharedSettlements));
+            }
+          }
+          if (cloudProfileSettings?.natureDetailModes) {
+            setNatureDetailModes(cloudProfileSettings.natureDetailModes);
+            if (user) {
+              localStorage.setItem(`balder_nature_detail_modes_${user.$id}`, JSON.stringify(cloudProfileSettings.natureDetailModes));
             }
           }
           if (cloudProfileSettings?.defaultTrackingScope) {
@@ -4112,6 +4148,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (has('NATUREZAS')) {
       lastLocalNatureMutationRef.current = Date.now();
       setNatures([]);
+      setNatureDetailModes({});
+      removeKeys(natureDetailModesKey);
+      if (isCloud) profilePatch.natureDetailModes = {};
       removeKeys(
         userKey('balder_natures_backup'),
         userKey('balder_deleted_natures'),
@@ -4283,6 +4322,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         sharedScenario,
         updateSharedScenario,
         sharedSettlements,
+        natureDetailModes,
+        setNatureDetailMode,
         addSharedSettlement,
         toggleSharedSettlementStatus,
         settleAllSharedDebts,
