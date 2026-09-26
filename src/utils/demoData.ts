@@ -6,62 +6,13 @@ import type {
   CreditCardItem,
   PaymentMethodItem,
   BankInstitution,
-  } from '../types';
+} from '../types';
 
 export const DEMO_BANKS: BankInstitution[] = [
   { id: 'bank_nubank', name: 'Nubank S.A.', code: '260', color: '#8A05BE', icon: '🟣', status: 'CONECTADO', syncedAt: 'há 12 minutos' },
   { id: 'bank_inter', name: 'Banco Inter', code: '077', color: '#FF7A00', icon: '🟠', status: 'CONECTADO', syncedAt: 'há 1 hora' },
   { id: 'bank_xp', name: 'XP Investimentos', code: '102', color: '#1E293B', icon: '⚪', status: 'CONECTADO', syncedAt: 'há 4 horas' },
   { id: 'bank_caixa', name: 'Caixa Econômica', code: '104', color: '#0066B3', icon: '🔵', status: 'MANUAL', syncedAt: 'Manual' },
-];
-
-export const DEMO_SALARY_CONTRACTS: SalaryContract[] = [
-  {
-    id: 'sal_clt_tech',
-    employer: 'Tech Inovação & Soluções S.A.',
-    role: 'Especialista de Sistemas & Tech Lead',
-    contractType: 'CLT',
-    paymentDay: 5,
-    secondPaymentDay: 20,
-    currentGrossAmount: 12000.00,
-    currentNetAmount: 8963.68,
-    receivingBankAccountId: 'acc_inter',
-    receivingBankName: 'Banco Inter',
-    startDate: '2024-03-01',
-    isActive: true,
-    history: [
-      {
-        id: 'adj_1',
-        effectiveDate: '2024-03',
-        grossAmount: 9000.00,
-        netAmount: 7150.00,
-        percentageIncrease: 0,
-        reason: 'OUTRO',
-        title: 'Admissão Inicial (Pleno)',
-        notes: 'Início do contrato de trabalho CLT',
-      },
-      {
-        id: 'adj_2',
-        effectiveDate: '2025-05',
-        grossAmount: 10500.00,
-        netAmount: 8120.00,
-        percentageIncrease: 13.57,
-        reason: 'DISSÍDIO_CONVENÇÃO',
-        title: 'Dissídio e Acordo Coletivo 2025',
-        notes: 'Reajuste anual sindical da categoria de Tecnologia da Informação',
-      },
-      {
-        id: 'adj_3',
-        effectiveDate: '2026-02',
-        grossAmount: 12000.00,
-        netAmount: 8963.68,
-        percentageIncrease: 10.39,
-        reason: 'MÉRITO',
-        title: 'Promoção para Especialista Tech Lead',
-        notes: 'Reconhecimento por liderança técnica e entrega do novo core financeiro',
-      },
-    ],
-  },
 ];
 
 export const DEMO_ACCOUNTS: BankAccount[] = [

@@ -39,7 +39,7 @@ export const SharedPlanningPage: React.FC = () => {
   const [newExpensePaidBy, setNewExpensePaidBy] = useState<'USER' | 'PARTNER'>('USER');
 
   // Cálculos do Rateio de Renda
-  const userSalary = salaryContracts?.find((s) => s.isActive)?.currentNetAmount || 8500;
+  const userSalary = sharedScenario?.members?.find((m) => m.role === 'OWNER')?.monthlyIncome || 8500;
   const partnerSalary = sharedScenario?.members?.find((m) => m.role === 'PARTNER')?.monthlyIncome || 5200;
   const totalHouseholdIncome = userSalary + partnerSalary;
 

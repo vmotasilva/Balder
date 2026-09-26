@@ -31,8 +31,6 @@ import type {
   CreditCardItem,
   PaymentMethodItem,
   BankInstitution,
-  SalaryContract,
-  SalaryAdjustment,
   FinancialCheckpoint,
   MonthlyClosing,
   TrackingScopeMode,
@@ -50,7 +48,6 @@ import {
   DEMO_CARDS,
   DEMO_PAYMENT_METHODS,
   DEMO_BANKS,
-  DEMO_SALARY_CONTRACTS,
 } from '../utils/demoData';
 import { deduplicateCards, getCardIdentityKey } from '../utils/cardUtils';
 
@@ -119,14 +116,6 @@ interface FinancialContextType {
   addBank: (bank: Omit<BankInstitution, 'id'>) => void;
   updateBank: (id: string, updates: Partial<BankInstitution>) => void;
   deleteBank: (id: string) => void;
-
-  // Gestão de Salários & Evolução Salarial
-  addSalaryContract: (contract: Omit<SalaryContract, 'id' | 'history'> & { initialAdjustment?: Omit<SalaryAdjustment, 'id'> }) => void;
-  updateSalaryContract: (id: string, updates: Partial<SalaryContract>) => void;
-  addSalaryAdjustment: (contractId: string, adjustment: Omit<SalaryAdjustment, 'id'>) => void;
-  updateSalaryAdjustment: (contractId: string, adjustmentId: string, updates: Partial<SalaryAdjustment>) => void;
-  deleteSalaryAdjustment: (contractId: string, adjustmentId: string) => void;
-  getSalaryForCompetence: (monthKey: string) => number;
 
   // Ações Principais
   addMovement: (movement: Omit<Movement, 'id'>) => void;
@@ -415,19 +404,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     }
     return DEMO_BANKS;
-  });
-
-  // Contratos de Salário / Fontes de Renda (armazenados por usuário)
-  const [salaryContracts, setSalaryContracts] = useState<SalaryContract[]>(() => {
-    if (isCloudUser && user) {
-      try {
-        const saved = localStorage.getItem(`balder_salaries_${user.$id}`);
-        return saved ? JSON.parse(saved) : [];
-      } catch {
-        return [];
-      }
-    }
-    return DEMO_SALARY_CONTRACTS;
   });
 
   // Marcos de Acompanhamento Financeiro
@@ -1143,221 +1119,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
-  // Gestão de Salários & Evolução Salarial
-  const addSalaryContract = (data: Omit<SalaryContract, 'id' | 'history'> & { initialAdjustment?: Omit<SalaryAdjustment, 'id'> }) => {
-    const contractId = `sal_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
-    const history: SalaryAdjustment[] = [];
-
-    if (data.initialAdjustment) {
-      history.push({
-        ...data.initialAdjustment,
-        id: `adj_${Date.now()}_init`,
-        percentageIncrease: 0,
-      });
-    } else {
-      history.push({
-        id: `adj_${Date.now()}_init`,
-        effectiveDate: data.startDate.slice(0, 7),
-        grossAmount: data.currentGrossAmount,
-        netAmount: data.currentNetAmount,
-        percentageIncrease: 0,
-        reason: 'OUTRO',
-        title: 'Admissão / Início do Contrato',
-      });
-    }
-
-    const newContract: SalaryContract = {
-      ...data,
-      id: contractId,
-      history,
-    };
-
-    setSalaryContracts((prev) => {
-      const next = [...prev, newContract];
-      if (user && !user.isGuest) {
-        localStorage.setItem(`balder_salaries_${user.$id}`, JSON.stringify(next));
-      }
-      return next;
-    });
-    if (user && !user.isGuest) {
-      SupabaseService.upsertSalaryContract(newContract).catch(console.error);
-      SupabaseService.saveUserProfileSettings({
-              }).catch(console.error);
-    }
-  };
-
-  const updateSalaryContract = (id: string, updates: Partial<SalaryContract>) => {
-    let updatedSc: SalaryContract | null = null;
-    let nextList: SalaryContract[] = [];
-    setSalaryContracts((prev) => {
-      const next = prev.map((sc) => {
-        if (sc.id === id) {
-          updatedSc = { ...sc, ...updates };
-          return updatedSc;
-        }
-        return sc;
-      });
-      nextList = next;
-      if (user && !user.isGuest) {
-        localStorage.setItem(`balder_salaries_${user.$id}`, JSON.stringify(next));
-      }
-      return next;
-    });
-    if (user && !user.isGuest && updatedSc) {
-      SupabaseService.upsertSalaryContract(updatedSc).catch(console.error);
-      SupabaseService.saveUserProfileSettings({ salaryContracts: nextList }).catch(console.error);
-    }
-  };
-
-  const deleteSalaryContract = (id: string) => {
-    let nextList: SalaryContract[] = [];
-    setSalaryContracts((prev) => {
-      const next = prev.filter((sc) => sc.id !== id);
-      nextList = next;
-      if (user && !user.isGuest) {
-        localStorage.setItem(`balder_salaries_${user.$id}`, JSON.stringify(next));
-      }
-      return next;
-    });
-    if (user && !user.isGuest) {
-      SupabaseService.deleteSalaryContract(id).catch(console.error);
-      SupabaseService.saveUserProfileSettings({ salaryContracts: nextList }).catch(console.error);
-    }
-  };
-
-  const addSalaryAdjustment = (contractId: string, adjustmentData: Omit<SalaryAdjustment, 'id'>) => {
-    let targetContract: SalaryContract | null = null;
-    setSalaryContracts((prev) => {
-      const next = prev.map((sc) => {
-        if (sc.id !== contractId) return sc;
-
-        const sortedHistory = [...sc.history].sort((a: any, b: any) => a.effectiveDate.localeCompare(b.effectiveDate));
-        const previousAdj = sortedHistory.filter((a: any) => a.effectiveDate <= adjustmentData.effectiveDate).pop() || sortedHistory[sortedHistory.length - 1];
-
-        let pct = adjustmentData.percentageIncrease;
-        if (pct === undefined && previousAdj && previousAdj.netAmount > 0) {
-          pct = Math.round(((adjustmentData.netAmount - previousAdj.netAmount) / previousAdj.netAmount) * 10000) / 100;
-        }
-
-        const newAdj: SalaryAdjustment = {
-          ...adjustmentData,
-          id: `adj_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-          percentageIncrease: pct || 0,
-        };
-
-        const updatedHistory = [...sc.history, newAdj].sort((a: any, b: any) => a.effectiveDate.localeCompare(b.effectiveDate));
-        const latestAdj = updatedHistory[updatedHistory.length - 1];
-
-        const updated = {
-          ...sc,
-          currentGrossAmount: latestAdj.grossAmount,
-          currentNetAmount: latestAdj.netAmount,
-          history: updatedHistory,
-        };
-        targetContract = updated;
-        return updated;
-      });
-
-      if (user && !user.isGuest) {
-        localStorage.setItem(`balder_salaries_${user.$id}`, JSON.stringify(next));
-      }
-      return next;
-    });
-    if (user && !user.isGuest && targetContract) {
-      SupabaseService.upsertSalaryContract(targetContract).catch(console.error);
-      setSalaryContracts((current) => {
-        SupabaseService.saveUserProfileSettings({ salaryContracts: current }).catch(console.error);
-        return current;
-      });
-    }
-  };
-
-  const updateSalaryAdjustment = (contractId: string, adjustmentId: string, updates: Partial<SalaryAdjustment>) => {
-    let targetContract: SalaryContract | null = null;
-    setSalaryContracts((prev) => {
-      const next = prev.map((sc) => {
-        if (sc.id !== contractId) return sc;
-        const updatedHistory = sc.history.map((a: any) => (a.id === adjustmentId ? { ...a, ...updates } : a))
-          .sort((a: any, b: any) => a.effectiveDate.localeCompare(b.effectiveDate));
-        const latestAdj = updatedHistory[updatedHistory.length - 1];
-
-        const updated = {
-          ...sc,
-          currentGrossAmount: latestAdj ? latestAdj.grossAmount : sc.currentGrossAmount,
-          currentNetAmount: latestAdj ? latestAdj.netAmount : sc.currentNetAmount,
-          history: updatedHistory,
-        };
-        targetContract = updated;
-        return updated;
-      });
-
-      if (user && !user.isGuest) {
-        localStorage.setItem(`balder_salaries_${user.$id}`, JSON.stringify(next));
-      }
-      return next;
-    });
-    if (user && !user.isGuest && targetContract) {
-      SupabaseService.upsertSalaryContract(targetContract).catch(console.error);
-      setSalaryContracts((current) => {
-        SupabaseService.saveUserProfileSettings({ salaryContracts: current }).catch(console.error);
-        return current;
-      });
-    }
-  };
-
-  const deleteSalaryAdjustment = (contractId: string, adjustmentId: string) => {
-    let targetContract: SalaryContract | null = null;
-    setSalaryContracts((prev) => {
-      const next = prev.map((sc) => {
-        if (sc.id !== contractId) return sc;
-        const updatedHistory = sc.history.filter((a: any) => a.id !== adjustmentId);
-        const latestAdj = updatedHistory[updatedHistory.length - 1];
-
-        const updated = {
-          ...sc,
-          currentGrossAmount: latestAdj ? latestAdj.grossAmount : sc.currentGrossAmount,
-          currentNetAmount: latestAdj ? latestAdj.netAmount : sc.currentNetAmount,
-          history: updatedHistory,
-        };
-        targetContract = updated;
-        return updated;
-      });
-
-      if (user && !user.isGuest) {
-        localStorage.setItem(`balder_salaries_${user.$id}`, JSON.stringify(next));
-      }
-      return next;
-    });
-    if (user && !user.isGuest && targetContract) {
-      SupabaseService.upsertSalaryContract(targetContract).catch(console.error);
-      setSalaryContracts((current) => {
-        SupabaseService.saveUserProfileSettings({ salaryContracts: current }).catch(console.error);
-        return current;
-      });
-    }
-  };
-
-  // Retorna a remuneração líquida vigente em determinado mês de competência (YYYY-MM)
-  const getSalaryForCompetence = (monthKey: string): number => {
-    return salaryContracts
-      .filter((sc) => sc.isActive)
-      .reduce((total, sc) => {
-        if (!sc.history || sc.history.length === 0) {
-          return total + sc.currentNetAmount;
-        }
-
-        const sorted = [...sc.history].sort((a: any, b: any) => a.effectiveDate.localeCompare(b.effectiveDate));
-        // Buscar o reajuste vigente na data (último cujo effectiveDate <= monthKey)
-        const applicable = sorted.filter((a: any) => a.effectiveDate <= monthKey).pop();
-
-        if (applicable) {
-          return total + applicable.netAmount;
-        }
-
-        return total + sorted[0].netAmount;
-      }, 0);
-  };
-
   // Eventos Críticos Sentinela dinâmicos com base nas movimentações reais
   const criticalEvents = useMemo<CriticalEvent[]>(() => {
     const today = new Date();
@@ -1475,7 +1236,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setCards(DEMO_CARDS);
       setPaymentMethods(DEMO_PAYMENT_METHODS);
       setBanks(DEMO_BANKS);
-      setSalaryContracts(DEMO_SALARY_CONTRACTS);
       setMovements(DEMO_MOVEMENTS);
       setGoals(DEMO_GOALS);
       setNatures(DEMO_NATURES);
@@ -1491,7 +1251,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           cloudNatures,
           cloudGoals,
           cloudAccounts,
-          cloudSalaries,
           cloudCheckpoints,
           cloudPaymentMethods,
           cloudProfileSettings,
@@ -1500,7 +1259,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           SupabaseService.getNatures(),
           SupabaseService.getGoals(),
           SupabaseService.getAccounts(),
-          SupabaseService.getSalaryContracts(),
           SupabaseService.getCheckpoints(),
           SupabaseService.getPaymentMethods(),
           SupabaseService.getUserProfileSettings(),
@@ -1689,49 +1447,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             localStorage.setItem(`balder_payment_methods_${user.$id}`, JSON.stringify(finalMethods));
           }
 
-          // 5. Contratos de Salário / Remuneração (Nuvem prioritária com dupla camada de resiliência)
-          let finalSalaries = cloudSalaries || [];
-          if (cloudProfileSettings?.salaryContracts && cloudProfileSettings.salaryContracts.length > 0) {
-            if (finalSalaries.length === 0) {
-              finalSalaries = cloudProfileSettings.salaryContracts;
-              if (user && !user.isGuest) {
-                finalSalaries.forEach((sc) => SupabaseService.upsertSalaryContract(sc).catch(console.error));
-              }
-            } else {
-              // Recupera flags (como payInFollowingMonth) que podem estar ausentes no schema relacional, lendo do backup JSON do profile
-              finalSalaries = finalSalaries.map(sc => {
-                const backup = cloudProfileSettings.salaryContracts!.find((b: any) => b.id === sc.id);
-                if (backup && backup.payInFollowingMonth !== undefined) {
-                  return { ...sc, payInFollowingMonth: backup.payInFollowingMonth };
-                }
-                return sc;
-              });
-            }
-          }
-          if (finalSalaries.length === 0 && user) {
-            const savedSalStr = localStorage.getItem(`balder_salaries_${user.$id}`) || localStorage.getItem('balder_salaries_guest');
-            if (savedSalStr) {
-              try {
-                const parsed = JSON.parse(savedSalStr);
-                if (Array.isArray(parsed) && parsed.length > 0) {
-                  finalSalaries = parsed;
-                  if (!user.isGuest) {
-                    parsed.forEach((sc) => SupabaseService.upsertSalaryContract(sc).catch(console.error));
-                    SupabaseService.saveUserProfileSettings({ salaryContracts: parsed }).catch(console.error);
-                  }
-                }
-              } catch {}
-            }
-          }
-          // Garante que o perfil nas nuvens tenha o backup de contratos para mobile/outros dispositivos
-          if (user && !user.isGuest && finalSalaries.length > 0 && (!cloudProfileSettings?.salaryContracts || cloudProfileSettings.salaryContracts.length === 0)) {
-            SupabaseService.saveUserProfileSettings({ salaryContracts: finalSalaries }).catch(console.error);
-          }
-          setSalaryContracts(finalSalaries);
-          if (user && !user.isGuest) {
-            localStorage.setItem(`balder_salaries_${user.$id}`, JSON.stringify(finalSalaries));
-          }
-
           // 6. Checkpoints de Partida (Crucial para saldo e métricas)
           let finalCheckpoints = cloudCheckpoints || [];
           if (finalCheckpoints.length === 0 && cloudProfileSettings?.checkpoints && cloudProfileSettings.checkpoints.length > 0) {
@@ -1888,7 +1603,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               cards: finalCards,
               banks: finalBanks,
               monthlyClosings: finalClosings,
-              salaryContracts: finalSalaries,
               checkpoints: finalCheckpoints,
               onboardingCompleted: localStorage.getItem(`balder_onboarding_completed_${user.$id}`) === 'true',
             }).catch(console.error);
@@ -1979,14 +1693,12 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       try {
         const [
           cloudMovements,
-          cloudSalaries,
           cloudCheckpoints,
           cloudAccounts,
           cloudProfileSettings,
           cloudNatures,
         ] = await Promise.all([
           SupabaseService.getMovements(),
-          SupabaseService.getSalaryContracts(),
           SupabaseService.getCheckpoints(),
           SupabaseService.getAccounts(),
           SupabaseService.getUserProfileSettings(),
@@ -1994,16 +1706,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ]);
 
         if (!isMounted) return;
-
-        // Salários (tabela ou profile_settings)
-        let freshSalaries = cloudSalaries || [];
-        if (freshSalaries.length === 0 && cloudProfileSettings?.salaryContracts?.length) {
-          freshSalaries = cloudProfileSettings.salaryContracts;
-        }
-        if (freshSalaries.length > 0) {
-          setSalaryContracts(freshSalaries);
-          localStorage.setItem(`balder_salaries_${user.$id}`, JSON.stringify(freshSalaries));
-        }
 
         // Checkpoints (tabela ou profile_settings)
         let freshCheckpoints = cloudCheckpoints || [];
@@ -4269,7 +3971,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         cards,
         paymentMethods,
         banks,
-        salaryContracts,
         movements,
         goals,
         criticalEvents,
@@ -4311,13 +4012,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         addBank,
         updateBank,
         deleteBank,
-        addSalaryContract,
-        updateSalaryContract,
-        deleteSalaryContract,
-        addSalaryAdjustment,
-        updateSalaryAdjustment,
-        deleteSalaryAdjustment,
-        getSalaryForCompetence,
         addMovement,
         addMultipleMovements,
         updateMovement,

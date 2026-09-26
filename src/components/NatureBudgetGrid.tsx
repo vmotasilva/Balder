@@ -12,6 +12,7 @@ import {
   Table,
 } from 'lucide-react';
 import type { ExpenseNature, MonthlyGridProjectionRow, MappingItem } from '../types';
+import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
 import { GridCellDetailModal, generateNatureDateGroups } from './GridCellDetailModal';
 import type { GridCellSelection } from './GridCellDetailModal';
 

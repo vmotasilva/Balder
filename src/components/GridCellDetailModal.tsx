@@ -26,6 +26,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import type { MonthlyGridProjectionRow, MappingItem, MovementStatus, Movement, InvoiceNatureItemBreakdown } from '../types';
+import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
 import type { ProjectionViewMode } from '../utils/projectionMath';
 import { getItemManifestationDays } from '../utils/natureScheduling';
 import { MovementDetailModal } from './MovementDetailModal';
@@ -355,25 +356,19 @@ export function buildSalaryBreakdownItem(
   monthPrefix: string,
   currentRow: MonthlyGridProjectionRow,
   realSalaries: any[],
-  salaryContracts: any[],
   banks: any[]
 ): CellBreakdownItem | null {
-  const activeContract = salaryContracts?.find((sc: any) => sc.isActive) || salaryContracts?.[0];
-  const resolution = activeContract ? resolveSalaryForMonth(activeContract, monthPrefix) : null;
-  const isPayInFollowingMonth = activeContract?.payInFollowingMonth ?? false;
+  const isPayInFollowingMonth = false;
 
-  const isSemanal = (currentRow.salaryWeeklyInstallments ?? 0) > 0 || (resolution?.weeklyCount ?? 0) > 0;
+  const isSemanal = (currentRow.salaryWeeklyInstallments ?? 0) > 0;
   const isQuinzenal =
     !isSemanal &&
     ((currentRow.salaryFirstInstallment ?? 0) > 0 ||
-      (currentRow.salarySecondInstallment ?? 0) > 0 ||
-      (resolution?.first ?? 0) > 0 ||
-      (resolution?.second ?? 0) > 0 ||
-      activeContract?.paymentSchedule === 'QUINZENAL');
+      (currentRow.salarySecondInstallment ?? 0) > 0);
 
-  const q1Day = activeContract?.secondPaymentDay || 15;
-  const q2Day = activeContract?.paymentDay || (activeContract?.paymentDay === 31 ? 31 : 30);
-  const unicoDay = activeContract?.paymentDay || 5;
+  const q1Day = 15;
+  const q2Day = 30;
+  const unicoDay = 5;
 
   const defaultQ1DueDate = computeSalaryDueDate(monthPrefix, q1Day, isPayInFollowingMonth);
   const defaultQ2DueDate = computeSalaryDueDate(monthPrefix, q2Day, isPayInFollowingMonth);
@@ -404,8 +399,8 @@ export function buildSalaryBreakdownItem(
   let salarySubItems: CellBreakdownSubItem[] = [];
 
   if (isQuinzenal) {
-    const defaultQ1 = resolution?.first || currentRow.salaryFirstInstallment || 0;
-    const defaultQ2 = resolution?.second || currentRow.salarySecondInstallment || 0;
+    const defaultQ1 = currentRow.salaryFirstInstallment || 0;
+    const defaultQ2 = currentRow.salarySecondInstallment || 0;
 
     const q1Amount = mQ1 !== undefined ? mQ1.amount : (currentRow.salaryFirstInstallment ?? defaultQ1);
     const q1Original = mQ1?.originalAmount || (defaultQ1 > 0 ? defaultQ1 : q1Amount);
@@ -493,10 +488,9 @@ export function buildSalaryBreakdownItem(
       },
     ];
   } else if (isSemanal) {
-    const count = currentRow.salaryWeeklyInstallments || resolution?.weeklyCount || 4;
+    const count = currentRow.salaryWeeklyInstallments || 4;
     const weeklyVal =
       currentRow.salaryWeeklyAmount ||
-      resolution?.weeklyAmount ||
       Math.round((currentRow.salary / count) * 100) / 100;
     for (let w = 1; w <= count; w++) {
       const mW = realSalaries.find((m: any) => m.title.includes(`${w}ª semana`));
@@ -536,7 +530,7 @@ export function buildSalaryBreakdownItem(
       });
     }
   } else {
-    const defaultUnico = resolution?.total || currentRow.salary || 0;
+    const defaultUnico = currentRow.salary || 0;
     const unicoAmount = mUnico !== undefined ? mUnico.amount : defaultUnico;
     const unicoOriginal = mUnico?.originalAmount || defaultUnico || unicoAmount;
     const unicoStatus: MovementStatus | 'CANCELADA' =
@@ -2678,31 +2672,6 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
               </div>
             </div>
           )}
-
-          {/* Banner de Ciclo M+1 quando aplicável */}
-          {(columnKey === 'salary' || columnKey === 'totalIncome') && currentRow && (() => {
-            const contract = salaryContracts?.find((sc: any) => sc.isActive) || salaryContracts?.[0];
-            if (!contract?.payInFollowingMonth) return null;
-            const nextMonth = getNextMonthName(currentRow.monthKey);
-            const firstDay = contract.secondPaymentDay || 1;
-            return (
-              <div
-                className="compact-info-banner mb-2"
-                style={{
-                  background: 'rgba(6, 182, 212, 0.08)',
-                  border: '1px solid rgba(6, 182, 212, 0.25)',
-                }}
-              >
-                <Calendar size={15} className="text-cyan-400 flex-shrink-0" />
-                <div className="text-xs min-w-0 flex-1" style={{ color: 'var(--text-secondary)' }}>
-                  <strong style={{ color: 'var(--text-primary)' }}>
-                    Competência {currentRow.competenceLabel} (Regime M+1):
-                  </strong>{' '}
-                  O pagamento referente a este período é creditado no mês seguinte ({nextMonth}). O 1º pagamento ocorre no dia {firstDay} de {nextMonth}.
-                </div>
-              </div>
-            );
-          })()}
 
           {columnKey === 'totalExpense' && currentRow && (
             <div className="compact-info-banner mb-2">

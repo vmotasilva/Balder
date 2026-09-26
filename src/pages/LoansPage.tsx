@@ -20,6 +20,7 @@ import {
 import { calculateLoanSpreadsheet } from '../utils/loanSpreadsheetMath';
 import type { LoanSpreadsheetInput } from '../utils/loanSpreadsheetMath';
 import { groupLoanMovements, calculatePresentValue } from '../utils/loanMath';
+import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
 import { Modal } from '../components/Modal';
 
 export type RowSimMode = 'NORMAL' | 'ANTECIPAR' | 'PAUSAR' | 'CUSTOM';

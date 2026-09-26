@@ -54,7 +54,7 @@ import {
   WEEKDAY_OPTIONS,
   formatItemScheduleBadge,
 } from '../utils/natureScheduling';
-import type { SalaryContract, SalaryAdjustment, FixedExpenseMapping, FinancialCheckpoint, CheckpointBankDebt } from '../types';
+import type { FixedExpenseMapping, FinancialCheckpoint, CheckpointBankDebt } from '../types';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
 
 interface ProfilePageProps {

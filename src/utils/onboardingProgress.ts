@@ -109,21 +109,26 @@ export function auditOnboardingProgress(data: AuditInputData): OnboardingAuditRe
   }
 
   // --------------------------------------------------------------------------
-  // 2. REMUNERAÇÃO & CONTRATO DE SALÁRIO (Passo 1 do Get Started)
-  // Concluído assim que houver ao menos 1 remuneração cadastrada no perfil,
-  // independentemente de isActive ou valor (conforme definição do usuário).
+  // 2. REMUNERAÇÃO & SALÁRIO (Passo 1 do Get Started)
+  // Concluído assim que houver ao menos 1 recebimento de salário lançado
+  // nas movimentações (contas a receber).
   // --------------------------------------------------------------------------
-  const allSalaries = salaryContracts || [];
-  const activeSalaries = allSalaries.filter((s) => s.isActive && s.currentNetAmount > 0);
-  const hasSalaryRegistered = allSalaries.length > 0;
+  const salaryMovements = (movements || [])
+    .filter(
+      (m) =>
+        m.type === 'RECEBER' &&
+        (m.category === 'Salário' ||
+          m.title.toLowerCase().includes('salário') ||
+          m.title.toLowerCase().includes('quinzena'))
+    )
+    .sort((a, b) => b.dueDate.localeCompare(a.dueDate));
+  const hasSalaryRegistered = salaryMovements.length > 0;
 
   if (hasSalaryRegistered) {
-    // Prefere o contrato ativo com maior valor para exibição, senão usa o primeiro cadastrado
-    const displaySalary = activeSalaries.length > 0
-      ? activeSalaries[0]
-      : allSalaries[0];
-    const valFormatted = displaySalary.currentNetAmount
-      ? displaySalary.currentNetAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    // Exibe o recebimento de salário mais recente
+    const displaySalary = salaryMovements[0];
+    const valFormatted = displaySalary.amount
+      ? displaySalary.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
       : 'Valor a confirmar';
     steps.push({
       id: 'salary',
@@ -133,7 +138,7 @@ export function auditOnboardingProgress(data: AuditInputData): OnboardingAuditRe
       status: 'DONE',
       isComplete: true,
       score: 20,
-      description: `${displaySalary.role || 'Remuneração'} (${valFormatted}${displaySalary.paymentDay ? `, Dia ${displaySalary.paymentDay}` : ''}) cadastrada no perfil.`,
+      description: `${displaySalary.title || 'Remuneração'} (${valFormatted}, ${displaySalary.dueDate.split('-').reverse().join('/')}) lançada nas movimentações.`,
       actionLabel: 'Ajustar',
       importance: 'CRITICO',
     });
@@ -146,8 +151,8 @@ export function auditOnboardingProgress(data: AuditInputData): OnboardingAuditRe
       status: 'PENDING',
       isComplete: false,
       score: 0,
-      description: 'Cadastre seu salário líquido e dia de pagamento para projetar recebimentos.',
-      missingHint: 'Sem o contrato de salário, os valores a receber futuros no dashboard e na grade exibem R$ 0,00.',
+      description: 'Lance seus recebimentos de salário em contas a receber para projetar entradas.',
+      missingHint: 'Sem salários lançados, os valores a receber futuros no dashboard e na grade exibem R$ 0,00.',
       actionLabel: 'Cadastrar Salário',
       importance: 'CRITICO',
     });

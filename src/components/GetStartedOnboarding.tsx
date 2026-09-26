@@ -25,7 +25,7 @@ import {
   Check,
   Star,
 } from 'lucide-react';
-import type { SalaryContractType } from '../types';
+type SalaryContractType = 'CLT' | 'PJ' | 'PRO_LABORE' | 'ESTAGIO' | 'CONCURSO' | 'AUTONOMO' | 'OUTRO';
 import { getBankBranding, POPULAR_BANKS } from '../utils/bankBranding';
 import { normalizeBankKey } from '../utils/cardUtils';
 
@@ -115,8 +115,6 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
     accounts,
     natures,
     activeCheckpoint,
-    addSalaryContract,
-    updateSalaryContract,
     movements,
     cards,
   } = useFinancial();
@@ -210,21 +208,6 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
             const nextInv2 = (cd2.invoices || []).find((inv) => inv.monthIndex === 1);
             if (nextInv2) setSecondCurrentInvoice(String(nextInv2.amount));
           }
-        }
-      }
-
-      if (salaryContracts && salaryContracts.length > 0) {
-        const prim = salaryContracts.find((s: any) => s.isActive) || salaryContracts[0];
-        setHasSalary(true);
-        if (prim.employer) setSalaryEmployer(prim.employer);
-        if (prim.role) setSalaryRole(prim.role);
-        if (prim.contractType) setSalaryContractType(prim.contractType);
-        if (prim.paymentDay) setSalaryPayDay(prim.paymentDay);
-        const salVal = prim.currentNetAmount || prim.currentGrossAmount;
-        if (salVal) setSalaryAmount(String(salVal));
-        if (prim.receivingBankName) {
-          setMainBankName(prim.receivingBankName);
-          setSalaryReceivingBank(prim.receivingBankName);
         }
       }
 
@@ -731,43 +714,16 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
         const parsedSalary = parseNumber(salaryAmount);
         const safeMainBank = salaryReceivingBank || mainBankName || selectedBanks[0]?.name || 'Nubank';
         if (hasSalary && parsedSalary > 0) {
-          const existingSalary = salaryContracts?.find((s: any) => s.isActive) || salaryContracts?.[0];
-          if (existingSalary) {
-            updateSalaryContract(existingSalary.id, {
-              employer: salaryEmployer.trim() || 'Empregador Principal',
-              role: salaryRole.trim() || 'Remuneração Principal',
-              contractType: salaryContractType,
-              paymentDay: Math.min(Math.max(1, salaryPayDay), 31),
-              currentGrossAmount: parsedSalary,
-              currentNetAmount: parsedSalary,
-              receivingBankName: safeMainBank,
-              startDate: safeStartDate,
-              isActive: true,
-            });
-          } else {
-            addSalaryContract({
-              employer: salaryEmployer.trim() || 'Empregador Principal',
-              role: salaryRole.trim() || 'Remuneração Principal',
-              contractType: salaryContractType,
-              paymentSchedule: 'UNICO',
-              paymentDay: Math.min(Math.max(1, salaryPayDay), 31),
-              currentGrossAmount: parsedSalary,
-              currentNetAmount: parsedSalary,
-              receivingBankName: safeMainBank,
-              startDate: safeStartDate,
-              isActive: true,
-            });
-          }
-
           // Adiciona movimento de receita prevista para o mês inicial
           addMovement({
             title: `Salário: ${salaryEmployer.trim() || 'Remuneração Principal'}`,
             amount: parsedSalary,
-            dueDate: getMonthDueDate(safeStartDate, 0, salaryPayDay),
+            dueDate: getMonthDueDate(safeStartDate, 0, Math.min(Math.max(1, salaryPayDay), 31)),
             type: 'RECEBER',
             status: 'PREVISTA',
             category: 'Salário',
             bank: safeMainBank,
+            notes: `${salaryRole.trim() || 'Remuneração Principal'} • ${salaryContractType}`,
           });
         }
       } catch (salErr) {

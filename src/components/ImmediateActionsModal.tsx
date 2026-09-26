@@ -17,16 +17,6 @@ export interface ImmediateActionsModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSalaryAction: () => void;
-  salarySuggestion: {
-    hasContract: boolean;
-    periodLabel: string;
-    dueDate: string;
-    amount: number;
-    title: string;
-    contract?: {
-      employer?: string;
-    };
-  };
   onOpenNewMovementModal: (defaultType?: MovementType, initialData?: Partial<Movement>) => void;
 }
 
@@ -34,7 +24,6 @@ export const ImmediateActionsModal: React.FC<ImmediateActionsModalProps> = ({
   isOpen,
   onClose,
   onSalaryAction,
-  salarySuggestion,
   onOpenNewMovementModal,
 }) => {
   useEffect(() => {
@@ -62,13 +51,9 @@ export const ImmediateActionsModal: React.FC<ImmediateActionsModalProps> = ({
   const items = [
     {
       id: 'salario',
-      title: salarySuggestion.hasContract
-        ? `Lançar Salário (${salarySuggestion.periodLabel})`
-        : '+ Lançar Salário',
-      subtitle: salarySuggestion.hasContract
-        ? `${salarySuggestion.dueDate.split('-').reverse().join('/')} • R$ ${salarySuggestion.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} • ${salarySuggestion.contract?.employer || 'Folha'}`
-        : 'Registrar recebimento de salário ou adiantamento',
-      badge: salarySuggestion.hasContract ? salarySuggestion.periodLabel : 'Salarial',
+      title: '+ Lançar Salário',
+      subtitle: 'Registrar recebimento de salário ou adiantamento',
+      badge: 'Salarial',
       badgeClass: 'badge-emerald',
       icon: <Briefcase size={18} className="text-emerald-400" />,
       onClick: () => {

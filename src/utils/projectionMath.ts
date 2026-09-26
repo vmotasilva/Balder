@@ -26,31 +26,6 @@ function generateCompetenceMonths() {
 }
 
 /**
- * Conta quantas ocorrências de um determinado dia da semana existem em um mês.
- * @param year  Ano (ex: 2026)
- * @param month Mês 1-indexed (ex: 9 = setembro)
- * @param dayOfWeek 0 = Domingo … 6 = Sábado (padrão JS Date)
- */
-function countWeekdayOccurrencesInMonth(year: number, month: number, dayOfWeek: number): number {
-  const firstDay = new Date(year, month - 1, 1).getDay();
-  const daysInMonth = new Date(year, month, 0).getDate();
-  // Quantos dias completos do mês têm aquele dia da semana
-  let count = Math.floor(daysInMonth / 7);
-  const remainder = daysInMonth % 7;
-  // Os dias "sobrando" após as semanas completas (começando do firstDay)
-  for (let extra = 0; extra < remainder; extra++) {
-    if ((firstDay + extra) % 7 === dayOfWeek) {
-      count++;
-    }
-  }
-  return count;
-}
-
-/**
- * Resultado da resolução do salário para uma competência.
- */
-
-/**
  * Constrói o grid de projeção financeira mês a mês.
  * Utiliza APENAS dados efetivamente cadastrados pelo usuário.
  * Sem valores hardcoded ou fallbacks arbitrários.

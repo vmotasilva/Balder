@@ -8,7 +8,6 @@ import {
   Clock,
   Trash2,
   Zap,
-  Briefcase,
   Flag,
   History,
   X,
@@ -69,7 +68,6 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
   const { confirm: confirmAction, dialogProps: confirmDialogProps } = useConfirmDialog();
 
   const [includePreCheckpoint, setIncludePreCheckpoint] = useState(false);
-  const [isSalaryPromptDismissed, setIsSalaryPromptDismissed] = useState(false);
 
   // Contas fixas pendentes dispensadas temporariamente no banner
   const [dismissedBills, setDismissedBills] = useState<Record<string, boolean>>({});
@@ -122,37 +120,12 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
   // Apenas movimentações reais do usuário (sem preencher com projeções virtuais)
   const allMovements = movements;
 
-  // Sugestão inteligente de recebimento salarial para o período corrente
-  const salarySuggestion = useMemo(
-    () => getSalarySuggestion(salaryContracts ?? [], movements),
-    [movements]
-  );
-
   const handleSalaryQuickAction = () => {
     onOpenNewMovementModal('RECEBER', {
-      title: salarySuggestion.title,
-      amount: salarySuggestion.amount,
-      dueDate: salarySuggestion.dueDate,
-      bank: salarySuggestion.bank,
-      category: salarySuggestion.category,
-      status: salarySuggestion.status,
-      notes: salarySuggestion.notes,
-      type: 'RECEBER',
-    });
-  };
-
-  const handleConfirmSalaryDirectly = () => {
-    addMovement({
-      title: salarySuggestion.title,
-      type: 'RECEBER',
-      amount: salarySuggestion.amount,
-      dueDate: salarySuggestion.dueDate,
-      bank: salarySuggestion.bank,
-      status: salarySuggestion.status,
+      title: 'Salário',
       category: 'Salário',
-      notes: salarySuggestion.notes,
+      type: 'RECEBER',
     });
-    setIsSalaryPromptDismissed(true);
   };
 
   const [activeTab, setActiveTab] = useState<TabFilter>('TODOS');
@@ -534,96 +507,6 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
         </div>
       </div>
 
-      {/* BANNER DE LEMBRETE E CONFIRMAÇÃO DE SALÁRIO PREVISTO */}
-      {salarySuggestion.shouldPromptConfirmation && !isSalaryPromptDismissed && (
-        <div
-          className="glass-card animate-fade-in mb-4"
-          style={{
-            padding: '1rem 1.25rem',
-            borderRadius: '12px',
-            border: '1px solid rgba(16, 185, 129, 0.4)',
-            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(15, 23, 42, 0.75) 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '1rem',
-            flexWrap: 'wrap',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
-            <div
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '10px',
-                background: 'rgba(16, 185, 129, 0.2)',
-                color: '#34d399',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                marginTop: '2px',
-              }}
-            >
-              <Briefcase size={20} />
-            </div>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.2rem' }}>
-                <span className="badge badge-emerald" style={{ fontSize: '0.7rem' }}>
-                  PREVISÃO SALARIAL ATINGIDA
-                </span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  Previsto para o Dia {salarySuggestion.dueDay}
-                </span>
-              </div>
-              <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-                Você já recebeu o salário de {salarySuggestion.contract?.employer}?
-              </h4>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.25rem 0' }}>
-                Período identificado: <strong>{salarySuggestion.periodLabel}</strong> • Valor de referência: <strong className="text-emerald" style={{ fontSize: '0.9rem' }}>{salarySuggestion.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
-              </p>
-              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                {salarySuggestion.isSecondQuinzena
-                  ? 'A 2ª quinzena normalmente contém descontos da folha (INSS, IRRF, benefícios). Se o valor líquido recebido foi diferente, clique em "Ajustar Valor".'
-                  : 'Adiantamento salarial de referência. Confirme com 1 clique ou ajuste se houve variação no valor.'}
-              </span>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.85rem' }}
-              onClick={handleConfirmSalaryDirectly}
-              title="Registrar recebimento com o valor exato sugerido"
-            >
-              <CheckCircle2 size={15} />
-              <span>Confirmar R$ {salarySuggestion.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-            </button>
-            <button
-              type="button"
-              className="btn btn-outline btn-sm"
-              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.85rem' }}
-              onClick={handleSalaryQuickAction}
-              title="Abrir para alterar o valor real recebido antes de salvar"
-            >
-              <Zap size={14} />
-              <span>Ajustar Valor</span>
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              style={{ padding: '0.45rem 0.6rem', color: 'var(--text-muted)' }}
-              onClick={() => setIsSalaryPromptDismissed(true)}
-              title="Lembrar mais tarde"
-            >
-              <X size={15} />
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* BANNER DE LEMBRETE E CONFIRMAÇÃO DE CONTAS FIXAS PREVISTAS NO MÊS */}
       {activePendingBills.length > 0 && (
         <div className="pending-bills-movements-container mb-4">
@@ -765,7 +648,6 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
       <ImmediateActionsModal
         isOpen={isImmediateActionsOpen}
         onClose={() => setIsImmediateActionsOpen(false)}
-        salarySuggestion={salarySuggestion}
         onSalaryAction={handleSalaryQuickAction}
         onOpenNewMovementModal={onOpenNewMovementModal}
       />
