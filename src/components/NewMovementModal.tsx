@@ -4,6 +4,23 @@ import { useFinancial } from '../context/FinancialContext';
 import type { MovementType, MovementStatus, Movement } from '../types';
 import { Calendar, Split } from 'lucide-react';
 
+// Converte valores digitados em pt-BR ("7.073,70", "7073,70", "7073.70") sem perder o milhar
+const parseBRLAmount = (val: string): number => {
+  if (!val) return 0;
+  const clean = val.replace(/[R$\s]/g, '').trim();
+  if (!clean) return 0;
+  if (clean.includes('.') && clean.includes(',')) {
+    return parseFloat(clean.replace(/\./g, '').replace(',', '.')) || 0;
+  }
+  if (clean.includes(',')) {
+    return parseFloat(clean.replace(',', '.')) || 0;
+  }
+  if ((clean.match(/\./g) || []).length > 1) {
+    return parseFloat(clean.replace(/\./g, '')) || 0;
+  }
+  return parseFloat(clean) || 0;
+};
+
 interface NewMovementModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -63,7 +80,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   const [firstInstallmentRealized, setFirstInstallmentRealized] = useState(true);
 
   // Cálculos das Parcelas
-  const parsedAmount = parseFloat(amount.replace(',', '.')) || 0;
+  const parsedAmount = parseBRLAmount(amount);
   const count = Math.max(2, Math.min(installmentsCount, 72));
 
   let perInstallment = 0;
