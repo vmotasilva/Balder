@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useFinancial } from '../context/FinancialContext';
-import { auditOnboardingProgress } from '../utils/onboardingProgress';
+import { auditOnboardingProgress, getOnboardingDisplayStep } from '../utils/onboardingProgress';
 import {
   Sparkles,
   CreditCard,
@@ -120,7 +120,7 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
             title: `Get Started: ${step.title}`,
             description: step.missingHint || step.description,
             timestamp: 'Pendente',
-            actionLabel: `${step.actionLabel} (Etapa ${step.stepIndex})`,
+            actionLabel: `${step.actionLabel} (Etapa ${getOnboardingDisplayStep(step.stepIndex)})`,
             action: () => {
               onClose();
               onOpenOnboarding(step.stepIndex);
@@ -139,7 +139,7 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
         id: 'notif_calibration_done',
         type: 'SUCCESS',
         title: 'Sistema 100% Calibrado',
-        description: `Todos os 5 pilares do Get Started foram calibrados com sucesso pela Forseti. Ponto de partida ativo desde ${activeCheckpoint?.startDate.split('-').reverse().join('/')}.`,
+        description: `Todos os pilares do Get Started foram calibrados com sucesso pela Forseti. Ponto de partida ativo desde ${activeCheckpoint?.startDate.split('-').reverse().join('/')}.`,
         timestamp: 'Ativo',
         actionLabel: 'Revisar Calibração',
         action: () => {

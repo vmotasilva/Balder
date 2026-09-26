@@ -99,7 +99,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
   // Confirm Dialog
   const { confirm: confirmAction, dialogProps: confirmDialogProps } = useConfirmDialog();
 
-  // Auditoria dinâmica dos 5 pilares do Get Started
+  // Auditoria dinâmica dos pilares do Get Started
   const onboardingAudit = useMemo(
     () =>
       auditOnboardingProgress({

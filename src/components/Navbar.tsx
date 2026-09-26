@@ -40,7 +40,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { theme, toggleTheme } = useTheme();
   const [isHubOpen, setIsHubOpen] = useState(false);
 
-  // Auditoria dos 5 pilares do Get Started
+  // Auditoria dos pilares do Get Started
   const onboardingAudit = useMemo(
     () =>
       auditOnboardingProgress({

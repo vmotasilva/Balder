@@ -21,11 +21,9 @@ import {
   BookOpen,
   ListChecks,
   Layers,
-  Briefcase,
   Check,
   Star,
 } from 'lucide-react';
-type SalaryContractType = 'CLT' | 'PJ' | 'PRO_LABORE' | 'ESTAGIO' | 'CONCURSO' | 'AUTONOMO' | 'OUTRO';
 import { getBankBranding, POPULAR_BANKS } from '../utils/bankBranding';
 import { normalizeBankKey } from '../utils/cardUtils';
 
@@ -119,9 +117,13 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
     cards,
   } = useFinancial();
 
-  const [currentStep, setCurrentStep] = useState<number>(initialStep);
+  // Etapa 2 (Salário & Renda) removida: contas a receber contém apenas o que o usuário lança
+  const resolveStep = (step?: number) => (step === 2 ? 3 : step || 1);
+  const [currentStep, setCurrentStep] = useState<number>(resolveStep(initialStep));
+  // Número exibido ao usuário (4 etapas visíveis: 1, 3, 4, 5 -> 1, 2, 3, 4)
+  const displayStep = currentStep <= 1 ? 1 : Math.min(currentStep, 5) - 1;
 
-  // Auditoria dos 5 pilares do Get Started
+  // Auditoria dos pilares do Get Started
   const onboardingAudit = useMemo(
     () =>
       auditOnboardingProgress({
@@ -147,7 +149,6 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
   const [initialBalance, setInitialBalance] = useState<string>(
     activeCheckpoint ? String(activeCheckpoint.initialBalance) : '0'
   );
-  const [mainBankName, setMainBankName] = useState<string>('Nubank');
 
   // Estados de Bancos & Contas selecionados pelo usuário no Get Started
   const [selectedBanks, setSelectedBanks] = useState<
@@ -168,20 +169,11 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
   });
   const [customBankInput, setCustomBankInput] = useState('');
   const [showAddCustomBank, setShowAddCustomBank] = useState(false);
-  const [salaryReceivingBank, setSalaryReceivingBank] = useState<string>('Nubank');
-
-  // Estados de Salário / Remuneração Principal
-  const [hasSalary, setHasSalary] = useState<boolean>(true);
-  const [salaryAmount, setSalaryAmount] = useState<string>('');
-  const [salaryEmployer, setSalaryEmployer] = useState<string>('Empresa / Empregador Principal');
-  const [salaryRole, setSalaryRole] = useState<string>('Remuneração Principal');
-  const [salaryPayDay, setSalaryPayDay] = useState<number>(5);
-  const [salaryContractType, setSalaryContractType] = useState<SalaryContractType>('CLT');
 
   // Sincroniza passo e pre-carrega dados salvos quando o usuário abre ou refaz o Get Started
   useEffect(() => {
     if (isOpen) {
-      setCurrentStep(initialStep || 1);
+      setCurrentStep(resolveStep(initialStep));
 
       if (activeCheckpoint) {
         if (activeCheckpoint.startDate) setStartDate(activeCheckpoint.startDate);
@@ -233,8 +225,6 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
         const filtered = prev.filter((b) => b.name.toLowerCase() !== bankName.toLowerCase());
         if (!filtered.some((b) => b.isMain) && filtered.length > 0) {
           filtered[0].isMain = true;
-          setMainBankName(filtered[0].name);
-          setSalaryReceivingBank(filtered[0].name);
         }
         return filtered;
       } else {
@@ -245,10 +235,6 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
           isMain: isFirst,
           balanceInput: '',
         };
-        if (isFirst) {
-          setMainBankName(bankName);
-          setSalaryReceivingBank(bankName);
-        }
         return [...prev, newBank];
       }
     });
@@ -267,10 +253,6 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
         balanceInput: '',
       };
       setSelectedBanks((prev) => [...prev, newBank]);
-      if (isFirst) {
-        setMainBankName(trimmed);
-        setSalaryReceivingBank(trimmed);
-      }
     }
     setCustomBankInput('');
     setShowAddCustomBank(false);
@@ -283,8 +265,6 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
         isMain: b.name.toLowerCase() === bankName.toLowerCase(),
       }))
     );
-    setMainBankName(bankName);
-    setSalaryReceivingBank(bankName);
   };
 
   const handleRemoveBank = (bankName: string) => {
@@ -293,8 +273,6 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
       const filtered = prev.filter((b) => b.name.toLowerCase() !== bankName.toLowerCase());
       if (!filtered.some((b) => b.isMain) && filtered.length > 0) {
         filtered[0].isMain = true;
-        setMainBankName(filtered[0].name);
-        setSalaryReceivingBank(filtered[0].name);
       }
       return filtered;
     });
@@ -709,27 +687,6 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
         console.warn('Erro ao cadastrar cartões:', cardErr);
       }
 
-      // 4. Salva ou atualiza a Configuração do Salário / Remuneração Principal
-      try {
-        const parsedSalary = parseNumber(salaryAmount);
-        const safeMainBank = salaryReceivingBank || mainBankName || selectedBanks[0]?.name || 'Nubank';
-        if (hasSalary && parsedSalary > 0) {
-          // Adiciona movimento de receita prevista para o mês inicial
-          addMovement({
-            title: `Salário: ${salaryEmployer.trim() || 'Remuneração Principal'}`,
-            amount: parsedSalary,
-            dueDate: getMonthDueDate(safeStartDate, 0, Math.min(Math.max(1, salaryPayDay), 31)),
-            type: 'RECEBER',
-            status: 'PREVISTA',
-            category: 'Salário',
-            bank: safeMainBank,
-            notes: `${salaryRole.trim() || 'Remuneração Principal'} • ${salaryContractType}`,
-          });
-        }
-      } catch (salErr) {
-        console.warn('Erro ao cadastrar salário:', salErr);
-      }
-
       // 5. Salva as Naturezas selecionadas com seus tetos e mapeamentos
       try {
         if (selectedNatures.length > 0) {
@@ -822,7 +779,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                 {onboardingAudit.percent}% Calibrado
               </span>
               <div className="onboarding-step-counter">
-                <span>Etapa {Math.min(currentStep, 5)} de 5</span>
+                <span>Etapa {displayStep} de 4</span>
               </div>
             </div>
             <button
@@ -842,7 +799,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
           <div
             className="onboarding-progress-fill"
             style={{
-              width: `${(Math.min(currentStep, 5) / 5) * 100}%`,
+              width: `${(displayStep / 4) * 100}%`,
             }}
           />
         </div>
@@ -869,23 +826,6 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
 
             <button
               type="button"
-              onClick={() => setCurrentStep(2)}
-              className={`px-3 py-1 rounded-full flex items-center gap-1.5 transition-colors cursor-pointer ${
-                currentStep === 2
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-semibold'
-                  : 'bg-white/5 text-muted hover:text-white'
-              }`}
-            >
-              <span>2. Salário & Renda</span>
-              {onboardingAudit.steps.find((s: any) => s.id === 'salary')?.isComplete ? (
-                <CheckCircle2 size={13} className="text-emerald-400" />
-              ) : (
-                <Clock size={13} className="text-amber-400" />
-              )}
-            </button>
-
-            <button
-              type="button"
               onClick={() => setCurrentStep(3)}
               className={`px-3 py-1 rounded-full flex items-center gap-1.5 transition-colors cursor-pointer ${
                 currentStep === 3
@@ -893,7 +833,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                   : 'bg-white/5 text-muted hover:text-white'
               }`}
             >
-              <span>3. Cartões & Faturas</span>
+              <span>2. Cartões & Faturas</span>
               {onboardingAudit.steps.find((s: any) => s.id === 'invoices')?.isComplete ? (
                 <CheckCircle2 size={13} className="text-emerald-400" />
               ) : (
@@ -910,7 +850,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                   : 'bg-white/5 text-muted hover:text-white'
               }`}
             >
-              <span>4. Naturezas & Tetos</span>
+              <span>3. Naturezas & Tetos</span>
               {onboardingAudit.steps.find((s: any) => s.id === 'natures')?.isComplete ? (
                 <CheckCircle2 size={13} className="text-emerald-400" />
               ) : (
@@ -927,7 +867,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                   : 'bg-white/5 text-muted hover:text-white'
               }`}
             >
-              <span>5. Mapeamentos & IA</span>
+              <span>4. Mapeamentos & IA</span>
               {onboardingAudit.steps.find((s: any) => s.id === 'ai_mappings')?.isComplete ? (
                 <CheckCircle2 size={13} className="text-emerald-400" />
               ) : (
@@ -1213,215 +1153,6 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                 <button
                   type="button"
                   className="btn btn-primary flex items-center gap-2 px-6"
-                  onClick={() => setCurrentStep(2)}
-                >
-                  <span>Continuar para Salário & Renda</span>
-                  <ArrowRight size={16} />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ======================================================== */}
-          {/* ETAPA 2: REMUNERAÇÃO & SALÁRIO                           */}
-          {/* ======================================================== */}
-          {currentStep === 2 && (
-            <div className="onboarding-step-view animate-fade-in">
-              <div className="forseti-speech-bubble">
-                <div className="forseti-bubble-header">
-                  <Briefcase size={16} className="text-emerald" />
-                  <strong>Etapa 2 de 5: Remuneração & Salário Mensal</strong>
-                </div>
-                <p>
-                  Sua receita recorrente é a base para prever o fluxo de entradas dos próximos meses.
-                  Configure aqui seu salário líquido e o dia em que o valor é creditado em conta.
-                </p>
-                <p className="mt-2 text-xs text-slate-400">
-                  Sem a remuneração cadastrada, suas projeções futuras no Dashboard ficariam sem base de recebimentos.
-                </p>
-              </div>
-
-              {/* Card de Configuração de Salário / Remuneração Principal */}
-              <div className="onboarding-form-card glass-card">
-                <div className="flex items-center justify-between pb-2 border-b border-white/5">
-                  <div className="flex items-center gap-2">
-                    <Briefcase size={16} className="text-emerald" />
-                    <span className="font-bold text-sm text-slate-200">
-                      Remuneração & Salário Mensal
-                    </span>
-                    <span className="badge-pill badge-pill-emerald text-[10px]">Essencial para DRE</span>
-                  </div>
-                  <label className="flex items-center gap-2 text-xs text-muted cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={hasSalary}
-                      onChange={(e) => setHasSalary(e.target.checked)}
-                    />
-                    <span>Recebo salário / renda fixa</span>
-                  </label>
-                </div>
-
-                {hasSalary ? (
-                  <>
-                    <div className="form-grid-2">
-                      <div className="form-group">
-                        <label className="flex items-center gap-1.5 font-semibold text-xs text-slate-300">
-                          <DollarSign size={14} className="text-emerald" />
-                          <span>Salário Líquido Mensal (R$):</span>
-                        </label>
-                        <input
-                          type="text"
-                          className="form-input text-base font-bold text-emerald"
-                          placeholder="Ex: 4.500,00"
-                          value={salaryAmount}
-                          onChange={(e) => setSalaryAmount(e.target.value)}
-                        />
-                        <span className="text-[11px] text-muted">
-                          Valor que cai na conta todo mês (livre de descontos).
-                        </span>
-                      </div>
-
-                      <div className="form-group">
-                        <label className="flex items-center gap-1.5 font-semibold text-xs text-slate-300">
-                          <Calendar size={14} className="text-cyan" />
-                          <span>Dia do Pagamento no Mês:</span>
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          max="31"
-                          className="form-input"
-                          value={salaryPayDay}
-                          onChange={(e) => setSalaryPayDay(Number(e.target.value))}
-                        />
-                        <span className="text-[11px] text-muted">
-                          Ex: dia 5 ou dia 1 (data em que o valor é creditado).
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="form-grid-2 mt-2">
-                      <div className="form-group">
-                        <label className="flex items-center gap-1.5 font-semibold text-xs text-slate-300">
-                          <Building2 size={14} className="text-slate-400" />
-                          <span>Empresa / Fonte:</span>
-                        </label>
-                        <input
-                          type="text"
-                          className="form-input"
-                          placeholder="Ex: Empresa Principal"
-                          value={salaryEmployer}
-                          onChange={(e) => setSalaryEmployer(e.target.value)}
-                        />
-                      </div>
-
-                      <div className="form-group">
-                        <label className="flex items-center gap-1.5 font-semibold text-xs text-slate-300">
-                          <span>Cargo / Função:</span>
-                        </label>
-                        <input
-                          type="text"
-                          className="form-input"
-                          placeholder="Ex: Especialista, Gestor"
-                          value={salaryRole}
-                          onChange={(e) => setSalaryRole(e.target.value)}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Regime de Contrato — Flag Chips */}
-                    <div className="form-group mt-3">
-                      <label className="flex items-center gap-1.5 font-semibold text-xs text-slate-300 mb-2">
-                        <span>Regime de Contrato:</span>
-                      </label>
-                      <div className="salary-regime-chips">
-                        {(
-                          [
-                            { value: 'CLT',        label: 'CLT',        sub: 'Carteira Assinada' },
-                            { value: 'PJ',         label: 'PJ',         sub: 'Pessoa Jurídica' },
-                            { value: 'PRO_LABORE', label: 'Pró-Labore', sub: 'Empresário' },
-                            { value: 'CONCURSO',   label: 'Servidor',   sub: 'Concurso Público' },
-                            { value: 'AUTONOMO',   label: 'Autônomo',   sub: 'Liberal' },
-                            { value: 'ESTAGIO',    label: 'Estágio',    sub: 'Bolsa' },
-                            { value: 'OUTRO',      label: 'Outro',      sub: 'Benefício' },
-                          ] as { value: SalaryContractType; label: string; sub: string }[]
-                        ).map((opt) => {
-                          const isActive = salaryContractType === opt.value;
-                          return (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              className={`salary-regime-chip${isActive ? ' active' : ''}`}
-                              onClick={() => setSalaryContractType(opt.value)}
-                              title={opt.sub}
-                            >
-                              {isActive && <span className="salary-regime-chip-dot" />}
-                              <span className="salary-regime-chip-label">{opt.label}</span>
-                              <span className="salary-regime-chip-sub">{opt.sub}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="form-group mt-3 pt-2.5 border-t border-white/5">
-                      <label className="flex items-center gap-1.5 font-semibold text-xs text-slate-300">
-                        <Building2 size={14} className="text-cyan" />
-                        <span>Banco de Recebimento do Salário:</span>
-                      </label>
-                      <div className="flex gap-2 flex-wrap mt-1.5">
-                        {selectedBanks.map((b) => {
-                          const brand = getBankBranding(b.name);
-                          const isSelected = (salaryReceivingBank || mainBankName).toLowerCase() === b.name.toLowerCase();
-                          return (
-                            <button
-                              key={b.name}
-                              type="button"
-                              onClick={() => setSalaryReceivingBank(b.name)}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                padding: '6px 12px',
-                                borderRadius: '8px',
-                                fontSize: '12px',
-                                fontWeight: isSelected ? 700 : 500,
-                                cursor: 'pointer',
-                                transition: 'all 0.2s',
-                                background: isSelected ? brand.badgeBg : 'rgba(255, 255, 255, 0.05)',
-                                border: isSelected ? `1.5px solid ${brand.primaryColor}` : '1px solid rgba(255, 255, 255, 0.1)',
-                                color: isSelected ? '#FFFFFF' : 'var(--text-secondary)',
-                              }}
-                            >
-                              <span>{brand.iconText || '🏦'}</span>
-                              <span>{b.name}</span>
-                              {b.isMain && <span style={{ fontSize: '10px', color: '#FDE047', fontWeight: 700 }}>(Principal)</span>}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="p-3 rounded-xl bg-white/5 text-center text-xs text-slate-400">
-                    Você optou por não cadastrar remuneração fixa. Suas receitas serão lançadas de forma avulsa quando ocorrerem.
-                  </div>
-                )}
-              </div>
-
-              {/* Botões de Ação da Etapa 2 */}
-              <div className="onboarding-step-actions">
-                <button
-                  type="button"
-                  className="btn btn-outline flex items-center gap-1.5"
-                  onClick={() => setCurrentStep(1)}
-                >
-                  <ArrowLeft size={16} />
-                  <span>Voltar</span>
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary flex items-center gap-2 px-6"
                   onClick={() => setCurrentStep(3)}
                 >
                   <span>Continuar para Cartões & Faturas</span>
@@ -1439,7 +1170,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
               <div className="forseti-speech-bubble">
                 <div className="forseti-bubble-header">
                   <CreditCard size={16} className="text-cyan" />
-                  <strong>Etapa 3 de 5: Faturas de Cartão de Crédito em Aberto</strong>
+                  <strong>Etapa 2 de 4: Faturas de Cartão de Crédito em Aberto</strong>
                 </div>
                 <p>
                   Excelente! O segundo ponto é registrar a fatura do cartão que vence no
@@ -1647,7 +1378,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                 <button
                   type="button"
                   className="btn btn-outline flex items-center gap-1.5"
-                  onClick={() => setCurrentStep(2)}
+                  onClick={() => setCurrentStep(1)}
                 >
                   <ArrowLeft size={16} />
                   <span>Voltar</span>
@@ -1672,7 +1403,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
               <div className="forseti-speech-bubble">
                 <div className="forseti-bubble-header">
                   <Layers size={16} className="text-amber-400" />
-                  <strong>Etapa 4 de 5: Naturezas Orçamentárias & Tetos de Gastos</strong>
+                  <strong>Etapa 3 de 4: Naturezas Orçamentárias & Tetos de Gastos</strong>
                 </div>
                 <p>
                   Defina os limites mensais das suas principais categorias de despesa (Alimentação, Moradia, Transporte, etc.).
@@ -1840,7 +1571,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
               <div className="forseti-speech-bubble">
                 <div className="forseti-bubble-header">
                   <Sparkles size={16} className="text-cyan" />
-                  <strong>Etapa 5 de 5: Mapeamento de Rotinas & Inteligência Artificial</strong>
+                  <strong>Etapa 4 de 4: Mapeamento de Rotinas & Inteligência Artificial</strong>
                 </div>
                 <p>
                   No Balder, nós não usamos tetos tirados do nada: cada Natureza (ex: Alimentação) é fundamentada por{' '}
@@ -1941,12 +1672,6 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                   <Flag size={14} className="text-cyan" />
                   <span>Ponto de Partida: {startDate ? startDate.split('-').reverse().join('/') : 'Atual'}</span>
                 </div>
-                {hasSalary && parseNumber(salaryAmount) > 0 && (
-                  <div className="summary-chip">
-                    <Briefcase size={14} className="text-emerald" />
-                    <span>Salário Configurado: {Number(salaryAmount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                  </div>
-                )}
                 {hasCards && (
                   <div className="summary-chip">
                     <CreditCard size={14} className="text-purple-400" />

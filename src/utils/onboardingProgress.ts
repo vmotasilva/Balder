@@ -8,10 +8,10 @@ import type {
 } from '../types';
 
 export interface OnboardingStepAudit {
-  id: 'checkpoint' | 'salary' | 'invoices' | 'natures' | 'ai_mappings';
+  id: 'checkpoint' | 'invoices' | 'natures' | 'ai_mappings';
   title: string;
   shortLabel: string;
-  stepIndex: number; // 1 = Ponto de Partida, 2 = Salário, 3 = Faturas, 4 = Naturezas, 5 = Mapeamentos/IA
+  stepIndex: number; // Etapa interna do Get Started: 1 = Ponto de Partida, 3 = Faturas, 4 = Naturezas, 5 = Mapeamentos/IA (a 2, Salário, foi removida)
   status: 'DONE' | 'PARTIAL' | 'PENDING';
   isComplete: boolean;
   score: number; // 0 to 20
@@ -20,6 +20,10 @@ export interface OnboardingStepAudit {
   missingHint?: string;
   importance: 'CRITICO' | 'ALTO' | 'RECOMENDADO';
 }
+
+/** Número da etapa exibido ao usuário (etapas internas 1, 3, 4, 5 -> 1, 2, 3, 4). */
+export const getOnboardingDisplayStep = (stepIndex: number): number =>
+  stepIndex <= 1 ? 1 : stepIndex - 1;
 
 export interface OnboardingAuditResult {
   percent: number; // 0 to 100
@@ -104,56 +108,6 @@ export function auditOnboardingProgress(data: AuditInputData): OnboardingAuditRe
       description: 'Defina a data e o saldo inicial em contas para ancorar o patrimônio e fluxo de caixa.',
       missingHint: 'O ponto de partida é a âncora matemática de todo o fluxo de 30 a 90 dias.',
       actionLabel: 'Definir Marco',
-      importance: 'CRITICO',
-    });
-  }
-
-  // --------------------------------------------------------------------------
-  // 2. REMUNERAÇÃO & SALÁRIO (Passo 1 do Get Started)
-  // Concluído assim que houver ao menos 1 recebimento de salário lançado
-  // nas movimentações (contas a receber).
-  // --------------------------------------------------------------------------
-  const salaryMovements = (movements || [])
-    .filter(
-      (m) =>
-        m.type === 'RECEBER' &&
-        (m.category === 'Salário' ||
-          m.title.toLowerCase().includes('salário') ||
-          m.title.toLowerCase().includes('quinzena'))
-    )
-    .sort((a, b) => b.dueDate.localeCompare(a.dueDate));
-  const hasSalaryRegistered = salaryMovements.length > 0;
-
-  if (hasSalaryRegistered) {
-    // Exibe o recebimento de salário mais recente
-    const displaySalary = salaryMovements[0];
-    const valFormatted = displaySalary.amount
-      ? displaySalary.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-      : 'Valor a confirmar';
-    steps.push({
-      id: 'salary',
-      title: 'Remuneração & Salário',
-      shortLabel: 'Salário & Renda',
-      stepIndex: 2,
-      status: 'DONE',
-      isComplete: true,
-      score: 20,
-      description: `${displaySalary.title || 'Remuneração'} (${valFormatted}, ${displaySalary.dueDate.split('-').reverse().join('/')}) lançada nas movimentações.`,
-      actionLabel: 'Ajustar',
-      importance: 'CRITICO',
-    });
-  } else {
-    steps.push({
-      id: 'salary',
-      title: 'Remuneração & Salário',
-      shortLabel: 'Salário & Renda',
-      stepIndex: 2,
-      status: 'PENDING',
-      isComplete: false,
-      score: 0,
-      description: 'Lance seus recebimentos de salário em contas a receber para projetar entradas.',
-      missingHint: 'Sem salários lançados, os valores a receber futuros no dashboard e na grade exibem R$ 0,00.',
-      actionLabel: 'Cadastrar Salário',
       importance: 'CRITICO',
     });
   }
@@ -344,8 +298,10 @@ export function auditOnboardingProgress(data: AuditInputData): OnboardingAuditRe
   // --------------------------------------------------------------------------
   // CÁLCULO GERAL E PRÓXIMO PASSO SUGERIDO
   // --------------------------------------------------------------------------
+  // Cada pilar vale até 20 pontos; normaliza pelo nº de pilares auditados
   const totalScore = steps.reduce((acc, s) => acc + s.score, 0);
-  const percent = Math.min(100, Math.max(0, totalScore));
+  const maxScore = steps.length * 20;
+  const percent = maxScore > 0 ? Math.min(100, Math.max(0, Math.round((totalScore / maxScore) * 100))) : 0;
   const completedCount = steps.filter((s) => s.isComplete).length;
   const missingSteps = steps.filter((s) => !s.isComplete);
   const isAllComplete = percent === 100;
@@ -359,7 +315,7 @@ export function auditOnboardingProgress(data: AuditInputData): OnboardingAuditRe
 
   let summaryMessage = '';
   if (isAllComplete) {
-    summaryMessage = 'Sistema 100% Calibrado! Todos os 5 pilares essenciais estão configurados para projeções e auditoria em tempo real.';
+    summaryMessage = `Sistema 100% Calibrado! Todos os ${steps.length} pilares essenciais estão configurados para projeções e auditoria em tempo real.`;
   } else if (percent >= 80) {
     summaryMessage = `Calibração avançada (${percent}%). Falta apenas ajustar ${missingSteps[0]?.shortLabel.toLowerCase()} para liberar 100% do potencial da IA.`;
   } else if (percent >= 50) {

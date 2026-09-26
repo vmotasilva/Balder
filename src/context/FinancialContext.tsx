@@ -5,6 +5,14 @@ import { useAuth } from './AuthContext';
 
 const isUuid = (val: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 
+// Salário previsto gerado automaticamente pelo antigo passo "Salário & Renda" do onboarding
+// (título "Salário: <empregador>"). Contas a receber agora contém apenas o que o usuário lança.
+const isLegacyOnboardingSalary = (m: Movement) =>
+  m.type === 'RECEBER' &&
+  m.category === 'Salário' &&
+  m.status === 'PREVISTA' &&
+  m.title.startsWith('Salário: ');
+
 import type {
   Movement,
   MovementStatus,
@@ -1614,7 +1622,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             const savedMovStr = localStorage.getItem(`balder_movements_${user.$id}`) || localStorage.getItem('balder_movements_guest');
             if (savedMovStr) {
               try {
-                const localMovs: Movement[] = JSON.parse(savedMovStr);
+                const localMovs: Movement[] = (JSON.parse(savedMovStr) as Movement[]).filter(
+                  (lm) => !isLegacyOnboardingSalary(lm)
+                );
                 if (finalMovements.length === 0 && localMovs.length > 0) {
                   finalMovements = localMovs;
                   if (!user.isGuest) {
@@ -1651,6 +1661,15 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           const seenCardInvoiceSignatures = new Set<string>();
           const sanitizedMovements: Movement[] = [];
           for (const m of finalMovements) {
+            if (isLegacyOnboardingSalary(m)) {
+              console.warn(`[Limpeza] Salário previsto automático do onboarding removido: ${m.title} (${m.id})`);
+              if (user && !user.isGuest && isUuid(m.id)) {
+                SupabaseService.deleteMovement(m.id).catch((e) =>
+                  console.warn('Erro ao deletar salário automático no Supabase:', e)
+                );
+              }
+              continue;
+            }
             if (m.type === 'CARTAO' && m.status === 'PREVISTA') {
               const signature = `${(m.bank || '').trim().toLowerCase()}_${m.dueDate}_${m.amount.toFixed(2)}`;
               if (seenCardInvoiceSignatures.has(signature)) {
@@ -1719,8 +1738,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
         // Movimentações
         if (cloudMovements && cloudMovements.length > 0) {
-          setMovements(cloudMovements);
-          localStorage.setItem(`balder_movements_${user.$id}`, JSON.stringify(cloudMovements));
+          const cleanMovements = cloudMovements.filter((m) => !isLegacyOnboardingSalary(m));
+          setMovements(cleanMovements);
+          localStorage.setItem(`balder_movements_${user.$id}`, JSON.stringify(cleanMovements));
         }
 
         // Contas

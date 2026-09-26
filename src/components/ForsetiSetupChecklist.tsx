@@ -10,7 +10,7 @@ import {
   AlertCircle,
   Lightbulb,
 } from 'lucide-react';
-import { auditOnboardingProgress } from '../utils/onboardingProgress';
+import { auditOnboardingProgress, getOnboardingDisplayStep } from '../utils/onboardingProgress';
 
 interface ForsetiSetupChecklistProps {
   onOpenOnboarding: (stepIndex?: number) => void;
@@ -178,7 +178,7 @@ export const ForsetiSetupChecklist: React.FC<ForsetiSetupChecklistProps> = ({
                     type="button"
                     className={`btn btn-xs ${isDone ? 'btn-ghost text-muted' : 'btn-outline text-cyan border-cyan/40 hover:bg-cyan/10'}`}
                     onClick={() => onOpenOnboarding(step.stepIndex)}
-                    title={`Abrir Passo ${step.stepIndex} no Get Started`}
+                    title={`Abrir Passo ${getOnboardingDisplayStep(step.stepIndex)} no Get Started`}
                   >
                     {step.actionLabel}
                   </button>
