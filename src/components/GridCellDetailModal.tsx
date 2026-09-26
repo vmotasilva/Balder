@@ -26,7 +26,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import type { MonthlyGridProjectionRow, MappingItem, MovementStatus, Movement, InvoiceNatureItemBreakdown } from '../types';
-import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
+import { buildMonthlyProjectionGrid, isSalaryMovement, getSalaryCompetenceKey } from '../utils/projectionMath';
 import type { ProjectionViewMode } from '../utils/projectionMath';
 import { getItemManifestationDays } from '../utils/natureScheduling';
 import { MovementDetailModal } from './MovementDetailModal';
@@ -398,7 +398,52 @@ export function buildSalaryBreakdownItem(
 
   let salarySubItems: CellBreakdownSubItem[] = [];
 
-  if (isQuinzenal) {
+  if (realSalaries.length > 0) {
+    // A grade soma TODOS os salários da competência; o detalhamento precisa exibir cada um deles
+    salarySubItems = [...realSalaries]
+      .sort((a: any, b: any) => a.dueDate.localeCompare(b.dueDate))
+      .map((m: any, idx: number): CellBreakdownSubItem => {
+        const title = m.title.toLowerCase();
+        const receiptType: CellBreakdownSubItem['receiptType'] =
+          title.includes('1ª') || title.includes('adiantamento') || m.installmentGroupId?.includes('q1')
+            ? 'SALARY_Q1'
+            : title.includes('2ª') || title.includes('principal') || m.installmentGroupId?.includes('q2')
+            ? 'SALARY_Q2'
+            : 'SALARY_FULL';
+        const status: MovementStatus | 'CANCELADA' =
+          m.amount === 0 || (m.adjustmentReason && m.adjustmentReason.toLowerCase().includes('não aconteceu'))
+            ? 'CANCELADA'
+            : m.status;
+        const original = m.originalAmount || m.amount;
+        return {
+          id: m.id,
+          description: m.title,
+          quantity: 1,
+          price: m.amount,
+          multiplierWeeks: 1,
+          totalValue: m.amount,
+          mappingName: 'Proventos Fixos',
+          isReceiptEditable: true,
+          status,
+          originalAmount: original,
+          receiptMovementId: m.id,
+          receiptType,
+          dueDate: m.dueDate,
+          paymentDate: m.paymentDate,
+          bank: m.bank,
+          notes: m.notes,
+          adjustmentReason: m.adjustmentReason,
+          payInFollowingMonth: false,
+          isFirstInstallment: idx === 0,
+          attentionReason:
+            status === 'CANCELADA'
+              ? 'Não Aconteceu / Cancelado no Mês'
+              : m.amount < original
+              ? `Desconto de ${fmt(original - m.amount)}`
+              : undefined,
+        };
+      });
+  } else if (isQuinzenal) {
     const defaultQ1 = currentRow.salaryFirstInstallment || 0;
     const defaultQ2 = currentRow.salarySecondInstallment || 0;
 
@@ -960,12 +1005,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
     if (columnKey === 'extras') {
       const realMovements = movements.filter(
-        (m) =>
-          m.type === 'RECEBER' &&
-          m.category !== 'Salário' &&
-          !m.title.toLowerCase().includes('salário') &&
-          !m.title.toLowerCase().includes('quinzena') &&
-          m.dueDate.startsWith(monthPrefix)
+        (m) => m.type === 'RECEBER' && !isSalaryMovement(m) && m.dueDate.startsWith(monthPrefix)
       );
 
       realMovements.forEach((m) => {
@@ -1324,13 +1364,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
       }
     } else if (columnKey === 'salary') {
       const realSalaries = movements.filter(
-        (m) =>
-          m.type === 'RECEBER' &&
-          (m.category === 'Salário' ||
-            m.category.toLowerCase().includes('salário') ||
-            m.title.toLowerCase().includes('salário') ||
-            m.title.toLowerCase().includes('quinzena')) &&
-          m.dueDate.startsWith(monthPrefix)
+        (m) => isSalaryMovement(m) && getSalaryCompetenceKey(m) === monthPrefix
       );
 
       const salItem = buildSalaryBreakdownItem(
@@ -1499,13 +1533,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     } else if (columnKey === 'totalIncome') {
       // 1. Salário (Quinzenal, Semanal ou Único com suporte a edição de recebimentos)
       const realSalaries = movements.filter(
-        (m) =>
-          m.type === 'RECEBER' &&
-          (m.category === 'Salário' ||
-            m.category.toLowerCase().includes('salário') ||
-            m.title.toLowerCase().includes('salário') ||
-            m.title.toLowerCase().includes('quinzena')) &&
-          m.dueDate.startsWith(monthPrefix)
+        (m) => isSalaryMovement(m) && getSalaryCompetenceKey(m) === monthPrefix
       );
 
       const salItem = buildSalaryBreakdownItem(
@@ -1519,15 +1547,10 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
       }
 
       // 2. Extras Total (Bônus, 13º, aportes, rendimentos)
-      if (currentRow.extrasTotal > 0 || movements.some(m => m.type === 'RECEBER' && m.category !== 'Salário' && m.dueDate.startsWith(monthPrefix))) {
-        const realMovements = movements.filter(
-          (m) =>
-            m.type === 'RECEBER' &&
-            m.category !== 'Salário' &&
-            !m.title.toLowerCase().includes('salário') &&
-            !m.title.toLowerCase().includes('quinzena') &&
-            m.dueDate.startsWith(monthPrefix)
-        );
+      const isExtraOfMonth = (m: Movement) =>
+        m.type === 'RECEBER' && !isSalaryMovement(m) && m.dueDate.startsWith(monthPrefix);
+      if (currentRow.extrasTotal > 0 || movements.some(isExtraOfMonth)) {
+        const realMovements = movements.filter(isExtraOfMonth);
         const subItemsList: CellBreakdownSubItem[] = [];
 
         realMovements.forEach((m) => {

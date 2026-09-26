@@ -26,6 +26,30 @@ function generateCompetenceMonths() {
 }
 
 /**
+ * Identifica recebimentos de salário. Regra única usada pela grade e pelo detalhamento,
+ * para que um lançamento nunca seja contado como salário e extra ao mesmo tempo.
+ */
+export function isSalaryMovement(m: Movement): boolean {
+  if (m.type !== 'RECEBER') return false;
+  const title = m.title.toLowerCase();
+  return (
+    m.category === 'Salário' ||
+    (m.category || '').toLowerCase().includes('salário') ||
+    title.includes('salário') ||
+    title.includes('quinzena')
+  );
+}
+
+/**
+ * Competência (YYYY-MM) de um salário: a vinculada explicitamente pelo detalhamento
+ * (installmentGroupId `sal_q1_YYYY-MM` / `sal_q2_YYYY-MM`) ou, na ausência, o mês de vencimento.
+ */
+export function getSalaryCompetenceKey(m: Movement): string {
+  const linked = m.installmentGroupId?.match(/sal_q[12]_(\d{4}-\d{2})/);
+  return linked ? linked[1] : m.dueDate.slice(0, 7);
+}
+
+/**
  * Constrói o grid de projeção financeira mês a mês.
  * Utiliza APENAS dados efetivamente cadastrados pelo usuário.
  * Sem valores hardcoded ou fallbacks arbitrários.
@@ -82,7 +106,7 @@ export function buildMonthlyProjectionGrid(
     const extrasTotal = movements
       .filter((m) => {
         if (m.type !== 'RECEBER') return false;
-        if (m.category === 'Salário' || m.title.toLowerCase().includes('salário')) return false;
+        if (isSalaryMovement(m)) return false;
         if (!m.dueDate.startsWith(comp.key)) return false;
         if (viewMode === 'REALIZADO') return m.status === 'REALIZADA';
         if (viewMode === 'PREVISTO') return m.status === 'PREVISTA';
@@ -98,12 +122,7 @@ export function buildMonthlyProjectionGrid(
     let salaryWeeklyInstallments: number | undefined;
 
     const realSalariesForMonth = movements.filter(
-      (m) =>
-        m.type === 'RECEBER' &&
-        (m.category === 'Salário' ||
-          m.title.toLowerCase().includes('salário') ||
-          m.title.toLowerCase().includes('quinzena')) &&
-        (m.dueDate.startsWith(comp.key) || (m.installmentGroupId && m.installmentGroupId.includes(comp.key)))
+      (m) => isSalaryMovement(m) && getSalaryCompetenceKey(m) === comp.key
     );
 
     let applicableSalaries = realSalariesForMonth;

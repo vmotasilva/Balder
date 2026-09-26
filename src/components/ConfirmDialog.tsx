@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, X } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -116,7 +117,8 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     ? 'linear-gradient(135deg, #DC2626, #B91C1C)'
     : 'linear-gradient(135deg, #D97706, #B45309)';
 
-  return (
+  // Portal no body: ancestrais com transform (ex.: .animate-fade-in) quebram o position: fixed
+  return createPortal(
     <div
       style={{
         position: 'fixed',
@@ -276,6 +278,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
