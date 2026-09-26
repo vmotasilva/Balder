@@ -20,7 +20,7 @@ import {
   Calendar,
   PieChart,
   Landmark,
-  Briefcase,
+  Target,
   Sparkles,
   CheckCircle2,
   Clock,
@@ -174,12 +174,12 @@ export const DashboardScreen: React.FC = () => {
 
             <TouchableOpacity
               style={styles.shortcutBtn}
-              onPress={() => navigation.navigate('SalaryContracts')}
+              onPress={() => navigation.navigate('Goals')}
             >
-              <View style={[styles.shortcutIconBox, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
-                <Briefcase size={18} color="#10B981" />
+              <View style={[styles.shortcutIconBox, { backgroundColor: 'rgba(249, 115, 22, 0.15)' }]}>
+                <Target size={18} color="#F97316" />
               </View>
-              <Text style={styles.shortcutText}>Salários & Renda</Text>
+              <Text style={styles.shortcutText}>Metas Financeiras</Text>
             </TouchableOpacity>
           </View>
         </View>

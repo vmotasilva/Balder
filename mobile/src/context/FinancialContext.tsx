@@ -6,8 +6,6 @@ import {
   ExpenseNature,
   Goal,
   BankAccount,
-  SalaryContract,
-  SalaryAdjustment,
   FinancialCheckpoint,
   CreditCardItem,
   PaymentMethodItem,
@@ -27,7 +25,6 @@ interface FinancialContextType {
   natures: ExpenseNature[];
   goals: Goal[];
   accounts: BankAccount[];
-  salaryContracts: SalaryContract[];
   checkpoints: FinancialCheckpoint[];
   activeCheckpoint: FinancialCheckpoint | null;
   cards: CreditCardItem[];
@@ -56,14 +53,6 @@ interface FinancialContextType {
   addGoal: (goal: Omit<Goal, 'id'>) => Promise<void>;
   updateGoal: (id: string, updates: Partial<Goal>) => Promise<void>;
   deleteGoal: (id: string) => Promise<void>;
-
-  // Ações de Contratos de Salário
-  upsertSalaryContract: (contract: SalaryContract) => Promise<void>;
-  addSalaryContract: (contract: Omit<SalaryContract, 'id'>) => Promise<void>;
-  updateSalaryContract: (id: string, updates: Partial<SalaryContract>) => Promise<void>;
-  deleteSalaryContract: (id: string) => Promise<void>;
-  addSalaryAdjustment: (contractId: string, adj: Omit<SalaryAdjustment, 'id'>) => Promise<void>;
-  deleteSalaryAdjustment: (contractId: string, adjustmentId: string) => Promise<void>;
 
   // Ações de Contas Bancárias e Cartões
   upsertAccount: (account: BankAccount) => Promise<void>;
@@ -330,35 +319,6 @@ const DEMO_CARDS: CreditCardItem[] = [
   { id: 'card-2', name: 'Nubank Mastercard Black', bank: 'Nubank', brand: 'MASTERCARD', limit: 18000, limitTotal: 18000, limitUsed: 3890.0, closingDay: 20, dueDay: 5, color: '#8B5CF6' },
 ];
 
-const DEMO_SALARY_CONTRACTS: SalaryContract[] = [
-  {
-    id: 'sal-1',
-    employer: 'Fintech Solutions S.A.',
-    companyName: 'Fintech Solutions S.A.',
-    role: 'Engenheiro de Software Sênior',
-    roleTitle: 'Engenheiro de Software Sênior',
-    contractType: 'CLT',
-    paymentSchedule: 'QUINZENAL',
-    paymentDay: 5,
-    firstPaymentDay: 20,
-    firstPaymentPercent: 40,
-    secondPaymentDay: 5,
-    secondPaymentPercent: 60,
-    currentGrossAmount: 19500,
-    currentNetAmount: 14500,
-    baseAmount: 14500,
-    startDate: '2023-04-01',
-    isActive: true,
-    active: true,
-    history: [
-      { id: 'adj-1', effectiveDate: '2026-04-01', newAmount: 14500, grossAmount: 19500, netAmount: 14500, reason: 'Promoção', title: 'Promoção Sênior II' },
-    ],
-    adjustments: [
-      { id: 'adj-1', effectiveDate: '2026-04-01', newAmount: 14500, grossAmount: 19500, netAmount: 14500, reason: 'Promoção', title: 'Promoção Sênior II' },
-    ],
-  },
-];
-
 const DEMO_CHECKPOINTS: FinancialCheckpoint[] = [
   {
     id: 'cp-1',
@@ -384,7 +344,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [natures, setNatures] = useState<ExpenseNature[]>(DEMO_NATURES);
   const [goals, setGoals] = useState<Goal[]>(DEMO_GOALS);
   const [accounts, setAccounts] = useState<BankAccount[]>(DEMO_ACCOUNTS);
-  const [salaryContracts, setSalaryContracts] = useState<SalaryContract[]>(DEMO_SALARY_CONTRACTS);
   const [checkpoints, setCheckpoints] = useState<FinancialCheckpoint[]>(DEMO_CHECKPOINTS);
   const [cards, setCards] = useState<CreditCardItem[]>(DEMO_CARDS);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodItem[]>([]);
@@ -407,7 +366,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         remoteNatures,
         remoteGoals,
         remoteAccounts,
-        remoteSalaries,
         remoteCheckpoints,
         remoteMethods,
       ] = await Promise.all([
@@ -415,7 +373,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         SupabaseMobileService.getNatures(),
         SupabaseMobileService.getGoals(),
         SupabaseMobileService.getAccounts(),
-        SupabaseMobileService.getSalaryContracts(),
         SupabaseMobileService.getCheckpoints(),
         SupabaseMobileService.getPaymentMethods(),
       ]);
@@ -424,7 +381,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (remoteNatures && remoteNatures.length > 0) setNatures(remoteNatures);
       if (remoteGoals && remoteGoals.length > 0) setGoals(remoteGoals);
       if (remoteAccounts && remoteAccounts.length > 0) setAccounts(remoteAccounts);
-      if (remoteSalaries && remoteSalaries.length > 0) setSalaryContracts(remoteSalaries);
       if (remoteCheckpoints && remoteCheckpoints.length > 0) setCheckpoints(remoteCheckpoints);
       if (remoteMethods && remoteMethods.length > 0) setPaymentMethods(remoteMethods);
     } catch (err) {
@@ -614,62 +570,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   // ==========================================
-  // Ações de Contratos de Salário
-  // ==========================================
-  const upsertSalaryContract = async (contract: SalaryContract) => {
-    setSalaryContracts((prev) => {
-      const exists = prev.some((c) => c.id === contract.id);
-      return exists ? prev.map((c) => (c.id === contract.id ? contract : c)) : [contract, ...prev];
-    });
-    if (user && !user.isGuest && isSupabaseConfigured) {
-      await SupabaseMobileService.upsertSalaryContract(contract);
-    }
-  };
-
-  const addSalaryContract = async (contract: Omit<SalaryContract, 'id'>) => {
-    const tempId = `sal_${Date.now()}`;
-    const newContract: SalaryContract = { ...contract, id: tempId, isActive: true, active: true };
-    await upsertSalaryContract(newContract);
-  };
-
-  const updateSalaryContract = async (id: string, updates: Partial<SalaryContract>) => {
-    const target = salaryContracts.find((c) => c.id === id);
-    if (target) {
-      await upsertSalaryContract({ ...target, ...updates });
-    }
-  };
-
-  const deleteSalaryContract = async (id: string) => {
-    setSalaryContracts((prev) => prev.filter((c) => c.id !== id));
-    if (user && !user.isGuest && isSupabaseConfigured && !id.startsWith('sal-')) {
-      await SupabaseMobileService.deleteSalaryContract(id);
-    }
-  };
-
-  const addSalaryAdjustment = async (contractId: string, adj: Omit<SalaryAdjustment, 'id'>) => {
-    const target = salaryContracts.find((c) => c.id === contractId);
-    if (!target) return;
-    const newAdj: SalaryAdjustment = { ...adj, id: `adj_${Date.now()}` };
-    const history = target.history ? [newAdj, ...target.history] : [newAdj];
-    const adjustments = target.adjustments ? [newAdj, ...target.adjustments] : [newAdj];
-    await upsertSalaryContract({
-      ...target,
-      currentNetAmount: adj.newAmount || target.currentNetAmount,
-      baseAmount: adj.newAmount || target.baseAmount,
-      history,
-      adjustments,
-    });
-  };
-
-  const deleteSalaryAdjustment = async (contractId: string, adjustmentId: string) => {
-    const target = salaryContracts.find((c) => c.id === contractId);
-    if (!target) return;
-    const history = (target.history || []).filter((a) => a.id !== adjustmentId);
-    const adjustments = (target.adjustments || []).filter((a) => a.id !== adjustmentId);
-    await upsertSalaryContract({ ...target, history, adjustments });
-  };
-
-  // ==========================================
   // Ações de Contas Bancárias e Cartões
   // ==========================================
   const upsertAccount = async (account: BankAccount) => {
@@ -779,7 +679,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         natures,
         goals,
         accounts,
-        salaryContracts,
         checkpoints,
         activeCheckpoint,
         cards,
@@ -801,13 +700,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         addGoal,
         updateGoal,
         deleteGoal,
-
-        upsertSalaryContract,
-        addSalaryContract,
-        updateSalaryContract,
-        deleteSalaryContract,
-        addSalaryAdjustment,
-        deleteSalaryAdjustment,
 
         upsertAccount,
         addAccount,

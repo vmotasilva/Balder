@@ -30,7 +30,7 @@ interface ChatMessage {
 }
 
 export const CopilotScreen: React.FC = () => {
-  const { movements, natures, accounts, cards, salaryContracts, activeCheckpoint } = useFinancial();
+  const { movements, natures, accounts, cards, activeCheckpoint } = useFinancial();
 
   const [inputMessage, setInputMessage] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -49,7 +49,7 @@ export const CopilotScreen: React.FC = () => {
     'Qual meu saldo previsto para o fim do mês?',
     'Vale a pena antecipar empréstimo agora?',
     'Quais categorias estouraram o teto?',
-    'Qual a minha receita garantida de salários?',
+    'Quanto tenho de salário a receber?',
   ];
 
   // Motor de resposta financeira inteligente com base nos dados reais do contexto
@@ -116,14 +116,24 @@ export const CopilotScreen: React.FC = () => {
       return `⚠️ Naturezas com consumo acima do teto estipulado:\n${overCeiling.join('\n')}\n\nRecomendo checar a lista de compras essenciais na tela de 'Naturezas'.`;
     }
 
-    // 4. Pergunta sobre salários
+    // 4. Pergunta sobre salários (apenas o que o usuário lançou com categoria 'Salário')
     if (q.includes('salário') || q.includes('receita') || q.includes('renda')) {
-      const activeContracts = salaryContracts.filter((c) => c.active !== false && c.isActive !== false);
-      const totalSal = activeContracts.reduce((s, c) => s + (c.baseAmount || c.currentNetAmount || 0), 0);
-      return `Você possui ${activeContracts.length} contrato(s) ativo(s) cadastrado(s), garantindo uma renda base de R$ ${totalSal.toLocaleString(
-        'pt-BR',
-        { minimumFractionDigits: 2 }
-      )} distribuída em duas quinzenas mensais.`;
+      const salaryMovements = movements.filter((m) => {
+        const category = (m.category || '').trim().toLowerCase();
+        return (m.type === 'RECEBER' || m.type === 'RECEITA') && (category === 'salário' || category === 'salario');
+      });
+      if (salaryMovements.length === 0) {
+        return "Você ainda não lançou nenhum salário. Registre-o em 'Movimentações' como conta a receber com a categoria 'Salário' para que eu possa acompanhá-lo.";
+      }
+      const received = salaryMovements
+        .filter((m) => m.status === 'REALIZADA')
+        .reduce((s, m) => s + m.amount, 0);
+      const pending = salaryMovements
+        .filter((m) => m.status === 'PREVISTA')
+        .reduce((s, m) => s + m.amount, 0);
+      return `Você possui ${salaryMovements.length} lançamento(s) de salário: R$ ${received.toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+      })} já recebidos e R$ ${pending.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} a receber.`;
     }
 
     // Resposta padrão analítica

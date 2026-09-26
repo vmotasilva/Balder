@@ -32,7 +32,6 @@ export const TABLES = {
   NATURES: 'natures',
   GOALS: 'goals',
   ACCOUNTS: 'accounts',
-  SALARY_CONTRACTS: 'salary_contracts',
   CHECKPOINTS: 'checkpoints',
   PAYMENT_METHODS: 'payment_methods',
 } as const;

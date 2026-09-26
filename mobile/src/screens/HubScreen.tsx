@@ -12,7 +12,6 @@ import {
   PieChart,
   CreditCard,
   Landmark,
-  Briefcase,
   Wallet,
   Flag,
   Sparkles,
@@ -55,15 +54,6 @@ export const HubScreen: React.FC = () => {
       color: '#F59E0B',
       screen: 'Loans' as const,
       badge: 'Juros BACEN',
-    },
-    {
-      id: 'SalaryContracts',
-      title: 'Contratos & Salários',
-      subtitle: 'Fontes CLT/PJ, quinzenas e reajustes salariais',
-      icon: Briefcase,
-      color: '#10B981',
-      screen: 'SalaryContracts' as const,
-      badge: 'Renda',
     },
     {
       id: 'Accounts',

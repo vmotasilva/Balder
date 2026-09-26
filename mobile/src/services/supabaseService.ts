@@ -4,7 +4,6 @@ import type {
   ExpenseNature,
   Goal,
   BankAccount,
-  SalaryContract,
   FinancialCheckpoint,
   PaymentMethodItem,
 } from '../types';
@@ -432,98 +431,6 @@ export const SupabaseMobileService = {
   },
 
   // ============================================================================
-  // SALARY CONTRACTS
-  // ============================================================================
-  async getSalaryContracts(): Promise<SalaryContract[]> {
-    if (!isSupabaseConfigured) return [];
-    const userId = await getCurrentUserId();
-    if (!userId) return [];
-
-    try {
-      const { data, error } = await supabase
-        .from(TABLES.SALARY_CONTRACTS)
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('[SupabaseMobileService] Erro ao buscar contratos:', error.message);
-        return [];
-      }
-
-      return (data || []).map((row: any) => ({
-        id: String(row.id),
-        employer: row.employer,
-        role: row.role || '',
-        contractType: row.contract_type || 'CLT',
-        paymentSchedule: row.payment_schedule || 'UNICO',
-        paymentDay: Number(row.payment_day) || 5,
-        secondPaymentDay: row.second_payment_day ?? undefined,
-        weeklyPaymentDayOfWeek: row.weekly_payment_day_of_week ?? undefined,
-        firstInstallmentPercent: row.first_installment_percent ? Number(row.first_installment_percent) : undefined,
-        firstInstallmentAmount: row.first_installment_amount ? Number(row.first_installment_amount) : undefined,
-        secondInstallmentAmount: row.second_installment_amount ? Number(row.second_installment_amount) : undefined,
-        weeklyInstallmentAmount: row.weekly_installment_amount ? Number(row.weekly_installment_amount) : undefined,
-        installmentValueMode: row.installment_value_mode || 'AUTO',
-        currentGrossAmount: Number(row.current_gross_amount) || 0,
-        currentNetAmount: Number(row.current_net_amount) || 0,
-        receivingBankAccountId: row.receiving_bank_account_id || undefined,
-        receivingBankName: row.receiving_bank_name || undefined,
-        startDate: row.start_date || '',
-        isActive: Boolean(row.is_active),
-        history: Array.isArray(row.history) ? row.history : [],
-      })) as SalaryContract[];
-    } catch (e) {
-      console.error('[SupabaseMobileService] Exceção em getSalaryContracts:', e);
-      return [];
-    }
-  },
-
-  async upsertSalaryContract(contract: SalaryContract): Promise<boolean> {
-    if (!isSupabaseConfigured) return false;
-    const userId = await getCurrentUserId();
-    if (!userId) return false;
-
-    try {
-      const payload: Record<string, any> = {
-        id: contract.id,
-        user_id: userId,
-        employer: contract.employer,
-        role: contract.role,
-        contract_type: contract.contractType,
-        payment_schedule: contract.paymentSchedule || 'UNICO',
-        payment_day: contract.paymentDay,
-        second_payment_day: contract.secondPaymentDay ?? null,
-        weekly_payment_day_of_week: contract.weeklyPaymentDayOfWeek ?? null,
-        first_installment_percent: contract.firstInstallmentPercent ?? null,
-        first_installment_amount: contract.firstInstallmentAmount ?? null,
-        second_installment_amount: contract.secondInstallmentAmount ?? null,
-        weekly_installment_amount: contract.weeklyInstallmentAmount ?? null,
-        installment_value_mode: contract.installmentValueMode || 'AUTO',
-        current_gross_amount: contract.currentGrossAmount,
-        current_net_amount: contract.currentNetAmount,
-        receiving_bank_account_id: contract.receivingBankAccountId ?? null,
-        receiving_bank_name: contract.receivingBankName ?? null,
-        start_date: contract.startDate,
-        is_active: contract.isActive,
-        history: contract.history || [],
-      };
-
-      const { error } = await supabase
-        .from(TABLES.SALARY_CONTRACTS)
-        .upsert(payload);
-
-      if (error) {
-        console.error('[SupabaseMobileService] Erro ao salvar contrato:', error.message);
-        return false;
-      }
-      return true;
-    } catch (e) {
-      console.error('[SupabaseMobileService] Exceção em upsertSalaryContract:', e);
-      return false;
-    }
-  },
-
-  // ============================================================================
   // ACCOUNTS & PAYMENT METHODS
   // ============================================================================
   async getAccounts(): Promise<BankAccount[]> {
@@ -647,16 +554,6 @@ export const SupabaseMobileService = {
       return !error;
     } catch (e) {
       console.error('[SupabaseMobileService] Exceção em upsertCheckpoint:', e);
-      return false;
-    }
-  },
-
-  async deleteSalaryContract(id: string): Promise<boolean> {
-    if (!isSupabaseConfigured) return false;
-    try {
-      const { error } = await supabase.from(TABLES.SALARY_CONTRACTS).delete().eq('id', id);
-      return !error;
-    } catch {
       return false;
     }
   },

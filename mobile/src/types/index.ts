@@ -167,64 +167,6 @@ export interface PaymentMethodItem {
   dueDay?: number;
 }
 
-export type SalaryContractType = 'CLT' | 'PJ' | 'PRO_LABORE' | 'ESTAGIO' | 'CONCURSO' | 'AUTONOMO' | 'OUTRO';
-export type SalaryPaymentSchedule = 'UNICO' | 'QUINZENAL' | 'SEMANAL';
-export type SalaryAdjustmentReason =
-  | 'DISSÍDIO_CONVENÇÃO'
-  | 'MÉRITO'
-  | 'PROMOÇÃO'
-  | 'MUDANÇA_EMPREGO'
-  | 'INFLAÇÃO_CORREÇÃO'
-  | 'OUTRO'
-  | string;
-
-export interface SalaryAdjustment {
-  id: string;
-  effectiveDate: string;
-  grossAmount?: number;
-  netAmount?: number;
-  newAmount?: number;
-  percentageIncrease?: number;
-  reason: SalaryAdjustmentReason;
-  title?: string;
-  notes?: string;
-  firstInstallmentAmount?: number;
-  secondInstallmentAmount?: number;
-  weeklyInstallmentAmount?: number;
-  installmentValueMode?: 'FIXED' | 'AUTO';
-}
-
-export interface SalaryContract {
-  id: string;
-  employer?: string;
-  companyName?: string;
-  role?: string;
-  roleTitle?: string;
-  contractType: SalaryContractType;
-  paymentSchedule?: SalaryPaymentSchedule;
-  paymentDay?: number;
-  secondPaymentDay?: number;
-  firstPaymentDay?: number;
-  firstPaymentPercent?: number;
-  secondPaymentPercent?: number;
-  weeklyPaymentDayOfWeek?: number;
-  firstInstallmentPercent?: number;
-  firstInstallmentAmount?: number;
-  secondInstallmentAmount?: number;
-  weeklyInstallmentAmount?: number;
-  installmentValueMode?: 'FIXED' | 'AUTO';
-  baseAmount?: number;
-  currentGrossAmount?: number;
-  currentNetAmount?: number;
-  receivingBankAccountId?: string;
-  receivingBankName?: string;
-  startDate?: string;
-  isActive?: boolean;
-  active?: boolean;
-  history?: SalaryAdjustment[];
-  adjustments?: SalaryAdjustment[];
-}
-
 export interface CheckpointCardInvoice {
   monthIndex: number;
   monthLabel: string;

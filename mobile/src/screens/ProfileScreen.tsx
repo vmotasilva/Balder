@@ -18,7 +18,6 @@ import {
   ChevronRight,
   Sparkles,
   Smartphone,
-  Briefcase,
   Wallet,
   Flag,
   PieChart,
@@ -79,20 +78,6 @@ export const ProfileScreen: React.FC = () => {
         {/* Gestão de Dados & Entidades */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>CONFIGURAÇÕES DE ENTIDADES</Text>
-
-          <TouchableOpacity
-            style={styles.itemRow}
-            onPress={() => navigation.navigate('SalaryContracts')}
-          >
-            <View style={styles.itemLeft}>
-              <Briefcase size={18} color="#10B981" />
-              <View>
-                <Text style={styles.itemTitle}>Contratos & Salários</Text>
-                <Text style={styles.itemSubtitle}>Fontes de renda CLT/PJ, quinzenas e reajustes</Text>
-              </View>
-            </View>
-            <ChevronRight size={18} color={theme.colors.textMuted} />
-          </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.itemRow}

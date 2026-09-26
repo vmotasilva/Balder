@@ -9,7 +9,6 @@ import { MainTabNavigator } from './MainTabNavigator';
 import { NaturezasScreen } from '../screens/NaturezasScreen';
 import { InvoicesScreen } from '../screens/InvoicesScreen';
 import { LoansScreen } from '../screens/LoansScreen';
-import { SalaryContractsScreen } from '../screens/SalaryContractsScreen';
 import { AccountsScreen } from '../screens/AccountsScreen';
 import { CheckpointsScreen } from '../screens/CheckpointsScreen';
 import { GoalsScreen } from '../screens/GoalsScreen';
@@ -22,7 +21,6 @@ export type RootStackParamList = {
   Naturezas: undefined;
   Invoices: undefined;
   Loans: undefined;
-  SalaryContracts: undefined;
   Accounts: undefined;
   Checkpoints: undefined;
   Goals: undefined;
@@ -44,7 +42,6 @@ const AppStack: React.FC = () => {
       <Stack.Screen name="Naturezas" component={NaturezasScreen} />
       <Stack.Screen name="Invoices" component={InvoicesScreen} />
       <Stack.Screen name="Loans" component={LoansScreen} />
-      <Stack.Screen name="SalaryContracts" component={SalaryContractsScreen} />
       <Stack.Screen name="Accounts" component={AccountsScreen} />
       <Stack.Screen name="Checkpoints" component={CheckpointsScreen} />
       <Stack.Screen name="Goals" component={GoalsScreen} />
