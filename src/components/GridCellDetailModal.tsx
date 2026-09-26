@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useFinancial } from '../context/FinancialContext';
 import {
@@ -18,6 +18,8 @@ import {
   AlertTriangle,
   Edit3,
   User,
+  ChevronLeft,
+  ChevronRight,
   CheckCircle2,
   XCircle,
   Clock,
@@ -728,27 +730,72 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
   } = useFinancial();
 
   const columnKey = selection?.columnKey;
-  const columnTitle = selection?.columnTitle || '';
-  const competenceLabel = selection?.competenceLabel || '';
-  const formattedCompetence = selection?.formattedCompetence || '';
-  const totalValue = selection?.totalValue || 0;
-  const row = selection?.row;
+  const baseRow = selection?.row;
 
-  // Linha da projeção recalculada dinamicamente caso o usuário adicione ou edite lançamentos
-  const dynamicRow = useMemo(() => {
-    if (!row) return undefined;
-    const initialBalance = activeCheckpoint ? activeCheckpoint.initialBalance : (row.initialBalance ?? 0);
-    const grid = buildMonthlyProjectionGrid(
+  // Grade da projeção recalculada dinamicamente caso o usuário adicione ou edite lançamentos
+  const projectionGrid = useMemo(() => {
+    if (!baseRow) return [];
+    const initialBalance = activeCheckpoint ? activeCheckpoint.initialBalance : (baseRow.initialBalance ?? 0);
+    return buildMonthlyProjectionGrid(
       movements,
       natures,
       initialBalance,
       monthlyClosings,
       selection?.viewMode || 'PROJETADO'
     );
-    return grid.find((r: any) => r.monthKey === row.monthKey) || row;
-  }, [movements, natures, activeCheckpoint, monthlyClosings, row, selection?.viewMode]);
+  }, [movements, natures, activeCheckpoint, monthlyClosings, baseRow, selection?.viewMode]);
 
-  const currentRow = dynamicRow || row;
+  // Navegação entre competências dentro do detalhamento (mesma coluna e mesma natureza/mapeamento)
+  const [navMonthKey, setNavMonthKey] = useState<string | null>(null);
+  useEffect(() => {
+    setNavMonthKey(null);
+  }, [selection]);
+  const activeMonthKey = navMonthKey ?? baseRow?.monthKey;
+  const monthIndex = projectionGrid.findIndex((r) => r.monthKey === activeMonthKey);
+  const isNavigated = !!navMonthKey && navMonthKey !== baseRow?.monthKey;
+
+  const row = useMemo(
+    () => (baseRow ? projectionGrid.find((r) => r.monthKey === activeMonthKey) || baseRow : undefined),
+    [projectionGrid, activeMonthKey, baseRow]
+  );
+  const currentRow = row;
+
+  // Rótulos e valor da célula acompanham a competência navegada
+  const competenceLabel = isNavigated && row ? row.competenceLabel : selection?.competenceLabel || '';
+  const formattedCompetence = isNavigated && row ? row.formattedCompetence : selection?.formattedCompetence || '';
+  const columnTitle =
+    isNavigated && row && selection?.competenceLabel
+      ? (selection.columnTitle || '').replace(selection.competenceLabel, row.competenceLabel)
+      : selection?.columnTitle || '';
+  const totalValue = useMemo(() => {
+    if (!isNavigated || !row || !selection) return selection?.totalValue || 0;
+    switch (selection.columnKey) {
+      case 'accumulated':
+        return selection.columnTitle === 'Saldo Inicial do Ciclo' ? row.initialBalance || 0 : row.accumulatedBalance;
+      case 'monthNet':
+        return row.monthNet;
+      case 'totalIncome':
+        return row.salary + row.extrasTotal + row.loanReceived;
+      case 'totalExpense':
+        return row.creditCardTotal + row.fixedCostMapped + row.variableCost + row.loanPayment;
+      case 'salary':
+        return row.salary;
+      case 'extras':
+        return row.extrasTotal;
+      case 'creditCard':
+        return row.creditCardTotal;
+      case 'fixedCost':
+        return row.fixedCostMapped;
+      case 'variableCost':
+        return row.variableCost;
+      case 'loanReceived':
+        return row.loanReceived;
+      case 'loanPayment':
+        return row.loanPayment;
+      default:
+        return selection.totalValue || 0;
+    }
+  }, [isNavigated, row, selection]);
 
   // Valor total atualizado dinamicamente em conformidade com as alterações em tempo real
   const dynamicTotalValue = useMemo(() => {
@@ -1964,6 +2011,27 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     return items;
   }, [selection, movements, columnKey, row, totalValue, allNatureItems, natures, competenceLabel, formattedCompetence, columnTitle, activeCheckpoint, monthlyClosings]);
 
+  // Aba ativa atual (título/categoria), para reencontrá-la quando a lista mudar (troca de mês ou edição)
+  const activeTabRef = useRef<{ title: string; category: string } | null>(null);
+  useEffect(() => {
+    const current = breakdownItems.find((b) => b.id === activeSelectionId);
+    activeTabRef.current = current ? { title: current.title, category: current.category } : null;
+  }, [activeSelectionId]);
+
+  useEffect(() => {
+    if (!isOpen || activeSelectionId === 'ALL') return;
+    if (breakdownItems.some((b) => b.id === activeSelectionId)) return;
+    const wanted = activeTabRef.current;
+    const match = wanted
+      ? breakdownItems.find(
+          (b) =>
+            b.title.toLowerCase() === wanted.title.toLowerCase() ||
+            b.category.toLowerCase() === wanted.category.toLowerCase()
+        )
+      : undefined;
+    setActiveSelectionId(match ? match.id : 'ALL');
+  }, [breakdownItems]);
+
   // Inicialização e foco na natureza específica ao abrir o modal ou mudar de seleção
   useEffect(() => {
     if (isOpen) {
@@ -1994,7 +2062,8 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
       }
       setNatureSearchTerm('');
     }
-  }, [isOpen, selection, breakdownItems]);
+    // Só no abrir / nova seleção: trocas de mês e edições preservam a aba ativa (efeito acima)
+  }, [isOpen, selection]);
 
   // Apuração segregada do que é REAL (já liquidado/quitado) e do que é PREVISTO (em aberto/projetado)
   const { cellRealizedTotal, cellPrevistoTotal } = useMemo(() => {
@@ -2641,7 +2710,78 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                 <span className="text-[11px] font-semibold text-cyan-400 uppercase tracking-wider">
                   Detalhamento de Competência
                 </span>
-                <span className="badge badge-cyan text-[10px]">{competenceLabel} ({formattedCompetence})</span>
+                {/* Navegação entre competências: mantém a coluna e a natureza/mapeamento abertos */}
+                <span
+                  className="badge badge-cyan text-[10px]"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', padding: '1px 4px' }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => monthIndex > 0 && setNavMonthKey(projectionGrid[monthIndex - 1].monthKey)}
+                    disabled={monthIndex <= 0}
+                    title="Competência anterior"
+                    aria-label="Competência anterior"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'inherit',
+                      padding: '0 2px',
+                      display: 'inline-flex',
+                      cursor: monthIndex > 0 ? 'pointer' : 'not-allowed',
+                      opacity: monthIndex > 0 ? 1 : 0.35,
+                    }}
+                  >
+                    <ChevronLeft size={13} />
+                  </button>
+                  {projectionGrid.length > 1 ? (
+                    <select
+                      value={activeMonthKey}
+                      onChange={(e) => setNavMonthKey(e.target.value)}
+                      aria-label="Escolher competência"
+                      title="Escolher competência"
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'inherit',
+                        font: 'inherit',
+                        cursor: 'pointer',
+                        maxWidth: '190px',
+                      }}
+                    >
+                      {projectionGrid.map((r) => (
+                        <option key={r.monthKey} value={r.monthKey} style={{ color: '#0f172a' }}>
+                          {r.competenceLabel} ({r.formattedCompetence})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span>
+                      {competenceLabel} ({formattedCompetence})
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      monthIndex >= 0 &&
+                      monthIndex < projectionGrid.length - 1 &&
+                      setNavMonthKey(projectionGrid[monthIndex + 1].monthKey)
+                    }
+                    disabled={monthIndex < 0 || monthIndex >= projectionGrid.length - 1}
+                    title="Próxima competência"
+                    aria-label="Próxima competência"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'inherit',
+                      padding: '0 2px',
+                      display: 'inline-flex',
+                      cursor: monthIndex >= 0 && monthIndex < projectionGrid.length - 1 ? 'pointer' : 'not-allowed',
+                      opacity: monthIndex >= 0 && monthIndex < projectionGrid.length - 1 ? 1 : 0.35,
+                    }}
+                  >
+                    <ChevronRight size={13} />
+                  </button>
+                </span>
               </div>
               <h2 className="text-base font-bold flex items-center gap-2 truncate" style={{ color: 'var(--text-primary)' }}>
                 {columnTitle}
