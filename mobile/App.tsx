@@ -22,7 +22,9 @@ const CHROME_USER_AGENT =
   'Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36';
 
 export default function App() {
-  const webViewRef = useRef<WebView>(null);
+  // react-native-webview 13.17–15.x declara `WebView<P = undefined>`, o que torna as props
+  // `WebViewProps & undefined` (never); passar `{}` explicitamente restaura a tipagem correta.
+  const webViewRef = useRef<WebView<{}>>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
@@ -86,7 +88,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-        <StatusBar style="light" backgroundColor="#070B16" />
+        <StatusBar style="light" />
 
         {hasError ? (
           <View style={styles.errorContainer}>
@@ -122,7 +124,6 @@ export default function App() {
               }}
               javaScriptEnabled={true}
               domStorageEnabled={true}
-              databaseEnabled={true}
               allowFileAccess={true}
               allowFileAccessFromFileURLs={true}
               allowUniversalAccessFromFileURLs={true}
@@ -172,7 +173,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#070B16',
   },
   loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: '#070B16',
     alignItems: 'center',
     justifyContent: 'center',
