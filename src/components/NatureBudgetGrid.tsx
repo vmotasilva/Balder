@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { ExpenseNature, MonthlyGridProjectionRow, MappingItem } from '../types';
 import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
+import { mappingItemMonthValue } from '../utils/mappingItemState';
 import { GridCellDetailModal, generateNatureDateGroups } from './GridCellDetailModal';
 import type { GridCellSelection } from './GridCellDetailModal';
 
@@ -109,7 +110,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
 
     return natures.map((nat) => {
       // 1. Previsto (Teto orçado mensal da natureza específico para este mês de competência)
-      const planned = getNatureCeiling(nat, selectedMonthNumber);
+      const planned = getNatureCeiling(nat, selectedMonthKey);
 
       // 2. Realizado: apurado via movimentos reais ou mapeamentos ativos no ciclo
       const matchingMovements = movements.filter((m) => {
@@ -155,12 +156,8 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
         });
       });
 
-      const mappedSum = natItems.reduce((acc, ni) => {
-        const val =
-          ni.item.totalValue ||
-          (ni.item.quantity || 1) * (ni.item.price || 0) * (ni.item.multiplierWeeks || 1);
-        return acc + val;
-      }, 0);
+      // Itens pagos por terceiros na competência não entram nos valores
+      const mappedSum = natItems.reduce((acc, ni) => acc + mappingItemMonthValue(ni.item, selectedMonthKey), 0);
 
       const realized =
         matchingMovements.length > 0
@@ -258,9 +255,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
           const isMappingPontual =
             mp.frequency === 'PONTUAL' || ATYPICAL_KEYWORD_REGEX.test(mp.name);
           mp.items.forEach((it) => {
-            const itemVal =
-              it.totalValue ||
-              (it.quantity || 1) * (it.price || 0) * (it.multiplierWeeks || 1);
+            const itemVal = mappingItemMonthValue(it, selectedMonthKey);
             const hasAtypicalKeyword = ATYPICAL_KEYWORD_REGEX.test(it.description);
             const isAtypical = isMappingPontual || hasAtypicalKeyword;
             allExpenses.push({

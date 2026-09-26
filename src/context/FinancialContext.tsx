@@ -74,6 +74,7 @@ import {
   DEMO_BANKS,
 } from '../utils/demoData';
 import { deduplicateCards, getCardIdentityKey } from '../utils/cardUtils';
+import { resolveMappingItemState } from '../utils/mappingItemState';
 
 interface FinancialContextType {
   // Estado
@@ -203,6 +204,12 @@ interface FinancialContextType {
   deleteMapping: (natureId: string, mappingId: string) => void;
   addItemToMapping: (natureId: string, mappingId: string, item: Omit<MappingItem, 'id' | 'totalValue'>, customId?: string) => string;
   updateMappingItem: (natureId: string, mappingId: string, itemId: string, updates: Partial<MappingItem>) => void;
+  updateMappingItemState: (
+    natureId: string,
+    mappingId: string,
+    itemId: string,
+    state: Pick<MappingItem, 'monthStates' | 'stateRules'>
+  ) => void;
   deleteMappingItem: (natureId: string, mappingId: string, itemId: string) => void;
   moveMappingItem: (fromNatureId: string, fromMappingId: string, toNatureId: string, toMappingId: string, itemId: string) => boolean;
   moveMappingOrder: (natureId: string, mappingId: string, direction: 'UP' | 'DOWN') => void;
@@ -3627,6 +3634,29 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
+  // Situação do item por competência (realizado / pago por terceiros); não recalcula valores
+  const updateMappingItemState = (
+    natureId: string,
+    mappingId: string,
+    itemId: string,
+    state: Pick<MappingItem, 'monthStates' | 'stateRules'>
+  ) => {
+    setNatures((prev) => {
+      let updatedMappings: FixedExpenseMapping[] = [];
+      const next = prev.map((nat) => {
+        if (nat.id !== natureId) return nat;
+        updatedMappings = nat.mappings.map((m) =>
+          m.id !== mappingId
+            ? m
+            : { ...m, items: m.items.map((item) => (item.id === itemId ? { ...item, ...state } : item)) }
+        );
+        return { ...nat, mappings: updatedMappings };
+      });
+      saveNaturesData(next, natureId, { mappings: updatedMappings });
+      return next;
+    });
+  };
+
   // Excluir Item de Mapeamento
   const deleteMappingItem = (natureId: string, mappingId: string, itemId: string) => {
     setNatures((prev) => {
@@ -3948,7 +3978,13 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       ) {
         return accMap;
       }
-      const mapTotal = (map.items || []).reduce((accItem, it) => accItem + (it.totalValue || 0), 0);
+      // Com a competência completa (YYYY-MM), itens pagos por terceiros saem do teto do mês
+      const monthKey = typeof month === 'string' && /^\d{4}-\d{2}/.test(month) ? month.slice(0, 7) : undefined;
+      const mapTotal = (map.items || []).reduce(
+        (accItem, it) =>
+          accItem + (monthKey && resolveMappingItemState(it, monthKey).paidByOthers ? 0 : it.totalValue || 0),
+        0
+      );
       return accMap + mapTotal;
     }, 0);
     return Math.round(total * 1000) / 1000;
@@ -4227,6 +4263,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         deleteMapping,
         addItemToMapping,
         updateMappingItem,
+        updateMappingItemState,
         deleteMappingItem,
         moveMappingItem,
         moveMappingOrder,

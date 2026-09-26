@@ -1,4 +1,5 @@
 import type { Movement, ExpenseNature, MonthlyGridProjectionRow, MonthlyClosing } from '../types';
+import { mappingItemBaseValue, resolveMappingItemState } from './mappingItemState';
 
 export interface ProjectionGridConfig {
   initialBalance?: number;
@@ -165,6 +166,11 @@ export function buildMonthlyProjectionGrid(
     let monthlyFixedFromNatures = 0;
     let monthlyFixedOnCard = 0;
     let monthlyFixedDirect = 0;
+    // Parcela ainda a realizar (modo PREVISTO) e itens diretos já realizados (modo REALIZADO)
+    let pendingFixedFromNatures = 0;
+    let pendingFixedOnCard = 0;
+    let pendingFixedDirect = 0;
+    const realizedDirectItems: { description: string; value: number }[] = [];
 
     natures.forEach((nat) => {
       nat.mappings.forEach((m) => {
@@ -176,12 +182,26 @@ export function buildMonthlyProjectionGrid(
           return;
         }
         m.items.forEach((item) => {
-          const itemVal = item.totalValue || item.quantity * item.price * (item.multiplierWeeks || 1);
+          const state = resolveMappingItemState(item, comp.key);
+          // Itens pagos por terceiros na competência não entram nos valores
+          if (state.paidByOthers) return;
+          const itemVal = mappingItemBaseValue(item);
+          const onCard = item.paymentMethod === 'CARTAO';
           monthlyFixedFromNatures += itemVal;
-          if (item.paymentMethod === 'CARTAO') {
+          if (onCard) {
             monthlyFixedOnCard += itemVal;
           } else {
             monthlyFixedDirect += itemVal;
+          }
+          if (state.realized) {
+            if (!onCard) realizedDirectItems.push({ description: item.description, value: itemVal });
+          } else {
+            pendingFixedFromNatures += itemVal;
+            if (onCard) {
+              pendingFixedOnCard += itemVal;
+            } else {
+              pendingFixedDirect += itemVal;
+            }
           }
         });
       });
@@ -233,15 +253,23 @@ export function buildMonthlyProjectionGrid(
         }
       });
 
+      // Itens mapeados (fora do cartão) marcados como realizados, sem pagamento lançado de mesmo nome
+      realizedDirectItems.forEach((it) => {
+        const alreadyLaunched = realizedPagar.some(
+          (m) => m.title.toLowerCase() === it.description.toLowerCase()
+        );
+        if (!alreadyLaunched) realFixedSum += it.value;
+      });
+
       fixedCostMapped = realFixedSum;
       fixedCostDirect = realFixedSum;
       fixedCostOnCard = 0;
       variableCost = realVarSum;
     } else if (viewMode === 'PREVISTO') {
-      // No modo PREVISTO: custos fixos orçados + custos variáveis a pagar
-      fixedCostMapped = monthlyFixedFromNatures;
-      fixedCostOnCard = monthlyFixedOnCard;
-      fixedCostDirect = monthlyFixedDirect;
+      // No modo PREVISTO: custos fixos orçados ainda não realizados + custos variáveis a pagar
+      fixedCostMapped = pendingFixedFromNatures;
+      fixedCostOnCard = pendingFixedOnCard;
+      fixedCostDirect = pendingFixedDirect;
       variableCost = movements
         .filter(
           (m) =>

@@ -363,6 +363,22 @@ export interface MappingItem {
   dayOfFortnight?: number; // 1 a 15 (dia específico da quinzena)
   dayOfMonth?: number;     // 1 a 31 (com ajuste automático para o último dia do mês quando o mês tiver < 31 dias)
   keywords?: string[];     // Palavras-chave / Sinônimos de notas fiscais (ex: ['cafe pilao', 'cafe 500g', 'melitta'])
+
+  // Situação do item por competência (ver utils/mappingItemState.ts):
+  monthStates?: Record<string, MappingItemMonthState>; // ajustes pontuais, chave = competência (YYYY-MM)
+  stateRules?: MappingItemStateRule[];                 // regras que valem de uma competência em diante
+}
+
+/** Situação de um item mapeado em uma competência. */
+export interface MappingItemMonthState {
+  realized?: boolean;     // já realizado / pago na competência
+  paidByOthers?: boolean; // pago por outra pessoa: não entra nos valores da projeção
+  paidBy?: string;        // quem pagou (opcional, quando paidByOthers)
+}
+
+/** Situação aplicada a partir de uma competência (inclusive) para todas as seguintes. */
+export interface MappingItemStateRule extends MappingItemMonthState {
+  fromMonth: string; // YYYY-MM
 }
 
 export interface FixedExpenseMapping {

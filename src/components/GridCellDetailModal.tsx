@@ -17,6 +17,7 @@ import {
   Minimize2,
   AlertTriangle,
   Edit3,
+  User,
   CheckCircle2,
   XCircle,
   Clock,
@@ -29,6 +30,8 @@ import type { MonthlyGridProjectionRow, MappingItem, MovementStatus, Movement, I
 import { buildMonthlyProjectionGrid, isSalaryMovement, getSalaryCompetenceKey } from '../utils/projectionMath';
 import type { ProjectionViewMode } from '../utils/projectionMath';
 import { getItemManifestationDays } from '../utils/natureScheduling';
+import { mappingItemBaseValue, mappingItemMonthValue, resolveMappingItemState } from '../utils/mappingItemState';
+import { MappingItemStateModal, type MappingItemStateTarget } from './MappingItemStateModal';
 import { MovementDetailModal } from './MovementDetailModal';
 
 export interface GridCellSelection {
@@ -90,6 +93,11 @@ export interface CellBreakdownSubItem {
   isFirstInstallment?: boolean;
   movementId?: string;
   isInvoiceItem?: boolean;
+  // Item mapeado de natureza: situação na competência (realizado / pago por terceiros)
+  natureItemRef?: { natureId: string; mappingId: string; itemId: string };
+  paidByOthers?: boolean;
+  paidBy?: string;
+  baseValue?: number; // valor planejado, exibido riscado quando pago por terceiros
 }
 
 export interface EditingReceiptData {
@@ -144,6 +152,31 @@ export interface CellBreakdownItem {
   isInvoiceCreatable?: boolean;
 }
 
+/** Item mapeado de natureza aplicável à competência. */
+export interface NatureItemEntry {
+  natureId?: string;
+  mappingId?: string;
+  natureName: string;
+  natureColor: string;
+  mappingName: string;
+  item: MappingItem;
+}
+
+/** Situação do item na competência (realizado / pago por terceiros) para o detalhamento. */
+function natureItemStateFields(ni: NatureItemEntry, monthKey: string): Partial<CellBreakdownSubItem> {
+  const state = resolveMappingItemState(ni.item, monthKey);
+  return {
+    ...(state.realized ? { status: 'REALIZADA' as const } : {}),
+    paidByOthers: !!state.paidByOthers,
+    paidBy: state.paidBy,
+    baseValue: mappingItemBaseValue(ni.item),
+    natureItemRef:
+      ni.natureId && ni.mappingId
+        ? { natureId: ni.natureId, mappingId: ni.mappingId, itemId: ni.item.id }
+        : undefined,
+  };
+}
+
 /**
  * Motor contábil que gera agrupamentos inteligentes por Data de Gasto dentro da Natureza.
  * Exemplo: se uma pessoa faz feira toda semana e compra de estoque mensal,
@@ -153,12 +186,7 @@ export interface CellBreakdownItem {
 export function generateNatureDateGroups(
   competence: string,
   natureName: string,
-  items: Array<{
-    natureName: string;
-    natureColor: string;
-    mappingName: string;
-    item: MappingItem;
-  }>
+  items: NatureItemEntry[]
 ): CellDateGroup[] {
   if (!items || items.length === 0) return [];
 
@@ -197,7 +225,9 @@ export function generateNatureDateGroups(
     const { days, periodType } = getItemManifestationDays(item, year, month);
 
     // Valor de cada ocorrência individual (ex: se é semanal com 4 sábados, cada sábado vale quantity * price)
-    const unitOccVal = Math.round((item.quantity || 1) * (item.price || 0) * 1000) / 1000;
+    const unitOccBase = Math.round((item.quantity || 1) * (item.price || 0) * 1000) / 1000;
+    // Pago por terceiros na competência: aparece no detalhamento, mas não soma
+    const unitOccVal = resolveMappingItemState(item, competence.slice(0, 7)).paidByOthers ? 0 : unitOccBase;
     const isAtyp = ATYPICAL_KEYWORD_REGEX.test(`${item.description} ${ni.mappingName || ''}`);
 
     days.forEach((day) => {
@@ -221,6 +251,8 @@ export function generateNatureDateGroups(
         mappingName: ni.mappingName,
         isAtypical: isAtyp,
         attentionReason: isAtyp ? 'Gasto Atípico / Não-Recorrente' : undefined,
+        ...natureItemStateFields(ni, competence.slice(0, 7)),
+        baseValue: unitOccBase,
       };
 
       let group = groupsByDate.get(dateStr);
@@ -735,6 +767,9 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
   // Estado para edição do recebimento clicado pelo usuário
   const [editingReceipt, setEditingReceipt] = useState<EditingReceiptData | null>(null);
 
+  // Item mapeado cuja situação na competência está sendo definida
+  const [itemStateTarget, setItemStateTarget] = useState<MappingItemStateTarget | null>(null);
+
   // Estado para modal completo de ajuste de fatura do cartão
   const [editingInvoiceMovement, setEditingInvoiceMovement] = useState<Movement | null>(null);
 
@@ -767,7 +802,8 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         }
         map.items.forEach((item) => {
           if (item.paymentMethod === 'CARTAO') {
-            const val = item.totalValue || item.quantity * item.price * (item.multiplierWeeks || 1);
+            const paidByOthers = !!resolveMappingItemState(item, (targetMovement.dueDate || '').slice(0, 7)).paidByOthers;
+            const val = paidByOthers ? 0 : mappingItemBaseValue(item);
             if (val > 0) {
               const alreadyExists = (targetMovement.invoiceBreakdown || []).some(
                 (ib) => ib.mappingItemId === item.id || ib.description.toLowerCase() === item.description.toLowerCase()
@@ -950,7 +986,10 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (editingReceipt) {
+        if (itemStateTarget) {
+          // O pop-up de situação fecha a si mesmo; não fecha o detalhamento junto
+          return;
+        } else if (editingReceipt) {
           setEditingReceipt(null);
         } else {
           onClose();
@@ -959,7 +998,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, editingReceipt]);
+  }, [onClose, editingReceipt, itemStateTarget]);
 
   // Lista achatada de todos os itens das naturezas mapeadas
   const allNatureItems = useMemo(() => {
@@ -967,12 +1006,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     if (columnKey !== 'fixedCost' && columnKey !== 'creditCard' && columnKey !== 'totalExpense') return [];
 
     const monthNum = parseInt(currentRow.monthKey.split('-')[1], 10);
-    const itemsList: {
-      natureName: string;
-      natureColor: string;
-      mappingName: string;
-      item: MappingItem;
-    }[] = [];
+    const itemsList: NatureItemEntry[] = [];
 
     natures.forEach((nat) => {
       nat.mappings.forEach((m) => {
@@ -985,6 +1019,8 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         }
         m.items.forEach((it) => {
           itemsList.push({
+            natureId: nat.id,
+            mappingId: m.id,
             natureName: nat.name,
             natureColor: nat.color,
             mappingName: m.name,
@@ -1127,9 +1163,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         if (subList.length === 0) {
           const fixedCardItems = allNatureItems.filter((ni) => ni.item.paymentMethod === 'CARTAO');
           fixedCardItems.forEach((ni) => {
-            const itemVal =
-              ni.item.totalValue ||
-              (ni.item.quantity || 1) * (ni.item.price || 0) * (ni.item.multiplierWeeks || 1);
+            const itemVal = mappingItemMonthValue(ni.item, monthPrefix);
             if (itemVal > 0) {
               subList.push({
                 id: `card_plan_${ni.item.id}`,
@@ -1188,10 +1222,8 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
       }>();
 
       fixedCardItems.forEach((ni) => {
-        const itemVal =
-          ni.item.totalValue ||
-          (ni.item.quantity || 1) * (ni.item.price || 0) * (ni.item.multiplierWeeks || 1);
-        if (itemVal > 0) {
+        const itemVal = mappingItemMonthValue(ni.item, monthPrefix);
+        if (mappingItemBaseValue(ni.item) > 0) {
           const key = ni.natureName;
           const cur = cardNatureMap.get(key) || {
             natureName: ni.natureName,
@@ -1221,8 +1253,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             totalAmount: matchingItems.reduce(
               (acc, ni) =>
                 acc +
-                (ni.item.totalValue ||
-                  (ni.item.quantity || 1) * (ni.item.price || 0) * (ni.item.multiplierWeeks || 1)),
+                mappingItemMonthValue(ni.item, monthPrefix),
               0
             ),
           });
@@ -1237,7 +1268,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         );
 
         const mNat = natures.find((n) => n.name.toLowerCase() === natName.toLowerCase());
-        const plannedCeiling = mNat ? getNatureCeiling(mNat, parseInt(row.monthKey.split('-')[1], 10)) : group.totalAmount;
+        const plannedCeiling = mNat ? getNatureCeiling(mNat, row.monthKey) : group.totalAmount;
         const isOver = group.totalAmount > plannedCeiling && plannedCeiling > 0;
         const hasAtypical = group.items.some((ni) =>
           ATYPICAL_KEYWORD_REGEX.test(`${ni.item.description} ${ni.mappingName || ''}`)
@@ -1255,9 +1286,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
           : undefined;
 
         const subItemsList: CellBreakdownSubItem[] = group.items.map((ni) => {
-          const itemVal =
-            ni.item.totalValue ||
-            ni.item.quantity * ni.item.price * (ni.item.multiplierWeeks || 1);
+          const itemVal = mappingItemMonthValue(ni.item, monthPrefix);
           const isAtyp = ATYPICAL_KEYWORD_REGEX.test(`${ni.item.description} ${ni.mappingName || ''}`);
           return {
             id: ni.item.id,
@@ -1271,6 +1300,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             mappingName: ni.mappingName,
             isAtypical: isAtyp,
             attentionReason: isAtyp ? 'Gasto Atípico / Não-Recorrente' : undefined,
+            ...natureItemStateFields(ni, monthPrefix),
           };
         });
 
@@ -1427,6 +1457,8 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
           }
           m.items.forEach((it) => {
             natItems.push({
+              natureId: nat.id,
+              mappingId: m.id,
               natureName: nat.name,
               natureColor: nat.color,
               mappingName: m.name,
@@ -1436,13 +1468,11 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         });
 
         const natSum = natItems.reduce((acc, ni) => {
-          const val =
-            ni.item.totalValue ||
-            (ni.item.quantity || 1) * (ni.item.price || 0) * (ni.item.multiplierWeeks || 1);
+          const val = mappingItemMonthValue(ni.item, monthPrefix);
           return acc + val;
         }, 0);
 
-        if (natSum > 0) {
+        if (natItems.some((ni) => mappingItemBaseValue(ni.item) > 0)) {
           const onCardCount = natItems.filter((ni) => ni.item.paymentMethod === 'CARTAO').length;
           const onDirectCount = natItems.filter((ni) => ni.item.paymentMethod !== 'CARTAO').length;
 
@@ -1462,7 +1492,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             natItems
           );
 
-          const plannedCeiling = getNatureCeiling(nat, monthNum);
+          const plannedCeiling = getNatureCeiling(nat, row.monthKey);
           const isOver = natSum > plannedCeiling && plannedCeiling > 0;
           const hasAtypical = natItems.some((ni) =>
             ATYPICAL_KEYWORD_REGEX.test(`${ni.item.description} ${ni.mappingName || ''}`)
@@ -1480,9 +1510,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             : undefined;
 
           const subItemsList: CellBreakdownSubItem[] = natItems.map((ni) => {
-            const itemVal =
-              ni.item.totalValue ||
-              ni.item.quantity * ni.item.price * (ni.item.multiplierWeeks || 1);
+            const itemVal = mappingItemMonthValue(ni.item, monthPrefix);
             const isAtyp = ATYPICAL_KEYWORD_REGEX.test(`${ni.item.description} ${ni.mappingName || ''}`);
             return {
               id: ni.item.id,
@@ -1496,6 +1524,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
               mappingName: ni.mappingName,
               isAtypical: isAtyp,
               attentionReason: isAtyp ? 'Gasto Atípico / Não-Recorrente' : undefined,
+              ...natureItemStateFields(ni, monthPrefix),
             };
           });
 
@@ -1698,9 +1727,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
           if (subList.length === 0) {
             const fixedCardItems = allNatureItems.filter((ni) => ni.item.paymentMethod === 'CARTAO');
             fixedCardItems.forEach((ni) => {
-              const itemVal =
-                ni.item.totalValue ||
-                (ni.item.quantity || 1) * (ni.item.price || 0) * (ni.item.multiplierWeeks || 1);
+              const itemVal = mappingItemMonthValue(ni.item, monthPrefix);
               if (itemVal > 0) {
                 subList.push({
                   id: `card_plan_${ni.item.id}`,
@@ -1746,12 +1773,13 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
           quantity: ni.item.quantity || 1,
           price: ni.item.price || 0,
           multiplierWeeks: ni.item.multiplierWeeks || 1,
-          totalValue: ni.item.totalValue || (ni.item.quantity || 1) * (ni.item.price || 0) * (ni.item.multiplierWeeks || 1),
+          totalValue: mappingItemMonthValue(ni.item, monthPrefix),
           paymentMethod: ni.item.paymentMethod,
           cardName: ni.item.cardName,
           mappingName: ni.mappingName,
           status: 'PREVISTA',
           isInvoiceItem: true,
+          ...natureItemStateFields(ni, monthPrefix),
         }));
 
         items.push({
@@ -1777,6 +1805,8 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
           nat.mappings.forEach((m) => {
             m.items.forEach((it) => {
               natItems.push({
+                natureId: nat.id,
+                mappingId: m.id,
                 natureName: nat.name,
                 natureColor: nat.color,
                 mappingName: m.name,
@@ -1786,13 +1816,11 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
           });
 
           const natSum = natItems.reduce((acc, ni) => {
-            const val =
-              ni.item.totalValue ||
-              (ni.item.quantity || 1) * (ni.item.price || 0) * (ni.item.multiplierWeeks || 1);
+            const val = mappingItemMonthValue(ni.item, monthPrefix);
             return acc + val;
           }, 0);
 
-          if (natSum > 0) {
+          if (natItems.some((ni) => mappingItemBaseValue(ni.item) > 0)) {
             const dateGroups = generateNatureDateGroups(row.monthKey, nat.name, natItems);
             items.push({
               id: `expense_fix_${nat.id}`,
@@ -1812,12 +1840,11 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                 quantity: ni.item.quantity,
                 price: ni.item.price,
                 multiplierWeeks: ni.item.multiplierWeeks,
-                totalValue:
-                  ni.item.totalValue ||
-                  ni.item.quantity * ni.item.price * (ni.item.multiplierWeeks || 1),
+                totalValue: mappingItemMonthValue(ni.item, monthPrefix),
                 paymentMethod: ni.item.paymentMethod,
                 cardName: ni.item.cardName,
                 mappingName: ni.mappingName,
+                ...natureItemStateFields(ni, monthPrefix),
               })),
             });
           }
@@ -1978,7 +2005,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
       if (b.subItems && b.subItems.length > 0) {
         b.subItems.forEach((sub) => {
           if (sub.status === 'CANCELADA') return;
-          const val = sub.totalValue || (sub.quantity * sub.price * (sub.multiplierWeeks || 1));
+          const val = sub.paidByOthers ? 0 : sub.totalValue || (sub.quantity * sub.price * (sub.multiplierWeeks || 1));
           if (sub.status === 'REALIZADA') {
             realized += val;
           } else {
@@ -2131,7 +2158,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         .map((dg) => {
           const items = dg.items.filter((it) => it.status === 'REALIZADA');
           if (items.length === 0) return null;
-          const subtotal = items.reduce((acc, it) => acc + (it.totalValue || it.price || 0), 0);
+          const subtotal = items.reduce((acc, it) => acc + (it.paidByOthers ? 0 : it.totalValue || it.price || 0), 0);
           return { ...dg, items, subtotal };
         })
         .filter((dg): dg is CellDateGroup => dg !== null);
@@ -2140,7 +2167,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         .map((dg) => {
           const items = dg.items.filter((it) => it.status !== 'REALIZADA' && it.status !== 'CANCELADA');
           if (items.length === 0) return null;
-          const subtotal = items.reduce((acc, it) => acc + (it.totalValue || it.price || 0), 0);
+          const subtotal = items.reduce((acc, it) => acc + (it.paidByOthers ? 0 : it.totalValue || it.price || 0), 0);
           return { ...dg, items, subtotal };
         })
         .filter((dg): dg is CellDateGroup => dg !== null);
@@ -2159,7 +2186,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             currentTitle.toLowerCase().includes(term)
         );
         if (filteredItems.length === 0) return null;
-        const subtotal = filteredItems.reduce((acc, it) => acc + (it.totalValue || it.price || 0), 0);
+        const subtotal = filteredItems.reduce((acc, it) => acc + (it.paidByOthers ? 0 : it.totalValue || it.price || 0), 0);
         return {
           ...dg,
           items: filteredItems,
@@ -2192,14 +2219,13 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
       if (columnKey === 'fixedCost') {
         planned = currentRow.fixedCostMapped || dynamicTotalValue;
       } else if (columnKey === 'creditCard') {
-        const currentMonthNum = currentRow ? parseInt(currentRow.monthKey.split('-')[1], 10) : undefined;
         const naturesTotal = breakdownItems.reduce((acc, it) => {
           const mNat = natures.find(
             (n) =>
               n.name.toLowerCase() === it.category.toLowerCase() ||
               n.name.toLowerCase() === it.title.toLowerCase()
           );
-          return acc + (mNat ? getNatureCeiling(mNat, currentMonthNum) : it.amount);
+          return acc + (mNat ? getNatureCeiling(mNat, currentRow.monthKey) : it.amount);
         }, 0);
         planned = naturesTotal > 0 ? naturesTotal : (currentRow.creditCardTotal || dynamicTotalValue);
       } else if (columnKey === 'salary') {
@@ -2214,13 +2240,12 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         planned = dynamicTotalValue;
       }
     } else if (activeItem) {
-      const currentMonthNum = currentRow ? parseInt(currentRow.monthKey.split('-')[1], 10) : undefined;
       const mNat = natures.find(
         (n) =>
           n.name.toLowerCase() === activeItem.category.toLowerCase() ||
           n.name.toLowerCase() === activeItem.title.toLowerCase()
       );
-      planned = mNat ? getNatureCeiling(mNat, currentMonthNum) : activeItem.amount;
+      planned = mNat ? getNatureCeiling(mNat, currentRow.monthKey) : activeItem.amount;
     }
 
     const realized = currentAmount;
@@ -2261,6 +2286,13 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
       sub.originalAmount > sub.totalValue &&
       sub.totalValue > 0;
     const discountDiff = hasDiscount ? sub.originalAmount! - sub.totalValue : 0;
+    // Item mapeado de natureza: clique define a situação na competência (realizado / quem pagou)
+    const isNatureItem = !isReceipt && !!sub.natureItemRef;
+    const openItemState = () => {
+      if (sub.natureItemRef && currentRow) {
+        setItemStateTarget({ ...sub.natureItemRef, monthKey: currentRow.monthKey });
+      }
+    };
 
     return (
       <div
@@ -2268,10 +2300,12 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         onClick={() => {
           if (isReceipt) {
             handleOpenReceiptEditor(sub);
+          } else if (isNatureItem) {
+            openItemState();
           }
         }}
         className={`detail-item-row group/receipt transition-all ${
-          isReceipt
+          isReceipt || isNatureItem
             ? 'cursor-pointer hover:bg-cyan-500/[0.08] dark:hover:bg-cyan-500/[0.12] hover:border-cyan-500/30'
             : ''
         } ${
@@ -2286,6 +2320,8 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         title={
           isReceipt
             ? 'Clique para editar este recebimento (já aconteceu, cancelado ou com desconto)'
+            : isNatureItem
+            ? 'Clique para definir se já foi realizado e quem pagou'
             : undefined
         }
       >
@@ -2315,6 +2351,21 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                   <Clock size={10} /> Previsto
                 </span>
               ))}
+
+            {/* Situação do item mapeado na competência */}
+            {isNatureItem &&
+              (sub.paidByOthers ? (
+                <span
+                  className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1"
+                  title="Pago por outra pessoa: não entra nos valores"
+                >
+                  <User size={10} /> Pago por {sub.paidBy || 'terceiros'}
+                </span>
+              ) : sub.status === 'REALIZADA' ? (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                  <Check size={10} /> Realizado
+                </span>
+              ) : null)}
 
             {sub.isInvoiceItem && (
               <span
@@ -2411,7 +2462,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
           <div
             className={`detail-item-amount font-mono ${
-              isCanceled
+              isCanceled || sub.paidByOthers
                 ? 'text-muted line-through font-normal'
                 : sub.isTopOffender
                 ? 'text-rose-500 font-bold'
@@ -2419,11 +2470,43 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                 ? 'text-amber-500 font-bold'
                 : ''
             }`}
+            title={sub.paidByOthers ? 'Pago por outra pessoa: não entra nos valores' : undefined}
           >
             {formatBRL(
-              sub.totalValue || sub.quantity * sub.price * (sub.multiplierWeeks || 1)
+              sub.paidByOthers
+                ? sub.baseValue ?? sub.quantity * sub.price * (sub.multiplierWeeks || 1)
+                : sub.totalValue || sub.quantity * sub.price * (sub.multiplierWeeks || 1)
             )}
           </div>
+
+          {isNatureItem && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                openItemState();
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '5px 12px',
+                borderRadius: '8px',
+                background: 'rgba(56, 189, 248, 0.12)',
+                color: '#38bdf8',
+                border: '1px solid rgba(56, 189, 248, 0.35)',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+              title="Definir se já foi realizado e quem pagou"
+            >
+              <Edit3 size={13} style={{ color: '#38bdf8' }} />
+              <span>Situação</span>
+            </button>
+          )}
 
           {isReceipt && (
             <button
@@ -3483,6 +3566,9 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
           movement={editingInvoiceMovement}
         />
       )}
+
+      {/* POP-UP DE SITUAÇÃO DO ITEM MAPEADO (REALIZADO / QUEM PAGOU / PRÓXIMAS COMPETÊNCIAS) */}
+      <MappingItemStateModal target={itemStateTarget} onClose={() => setItemStateTarget(null)} />
     </>
   );
 };
