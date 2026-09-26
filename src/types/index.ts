@@ -511,6 +511,20 @@ export interface SharedSettlementItem {
   status: 'PENDENTE' | 'ACERTADO';
 }
 
+/** Grupos de dados que o usuário pode apagar seletivamente em "Formatar Dados". */
+export type DataFormatCategory =
+  | 'MOVIMENTACOES' // contas a pagar e a receber
+  | 'FATURAS' // faturas de cartão
+  | 'EMPRESTIMOS' // empréstimos & financiamentos
+  | 'MARCOS' // pontos de partida / cenários
+  | 'FECHAMENTOS' // fechamentos mensais de competência
+  | 'NATUREZAS' // naturezas, mapeamentos e itens
+  | 'CONTAS' // contas bancárias e meios de pagamento
+  | 'CARTOES' // cartões de crédito cadastrados
+  | 'BANCOS' // bancos & instituições
+  | 'METAS' // metas financeiras
+  | 'COMPARTILHADO'; // planejamento compartilhado & acertos
+
 export interface UserProfileSettings {
   cards?: CreditCardItem[];
   banks?: BankInstitution[];
@@ -520,6 +534,8 @@ export interface UserProfileSettings {
   defaultTrackingScope?: TrackingScopeMode;
   onboardingCompleted?: boolean;
   checkpoints?: FinancialCheckpoint[];
+  /** Quando cada grupo foi formatado (ISO). Impede que caches locais antigos restaurem dados apagados. */
+  formattedAt?: Partial<Record<DataFormatCategory, string>>;
 }
 
 

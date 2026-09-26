@@ -13,8 +13,24 @@ const isLegacyOnboardingSalary = (m: Movement) =>
   m.status === 'PREVISTA' &&
   m.title.startsWith('Salário: ');
 
+// ── Formatar Dados ───────────────────────────────────────────────────────────
+// Grupo de formatação ao qual uma movimentação pertence
+const movementFormatCategory = (type: MovementType): DataFormatCategory =>
+  type === 'CARTAO' ? 'FATURAS' : type === 'EMPRESTIMO' ? 'EMPRESTIMOS' : 'MOVIMENTACOES';
+
+// Após uma formatação, caches locais só podem restaurar itens criados DEPOIS dela.
+// Os ids locais carregam o timestamp de criação (ex.: mov_1727391234567, cp_1727391234567).
+const survivesFormat = (id: string, formattedAtIso?: string) => {
+  if (!formattedAtIso) return true;
+  const ts = Number(String(id).split('_')[1]);
+  return Number.isFinite(ts) && ts > Date.parse(formattedAtIso);
+};
+
 import type {
   Movement,
+  MovementType,
+  DataFormatCategory,
+  UserProfileSettings,
   MovementStatus,
   CriticalEvent,
   Goal,
@@ -81,7 +97,9 @@ interface FinancialContextType {
   archiveCheckpoint: (id: string) => void;
   unarchiveCheckpoint: (id: string) => void;
   deleteCheckpoint: (id: string) => void;
-  clearAllCheckpoints: () => void;
+  clearAllCheckpoints: () => Promise<boolean>;
+  /** Apaga definitivamente (estado, caches locais e nuvem) os grupos de dados selecionados. */
+  formatUserData: (categories: DataFormatCategory[]) => Promise<boolean>;
   duplicateCheckpointAsSimulation: (id: string, newLabel?: string) => void;
 
   // Fechamentos Mensais de Competência
@@ -579,21 +597,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
-  // Zerar Todos os Marcos (Apaga todos os checkpoints da memória, local e nuvem)
-  const clearAllCheckpoints = () => {
-    const toDelete = [...checkpoints];
-    setCheckpoints([]);
-    const storageKey = user && !user.isGuest ? `balder_checkpoints_${user.$id}` : 'balder_checkpoints_guest';
-    try {
-      localStorage.removeItem(storageKey);
-    } catch (e) {}
-    if (user && !user.isGuest) {
-      toDelete.forEach((c) => {
-        SupabaseService.deleteCheckpoint(c.id).catch(console.error);
-      });
-      SupabaseService.saveUserProfileSettings({ checkpoints: [] }).catch(console.error);
-    }
-  };
+  // Zerar Todos os Marcos: exclusão definitiva (memória, caches local/convidado e nuvem),
+  // sem que o carregamento seguinte os restaure a partir de caches antigos
+  const clearAllCheckpoints = () => formatUserData(['MARCOS']);
 
   // Duplicar Marco como Cenário de Simulação Alternativo
   const duplicateCheckpointAsSimulation = (id: string, newLabel?: string) => {
@@ -1273,6 +1279,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ]);
 
         if (isMounted) {
+          // Grupos apagados em "Formatar Dados": caches locais só restauram itens criados depois
+          const formattedAt = cloudProfileSettings?.formattedAt || {};
+
           // 1. Naturezas: mescla NÃO-DESTRUTIVA entre nuvem, cache local, backups e recuperação de órfãs
           let finalNatures: ExpenseNature[] = [...(cloudNatures || [])];
           try {
@@ -1307,6 +1316,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               if (Array.isArray(list)) {
                 for (const nat of list) {
                   if (!nat || !nat.name || deletedIds.includes(nat.id)) continue;
+                  if (!survivesFormat(nat.id, formattedAt.NATUREZAS)) continue;
                   const normName = nat.name.trim().toLowerCase();
                   if (!seenIds.has(nat.id) && !seenNames.has(normName)) {
                     seenIds.add(nat.id);
@@ -1370,7 +1380,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             // Se existirem despesas cadastradas com uma categoria que não possui natureza correspondente, recria-a automaticamente!
             const existingNatureNames = new Set(finalNatures.map((n) => n.name.trim().toLowerCase()));
             const orphanCategories = new Set<string>();
-            const movsToCheck = [...(cloudMovements || [])];
+            // Após formatar as naturezas, não recria naturezas a partir das categorias das despesas
+            const movsToCheck = formattedAt.NATUREZAS ? [] : [...(cloudMovements || [])];
             for (const mov of movsToCheck) {
               const cat = mov.category?.trim();
               if (cat && !existingNatureNames.has(cat.toLowerCase()) && (mov.type === 'PAGAR' || mov.type === 'CARTAO')) {
@@ -1419,7 +1430,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             const savedAccStr = localStorage.getItem(`balder_accounts_${user.$id}`) || localStorage.getItem('balder_accounts_guest');
             if (savedAccStr) {
               try {
-                const parsed = JSON.parse(savedAccStr);
+                const parsed = (JSON.parse(savedAccStr) as BankAccount[]).filter((a) =>
+                  survivesFormat(a.id, formattedAt.CONTAS)
+                );
                 if (Array.isArray(parsed) && parsed.length > 0) {
                   finalAccounts = parsed;
                   if (!user.isGuest) {
@@ -1440,7 +1453,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             const savedPmStr = localStorage.getItem(`balder_payment_methods_${user.$id}`) || localStorage.getItem('balder_payment_methods_guest');
             if (savedPmStr) {
               try {
-                const parsed = JSON.parse(savedPmStr);
+                const parsed = (JSON.parse(savedPmStr) as PaymentMethodItem[]).filter((pm) =>
+                  survivesFormat(pm.id, formattedAt.CONTAS)
+                );
                 if (Array.isArray(parsed) && parsed.length > 0) {
                   finalMethods = parsed;
                   if (!user.isGuest) {
@@ -1458,7 +1473,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           // 6. Checkpoints de Partida (Crucial para saldo e métricas)
           let finalCheckpoints = cloudCheckpoints || [];
           if (finalCheckpoints.length === 0 && cloudProfileSettings?.checkpoints && cloudProfileSettings.checkpoints.length > 0) {
-            finalCheckpoints = cloudProfileSettings.checkpoints;
+            finalCheckpoints = cloudProfileSettings.checkpoints.filter((cp) => survivesFormat(cp.id, formattedAt.MARCOS));
             if (user && !user.isGuest) {
               finalCheckpoints.forEach((cp) => SupabaseService.upsertCheckpoint(cp).catch(console.error));
             }
@@ -1467,7 +1482,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             const savedCpStr = localStorage.getItem(`balder_checkpoints_${user.$id}`) || localStorage.getItem('balder_checkpoints_guest');
             if (savedCpStr) {
               try {
-                const parsed = JSON.parse(savedCpStr);
+                const parsed = (JSON.parse(savedCpStr) as FinancialCheckpoint[]).filter((cp) =>
+                  survivesFormat(cp.id, formattedAt.MARCOS)
+                );
                 if (Array.isArray(parsed) && parsed.length > 0) {
                   finalCheckpoints = parsed;
                   if (!user.isGuest) {
@@ -1526,7 +1543,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             const savedCardsStr = localStorage.getItem(`balder_cards_${user.$id}`) || localStorage.getItem('balder_cards_guest');
             if (savedCardsStr) {
               try {
-                const parsed = JSON.parse(savedCardsStr);
+                const parsed = (JSON.parse(savedCardsStr) as CreditCardItem[]).filter((c) =>
+                  survivesFormat(c.id, formattedAt.CARTOES)
+                );
                 if (Array.isArray(parsed) && parsed.length > 0) {
                   finalCards = parsed;
                 }
@@ -1550,7 +1569,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             const savedBanksStr = localStorage.getItem(`balder_banks_${user.$id}`) || localStorage.getItem('balder_banks_guest');
             if (savedBanksStr) {
               try {
-                const parsed = JSON.parse(savedBanksStr);
+                const parsed = (JSON.parse(savedBanksStr) as BankInstitution[]).filter((b) =>
+                  survivesFormat(b.id, formattedAt.BANCOS)
+                );
                 if (Array.isArray(parsed) && parsed.length > 0) {
                   finalBanks = parsed;
                 }
@@ -1568,7 +1589,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             const savedClosingsStr = localStorage.getItem(`balder_monthly_closings_${user.$id}`) || localStorage.getItem('balder_monthly_closings_guest');
             if (savedClosingsStr) {
               try {
-                const parsed = JSON.parse(savedClosingsStr);
+                // Fechamentos não têm timestamp no id: após formatar, o cache local não os restaura
+                const parsed = formattedAt.FECHAMENTOS ? [] : JSON.parse(savedClosingsStr);
                 if (Array.isArray(parsed) && parsed.length > 0) {
                   finalClosings = parsed;
                 }
@@ -1623,7 +1645,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             if (savedMovStr) {
               try {
                 const localMovs: Movement[] = (JSON.parse(savedMovStr) as Movement[]).filter(
-                  (lm) => !isLegacyOnboardingSalary(lm)
+                  (lm) =>
+                    !isLegacyOnboardingSalary(lm) &&
+                    survivesFormat(lm.id, formattedAt[movementFormatCategory(lm.type)])
                 );
                 if (finalMovements.length === 0 && localMovs.length > 0) {
                   finalMovements = localMovs;
@@ -1729,7 +1753,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         // Checkpoints (tabela ou profile_settings)
         let freshCheckpoints = cloudCheckpoints || [];
         if (freshCheckpoints.length === 0 && cloudProfileSettings?.checkpoints?.length) {
-          freshCheckpoints = cloudProfileSettings.checkpoints;
+          freshCheckpoints = cloudProfileSettings.checkpoints.filter((cp) =>
+            survivesFormat(cp.id, cloudProfileSettings.formattedAt?.MARCOS)
+          );
         }
         if (freshCheckpoints.length > 0) {
           setCheckpoints(freshCheckpoints);
@@ -3983,6 +4009,151 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return missingList.sort((a: any, b: any) => b.missingAmount - a.missingAmount);
   };
 
+  // ── Formatar Dados ─────────────────────────────────────────────────────────
+  // Apaga definitivamente os grupos selecionados: estado em memória, todas as variantes de cache
+  // local (usuário, convidado, backup, legado) e as linhas na nuvem. Registra `formattedAt` no perfil
+  // para que caches antigos (outro navegador/aba) não restaurem o que foi apagado.
+  const formatUserData = async (categories: DataFormatCategory[]): Promise<boolean> => {
+    if (categories.length === 0) return true;
+    const has = (c: DataFormatCategory) => categories.includes(c);
+    const uid = user?.$id;
+    const isCloud = !!user && !user.isGuest;
+    const userKey = (prefix: string) => (uid ? `${prefix}_${uid}` : null);
+
+    const removeKeys = (...keys: (string | null)[]) => {
+      keys.forEach((k) => {
+        if (!k) return;
+        try {
+          localStorage.removeItem(k);
+        } catch {}
+      });
+    };
+    const writeKey = (key: string | null, value: unknown) => {
+      if (!key) return;
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+      } catch {}
+    };
+
+    // Exclusões na nuvem são adiadas (thunks) para rodar só depois de gravar o perfil
+    const cloudOps: (() => Promise<boolean>)[] = [];
+    const profilePatch: Partial<UserProfileSettings> = {};
+
+    // Movimentações: a pagar/receber, faturas de cartão e empréstimos
+    const movementTypes: MovementType[] = [
+      ...(has('MOVIMENTACOES') ? (['PAGAR', 'RECEBER'] as MovementType[]) : []),
+      ...(has('FATURAS') ? (['CARTAO'] as MovementType[]) : []),
+      ...(has('EMPRESTIMOS') ? (['EMPRESTIMO'] as MovementType[]) : []),
+    ];
+    if (movementTypes.length > 0) {
+      const keep = (m: Movement) => !movementTypes.includes(m.type);
+      setMovements((prev) => prev.filter(keep));
+      [userKey('balder_movements'), 'balder_movements_guest'].forEach((key) => {
+        if (!key) return;
+        try {
+          const cached = localStorage.getItem(key);
+          if (cached) writeKey(key, (JSON.parse(cached) as Movement[]).filter(keep));
+        } catch {}
+      });
+      if (isCloud) cloudOps.push(() => SupabaseService.deleteMovementsByTypes(movementTypes));
+    }
+
+    if (has('MARCOS')) {
+      setCheckpoints([]);
+      removeKeys(userKey('balder_checkpoints'), 'balder_checkpoints_guest');
+      if (isCloud) {
+        cloudOps.push(() => SupabaseService.deleteAllUserRows(TABLES.CHECKPOINTS));
+        profilePatch.checkpoints = [];
+      }
+    }
+
+    if (has('FECHAMENTOS')) {
+      setMonthlyClosings([]);
+      removeKeys(userKey('balder_monthly_closings'), 'balder_monthly_closings_guest');
+      if (isCloud) profilePatch.monthlyClosings = [];
+    }
+
+    if (has('NATUREZAS')) {
+      lastLocalNatureMutationRef.current = Date.now();
+      setNatures([]);
+      removeKeys(
+        userKey('balder_natures_backup'),
+        userKey('balder_deleted_natures'),
+        'balder_natures',
+        'balder_natures_guest',
+        'balder_deleted_natures_guest'
+      );
+      // Grava lista vazia explícita (sem ela, o estado inicial recorreria aos backups)
+      writeKey(userKey('balder_natures'), []);
+      if (isCloud) cloudOps.push(() => SupabaseService.deleteAllUserRows(TABLES.NATURES));
+    }
+
+    if (has('CONTAS')) {
+      setAccounts([]);
+      setPaymentMethods([]);
+      removeKeys(
+        userKey('balder_accounts'),
+        'balder_accounts_guest',
+        userKey('balder_payment_methods'),
+        'balder_payment_methods_guest'
+      );
+      if (isCloud) {
+        cloudOps.push(() => SupabaseService.deleteAllUserRows(TABLES.ACCOUNTS));
+        cloudOps.push(() => SupabaseService.deleteAllUserRows(TABLES.PAYMENT_METHODS));
+      }
+    }
+
+    if (has('CARTOES')) {
+      setCards([]);
+      removeKeys(userKey('balder_cards'), 'balder_cards_guest');
+      if (isCloud) profilePatch.cards = [];
+    }
+
+    if (has('BANCOS')) {
+      setBanks([]);
+      removeKeys(userKey('balder_banks'), 'balder_banks_guest');
+      if (isCloud) profilePatch.banks = [];
+    }
+
+    if (has('METAS')) {
+      setGoals([]);
+      if (isCloud) cloudOps.push(() => SupabaseService.deleteAllUserRows(TABLES.GOALS));
+    }
+
+    if (has('COMPARTILHADO')) {
+      setSharedScenario(null);
+      setSharedSettlements([]);
+      // Valores vazios explícitos: sem eles o estado inicial recria o cenário de demonstração
+      writeKey(isCloud ? userKey('balder_shared_scenario') : 'balder_shared_scenario', null);
+      writeKey(isCloud ? userKey('balder_shared_settlements') : 'balder_shared_settlements', []);
+      if (isCloud) {
+        profilePatch.sharedScenario = null;
+        profilePatch.sharedSettlements = [];
+      }
+    }
+
+    if (!isCloud) return true;
+
+    // 1º o perfil (listas vazias + formattedAt): as exclusões abaixo disparam o realtime/silentRefetch,
+    // que não pode encontrar no perfil as cópias antigas e restaurá-las.
+    let profileSaved = false;
+    try {
+      const current = await SupabaseService.getUserProfileSettings();
+      const now = new Date().toISOString();
+      profilePatch.formattedAt = {
+        ...(current?.formattedAt || {}),
+        ...Object.fromEntries(categories.map((c) => [c, now])),
+      };
+      profileSaved = await SupabaseService.saveUserProfileSettings(profilePatch);
+    } catch (e) {
+      console.error('[Formatar Dados] Erro ao salvar perfil:', e);
+    }
+
+    // 2º as linhas nas tabelas
+    const results = await Promise.all(cloudOps.map((run) => run()));
+    return profileSaved && results.every(Boolean);
+  };
+
   return (
     <FinancialContext.Provider
       value={{
@@ -4005,6 +4176,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         unarchiveCheckpoint,
         deleteCheckpoint,
         clearAllCheckpoints,
+        formatUserData,
         duplicateCheckpointAsSimulation,
         monthlyClosings,
         closeMonth,

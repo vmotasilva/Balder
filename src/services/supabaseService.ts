@@ -1,6 +1,7 @@
 import { supabase, isSupabaseConfigured, TABLES } from '../lib/supabase';
 import type {
   Movement,
+  MovementType,
   ExpenseNature,
   Goal,
   BankAccount,
@@ -186,6 +187,46 @@ export const SupabaseService = {
       return true;
     } catch (e) {
       console.error('[SupabaseService] Exceção ao excluir movimentação:', e);
+      return false;
+    }
+  },
+
+  /** Exclui todas as movimentações do usuário logado dos tipos informados (Formatar Dados). */
+  async deleteMovementsByTypes(types: MovementType[]): Promise<boolean> {
+    if (!isSupabaseConfigured || types.length === 0) return false;
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
+    try {
+      const { error } = await supabase
+        .from(TABLES.MOVEMENTS)
+        .delete()
+        .eq('user_id', userId)
+        .in('type', types);
+      if (error) {
+        console.error('[SupabaseService] Erro ao formatar movimentações:', error.message);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error('[SupabaseService] Exceção ao formatar movimentações:', e);
+      return false;
+    }
+  },
+
+  /** Exclui todas as linhas do usuário logado em uma tabela (Formatar Dados). */
+  async deleteAllUserRows(table: (typeof TABLES)[keyof typeof TABLES]): Promise<boolean> {
+    if (!isSupabaseConfigured) return false;
+    const userId = await getCurrentUserId();
+    if (!userId) return false;
+    try {
+      const { error } = await supabase.from(table).delete().eq('user_id', userId);
+      if (error) {
+        console.error(`[SupabaseService] Erro ao formatar ${table}:`, error.message);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.error(`[SupabaseService] Exceção ao formatar ${table}:`, e);
       return false;
     }
   },

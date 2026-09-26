@@ -5,6 +5,7 @@ import { auditOnboardingProgress } from '../utils/onboardingProgress';
 import {
   User,
   Building,
+  Eraser,
   CreditCard,
   Tag,
   Sliders,
@@ -56,6 +57,7 @@ import {
 } from '../utils/natureScheduling';
 import type { FixedExpenseMapping, FinancialCheckpoint, CheckpointBankDebt } from '../types';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
+import { DataFormatPanel } from '../components/DataFormatPanel';
 
 interface ProfilePageProps {
   onOpenOnboarding?: (stepIndex?: number) => void;
@@ -116,7 +118,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
   const completedSteps = onboardingAudit.completedCount;
 
   const [activeSubTab, setActiveSubTab] = useState<
-    'PERFIL' | 'ASSINATURA' | 'APP_ANDROID' | 'SALARIO' | 'MARCOS' | 'CONTAS' | 'BANCOS' | 'CATEGORIAS' | 'PREFERENCIAS' | 'EXPORTACOES' | 'SEGURANCA'
+    'PERFIL' | 'ASSINATURA' | 'APP_ANDROID' | 'SALARIO' | 'MARCOS' | 'CONTAS' | 'BANCOS' | 'CATEGORIAS' | 'PREFERENCIAS' | 'EXPORTACOES' | 'SEGURANCA' | 'FORMATAR'
   >('PERFIL');
   const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'YEARLY'>('MONTHLY');
   const [subscriptionSuccessMsg, setSubscriptionSuccessMsg] = useState<string | null>(null);
@@ -225,6 +227,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
     { id: 'PREFERENCIAS' as const, label: 'Preferências de Exibição', icon: Sliders, count: null },
     { id: 'EXPORTACOES' as const, label: 'Exportações (Excel & CSV)', icon: FileSpreadsheet, count: null },
     { id: 'SEGURANCA' as const, label: 'Segurança & Criptografia', icon: ShieldCheck, count: null },
+    { id: 'FORMATAR' as const, label: 'Formatar Dados', icon: Eraser, count: null },
   ];
 
   const [mobileDropdownOpen, setMobileDropdownOpen] = useState(false);
@@ -1052,13 +1055,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                         gap: '6px',
                       }}
                       onClick={() => {
-                        if (
-                          window.confirm(
-                            'ATENÇÃO: Deseja realmente ZERAR todos os marcos de ponto de partida existentes?\n\nIsso apagará todos os planejamentos atuais e o Balder solicitará um novo ponto de partida para recalibrar o fluxo.'
-                          )
-                        ) {
-                          clearAllCheckpoints();
-                        }
+                        confirmAction({
+                          title: 'Zerar Todos os Marcos',
+                          message:
+                            'Todos os marcos e cenários serão apagados definitivamente (neste dispositivo e na nuvem) e o Balder solicitará um novo ponto de partida. Para apagar também lançamentos, faturas e outros dados, use Perfil › Formatar Dados.',
+                          confirmLabel: 'Zerar Marcos',
+                          onConfirm: () => {
+                            void clearAllCheckpoints();
+                          },
+                        });
                       }}
                       title="Zerar todos os marcos existentes no sistema"
                     >
@@ -1356,6 +1361,41 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                           >
                             <Archive size={13} />
                             <span>Arquivar</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            className="btn btn-secondary btn-xs"
+                            style={{
+                              fontSize: '12px',
+                              padding: '5px 10px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              color: '#F87171',
+                            }}
+                            onClick={() => {
+                              confirmAction({
+                                title: 'Excluir Marco',
+                                message: `Deseja excluir definitivamente o marco "${activeCheckpoint.label || activeCheckpoint.startDate}"?${
+                                  checkpoints.length <= 1
+                                    ? ' É o único marco: o Balder pedirá um novo ponto de partida para recalibrar o fluxo.'
+                                    : ' Outro marco será ativado no lugar dele.'
+                                } Esta ação não pode ser desfeita.`,
+                                confirmLabel: 'Excluir',
+                                onConfirm: () => {
+                                  if (checkpoints.length <= 1) {
+                                    void clearAllCheckpoints();
+                                  } else {
+                                    deleteCheckpoint(activeCheckpoint.id);
+                                  }
+                                },
+                              });
+                            }}
+                            title="Excluir definitivamente este marco"
+                          >
+                            <Trash2 size={13} />
+                            <span>Excluir</span>
                           </button>
                         </div>
                       </div>
@@ -3244,6 +3284,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
               </div>
             </div>
           )}
+
+          {activeSubTab === 'FORMATAR' && <DataFormatPanel />}
         </div>
       </div>
 
