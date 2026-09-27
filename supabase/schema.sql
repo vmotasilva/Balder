@@ -290,3 +290,8 @@ CREATE OR REPLACE TRIGGER trg_payment_methods_updated_at
 -- ------------------------------------------------------------------------------
 ALTER TABLE public.salary_contracts ADD COLUMN IF NOT EXISTS pay_in_following_month BOOLEAN DEFAULT FALSE;
 
+
+-- ==============================================================================
+-- COMPARTILHAMENTO DE CONTA: rode também o script supabase/sharing.sql
+-- (convites, permissões de colaborador/visualizador e espelhos do perfil).
+-- ==============================================================================

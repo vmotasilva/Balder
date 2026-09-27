@@ -1,4 +1,7 @@
 import React, { useState } from 'react';
+import { AccountSharingPanel } from '../components/AccountSharingPanel';
+import { useAccountScope } from '../context/AccountScopeContext';
+import { DecimalInput } from '../components/DecimalInput';
 import { parseMoney } from '../utils/parseDecimal';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
@@ -41,14 +44,35 @@ export const SharedPlanningPage: React.FC = () => {
 
   // Sem parceiro(a) conectado não há nada compartilhado para mostrar
   const partner = sharedScenario?.members?.find((m) => m.role === 'PARTNER');
+  const ownerMember = sharedScenario?.members?.find((m) => m.role === 'OWNER');
   const hasPartner = !!partner;
+  const { viewing } = useAccountScope();
+  const ownerName = ownerMember?.name || user?.name || 'Titular';
+  const ownerEmail = ownerMember?.email || user?.email || '';
+  const partnerName = partner?.name || 'Parceiro(a)';
+  const firstName = (name: string) => name.split(' ')[0] || name;
+  const initials = (name: string) =>
+    name
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p[0])
+      .join('')
+      .toUpperCase();
 
-  // Cálculos do Rateio de Renda
-  const userSalary = sharedScenario?.members?.find((m) => m.role === 'OWNER')?.monthlyIncome || 8500;
-  const partnerSalary = sharedScenario?.members?.find((m) => m.role === 'PARTNER')?.monthlyIncome || 5200;
+  const setMemberIncome = (role: 'OWNER' | 'PARTNER', income: number) => {
+    if (!sharedScenario) return;
+    updateSharedScenario({
+      members: sharedScenario.members.map((m) => (m.role === role ? { ...m, monthlyIncome: income } : m)),
+    });
+  };
+
+  // Cálculos do Rateio de Renda (sem rendas informadas, divide meio a meio)
+  const userSalary = ownerMember?.monthlyIncome ?? 0;
+  const partnerSalary = partner?.monthlyIncome ?? 0;
   const totalHouseholdIncome = userSalary + partnerSalary;
 
-  const proportionalUserPct = Math.round((userSalary / totalHouseholdIncome) * 100);
+  const proportionalUserPct = totalHouseholdIncome > 0 ? Math.round((userSalary / totalHouseholdIncome) * 100) : 50;
   const proportionalPartnerPct = 100 - proportionalUserPct;
 
   const currentSplitMode = sharedScenario?.splitMode || 'PROPORTIONAL_INCOME';
@@ -164,6 +188,8 @@ export const SharedPlanningPage: React.FC = () => {
         )}
       </div>
 
+      {!viewing && <AccountSharingPanel />}
+
       {/* ============================================================== */}
       {/* CARD 1: DEFINIÇÃO DO ACOMPANHAMENTO PRINCIPAL                    */}
       {/* ============================================================== */}
@@ -272,21 +298,31 @@ export const SharedPlanningPage: React.FC = () => {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-cyan-500/20 border border-cyan-500/40 flex items-center justify-center font-bold text-cyan-300">
-                {user?.name ? user.name.slice(0, 2).toUpperCase() : 'VM'}
+                {initials(ownerName)}
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h4 className="font-bold text-sm text-white">{user?.name || 'Vinicius Mota Silva'}</h4>
+                  <h4 className="font-bold text-sm text-white">{ownerName}</h4>
                   <span className="badge badge-cyan text-[9px]">Titular</span>
                 </div>
-                <span className="text-xs text-muted">{user?.email || 'vinicius@balder.app'}</span>
+                <span className="text-xs text-muted">{ownerEmail}</span>
               </div>
             </div>
             <div className="text-right">
               <span className="text-xs text-muted block">Renda Líquida</span>
-              <span className="font-bold text-sm text-cyan-300">
-                {userSalary.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-              </span>
+              {viewing ? (
+                <span className="font-bold text-sm text-cyan-300">
+                  {userSalary.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
+              ) : (
+                <DecimalInput
+                  className="form-input form-input-sm shared-income-input"
+                  value={userSalary}
+                  emptyWhenZero
+                  placeholder="Informe"
+                  onValueChange={(v) => setMemberIncome('OWNER', v)}
+                />
+              )}
             </div>
           </div>
           <div className="flex items-center justify-between text-xs bg-white/5 rounded-lg p-2.5">
@@ -300,21 +336,31 @@ export const SharedPlanningPage: React.FC = () => {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-pink-500/20 border border-pink-500/40 flex items-center justify-center font-bold text-pink-300">
-                CS
+                {initials(partnerName)}
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h4 className="font-bold text-sm text-white">Camila Silva</h4>
+                  <h4 className="font-bold text-sm text-white">{partnerName}</h4>
                   <span className="badge badge-purple text-[9px]">Conectada</span>
                 </div>
-                <span className="text-xs text-muted">camila@email.com</span>
+                <span className="text-xs text-muted">{partner?.email}</span>
               </div>
             </div>
             <div className="text-right">
               <span className="text-xs text-muted block">Renda Estimada</span>
-              <span className="font-bold text-sm text-pink-300">
-                {partnerSalary.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-              </span>
+              {viewing ? (
+                <span className="font-bold text-sm text-pink-300">
+                  {partnerSalary.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                </span>
+              ) : (
+                <DecimalInput
+                  className="form-input form-input-sm shared-income-input"
+                  value={partnerSalary}
+                  emptyWhenZero
+                  placeholder="Informe"
+                  onValueChange={(v) => setMemberIncome('PARTNER', v)}
+                />
+              )}
             </div>
           </div>
           <div className="flex items-center justify-between text-xs bg-white/5 rounded-lg p-2.5">
@@ -369,7 +415,7 @@ export const SharedPlanningPage: React.FC = () => {
           </div>
 
           <div className="glass-card p-3.5 bg-black/20">
-            <span className="text-xs text-muted block mb-1">Pago por Vinicius</span>
+            <span className="text-xs text-muted block mb-1">Pago por {firstName(ownerName)}</span>
             <span className="text-xl font-bold text-cyan-400">
               {totalPaidByUser.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
             </span>
@@ -377,7 +423,7 @@ export const SharedPlanningPage: React.FC = () => {
           </div>
 
           <div className="glass-card p-3.5 bg-black/20">
-            <span className="text-xs text-muted block mb-1">Pago por Camila</span>
+            <span className="text-xs text-muted block mb-1">Pago por {firstName(partnerName)}</span>
             <span className="text-xl font-bold text-pink-400">
               {totalPaidByPartner.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
             </span>
@@ -398,7 +444,7 @@ export const SharedPlanningPage: React.FC = () => {
               <p className="text-sm font-bold text-white mt-0.5">
                 {netBalance > 0 ? (
                   <span>
-                    Camila deve transferir{' '}
+                    {firstName(partnerName)} deve transferir{' '}
                     <strong className="text-emerald-400">
                       {Math.abs(netBalance).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </strong>{' '}
@@ -410,7 +456,7 @@ export const SharedPlanningPage: React.FC = () => {
                     <strong className="text-rose-400">
                       {Math.abs(netBalance).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </strong>{' '}
-                    para Camila para equilibrar o mês.
+                    para {firstName(partnerName)} para equilibrar o mês.
                   </span>
                 ) : (
                   <span className="text-emerald-400">
@@ -481,7 +527,7 @@ export const SharedPlanningPage: React.FC = () => {
                   </td>
                   <td className="py-2.5">
                     <span className={`badge ${item.paidBy === 'USER' ? 'badge-cyan' : 'badge-pink'} text-[10px]`}>
-                      {item.paidBy === 'USER' ? 'Vinicius' : 'Camila'}
+                      {item.paidBy === 'USER' ? firstName(ownerName) : firstName(partnerName)}
                     </span>
                   </td>
                   <td className="py-2.5 text-right font-bold text-white">
@@ -644,14 +690,14 @@ export const SharedPlanningPage: React.FC = () => {
                       className={`p-2 rounded-lg text-xs font-bold border transition-all cursor-pointer ${newExpensePaidBy === 'USER' ? 'bg-cyan-500/20 border-cyan-500 text-cyan-300' : 'bg-black/20 border-white/10 text-muted'}`}
                       onClick={() => setNewExpensePaidBy('USER')}
                     >
-                      Vinicius (Você)
+                      {firstName(ownerName)}
                     </button>
                     <button
                       type="button"
                       className={`p-2 rounded-lg text-xs font-bold border transition-all cursor-pointer ${newExpensePaidBy === 'PARTNER' ? 'bg-pink-500/20 border-pink-500 text-pink-300' : 'bg-black/20 border-white/10 text-muted'}`}
                       onClick={() => setNewExpensePaidBy('PARTNER')}
                     >
-                      Camila (Parceira)
+                      {firstName(partnerName)}
                     </button>
                   </div>
                 </div>

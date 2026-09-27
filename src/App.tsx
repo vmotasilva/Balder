@@ -2,6 +2,9 @@ import { useState } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { FinancialProvider } from './context/FinancialContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { AccountScopeProvider, useAccountScope } from './context/AccountScopeContext';
+import { SharedAccountBanner } from './components/SharedAccountBanner';
+import { InviteAcceptDialog, captureInviteFromUrl } from './components/InviteAcceptDialog';
 import { Sidebar } from './components/Sidebar';
 import type { TabId } from './components/Sidebar';
 import { Navbar } from './components/Navbar';
@@ -22,6 +25,9 @@ import { GetStartedOnboarding } from './components/GetStartedOnboarding';
 import type { Movement, MovementType, SimulationPresetId } from './types';
 import './App.css';
 
+// Link de convite (#convite=TOKEN): guarda antes do login para não perder no redirecionamento
+captureInviteFromUrl();
+
 export function ProtectedApp() {
   const { user, isLoading } = useAuth();
 
@@ -36,7 +42,17 @@ export function ProtectedApp() {
   // Só monta o FinancialProvider depois que o usuário já é conhecido,
   // evitando o flash de dados DEMO para usuários autenticados.
   return (
-    <FinancialProvider>
+    <AccountScopeProvider>
+      <ScopedFinancialApp />
+    </AccountScopeProvider>
+  );
+}
+
+/** Recria o contexto financeiro ao trocar entre a própria conta e uma conta compartilhada. */
+function ScopedFinancialApp() {
+  const { viewing } = useAccountScope();
+  return (
+    <FinancialProvider key={viewing?.ownerId || 'own'}>
       <AppContent />
     </FinancialProvider>
   );
@@ -44,6 +60,10 @@ export function ProtectedApp() {
 
 export function AppContent() {
   const [activeTab, setActiveTab] = useState<TabId>('DASHBOARD');
+  // Compartilhamento só do planejamento: a conta aberta mostra apenas o Planejamento Compartilhado
+  const { viewing } = useAccountScope();
+  const planningOnly = viewing?.scope === 'PLANEJAMENTO';
+  const shownTab: TabId = planningOnly ? 'COMPARTILHADO' : activeTab;
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isNavMenuOpen, setIsNavMenuOpen] = useState(false);
@@ -125,8 +145,9 @@ export function AppContent() {
           }}
         />
 
+        <SharedAccountBanner />
         <main className="app-content-viewport">
-          {(activeTab === 'DASHBOARD' || activeTab === 'COPILOT') && (
+          {(shownTab === 'DASHBOARD' || shownTab === 'COPILOT') && (
             <DashboardPage
               onNavigateToMovements={() => setActiveTab('MOVIMENTACOES')}
               onNavigateToGoals={() => setActiveTab('METAS')}
@@ -140,23 +161,23 @@ export function AppContent() {
             />
           )}
 
-          {activeTab === 'MOVIMENTACOES' && (
+          {shownTab === 'MOVIMENTACOES' && (
             <MovementsPage onOpenNewMovementModal={handleOpenNewMovement} />
           )}
 
-          {activeTab === 'FATURAS' && <InvoicesPage />}
+          {shownTab === 'FATURAS' && <InvoicesPage />}
 
-          {activeTab === 'NATUREZAS' && (
+          {shownTab === 'NATUREZAS' && (
             <NaturezasPage onOpenNewMovementModal={handleOpenNewMovement} />
           )}
 
-          {activeTab === 'EMPRESTIMOS' && <LoansPage />}
+          {shownTab === 'EMPRESTIMOS' && <LoansPage />}
 
-          {activeTab === 'METAS' && <GoalsPage />}
+          {shownTab === 'METAS' && <GoalsPage />}
 
-          {activeTab === 'COMPARTILHADO' && <SharedPlanningPage />}
+          {shownTab === 'COMPARTILHADO' && <SharedPlanningPage />}
 
-          {activeTab === 'PERFIL' && (
+          {shownTab === 'PERFIL' && (
             <ProfilePage onOpenOnboarding={handleOpenOnboarding} />
           )}
         </main>
@@ -216,6 +237,8 @@ export function AppContent() {
         isOpen={prepaymentModalOpen}
         onClose={() => setPrepaymentModalOpen(false)}
       />
+
+      <InviteAcceptDialog />
     </div>
   );
 }

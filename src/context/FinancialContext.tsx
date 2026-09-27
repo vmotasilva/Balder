@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef } from 'react';
+import { useAccountScope, type ViewingAccount } from './AccountScopeContext';
 import { isCashInHand } from '../utils/cashInHand';
 import { SupabaseService } from '../services/supabaseService';
 import { supabase, isSupabaseConfigured, TABLES } from '../lib/supabase';
@@ -400,8 +401,81 @@ const withoutDemoPartner = (s: SharedScenario | null): SharedScenario | null =>
 const withoutDemoSettlements = (list: SharedSettlementItem[]): SharedSettlementItem[] =>
   (Array.isArray(list) ? list : []).filter((x) => !DEMO_SETTLEMENT_IDS.has(x.id));
 
+// ── Permissões na conta compartilhada ─────────────────────────────────────────
+// Leitura, simulação e navegação: liberadas para todos
+const SHARED_READ_ONLY_SAFE = new Set([
+  'getMonthlyClosing',
+  'runSimulation',
+  'simulateCustomFutureScenario',
+  'exportToCSV',
+  'getNatureCeiling',
+  'getNatureSpent',
+  'getNatureMissingItems',
+  'setActiveTrackingScope',
+]);
+// Registro de pagamentos: liberado ao colaborador
+const SHARED_PAYMENT_ACTIONS = new Set([
+  'updateMovement',
+  'toggleMovementStatus',
+  'updateMappingItemState',
+  'toggleItemFulfilled',
+  'markMappingItemsFulfilled',
+  'addSharedSettlement',
+  'toggleSharedSettlementStatus',
+  'settleAllSharedDebts',
+]);
+// Campos que o colaborador pode alterar num lançamento
+const PAYMENT_FIELDS = new Set(['status', 'paymentDate', 'actualAmount', 'amount', 'originalAmount', 'adjustmentReason', 'notes']);
+
+let lastDeniedAt = 0;
+const denySharedAction = (message: string) => {
+  // Evita alertas repetidos quando uma tela dispara várias ações de uma vez
+  if (Date.now() - lastDeniedAt < 1500) return;
+  lastDeniedAt = Date.now();
+  window.alert(message);
+};
+
+/**
+ * Na conta de outra pessoa: visualizador só vê; colaborador só registra pagamentos.
+ * As regras do banco (supabase/sharing.sql) garantem o mesmo do lado do servidor.
+ */
+function restrictForSharedAccess<T extends Record<string, unknown>>(value: T, viewing: ViewingAccount | null): T {
+  if (!viewing) return value;
+  const isCollaborator = viewing.role === 'COLABORADOR';
+  const restricted: Record<string, unknown> = { ...value };
+  Object.entries(value).forEach(([key, fn]) => {
+    if (typeof fn !== 'function' || SHARED_READ_ONLY_SAFE.has(key)) return;
+    if (isCollaborator && SHARED_PAYMENT_ACTIONS.has(key)) {
+      if (key === 'updateMovement') {
+        restricted[key] = (id: string, updates: Record<string, unknown>) => {
+          const allowed = Object.fromEntries(Object.entries(updates || {}).filter(([k]) => PAYMENT_FIELDS.has(k)));
+          if (Object.keys(allowed).length === 0) {
+            denySharedAction('Como colaborador, você só pode registrar pagamentos nesta conta.');
+            return;
+          }
+          (fn as (id: string, u: Record<string, unknown>) => void)(id, allowed);
+        };
+      }
+      return;
+    }
+    restricted[key] = () =>
+      denySharedAction(
+        isCollaborator
+          ? `Como colaborador da conta de ${viewing.ownerName}, você só pode registrar pagamentos.`
+          : `Você está vendo a conta de ${viewing.ownerName} como visualizador: não é possível alterar nada.`
+      );
+  });
+  return restricted as T;
+}
+
 export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user: authUser } = useAuth();
+  const { viewing } = useAccountScope();
+  // Conta em uso: ao abrir uma conta compartilhada, os dados e os caches locais passam a ser os do dono
+  const user = useMemo(
+    () => (authUser && viewing ? { ...authUser, $id: viewing.ownerId, name: viewing.ownerName } : authUser),
+    [authUser, viewing]
+  );
 
   // Se o usuário está autenticado na nuvem via Supabase, a fonte de verdade é a sua conta real
   const isCloudUser = !!user && !user.isGuest;
@@ -947,8 +1021,19 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const updateSharedScenario = (updates: Partial<SharedScenario>) => {
     setSharedScenario((prev) => {
-      if (!prev) return null;
-      const updated = { ...prev, ...updates };
+      // Sem cenário ainda: cria um novo (ex.: ao incluir no planejamento alguém que aceitou o convite)
+      const base: SharedScenario = prev ?? {
+        id: `shared_${Date.now()}`,
+        name: 'Planejamento a dois',
+        createdAt: new Date().toISOString(),
+        inviteCode: '',
+        status: 'ACTIVE',
+        members: [],
+        splitMode: 'EQUAL_50_50',
+        userSharePercent: 50,
+        partnerSharePercent: 50,
+      };
+      const updated = { ...base, ...updates };
       const storageKey = user && !user.isGuest ? `balder_shared_scenario_${user.$id}` : 'balder_shared_scenario';
       try {
         localStorage.setItem(storageKey, JSON.stringify(updated));
@@ -1383,6 +1468,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     let isMounted = true;
     async function loadCloudData() {
+      // Própria conta: mantém atualizados os espelhos lidos por quem tem acesso compartilhado
+      if (!viewing) void SupabaseService.syncProfileMirror();
       try {
         const [
           cloudMovements,
@@ -4349,7 +4436,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   return (
     <FinancialContext.Provider
-      value={{
+      value={restrictForSharedAccess({
         isDataReady,
         accounts,
         cards,
@@ -4453,7 +4540,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         addSharedSettlement,
         toggleSharedSettlementStatus,
         settleAllSharedDebts,
-      }}
+      }, viewing)}
     >
       {children}
     </FinancialContext.Provider>

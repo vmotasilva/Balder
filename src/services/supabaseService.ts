@@ -11,10 +11,20 @@ import type {
 } from '../types';
 
 /**
- * Obtém o ID do usuário autenticado no Supabase.
- * Retorna null se não houver usuário logado.
+ * Conta cujos dados estão sendo lidos/gravados. null = a própria conta do usuário logado.
+ * Quando alguém abre uma conta compartilhada com ele, passa a ser o id do dono.
  */
-async function getCurrentUserId(): Promise<string | null> {
+let dataOwnerId: string | null = null;
+
+export function setDataOwner(ownerId: string | null) {
+  dataOwnerId = ownerId;
+}
+
+export function getDataOwner(): string | null {
+  return dataOwnerId;
+}
+
+async function getAuthUserId(): Promise<string | null> {
   if (!isSupabaseConfigured) return null;
   try {
     const { data: { user } } = await supabase.auth.getUser();
@@ -22,6 +32,15 @@ async function getCurrentUserId(): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Dono dos dados em uso: a conta compartilhada aberta ou o próprio usuário logado.
+ * As consultas filtram por ele (as regras do banco também liberam contas compartilhadas).
+ */
+async function getCurrentUserId(): Promise<string | null> {
+  if (dataOwnerId) return dataOwnerId;
+  return getAuthUserId();
 }
 
 export const SupabaseService = {
@@ -37,6 +56,7 @@ export const SupabaseService = {
       const { data, error } = await supabase
         .from(TABLES.MOVEMENTS)
         .select('*')
+        .eq('user_id', userId)
         .order('due_date', { ascending: false })
         .limit(5000);
 
@@ -243,6 +263,7 @@ export const SupabaseService = {
       const { data, error } = await supabase
         .from(TABLES.NATURES)
         .select('*')
+        .eq('user_id', userId)
         .order('name');
 
       if (error) {
@@ -400,6 +421,7 @@ export const SupabaseService = {
       const { data, error } = await supabase
         .from(TABLES.GOALS)
         .select('*')
+        .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -523,6 +545,7 @@ export const SupabaseService = {
       const { data, error } = await supabase
         .from(TABLES.ACCOUNTS)
         .select('*')
+        .eq('user_id', userId)
         .order('name');
 
       if (error) {
@@ -608,6 +631,7 @@ export const SupabaseService = {
       const { data, error } = await supabase
         .from(TABLES.CHECKPOINTS)
         .select('*')
+        .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -706,6 +730,7 @@ export const SupabaseService = {
       const { data, error } = await supabase
         .from(TABLES.PAYMENT_METHODS)
         .select('*')
+        .eq('user_id', userId)
         .order('name');
 
       if (error) {
@@ -791,6 +816,7 @@ export const SupabaseService = {
   async getUserProfileSettings(): Promise<UserProfileSettings | null> {
     if (!isSupabaseConfigured) return null;
     try {
+      if (dataOwnerId) return this.getSharedOwnerSettings(dataOwnerId);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
       return (user.user_metadata?.balder_settings as UserProfileSettings) || null;
@@ -802,6 +828,16 @@ export const SupabaseService = {
 
   async saveUserProfileSettings(settings: Partial<UserProfileSettings>): Promise<boolean> {
     if (!isSupabaseConfigured) return false;
+    // Conta compartilhada: o convidado só registra acertos/despesas do planejamento compartilhado
+    if (dataOwnerId) {
+      if (!settings.sharedSettlements) return false;
+      const { error } = await supabase
+        .from('shared_planning')
+        .update({ settlements: settings.sharedSettlements, updated_at: new Date().toISOString() })
+        .eq('owner_id', dataOwnerId);
+      if (error) console.error('[SupabaseService] Erro ao registrar no planejamento compartilhado:', error.message);
+      return !error;
+    }
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return false;
@@ -820,10 +856,62 @@ export const SupabaseService = {
         console.error('[SupabaseService] Erro ao salvar configurações de perfil:', error.message);
         return false;
       }
+      void this.mirrorProfileSettings(user.id, updated);
       return true;
     } catch (e) {
       console.error('[SupabaseService] Exceção ao salvar configurações de perfil:', e);
       return false;
+    }
+  },
+
+  /**
+   * Espelha as configurações do perfil para as tabelas que os convidados conseguem ler
+   * (account_settings: conta inteira; shared_planning: planejamento compartilhado).
+   * Falhas são silenciosas: sem o script sharing.sql, as tabelas ainda não existem.
+   */
+  async mirrorProfileSettings(ownerId: string, settings: UserProfileSettings): Promise<void> {
+    try {
+      const now = new Date().toISOString();
+      await supabase.from('account_settings').upsert({ owner_id: ownerId, settings, updated_at: now });
+      await supabase.from('shared_planning').upsert({
+        owner_id: ownerId,
+        scenario: settings.sharedScenario ?? null,
+        settlements: settings.sharedSettlements ?? [],
+        updated_at: now,
+      });
+    } catch {
+      // tabelas de compartilhamento ainda não criadas
+    }
+  },
+
+  /** Sincroniza os espelhos com o perfil atual (chamado ao carregar a própria conta). */
+  async syncProfileMirror(): Promise<void> {
+    if (!isSupabaseConfigured || dataOwnerId) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      await this.mirrorProfileSettings(user.id, (user.user_metadata?.balder_settings as UserProfileSettings) || {});
+    } catch {
+      // sem espelho
+    }
+  },
+
+  /** Configurações do dono de uma conta compartilhada (conforme o alcance liberado). */
+  async getSharedOwnerSettings(ownerId: string): Promise<UserProfileSettings | null> {
+    try {
+      const [{ data: account }, { data: planning }] = await Promise.all([
+        supabase.from('account_settings').select('settings').eq('owner_id', ownerId).maybeSingle(),
+        supabase.from('shared_planning').select('scenario, settlements').eq('owner_id', ownerId).maybeSingle(),
+      ]);
+      const base = ((account?.settings as UserProfileSettings) || {}) as UserProfileSettings;
+      return {
+        ...base,
+        sharedScenario: (planning?.scenario as UserProfileSettings['sharedScenario']) ?? base.sharedScenario ?? null,
+        sharedSettlements: (planning?.settlements as UserProfileSettings['sharedSettlements']) ?? base.sharedSettlements ?? [],
+      };
+    } catch (e) {
+      console.error('[SupabaseService] Erro ao ler a conta compartilhada:', e);
+      return null;
     }
   },
 };
