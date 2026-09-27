@@ -79,7 +79,7 @@ export function buildForecastWindow(params: {
   movements: Movement[];
   natures: ExpenseNature[];
   startingBalance: number;
-  startDate?: string; // início do marco ativo (ignora o que vem antes)
+  startDate?: string; // início do marco ativo (itens das naturezas antes dele são ignorados)
   today?: Date;
   period?: ForecastPeriod;
 }): ForecastWindow {
@@ -97,7 +97,8 @@ export function buildForecastWindow(params: {
   // ── Movimentos previstos ──
   movements.forEach((m) => {
     if (m.status !== 'PREVISTA') return;
-    if (m.dueDate < startDate || m.dueDate > toDate) return;
+    // Previstos anteriores ao ponto de partida continuam pendentes (entram como em atraso)
+    if (m.dueDate > toDate) return;
     // Mesmo critério da grade: lançamentos de "Cartões"/"Empréstimos" em contas a pagar duplicariam fatura/parcela
     if (m.type === 'PAGAR' && (m.category === 'Cartões' || m.category === 'Empréstimos')) return;
 

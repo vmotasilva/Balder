@@ -60,8 +60,18 @@ export function isSalaryMovement(m: Movement): boolean {
  * entra no mês do pagamento (ex.: parcela que vence em 15/10 paga em 28/09 aparece em setembro);
  * caso contrário, no mês do vencimento.
  */
-export function movementCompetenceDate(m: Movement): string {
-  return m.status === 'REALIZADA' && m.paymentDate ? m.paymentDate : m.dueDate;
+export function movementCompetenceDate(m: Movement, startDate?: string): string {
+  const date = m.status === 'REALIZADA' && m.paymentDate ? m.paymentDate : m.dueDate;
+  // Previsto com data anterior ao ponto de partida ainda vai acontecer: entra no mês do marco
+  if (startDate && m.status === 'PREVISTA' && date && date < startDate) return startDate;
+  return date;
+}
+
+/** Competência (YYYY-MM) do salário, levando previstos anteriores ao ponto de partida para o mês do marco. */
+export function salaryCompetenceKey(m: Movement, startDate?: string): string {
+  const key = getSalaryCompetenceKey(m);
+  if (startDate && m.status === 'PREVISTA' && key < startDate.slice(0, 7)) return startDate.slice(0, 7);
+  return key;
 }
 
 export function getSalaryCompetenceKey(m: Movement): string {
@@ -102,7 +112,8 @@ export function buildMonthlyProjectionGrid(
   // só entram lançamentos a partir dela
   if (options.startDate) {
     const startDate = options.startDate;
-    movements = movements.filter((m) => !m.dueDate || movementCompetenceDate(m) >= startDate);
+    // Realizados antes do marco já estão no saldo inicial; previstos continuam (entram no mês do marco)
+    movements = movements.filter((m) => !m.dueDate || m.status === 'PREVISTA' || movementCompetenceDate(m) >= startDate);
   }
 
   const loanMovements = movements.filter((m) => m.type === 'EMPRESTIMO');
@@ -134,7 +145,7 @@ export function buildMonthlyProjectionGrid(
       .filter((m) => {
         if (m.type !== 'RECEBER') return false;
         if (isSalaryMovement(m)) return false;
-        if (!movementCompetenceDate(m).startsWith(comp.key)) return false;
+        if (!movementCompetenceDate(m, options.startDate).startsWith(comp.key)) return false;
         if (viewMode === 'REALIZADO') return m.status === 'REALIZADA';
         if (viewMode === 'PREVISTO') return m.status === 'PREVISTA';
         return true;
@@ -149,7 +160,7 @@ export function buildMonthlyProjectionGrid(
     let salaryWeeklyInstallments: number | undefined;
 
     const realSalariesForMonth = movements.filter(
-      (m) => isSalaryMovement(m) && getSalaryCompetenceKey(m) === comp.key
+      (m) => isSalaryMovement(m) && salaryCompetenceKey(m, options.startDate) === comp.key
     );
 
     let applicableSalaries = realSalariesForMonth;
@@ -180,7 +191,7 @@ export function buildMonthlyProjectionGrid(
     const creditCardTotal = movements
       .filter((m) => {
         if (m.type !== 'CARTAO') return false;
-        if (!movementCompetenceDate(m).startsWith(comp.key)) return false;
+        if (!movementCompetenceDate(m, options.startDate).startsWith(comp.key)) return false;
         if (viewMode === 'REALIZADO') return m.status === 'REALIZADA';
         if (viewMode === 'PREVISTO') return m.status === 'PREVISTA';
         return true;
@@ -239,7 +250,7 @@ export function buildMonthlyProjectionGrid(
           m.type === 'PAGAR' &&
           m.category !== 'Cartões' &&
           m.category !== 'Empréstimos' &&
-          movementCompetenceDate(m).startsWith(comp.key) &&
+          movementCompetenceDate(m, options.startDate).startsWith(comp.key) &&
           m.status === 'REALIZADA'
       );
 
@@ -296,7 +307,7 @@ export function buildMonthlyProjectionGrid(
             m.type === 'PAGAR' &&
             m.category !== 'Cartões' &&
             m.category !== 'Empréstimos' &&
-            movementCompetenceDate(m).startsWith(comp.key) &&
+            movementCompetenceDate(m, options.startDate).startsWith(comp.key) &&
             m.status === 'PREVISTA'
         )
         .reduce((acc, m) => acc + m.amount, 0);
@@ -311,7 +322,7 @@ export function buildMonthlyProjectionGrid(
             m.type === 'PAGAR' &&
             m.category !== 'Cartões' &&
             m.category !== 'Empréstimos' &&
-            movementCompetenceDate(m).startsWith(comp.key)
+            movementCompetenceDate(m, options.startDate).startsWith(comp.key)
         )
         .reduce((acc, m) => acc + m.amount, 0);
     }
@@ -319,7 +330,7 @@ export function buildMonthlyProjectionGrid(
     // ── 6. Empréstimos Recebidos (+) ───────────────────────────────────────────
     const loanReceived = movements
       .filter((m) => {
-        if (m.type !== 'EMPRESTIMO' || m.category !== 'Recebimento' || !movementCompetenceDate(m).startsWith(comp.key)) return false;
+        if (m.type !== 'EMPRESTIMO' || m.category !== 'Recebimento' || !movementCompetenceDate(m, options.startDate).startsWith(comp.key)) return false;
         if (viewMode === 'REALIZADO') return m.status === 'REALIZADA';
         if (viewMode === 'PREVISTO') return m.status === 'PREVISTA';
         return true;
@@ -329,7 +340,7 @@ export function buildMonthlyProjectionGrid(
     // ── 7. Parcelas de Empréstimo (-) ──────────────────────────────────────────
     const loanPayment = loanMovements
       .filter((m) => {
-        if (m.category === 'Recebimento' || !movementCompetenceDate(m).startsWith(comp.key)) return false;
+        if (m.category === 'Recebimento' || !movementCompetenceDate(m, options.startDate).startsWith(comp.key)) return false;
         if (viewMode === 'REALIZADO') return m.status === 'REALIZADA';
         if (viewMode === 'PREVISTO') return m.status === 'PREVISTA';
         return true;
