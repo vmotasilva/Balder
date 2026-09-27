@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { useFinancial } from '../context/FinancialContext';
-import { Plus, RefreshCw, FileText, CheckCircle2, Archive, Ban, RotateCcw, Trash2 } from 'lucide-react';
+import { Plus, RefreshCw, FileText, CheckCircle2, Archive, Ban, RotateCcw, Trash2, Pause, Play } from 'lucide-react';
+import { ResumeGoalModal } from '../components/ResumeGoalModal';
 import confetti from 'canvas-confetti';
 import { NewGoalModal } from '../components/NewGoalModal';
 import { Modal } from '../components/Modal';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
 import type { Goal } from '../types';
 
-type GoalFilter = 'ATIVAS' | 'ARQUIVADA' | 'CANCELADA';
+type GoalFilter = 'ATIVAS' | 'PAUSADA' | 'ARQUIVADA' | 'CANCELADA';
 
 export const GoalsPage: React.FC = () => {
   const { goals, goalStatuses, setGoalStatus, deleteGoal } = useFinancial();
@@ -15,11 +16,13 @@ export const GoalsPage: React.FC = () => {
   const [filter, setFilter] = useState<GoalFilter>('ATIVAS');
   const [cancelingGoal, setCancelingGoal] = useState<Goal | null>(null);
   const [cancelReason, setCancelReason] = useState('');
+  const [resumingGoal, setResumingGoal] = useState<Goal | null>(null);
   const { confirm, dialogProps } = useConfirmDialog();
 
   const statusOf = (g: Goal) => goalStatuses[g.id]?.status;
   const counts = {
     ATIVAS: goals.filter((g) => !statusOf(g)).length,
+    PAUSADA: goals.filter((g) => statusOf(g) === 'PAUSADA').length,
     ARQUIVADA: goals.filter((g) => statusOf(g) === 'ARQUIVADA').length,
     CANCELADA: goals.filter((g) => statusOf(g) === 'CANCELADA').length,
   };
@@ -87,10 +90,11 @@ export const GoalsPage: React.FC = () => {
       </div>
 
       {/* Filtro: ativas, arquivadas, canceladas */}
-      {(counts.ARQUIVADA > 0 || counts.CANCELADA > 0) && (
+      {(counts.PAUSADA > 0 || counts.ARQUIVADA > 0 || counts.CANCELADA > 0) && (
         <div className="pill-selector goals-filter mb-4" role="tablist">
           {([
             ['ATIVAS', `Ativas (${counts.ATIVAS})`],
+            ['PAUSADA', `Pausadas (${counts.PAUSADA})`],
             ['ARQUIVADA', `Arquivadas (${counts.ARQUIVADA})`],
             ['CANCELADA', `Canceladas (${counts.CANCELADA})`],
           ] as const).map(([id, label]) => (
@@ -103,7 +107,7 @@ export const GoalsPage: React.FC = () => {
 
       {filter !== 'ATIVAS' && visibleGoals.length === 0 && (
         <p className="text-sm text-muted mb-4">
-          Nenhuma meta {filter === 'ARQUIVADA' ? 'arquivada' : 'cancelada'}.
+          Nenhuma meta {filter === 'PAUSADA' ? 'pausada' : filter === 'ARQUIVADA' ? 'arquivada' : 'cancelada'}.
         </p>
       )}
 
@@ -177,20 +181,39 @@ export const GoalsPage: React.FC = () => {
 
               {goalStatuses[goal.id] && (
                 <p className="goal-status-note">
-                  {goalStatuses[goal.id].status === 'CANCELADA' ? 'Cancelada' : 'Arquivada'} em{' '}
+                  {goalStatuses[goal.id].status === 'CANCELADA'
+                    ? 'Cancelada'
+                    : goalStatuses[goal.id].status === 'PAUSADA'
+                    ? 'Pausada'
+                    : 'Arquivada'}{' '}
+                  em{' '}
                   {new Date(goalStatuses[goal.id].at).toLocaleDateString('pt-BR')}
                   {goalStatuses[goal.id].reason ? `: ${goalStatuses[goal.id].reason}` : '.'}
                 </p>
               )}
 
               <div className="goal-card-actions">
-                {statusOf(goal) ? (
+                {statusOf(goal) === 'PAUSADA' ? (
+                  <button type="button" className="btn btn-primary btn-xs" onClick={() => setResumingGoal(goal)}>
+                    <Play size={13} />
+                    <span>Retomar</span>
+                  </button>
+                ) : statusOf(goal) ? (
                   <button type="button" className="btn btn-outline btn-xs" onClick={() => setGoalStatus(goal.id, null)}>
                     <RotateCcw size={13} />
                     <span>Reativar</span>
                   </button>
                 ) : (
                   <>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-xs"
+                      onClick={() => setGoalStatus(goal.id, { status: 'PAUSADA', at: new Date().toISOString() })}
+                      title="Parar os aportes por um tempo; ao retomar, o sistema reajusta prazo ou aporte"
+                    >
+                      <Pause size={13} />
+                      <span>Pausar</span>
+                    </button>
                     <button
                       type="button"
                       className="btn btn-outline btn-xs"
@@ -276,6 +299,14 @@ export const GoalsPage: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      {resumingGoal && (
+        <ResumeGoalModal
+          goal={resumingGoal}
+          pausedAt={goalStatuses[resumingGoal.id]?.at}
+          onClose={() => setResumingGoal(null)}
+        />
+      )}
 
       <ConfirmDialog {...dialogProps} />
     </div>

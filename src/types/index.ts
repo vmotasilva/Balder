@@ -129,7 +129,7 @@ export interface CriticalEvent {
 
 /** Meta arquivada ou cancelada (guardada no perfil). Sem registro = ativa. */
 export interface GoalStatusInfo {
-  status: 'ARQUIVADA' | 'CANCELADA';
+  status: 'ARQUIVADA' | 'CANCELADA' | 'PAUSADA';
   reason?: string; // justificativa (obrigatória no cancelamento)
   at: string;      // ISO
 }
