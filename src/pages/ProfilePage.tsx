@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { parseDecimal, parseMoney } from '../utils/parseDecimal';
 import { useFinancial } from '../context/FinancialContext';
 import { useTheme } from '../context/ThemeContext';
 import { auditOnboardingProgress } from '../utils/onboardingProgress';
@@ -3093,10 +3094,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                                               Math.round(
                                                 (typeof newItemQty[mapping.id] === 'number'
                                                   ? (newItemQty[mapping.id] as number)
-                                                  : parseFloat(String(newItemQty[mapping.id] || '1').replace(',', '.')) || 1) *
+                                                  : parseDecimal(String(newItemQty[mapping.id] || '1')) || 1) *
                                                   (typeof newItemPrice[mapping.id] === 'number'
                                                     ? (newItemPrice[mapping.id] as number)
-                                                    : parseFloat(String(newItemPrice[mapping.id] || '0').replace(',', '.')) || 0) *
+                                                    : parseMoney(String(newItemPrice[mapping.id] || '0')) || 0) *
                                                   (newItemMult[mapping.id] !== undefined ? newItemMult[mapping.id] : 5) *
                                                   1000
                                               ) / 1000
@@ -3118,12 +3119,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                                             const qty =
                                               typeof rawQty === 'number'
                                                 ? rawQty
-                                                : parseFloat(String(rawQty || '1').replace(',', '.')) || 1;
+                                                : parseDecimal(String(rawQty || '1')) || 1;
                                             const rawPrice = newItemPrice[mapping.id];
                                             const price =
                                               typeof rawPrice === 'number'
                                                 ? rawPrice
-                                                : parseFloat(String(rawPrice || '0').replace(',', '.')) || 0;
+                                                : parseMoney(String(rawPrice || '0')) || 0;
                                             const mult = newItemMult[mapping.id] !== undefined ? newItemMult[mapping.id] : 5;
 
                                             if (!desc) {

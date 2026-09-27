@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { parseMoney } from '../utils/parseDecimal';
 import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
 
@@ -19,15 +20,8 @@ const CATEGORIES: { label: string; icon: string; color: string }[] = [
   { label: 'Outro', icon: '🎯', color: '#EC4899' },
 ];
 
-// Converte valores digitados em pt-BR ("1.234,56", "1234,56", "1234.56")
-const parseBRL = (val: string): number => {
-  const clean = val.replace(/[R$\s]/g, '').trim();
-  if (!clean) return 0;
-  if (clean.includes('.') && clean.includes(',')) return parseFloat(clean.replace(/\./g, '').replace(',', '.')) || 0;
-  if (clean.includes(',')) return parseFloat(clean.replace(',', '.')) || 0;
-  if ((clean.match(/\./g) || []).length > 1) return parseFloat(clean.replace(/\./g, '')) || 0;
-  return parseFloat(clean) || 0;
-};
+// Valores digitados aceitam vírgula ou ponto como decimal ("1.234,56", "1234,56", "1234.56")
+const parseBRL = (val: string): number => parseMoney(val);
 
 const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 

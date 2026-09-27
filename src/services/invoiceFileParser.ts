@@ -1,4 +1,5 @@
 import type { ExpenseNature, InvoiceNatureItemBreakdown } from '../types';
+import { parseMoney } from '../utils/parseDecimal';
 import Tesseract from 'tesseract.js';
 
 export interface ParsedInvoiceItem {
@@ -312,22 +313,7 @@ export function matchNatureForTransaction(
  * Converte valor em formato string (R$, vírgula ou ponto) em número positivo
  */
 export function parseAmount(valStr: string): number {
-  const clean = valStr.replace(/[R$\s]/g, '').trim();
-  if (!clean) return 0;
-
-  let num = 0;
-  if (clean.includes('.') && clean.includes(',')) {
-    // 1.234,56
-    num = parseFloat(clean.replace(/\./g, '').replace(',', '.')) || 0;
-  } else if (clean.includes(',')) {
-    // 1234,56
-    num = parseFloat(clean.replace(',', '.')) || 0;
-  } else {
-    // 1234.56
-    num = parseFloat(clean) || 0;
-  }
-
-  return Math.abs(num);
+  return Math.abs(parseMoney(valStr));
 }
 
 /**

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { DecimalInput } from '../components/DecimalInput';
 import { useFinancial } from '../context/FinancialContext';
 import {
   Landmark,
@@ -513,30 +514,20 @@ export const LoansPage: React.FC = () => {
 
                 <div className="form-group">
                   <label>Valor Financiado (R$)</label>
-                  <input
-                    type="number"
-                    step="100"
+                  <DecimalInput
                     className="form-input"
                     value={params.principalAmount}
-                    onChange={(e) =>
-                      setParams({ ...params, principalAmount: parseFloat(e.target.value) || 0 })
-                    }
+                    onValueChange={(v) => setParams({ ...params, principalAmount: v })}
                   />
                 </div>
 
                 <div className="form-group">
                   <label>Taxa de Juros (% a.m.)</label>
-                  <input
-                    type="number"
-                    step="0.001"
+                  <DecimalInput
+                    money={false}
                     className="form-input"
                     value={Math.round(params.monthlyInterestRate * 100 * 1000) / 1000}
-                    onChange={(e) =>
-                      setParams({
-                        ...params,
-                        monthlyInterestRate: (parseFloat(e.target.value) || 0) / 100,
-                      })
-                    }
+                    onValueChange={(v) => setParams({ ...params, monthlyInterestRate: v / 100 })}
                   />
                 </div>
 
@@ -1093,14 +1084,10 @@ export const LoansPage: React.FC = () => {
                                 </span>
                               </div>
                             ) : row.simMode === 'CUSTOM' ? (
-                              <input
-                                type="number"
-                                step="10"
+                              <DecimalInput
                                 className="row-custom-input font-mono text-right"
                                 value={row.customAmount !== undefined ? row.customAmount : row.installmentValue}
-                                onChange={(e) =>
-                                  handleSetRowMode(row.month, 'CUSTOM', parseFloat(e.target.value) || 0)
-                                }
+                                onValueChange={(v) => handleSetRowMode(row.month, 'CUSTOM', v)}
                               />
                             ) : (
                               <span

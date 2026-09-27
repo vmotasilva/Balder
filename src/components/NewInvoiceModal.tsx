@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { parseMoney } from '../utils/parseDecimal';
 import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
 import type { MovementStatus } from '../types';
@@ -193,15 +194,7 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const cleanAmount = amount.replace(/[R$\s]/g, '').trim();
-    let parsedAmount = 0;
-    if (cleanAmount.includes('.') && cleanAmount.includes(',')) {
-      parsedAmount = parseFloat(cleanAmount.replace(/\./g, '').replace(',', '.')) || 0;
-    } else if (cleanAmount.includes(',')) {
-      parsedAmount = parseFloat(cleanAmount.replace(',', '.')) || 0;
-    } else {
-      parsedAmount = parseFloat(cleanAmount) || 0;
-    }
+    const parsedAmount = parseMoney(amount);
 
     if (parsedAmount <= 0) {
       setErrorMsg('Por favor, informe um valor válido e positivo para a fatura.');
@@ -290,10 +283,7 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
                   cursor: 'pointer',
                 }}
                 onClick={() => {
-                  const cleanAmount = amount.replace(/[R$\s]/g, '').trim();
-                  const parsed = cleanAmount.includes(',')
-                    ? parseFloat(cleanAmount.replace(/\./g, '').replace(',', '.'))
-                    : parseFloat(cleanAmount) || 0;
+                  const parsed = parseMoney(amount);
                   updateMovement(existingSimilarInvoice.id, {
                     amount: parsed > 0 ? Math.round(parsed * 100) / 100 : existingSimilarInvoice.amount,
                     dueDate: dueDate || existingSimilarInvoice.dueDate,
@@ -465,6 +455,7 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
             <input
               id="inv-amount"
               type="text"
+              inputMode="decimal"
               className="form-input"
               style={{
                 fontSize: '18px',

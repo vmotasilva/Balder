@@ -1,25 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { parseMoney } from '../utils/parseDecimal';
 import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
 import type { MovementType, MovementStatus, Movement } from '../types';
 import { Calendar, Split } from 'lucide-react';
 
-// Converte valores digitados em pt-BR ("7.073,70", "7073,70", "7073.70") sem perder o milhar
-const parseBRLAmount = (val: string): number => {
-  if (!val) return 0;
-  const clean = val.replace(/[R$\s]/g, '').trim();
-  if (!clean) return 0;
-  if (clean.includes('.') && clean.includes(',')) {
-    return parseFloat(clean.replace(/\./g, '').replace(',', '.')) || 0;
-  }
-  if (clean.includes(',')) {
-    return parseFloat(clean.replace(',', '.')) || 0;
-  }
-  if ((clean.match(/\./g) || []).length > 1) {
-    return parseFloat(clean.replace(/\./g, '')) || 0;
-  }
-  return parseFloat(clean) || 0;
-};
+// Valores digitados aceitam vírgula ou ponto como decimal ("7.073,70", "7073,70", "7073.70")
+const parseBRLAmount = (val: string): number => parseMoney(val);
 
 interface NewMovementModalProps {
   isOpen: boolean;
@@ -242,6 +229,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
             <input
               id="mov-amount"
               type="text"
+              inputMode="decimal"
               className="form-input text-lg font-bold"
               placeholder="0,00"
               value={amount}

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { DecimalInput } from './DecimalInput';
 import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
 import {
@@ -247,14 +248,12 @@ export const LoanPrepaymentModal: React.FC<LoanPrepaymentModalProps> = ({
 
               <div className="form-group" style={{ width: '150px' }}>
                 <label className="text-xs text-muted">Taxa do Contrato (% a.m.)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.1"
-                  max="20"
+                <DecimalInput
+                  money={false}
                   className="form-input font-bold text-amber"
-                  value={customRate || ''}
-                  onChange={(e) => setCustomRate(parseFloat(e.target.value) || 0)}
+                  value={customRate}
+                  emptyWhenZero
+                  onValueChange={setCustomRate}
                   title="Taxa de juros mensal para descapitalização"
                 />
               </div>
@@ -388,13 +387,11 @@ export const LoanPrepaymentModal: React.FC<LoanPrepaymentModalProps> = ({
                   <div className="form-group flex-1">
                     <label className="text-xs text-muted">Quanto você deseja investir na antecipação?</label>
                     <div className="flex gap-2">
-                      <input
-                        type="number"
-                        min="500"
-                        step="500"
+                      <DecimalInput
                         className="form-input text-base font-bold text-cyan"
-                        value={extraBudgetAmount || ''}
-                        onChange={(e) => setExtraBudgetAmount(parseFloat(e.target.value) || 0)}
+                        value={extraBudgetAmount}
+                        emptyWhenZero
+                        onValueChange={setExtraBudgetAmount}
                       />
                       <button
                         type="button"

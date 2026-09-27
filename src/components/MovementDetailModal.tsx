@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { parseMoney } from '../utils/parseDecimal';
 import {
   CheckCircle2,
   Clock,
@@ -39,21 +40,7 @@ interface ModalBreakdownRow {
   finalAmountInput: string; // Valor final total da compra (R$)
 }
 
-const parseBRL = (val: string): number => {
-  if (!val) return 0;
-  const clean = val.replace(/[R$\s]/g, '').trim();
-  if (!clean) return 0;
-  if (clean.includes('.') && clean.includes(',')) {
-    return parseFloat(clean.replace(/\./g, '').replace(',', '.')) || 0;
-  }
-  if (clean.includes(',')) {
-    return parseFloat(clean.replace(',', '.')) || 0;
-  }
-  if ((clean.match(/\./g) || []).length > 1) {
-    return parseFloat(clean.replace(/\./g, '')) || 0;
-  }
-  return parseFloat(clean) || 0;
-};
+const parseBRL = (val: string): number => parseMoney(val);
 
 export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
   isOpen,
@@ -961,6 +948,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>R$</span>
                     <input
                       type="text"
+                      inputMode="decimal"
                       className="form-input"
                       style={{ width: '110px', fontSize: '0.8rem', padding: '3px 8px' }}
                       placeholder="0,00"
@@ -1259,6 +1247,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
                           </span>
                           <input
                             type="text"
+                            inputMode="decimal"
                             placeholder="0,00"
                             className="form-input"
                             style={{ width: '100%', paddingLeft: '22px', fontSize: '0.73rem', padding: '3px 4px 3px 22px', fontWeight: 600, color: 'var(--accent-cyan)' }}
@@ -1641,6 +1630,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
               </span>
               <input
                 type="text"
+                inputMode="decimal"
                 className="form-input"
                 style={{
                   paddingLeft: '34px',

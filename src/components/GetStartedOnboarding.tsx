@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { DecimalInput } from './DecimalInput';
+import { parseMoney } from '../utils/parseDecimal';
 import { useFinancial, buildSuggestedMappingsForNature } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { SupabaseService } from '../services/supabaseService';
@@ -386,18 +388,7 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
   const [autoLoadMappings, setAutoLoadMappings] = useState<boolean>(true);
   const [showMappingTutorial, setShowMappingTutorial] = useState<boolean>(true);
 
-  const parseNumber = (val: string): number => {
-    if (!val) return 0;
-    const clean = val.replace(/[R$\s]/g, '').trim();
-    if (!clean) return 0;
-    if (clean.includes('.') && clean.includes(',')) {
-      return parseFloat(clean.replace(/\./g, '').replace(',', '.')) || 0;
-    }
-    if (clean.includes(',')) {
-      return parseFloat(clean.replace(',', '.')) || 0;
-    }
-    return parseFloat(clean) || 0;
-  };
+  const parseNumber = (val: string): number => parseMoney(val);
 
   const handleToggleNature = (natId: string) => {
     setSelectedNatures((prev) => {
@@ -425,8 +416,8 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
     });
   };
 
-  const handleUpdateNatureCeiling = (natId: string, val: string) => {
-    const num = parseNumber(val);
+  const handleUpdateNatureCeiling = (natId: string, val: string | number) => {
+    const num = typeof val === 'number' ? val : parseNumber(val);
     setSelectedNatures((prev) =>
       prev.map((n) => (n.id === natId ? { ...n, ceiling: num } : n))
     );
@@ -1455,13 +1446,11 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                               <span className="text-xs text-muted">Teto Mensal:</span>
                               <div className="flex items-center gap-1">
                                 <span className="text-xs text-slate-400">R$</span>
-                                <input
-                                  type="number"
+                                <DecimalInput
                                   className="nature-ceiling-input"
-                                  value={current?.ceiling || ''}
-                                  onChange={(e) =>
-                                    handleUpdateNatureCeiling(def.id, e.target.value)
-                                  }
+                                  value={current?.ceiling || 0}
+                                  emptyWhenZero
+                                  onValueChange={(v) => handleUpdateNatureCeiling(def.id, v)}
                                 />
                               </div>
                             </div>
@@ -1517,7 +1506,8 @@ export const GetStartedOnboarding: React.FC<GetStartedOnboardingProps> = ({
                       onChange={(e) => setNewNatureName(e.target.value)}
                     />
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       placeholder="Teto Mensal R$"
                       className="form-input text-xs w-32"
                       value={newNatureCeiling}

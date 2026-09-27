@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { parseDecimal, parseMoney } from '../utils/parseDecimal';
 import { useFinancial } from '../context/FinancialContext';
 import { resolveMappingItemMonth } from '../utils/mappingItemState';
 import { getPendingFixedBills, type PendingFixedBill } from '../utils/fixedBillsAlert';
@@ -379,11 +380,11 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
     const parsedQty =
       typeof editQty === 'number'
         ? editQty
-        : parseFloat(String(editQty).replace(',', '.')) || 0;
+        : parseDecimal(String(editQty)) || 0;
     const parsedPrice =
       typeof editPrice === 'number'
         ? editPrice
-        : parseFloat(String(editPrice).replace(',', '.')) || 0;
+        : parseMoney(String(editPrice)) || 0;
 
     const parsedKeywords = editKeywords
       .split(/[,;\n]+/)
@@ -1683,11 +1684,11 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                   const numQty =
                                     typeof editQty === 'number'
                                       ? editQty
-                                      : parseFloat(String(editQty).replace(',', '.')) || 0;
+                                      : parseDecimal(String(editQty)) || 0;
                                   const numPrice =
                                     typeof editPrice === 'number'
                                       ? editPrice
-                                      : parseFloat(String(editPrice).replace(',', '.')) || 0;
+                                      : parseMoney(String(editPrice)) || 0;
                                   const previewTotal = Math.round(numQty * numPrice * editMult * 1000) / 1000;
 
                                   return (
@@ -2223,10 +2224,10 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                       Math.round(
                                         (typeof newItemQty[mapping.id] === 'number'
                                           ? (newItemQty[mapping.id] as number)
-                                          : parseFloat(String(newItemQty[mapping.id] || '1').replace(',', '.')) || 1) *
+                                          : parseDecimal(String(newItemQty[mapping.id] || '1')) || 1) *
                                           (typeof newItemPrice[mapping.id] === 'number'
                                             ? (newItemPrice[mapping.id] as number)
-                                            : parseFloat(String(newItemPrice[mapping.id] || '0').replace(',', '.')) || 0) *
+                                            : parseMoney(String(newItemPrice[mapping.id] || '0')) || 0) *
                                           (newItemMult[mapping.id] !== undefined
                                             ? newItemMult[mapping.id]
                                             : 5) *
@@ -2250,12 +2251,12 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                       const qty =
                                         typeof rawQty === 'number'
                                           ? rawQty
-                                          : parseFloat(String(rawQty || '1').replace(',', '.')) || 1;
+                                          : parseDecimal(String(rawQty || '1')) || 1;
                                       const rawPrc = newItemPrice[mapping.id];
                                       const prc =
                                         typeof rawPrc === 'number'
                                           ? rawPrc
-                                          : parseFloat(String(rawPrc || '0').replace(',', '.')) || 0;
+                                          : parseMoney(String(rawPrc || '0')) || 0;
                                       const mult =
                                         newItemMult[mapping.id] !== undefined
                                           ? newItemMult[mapping.id]

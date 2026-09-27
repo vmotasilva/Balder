@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { parseMoney } from '../utils/parseDecimal';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -87,9 +88,7 @@ export const MonthClosingModal: React.FC<MonthClosingModalProps> = ({
 
   // Converter valor digitado
   const numericClosingValue = useMemo(() => {
-    const clean = closingValueInput.replace(/\./g, '').replace(',', '.');
-    const val = parseFloat(clean);
-    return isNaN(val) ? 0 : Math.round(val * 100) / 100;
+    return Math.round(parseMoney(closingValueInput) * 100) / 100;
   }, [closingValueInput]);
 
   const difference = Math.round((numericClosingValue - projectedBalance) * 100) / 100;
@@ -221,6 +220,7 @@ export const MonthClosingModal: React.FC<MonthClosingModalProps> = ({
                 </span>
                 <input
                   type="text"
+                  inputMode="decimal"
                   value={closingValueInput}
                   onChange={(e) => setClosingValueInput(e.target.value)}
                   placeholder="0,00"

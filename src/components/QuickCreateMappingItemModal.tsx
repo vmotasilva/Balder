@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { parseDecimal, parseMoney } from '../utils/parseDecimal';
 import type { ExpenseNature, ReceiptItemLine } from '../types';
 import { X, Plus, Check, ShoppingBag, Layers, Tag, Sparkles } from 'lucide-react';
 
@@ -117,11 +118,11 @@ export const QuickCreateMappingItemModal: React.FC<Props> = ({
     const parsedQty =
       typeof quantity === 'number'
         ? quantity
-        : parseFloat(String(quantity || '0').replace(',', '.')) || 0;
+        : parseDecimal(String(quantity || '0'));
     const parsedPrice =
       typeof price === 'number'
         ? price
-        : parseFloat(String(price || '0').replace(',', '.')) || 0;
+        : parseMoney(String(price || '0'));
 
     onSaveAndAssociate(receiptItem.id, selectedNatureId, selectedMappingId, {
       description: description.trim(),

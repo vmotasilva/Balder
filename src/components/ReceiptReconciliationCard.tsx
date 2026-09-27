@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { DecimalInput } from './DecimalInput';
+import { parseMoney } from '../utils/parseDecimal';
 import type { ReceiptReconciliationData, ReceiptItemLine, ExpenseNature } from '../types';
 import { useFinancial } from '../context/FinancialContext';
 import { QuickCreateMappingItemModal } from './QuickCreateMappingItemModal';
@@ -214,9 +216,9 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
     );
   };
 
-  const handleItemPriceChange = (itemId: string, newPriceStr: string) => {
-    const parsed = parseFloat(newPriceStr.replace(',', '.'));
-    if (isNaN(parsed) || parsed < 0) return;
+  const handleItemPriceChange = (itemId: string, newPrice: string | number) => {
+    const parsed = typeof newPrice === 'number' ? newPrice : parseMoney(newPrice);
+    if (!Number.isFinite(parsed) || parsed < 0) return;
 
     setItems((prev) => {
       const updated = prev.map((it) => (it.id === itemId ? { ...it, price: parsed } : it));
@@ -368,12 +370,10 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
             <span>Total da Compra</span>
           </div>
           {isEditingHeader ? (
-            <input
-              type="number"
-              step="0.01"
+            <DecimalInput
               className="rec-inline-input"
               value={totalAmount}
-              onChange={(e) => setTotalAmount(parseFloat(e.target.value) || 0)}
+              onValueChange={setTotalAmount}
             />
           ) : (
             <span className="param-value-amount">
@@ -448,12 +448,10 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
                     <td className="col-amount">
                       <div className="item-price-input-wrap">
                         <span className="currency-prefix">R$</span>
-                        <input
-                          type="number"
-                          step="0.01"
+                        <DecimalInput
                           className="item-price-input"
                           value={it.price}
-                          onChange={(e) => handleItemPriceChange(it.id, e.target.value)}
+                          onValueChange={(v) => handleItemPriceChange(it.id, v)}
                         />
                       </div>
                     </td>

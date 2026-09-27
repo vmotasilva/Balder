@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { parseMoney } from '../utils/parseDecimal';
 import { useFinancial } from '../context/FinancialContext';
 import { Modal } from './Modal';
 import {
@@ -28,22 +29,8 @@ interface CheckpointSetupModalProps {
   checkpointToEdit?: FinancialCheckpoint | null;
 }
 
-// Utilitário robusto de conversão para moeda brasileira (trata milhares com ponto, vírgula e decimais)
-const parseBRLNumber = (val: string): number => {
-  if (!val) return 0;
-  const clean = val.replace(/[R$\s]/g, '').trim();
-  if (!clean) return 0;
-  if (clean.includes('.') && clean.includes(',')) {
-    return parseFloat(clean.replace(/\./g, '').replace(',', '.')) || 0;
-  }
-  if (clean.includes(',')) {
-    return parseFloat(clean.replace(',', '.')) || 0;
-  }
-  if ((clean.match(/\./g) || []).length > 1) {
-    return parseFloat(clean.replace(/\./g, '')) || 0;
-  }
-  return parseFloat(clean) || 0;
-};
+// Valores digitados aceitam vírgula ou ponto como decimal (ver utils/parseDecimal)
+const parseBRLNumber = (val: string): number => parseMoney(val);
 
 // Gera rótulo e data de vencimento precisa para um determinado deslocamento de mês (0 = mês da fatura atual)
 // Regra fundamental: A fatura das compras do mês atual SEMPRE vence no mês seguinte.
@@ -1020,6 +1007,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
               </span>
               <input
                 type="text"
+                inputMode="decimal"
                 required
                 className="form-input"
                 style={{ paddingLeft: '40px', fontWeight: 700, color: 'var(--accent-emerald)', fontSize: '1.05rem' }}
@@ -1236,6 +1224,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                               </span>
                               <input
                                 type="text"
+                                inputMode="decimal"
                                 required={hasCreditCardDebt}
                                 className="form-input"
                                 style={{
@@ -1458,6 +1447,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                                   </span>
                                   <input
                                     type="text"
+                                    inputMode="decimal"
                                     className="form-input"
                                     style={{
                                       paddingLeft: '28px',
@@ -1910,6 +1900,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                                 </span>
                                 <input
                                   type="text"
+                                  inputMode="decimal"
                                   className="form-input"
                                   style={{
                                     paddingLeft: '28px',

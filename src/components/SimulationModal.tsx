@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { DecimalInput } from './DecimalInput';
 import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
 import {
@@ -496,13 +497,11 @@ export const SimulationModal: React.FC<SimulationModalProps> = ({
                     <DollarSign size={13} className="text-emerald inline mr-1" />
                     Valor Emprestado (R$)
                   </label>
-                  <input
-                    type="number"
-                    min="1000"
-                    step="500"
+                  <DecimalInput
                     className="form-input text-base font-bold text-emerald"
-                    value={loanAmount || ''}
-                    onChange={(e) => setLoanAmount(parseFloat(e.target.value) || 0)}
+                    value={loanAmount}
+                    emptyWhenZero
+                    onValueChange={setLoanAmount}
                   />
                 </div>
 
@@ -511,14 +510,12 @@ export const SimulationModal: React.FC<SimulationModalProps> = ({
                     <Percent size={13} className="text-amber inline mr-1" />
                     Taxa Declarada (% a.m.)
                   </label>
-                  <input
-                    type="number"
-                    min="0.1"
-                    max="30"
-                    step="0.05"
+                  <DecimalInput
+                    money={false}
                     className="form-input text-base font-bold text-amber"
-                    value={declaredRate || ''}
-                    onChange={(e) => setDeclaredRate(parseFloat(e.target.value) || 0)}
+                    value={declaredRate}
+                    emptyWhenZero
+                    onValueChange={setDeclaredRate}
                   />
                 </div>
 
@@ -567,14 +564,12 @@ export const SimulationModal: React.FC<SimulationModalProps> = ({
                   <label className="text-glow-cyan font-bold">
                     Valor da Parcela (No Banco)
                   </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
+                  <DecimalInput
                     className="form-input text-base font-bold border-cyan text-white"
                     placeholder="Valor exigido pelo banco"
-                    value={bankPayment || ''}
-                    onChange={(e) => setBankPayment(parseFloat(e.target.value) || 0)}
+                    value={bankPayment}
+                    emptyWhenZero
+                    onValueChange={setBankPayment}
                   />
                   <span className="text-xs text-muted block mt-1">Preencha com o valor da proposta real do banco</span>
                 </div>

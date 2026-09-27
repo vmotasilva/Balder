@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { parseMoney } from '../utils/parseDecimal';
 import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
 import type {
@@ -195,7 +196,7 @@ export const FinanceEntityModal: React.FC<FinanceEntityModalProps> = ({
       return;
     }
 
-    const bal = parseFloat(accountBalance.replace(',', '.')) || 0;
+    const bal = parseMoney(accountBalance);
     if (editItem && editItem.type === 'CONTA') {
       updateAccount(editItem.data.id, {
         name: accountName.trim(),
@@ -225,8 +226,8 @@ export const FinanceEntityModal: React.FC<FinanceEntityModalProps> = ({
       return;
     }
 
-    const limit = parseFloat(cardLimit.replace(',', '.')) || 0;
-    const used = parseFloat(cardLimitUsed.replace(',', '.')) || 0;
+    const limit = parseMoney(cardLimit);
+    const used = parseMoney(cardLimitUsed);
 
     if (editItem && editItem.type === 'CARTAO') {
       updateCard(editItem.data.id, {
@@ -448,6 +449,7 @@ export const FinanceEntityModal: React.FC<FinanceEntityModalProps> = ({
               <label>Saldo Inicial (R$)</label>
               <input
                 type="text"
+                inputMode="decimal"
                 className="form-input"
                 placeholder="0,00"
                 value={accountBalance}

@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
+import { DecimalInput } from './DecimalInput';
 import { createPortal } from 'react-dom';
 import { useFinancial } from '../context/FinancialContext';
 import {
@@ -3838,14 +3839,9 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
                 <div className="receipt-amount-input-wrap">
                   <span className="receipt-amount-prefix">R$</span>
-                  <input
-                    type="number"
-                    step="0.01"
+                  <DecimalInput
                     value={editingReceipt.amount}
-                    onChange={(e) => {
-                      const val = parseFloat(e.target.value) || 0;
-                      setEditingReceipt((prev) => (prev ? { ...prev, amount: val } : null));
-                    }}
+                    onValueChange={(val) => setEditingReceipt((prev) => (prev ? { ...prev, amount: val } : null))}
                     placeholder="0,00"
                     className="receipt-amount-input"
                   />

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { parseMoney } from '../utils/parseDecimal';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -86,8 +87,8 @@ export const SharedPlanningPage: React.FC = () => {
 
   const handleAddExpense = (e: React.FormEvent) => {
     e.preventDefault();
-    const amountNum = parseFloat(newExpenseAmount.replace(/[^\d.,]/g, '').replace(',', '.'));
-    if (!newExpenseTitle.trim() || isNaN(amountNum) || amountNum <= 0) return;
+    const amountNum = parseMoney(newExpenseAmount);
+    if (!newExpenseTitle.trim() || amountNum <= 0) return;
 
     const userOwes = (amountNum * effectiveUserPct) / 100;
     const partnerOwes = (amountNum * effectivePartnerPct) / 100;
@@ -589,6 +590,7 @@ export const SharedPlanningPage: React.FC = () => {
                     <label className="text-xs text-muted block mb-1">Valor (R$)</label>
                     <input
                       type="text"
+                      inputMode="decimal"
                       required
                       placeholder="0,00"
                       value={newExpenseAmount}

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { parseMoney } from '../utils/parseDecimal';
 import {
   CreditCard,
   Plus,
@@ -332,8 +333,7 @@ export const InvoicesPage: React.FC = () => {
   // Sincronização reativa de valores e parcelas no inline
   const handleInlineAmountChange = (movementId: string, val: string) => {
     setInlineItemAmount((prev) => ({ ...prev, [movementId]: val }));
-    const clean = val.replace(/[R$\s]/g, '').trim();
-    const parsed = clean.includes(',') ? parseFloat(clean.replace(/\./g, '').replace(',', '.')) : parseFloat(clean) || 0;
+    const parsed = parseMoney(val);
     const inst = inlineItemInstallments[movementId] || 1;
     if (parsed > 0) {
       setInlineItemFinalAmount((prev) => ({ ...prev, [movementId]: (parsed * inst).toFixed(2) }));
@@ -342,8 +342,7 @@ export const InvoicesPage: React.FC = () => {
 
   const handleInlineFinalAmountChange = (movementId: string, val: string) => {
     setInlineItemFinalAmount((prev) => ({ ...prev, [movementId]: val }));
-    const clean = val.replace(/[R$\s]/g, '').trim();
-    const parsed = clean.includes(',') ? parseFloat(clean.replace(/\./g, '').replace(',', '.')) : parseFloat(clean) || 0;
+    const parsed = parseMoney(val);
     const inst = inlineItemInstallments[movementId] || 1;
     if (parsed > 0) {
       setInlineItemAmount((prev) => ({ ...prev, [movementId]: (parsed / inst).toFixed(2) }));
@@ -356,14 +355,12 @@ export const InvoicesPage: React.FC = () => {
     const rawFinal = inlineItemFinalAmount[movementId];
     const rawAmount = inlineItemAmount[movementId];
     if (rawFinal) {
-      const clean = rawFinal.replace(/[R$\s]/g, '').trim();
-      const parsed = clean.includes(',') ? parseFloat(clean.replace(/\./g, '').replace(',', '.')) : parseFloat(clean) || 0;
+      const parsed = parseMoney(rawFinal);
       if (parsed > 0) {
         setInlineItemAmount((prev) => ({ ...prev, [movementId]: (parsed / instCount).toFixed(2) }));
       }
     } else if (rawAmount) {
-      const clean = rawAmount.replace(/[R$\s]/g, '').trim();
-      const parsed = clean.includes(',') ? parseFloat(clean.replace(/\./g, '').replace(',', '.')) : parseFloat(clean) || 0;
+      const parsed = parseMoney(rawAmount);
       if (parsed > 0) {
         setInlineItemFinalAmount((prev) => ({ ...prev, [movementId]: (parsed * instCount).toFixed(2) }));
       }
@@ -377,15 +374,7 @@ export const InvoicesPage: React.FC = () => {
     const rawAmount = inlineItemAmount[m.id] || '';
     const instCount = inlineItemInstallments[m.id] || 1;
 
-    let parsedAmount = 0;
-    const clean = rawAmount.replace(/[R$\s]/g, '').trim();
-    if (clean.includes('.') && clean.includes(',')) {
-      parsedAmount = parseFloat(clean.replace(/\./g, '').replace(',', '.')) || 0;
-    } else if (clean.includes(',')) {
-      parsedAmount = parseFloat(clean.replace(',', '.')) || 0;
-    } else {
-      parsedAmount = parseFloat(clean) || 0;
-    }
+    const parsedAmount = parseMoney(rawAmount);
 
     if (parsedAmount <= 0) return;
 
