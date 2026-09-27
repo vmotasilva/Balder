@@ -1128,7 +1128,7 @@ export const LoansPage: React.FC = () => {
                               '-'
                             ) : row.isDeficit ? (
                               <span className="val-deficit">
-                                • - {Math.abs(row.monthNetSimulated).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} •
+                                -{Math.abs(row.monthNetSimulated).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                               </span>
                             ) : (
                               <span className="val-surplus">
@@ -1147,7 +1147,7 @@ export const LoansPage: React.FC = () => {
                               '-'
                             ) : row.accumulatedSimulated < 0 ? (
                               <span className="val-deficit">
-                                • - {Math.abs(row.accumulatedSimulated).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                -{Math.abs(row.accumulatedSimulated).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                               </span>
                             ) : (
                               <span className="val-surplus-gold font-bold">

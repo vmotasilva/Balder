@@ -17937,3 +17937,338 @@ button.week-column-row {
 [data-theme="light"] .nature-card-last {
   border-top-color: #E2E8F0;
 }
+
+/* ==========================================================================
+   MOVIMENTAÇÕES — TEMA CLARO
+   ========================================================================== */
+[data-theme="light"] .pill-selector,
+[data-theme="light"] .grid-filter-pills {
+  background: #F1F5F9;
+  border-color: #E2E8F0;
+}
+
+[data-theme="light"] .pill-btn {
+  color: #475569;
+}
+
+[data-theme="light"] .pill-btn:hover:not(.active) {
+  color: #0F172A;
+}
+
+[data-theme="light"] .pill-btn.active {
+  background: #0284C7;
+  color: #FFFFFF;
+  box-shadow: 0 1px 3px rgba(2, 132, 199, 0.3);
+}
+
+[data-theme="light"] .movements-table-card {
+  background: #FFFFFF;
+}
+
+[data-theme="light"] .movements-table th {
+  background: #F8FAFC;
+  color: #475569;
+  border-bottom-color: #E2E8F0;
+}
+
+[data-theme="light"] .movements-table td {
+  border-bottom-color: #EEF2F6;
+}
+
+[data-theme="light"] .movements-table tr:hover {
+  background: #F8FAFC;
+}
+
+[data-theme="light"] .competence-group-header-row td {
+  background: linear-gradient(90deg, #E0F2FE 0%, #F0F9FF 45%, #FFFFFF 100%) !important;
+  border-top: 1px solid #BAE6FD !important;
+  border-bottom: 1px solid #E0F2FE !important;
+}
+
+[data-theme="light"] .competence-title {
+  color: #0F172A;
+}
+
+[data-theme="light"] .competence-collapse-toggle:hover {
+  background: rgba(2, 132, 199, 0.12);
+}
+
+[data-theme="light"] .competence-count-badge {
+  background: #FFFFFF;
+  border-color: #CBD5E1;
+  color: #475569;
+}
+
+[data-theme="light"] .category-pill {
+  background: #F1F5F9;
+  color: #334155;
+}
+
+[data-theme="light"] .type-receber { background: rgba(5, 150, 105, 0.1); }
+[data-theme="light"] .type-pagar { background: rgba(220, 38, 38, 0.1); }
+[data-theme="light"] .type-emprestimo { background: rgba(217, 119, 6, 0.12); }
+[data-theme="light"] .type-cartao { background: rgba(124, 58, 237, 0.1); }
+
+/* ==========================================================================
+   FATURAS — TEMA CLARO
+   A cor do banco chega por --bank-primary (inline no card); os gradientes
+   e textos claros da marca, pensados para o fundo escuro, são trocados aqui.
+   ========================================================================== */
+.invoice-expanded-panel {
+  background: rgba(6, 9, 15, 0.4);
+}
+
+.invoice-empty-items {
+  background: rgba(15, 23, 42, 0.3);
+}
+
+[data-theme="light"] .invoice-card {
+  background: #FFFFFF;
+  border-color: #E2E8F0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 6px 18px rgba(15, 23, 42, 0.06) !important;
+}
+
+[data-theme="light"] .invoice-card:hover {
+  border-color: #CBD5E1;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08), 0 12px 28px rgba(15, 23, 42, 0.1) !important;
+}
+
+[data-theme="light"] .invoice-card-header {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--bank-primary, #0284C7) 10%, #FFFFFF) 0%, #FFFFFF 70%) !important;
+  border-bottom-color: #E2E8F0;
+}
+
+[data-theme="light"] .invoice-bank-avatar {
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.15) !important;
+}
+
+[data-theme="light"] .invoice-bank-badge,
+[data-theme="light"] .invoice-bank-preview-kicker {
+  color: color-mix(in srgb, var(--bank-primary, #0284C7) 78%, #000000) !important;
+}
+
+[data-theme="light"] .invoice-bank-badge {
+  background: color-mix(in srgb, var(--bank-primary, #0284C7) 10%, #FFFFFF) !important;
+  border-color: color-mix(in srgb, var(--bank-primary, #0284C7) 35%, #FFFFFF) !important;
+}
+
+[data-theme="light"] .invoice-bank-preview {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--bank-primary, #0284C7) 10%, #FFFFFF) 0%, #FFFFFF 80%) !important;
+}
+
+[data-theme="light"] .invoice-due-badge {
+  background: #F1F5F9;
+  border-color: #E2E8F0;
+}
+
+[data-theme="light"] .invoice-composition-panel {
+  background: #F8FAFC;
+  border-bottom-color: #E2E8F0;
+}
+
+[data-theme="light"] .invoice-composition-panel > div:last-child {
+  background: #E2E8F0 !important;
+}
+
+[data-theme="light"] .invoice-expanded-panel {
+  background: #FFFFFF;
+}
+
+[data-theme="light"] .invoice-empty-items {
+  background: #F8FAFC;
+}
+
+[data-theme="light"] .invoice-items-table th {
+  background: #F8FAFC;
+  color: #475569;
+  border-bottom-color: #E2E8F0;
+}
+
+[data-theme="light"] .invoice-items-table td {
+  border-bottom-color: #EEF2F6;
+}
+
+[data-theme="light"] .invoice-items-table tr:hover td {
+  background: #F8FAFC;
+}
+
+/* ==========================================================================
+   EMPRÉSTIMOS & SIMULADOR
+   ========================================================================== */
+/* Utilitários usados na tela de empréstimos (não havia definição no CSS, o que desmontava os
+   cards de KPI do simulador). Escopados para não alterar outras telas. */
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.flex) { display: flex; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.grid) { display: grid; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.block) { display: block; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.flex-col) { flex-direction: column; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.flex-wrap) { flex-wrap: wrap; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.flex-shrink-0) { flex-shrink: 0; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.items-center) { align-items: center; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.items-start) { align-items: flex-start; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.items-baseline) { align-items: baseline; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.justify-between) { justify-content: space-between; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.justify-center) { justify-content: center; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.justify-end) { justify-content: flex-end; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.gap-1) { gap: 4px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.gap-1\.5) { gap: 6px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.gap-2) { gap: 8px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.gap-3) { gap: 12px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.gap-4) { gap: 16px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.grid-cols-1) { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.space-y-4) > * + * { margin-top: 16px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.p-1) { padding: 4px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.p-3) { padding: 12px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.p-8) { padding: 32px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.px-1\.5) { padding-left: 6px; padding-right: 6px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.px-2) { padding-left: 8px; padding-right: 8px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.py-0\.5) { padding-top: 2px; padding-bottom: 2px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.py-6) { padding-top: 24px; padding-bottom: 24px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.pt-2) { padding-top: 8px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.pb-3) { padding-bottom: 12px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.mt-0\.5) { margin-top: 2px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.mt-1) { margin-top: 4px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.mt-6) { margin-top: 24px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.mb-1) { margin-bottom: 4px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.mb-2) { margin-bottom: 8px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.mb-4) { margin-bottom: 16px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.ml-2) { margin-left: 8px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.rounded-lg) { border-radius: 8px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.rounded-xl) { border-radius: 12px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.border) { border: 1px solid var(--border-default); }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.border-t) { border-top: 1px solid var(--border-default); }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.border-b) { border-bottom: 1px solid var(--border-default); }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.text-\[9px\]) { font-size: 9px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.text-\[10px\]) { font-size: 10px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.text-\[11px\]) { font-size: 11px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.text-sm) { font-size: 13px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.text-base, .text-md) { font-size: 15px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.text-lg) { font-size: 17px; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.font-medium) { font-weight: 500; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.font-normal) { font-weight: 400; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.uppercase) { text-transform: uppercase; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.tracking-wider) { letter-spacing: 0.05em; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.cursor-pointer) { cursor: pointer; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.bg-slate-900\/80) { background-color: rgba(15, 23, 42, 0.8); }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.border-slate-800) { border-color: #1E293B; }
+:where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.bg-cyan-950\/20) { background-color: rgba(8, 51, 68, 0.2); }
+
+@media (min-width: 640px) {
+  :where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.sm\:grid-cols-2) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 768px) {
+  :where(.loans-page, .loan-simulator-view, .prepay-intertemporal-modal) :where(.md\:grid-cols-4) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+/* Tema claro */
+[data-theme="light"] .loans-nav-tabs {
+  background: #F1F5F9;
+  border-color: #E2E8F0;
+}
+
+[data-theme="light"] .loans-nav-tabs .tab-btn {
+  color: #475569;
+}
+
+[data-theme="light"] .loans-nav-tabs .tab-btn:hover {
+  color: #0F172A;
+}
+
+[data-theme="light"] .loans-nav-tabs .tab-btn.active {
+  background: #0284C7;
+  color: #FFFFFF;
+  box-shadow: 0 1px 4px rgba(2, 132, 199, 0.35);
+}
+
+[data-theme="light"] .contract-card {
+  background: #FFFFFF;
+  border-color: #E2E8F0;
+}
+
+[data-theme="light"] .contract-card:hover {
+  border-color: #7DD3FC;
+}
+
+[data-theme="light"] .contract-card.active {
+  background: linear-gradient(135deg, #E0F2FE 0%, #FFFFFF 100%);
+  border-color: #0284C7;
+}
+
+[data-theme="light"] .progress-bar-wrap {
+  background: #E2E8F0;
+}
+
+[data-theme="light"] .card-section-title {
+  border-bottom-color: #E2E8F0;
+}
+
+[data-theme="light"] .card-section-title .step-num {
+  color: #FFFFFF;
+}
+
+[data-theme="light"] .summary-metric-row {
+  background: #F8FAFC;
+  border-color: #E2E8F0;
+}
+
+[data-theme="light"] .summary-metric-row.highlight {
+  background: #F0F9FF;
+  border-color: #7DD3FC;
+}
+
+[data-theme="light"] .summary-metric-row .metric-label {
+  color: #475569;
+}
+
+[data-theme="light"] .spreadsheet-note-box {
+  background: #F0F9FF;
+  color: #334155;
+}
+
+[data-theme="light"] .row-month-zero {
+  background: #F0F9FF;
+}
+
+[data-theme="light"] .row-simulated-active {
+  background: rgba(2, 132, 199, 0.05) !important;
+}
+
+[data-theme="light"] .bg-cyan-950\/20 {
+  background-color: rgba(2, 132, 199, 0.05) !important;
+}
+
+[data-theme="light"] .td-acumulado {
+  background: rgba(217, 119, 6, 0.04);
+}
+
+[data-theme="light"] .btn-row-sim {
+  background: #FFFFFF;
+  border-color: #CBD5E1;
+  color: #475569;
+}
+
+[data-theme="light"] .btn-row-sim.border-emerald\/40 {
+  border-color: rgba(5, 150, 105, 0.4);
+  color: #059669;
+}
+
+[data-theme="light"] .btn-row-sim.active-antecipar {
+  background: #D1FAE5;
+  border-color: #059669;
+  color: #047857;
+  box-shadow: none;
+}
+
+[data-theme="light"] .btn-row-sim.active-pausar {
+  background: #FEF3C7;
+  border-color: #D97706;
+  color: #B45309;
+  box-shadow: none;
+}
+
+[data-theme="light"] .btn-row-sim.active-custom {
+  background: #EDE9FE;
+  border-color: #7C3AED;
+  color: #6D28D9;
+  box-shadow: none;
+}

@@ -1037,6 +1037,7 @@ export const InvoicesPage: React.FC = () => {
                 style={{
                   borderLeft: `5px solid ${bankBrand.accentBorder}`,
                   boxShadow: `0 6px 20px rgba(0, 0, 0, 0.35), 0 0 16px ${bankBrand.primaryColor}15`,
+                  ['--bank-primary' as string]: bankBrand.primaryColor,
                 }}
               >
                 {/* Header da Fatura com Cores Distintas por Banco */}
@@ -1080,7 +1081,8 @@ export const InvoicesPage: React.FC = () => {
                               fontWeight: 700,
                               padding: '3px 8px',
                               borderRadius: '9999px',
-                              background: 'rgba(255, 255, 255, 0.08)',
+                              background: 'var(--bg-card-elevated)',
+                              border: '1px solid var(--border-default)',
                               color: 'var(--text-secondary)',
                             }}
                           >
@@ -1094,7 +1096,7 @@ export const InvoicesPage: React.FC = () => {
                           style={{
                             background: isPaid ? 'rgba(16, 185, 129, 0.15)' : 'rgba(56, 189, 248, 0.15)',
                             border: isPaid ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(56, 189, 248, 0.35)',
-                            color: isPaid ? '#34D399' : '#38BDF8',
+                            color: isPaid ? 'var(--accent-emerald)' : 'var(--accent-cyan)',
                           }}
                         >
                           {isPaid ? 'REALIZADA (PAGA)' : 'PREVISTA NO FLUXO'}
@@ -1110,7 +1112,7 @@ export const InvoicesPage: React.FC = () => {
                               borderRadius: '9999px',
                               background: 'rgba(239, 68, 68, 0.2)',
                               border: '1px solid rgba(239, 68, 68, 0.45)',
-                              color: '#F87171',
+                              color: 'var(--accent-rose)',
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '4px',
@@ -1129,7 +1131,7 @@ export const InvoicesPage: React.FC = () => {
                             style={{
                               background: 'rgba(16, 185, 129, 0.15)',
                               border: '1px solid rgba(16, 185, 129, 0.35)',
-                              color: '#34D399',
+                              color: 'var(--accent-emerald)',
                             }}
                           >
                             <CheckCircle2 size={12} />
@@ -1141,7 +1143,7 @@ export const InvoicesPage: React.FC = () => {
                             style={{
                               background: 'rgba(245, 158, 11, 0.15)',
                               border: '1px solid rgba(245, 158, 11, 0.35)',
-                              color: '#FBBF24',
+                              color: 'var(--accent-amber)',
                             }}
                           >
                             <AlertTriangle size={12} />
@@ -1153,7 +1155,7 @@ export const InvoicesPage: React.FC = () => {
                             style={{
                               background: 'rgba(239, 68, 68, 0.15)',
                               border: '1px solid rgba(239, 68, 68, 0.35)',
-                              color: '#F87171',
+                              color: 'var(--accent-rose)',
                             }}
                           >
                             <AlertTriangle size={12} />
@@ -1317,7 +1319,7 @@ export const InvoicesPage: React.FC = () => {
 
                 {/* Conteúdo Expandido (Lista de Itens e Inclusão Rápida) */}
                 {isExpanded && (
-                  <div style={{ padding: '20px 24px', background: 'rgba(6, 9, 15, 0.4)' }} className="animate-fade-in">
+                  <div style={{ padding: '20px 24px' }} className="invoice-expanded-panel animate-fade-in">
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
                       <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <Tag size={14} style={{ color: 'var(--accent-cyan)' }} />
@@ -1330,12 +1332,12 @@ export const InvoicesPage: React.FC = () => {
 
                     {breakdown.length === 0 ? (
                       <div
+                        className="invoice-empty-items"
                         style={{
                           padding: '24px',
                           borderRadius: '12px',
                           border: '1px dashed var(--border-default)',
                           textAlign: 'center',
-                          background: 'rgba(15, 23, 42, 0.3)',
                           marginBottom: '16px',
                         }}
                       >

@@ -330,7 +330,9 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
 
         {/* Prévia do Banco Selecionado */}
         <div
+          className="invoice-bank-preview"
           style={{
+            ['--bank-primary' as string]: bankBrand.primaryColor,
             padding: '12px 16px',
             borderRadius: '12px',
             background: bankBrand.headerGradient,
@@ -359,6 +361,7 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
             </div>
             <div>
               <span
+                className="invoice-bank-preview-kicker"
                 style={{
                   fontSize: '11px',
                   fontWeight: 700,
@@ -369,7 +372,7 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
               >
                 Emissor da Fatura
               </span>
-              <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#FFFFFF' }}>
+              <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: 'var(--text-primary)' }}>
                 {effectiveBank || 'Selecione o Banco'}
               </h4>
             </div>

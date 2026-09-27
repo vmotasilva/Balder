@@ -159,7 +159,7 @@ export const NewGoalModal: React.FC<NewGoalModalProps> = ({ isOpen, onClose }) =
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+        <div className="mb-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
           <div className="form-group">
             <label htmlFor="goal-target">Valor da meta (R$)</label>
             <input
@@ -186,7 +186,7 @@ export const NewGoalModal: React.FC<NewGoalModalProps> = ({ isOpen, onClose }) =
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+        <div className="mb-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
           <div className="form-group">
             <label htmlFor="goal-month">Prazo</label>
             <input
