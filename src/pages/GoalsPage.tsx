@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { Plus, RefreshCw, FileText, CheckCircle2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { NewGoalModal } from '../components/NewGoalModal';
 
 export const GoalsPage: React.FC = () => {
   const { goals } = useFinancial();
+  const [isNewGoalOpen, setIsNewGoalOpen] = useState(false);
 
   const handleCelebrate = () => {
     confetti({
@@ -40,7 +42,7 @@ export const GoalsPage: React.FC = () => {
         </div>
 
         <div className="page-header-actions">
-          <button className="btn btn-primary" onClick={() => alert('Modal para criar nova meta personalizada.')}>
+          <button className="btn btn-primary" onClick={() => setIsNewGoalOpen(true)}>
             <Plus size={16} />
             <span>Nova Meta</span>
           </button>
@@ -68,9 +70,21 @@ export const GoalsPage: React.FC = () => {
       </div>
 
       {/* Goals Grid */}
+      {goals.length === 0 && (
+        <div className="glass-card text-center" style={{ padding: '2rem 1rem' }}>
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+            Você ainda não tem metas. Crie a primeira para acompanhar quanto falta e quanto guardar por mês.
+          </p>
+          <button className="btn btn-primary btn-sm mt-3" onClick={() => setIsNewGoalOpen(true)}>
+            <Plus size={14} />
+            <span>Criar primeira meta</span>
+          </button>
+        </div>
+      )}
       <div className="goals-cards-grid">
         {goals.map((goal) => {
-          const percent = Math.min(Math.round((goal.currentAmount / goal.targetAmount) * 100), 100);
+          const percent =
+            goal.targetAmount > 0 ? Math.min(Math.round((goal.currentAmount / goal.targetAmount) * 100), 100) : 0;
 
           return (
             <div key={goal.id} className="goal-detail-card glass-card">
@@ -126,6 +140,8 @@ export const GoalsPage: React.FC = () => {
           );
         })}
       </div>
+
+      <NewGoalModal isOpen={isNewGoalOpen} onClose={() => setIsNewGoalOpen(false)} />
     </div>
   );
 };
