@@ -61,6 +61,7 @@ import {
   type WeekLayer,
 } from './CellDetailViews';
 import { MovementDetailModal } from './MovementDetailModal';
+import { InitialBalancePanel } from './InitialBalancePanel';
 import { RecurringChangeDialog, futureRecurringSiblings, type RecurringChangePrompt } from './RecurringChangeDialog';
 import { NewMovementModal } from './NewMovementModal';
 
@@ -3622,6 +3623,15 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                   </div>
                 </div>
               </div>
+            )}
+
+            {/* Saldo inicial: registrar no 1º mês ou ajustar fechando o mês anterior */}
+            {selection?.columnTitle === 'Saldo Inicial do Ciclo' && row && (
+              <InitialBalancePanel
+                key={row.monthKey}
+                row={row}
+                previousRow={!row.isFirstMonth && monthIndex > 0 ? projectionGrid[monthIndex - 1] : undefined}
+              />
             )}
 
             {/* Estilos de visualização: Naturezas (padrão) → mapeamentos → itens, Calendário, Semana e Data */}

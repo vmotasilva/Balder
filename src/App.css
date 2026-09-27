@@ -19311,3 +19311,63 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .balance-split strong {
   color: var(--text-primary);
 }
+
+/* Saldo inicial do ciclo: registro e ajuste mês a mês */
+.initial-balance-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 40%, var(--border-default));
+  background: color-mix(in srgb, var(--accent-cyan) 6%, transparent);
+}
+
+.initial-balance-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.initial-balance-head small {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.initial-balance-form {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.initial-balance-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 200px;
+}
+
+.initial-balance-notes {
+  flex: 1;
+  min-width: 220px;
+}
+
+.initial-balance-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-emerald);
+}
