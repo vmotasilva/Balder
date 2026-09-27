@@ -114,6 +114,8 @@ export interface CellBreakdownSubItem {
   paidBy?: string;
   baseValue?: number; // valor planejado, exibido riscado quando pago por terceiros
   occurrenceDate?: string; // data da ocorrência (YYYY-MM-DD) no agrupamento por data
+  isMappingSummary?: boolean; // linha-resumo de um mapeamento (nome + valor total)
+  summaryItemCount?: number;  // quantos itens o resumo agrega
 }
 
 export interface EditingReceiptData {
@@ -144,6 +146,7 @@ export interface CellDateGroup {
   periodType: 'DIARIO' | 'SEMANAL' | 'QUINZENAL' | 'MENSAL' | 'PONTUAL';
   subtotal: number;
   items: CellBreakdownSubItem[];
+  isSummaryGroup?: boolean; // bloco "Resumo por mapeamento" (sem data real)
 }
 
 
@@ -173,6 +176,7 @@ export interface NatureItemEntry {
   natureId?: string;
   mappingId?: string;
   mappingDetailMode?: NatureDetailMode; // escolha do mapeamento; sem valor, segue a natureza
+  summaryItemCount?: number; // preenchido nas linhas-resumo de mapeamento
   natureName: string;
   natureColor: string;
   mappingName: string;
@@ -190,6 +194,7 @@ function natureItemStateFields(ni: NatureItemEntry, monthKey: string): Partial<C
     paidByOthers: !!state.paidByOthers,
     paidBy: state.paidBy,
     baseValue: summary.base,
+    ...(ni.summaryItemCount ? { isMappingSummary: true, summaryItemCount: ni.summaryItemCount } : {}),
     natureItemRef:
       ni.natureId && ni.mappingId
         ? { natureId: ni.natureId, mappingId: ni.mappingId, itemId: ni.item.id }
@@ -246,6 +251,7 @@ function summarizeNatureEntries(
     const isMixed = (payGroupsByMapping.get(group.mappingKey)?.size || 0) > 1;
     const suffix = isMixed ? (first.paymentMethod === 'CARTAO' ? ' (cartão)' : ' (conta)') : '';
 
+    group.entry.summaryItemCount = group.items.length;
     group.entry.item = {
       id: `summary_${key}`,
       description: `${group.entry.mappingName}${suffix}`,
@@ -307,8 +313,26 @@ export function generateNatureDateGroups(
     }
   >();
 
+  // Linhas-resumo de mapeamento não têm data real: ficam num bloco próprio, antes das datas
+  const summaryItems: CellBreakdownSubItem[] = [];
+
   items.forEach((ni) => {
     const item = ni.item;
+    if (ni.summaryItemCount) {
+      summaryItems.push({
+        id: item.id,
+        description: item.description,
+        quantity: 1,
+        price: item.price,
+        multiplierWeeks: 1,
+        totalValue: item.totalValue,
+        paymentMethod: item.paymentMethod,
+        cardName: item.cardName,
+        mappingName: ni.mappingName,
+        ...natureItemStateFields(ni, competence.slice(0, 7)),
+      });
+      return;
+    }
     const { days, periodType } = getItemManifestationDays(item, year, month);
 
     // Valor de cada ocorrência individual (ex: se é semanal com 4 sábados, cada sábado vale quantity * price)
@@ -458,6 +482,19 @@ export function generateNatureDateGroups(
       items: g.items,
     };
   });
+
+  if (summaryItems.length > 0) {
+    dateGroups.push({
+      id: `dg_summary_${natureName.replace(/\s+/g, '_')}`,
+      dateStr: `${year}-${padM}-00`, // antes de todas as datas do mês
+      dateFormatted: 'Resumo por mapeamento',
+      eventTitle: `Mapeamentos — ${natureName}`,
+      periodType: 'MENSAL',
+      subtotal: Math.round(summaryItems.reduce((acc, it) => acc + it.totalValue, 0) * 100) / 100,
+      items: summaryItems,
+      isSummaryGroup: true,
+    });
+  }
 
   return dateGroups.sort((a, b) => a.dateStr.localeCompare(b.dateStr));
 }
@@ -2317,6 +2354,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
               periodType: dg.periodType,
               subtotal: dg.subtotal,
               items: [...dg.items],
+              isSummaryGroup: dg.isSummaryGroup,
             });
           }
         });
@@ -2548,6 +2586,16 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
               {sub.description}
             </div>
 
+            {/* Linha-resumo de mapeamento: só nome e valor, com a quantidade de itens agregados */}
+            {sub.isMappingSummary && (
+              <span
+                className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30"
+                title="Mapeamento exibido em resumo (altere para Detalhado na natureza para ver os itens)"
+              >
+                {sub.summaryItemCount} {sub.summaryItemCount === 1 ? 'item' : 'itens'}
+              </span>
+            )}
+
             {/* Badges de Status do Recebimento ou Fatura */}
             {isReceipt &&
               (isCanceled ? (
@@ -2627,6 +2675,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             ) : null}
           </div>
 
+          {!sub.isMappingSummary && (
           <div className="detail-item-secondary flex items-center gap-1.5 flex-wrap">
             {sub.quantity > 1 ? (
               <span>
@@ -2658,6 +2707,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
               </span>
             )}
           </div>
+          )}
         </div>
 
         <div className="flex items-center gap-3 flex-shrink-0">
@@ -3127,7 +3177,18 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                 <span>📁 Todos os Itens</span>
                 <span className="nature-tab-amount">{formatBRL(dynamicTotalValue)}</span>
                 <span className="text-[10px] opacity-75">
-                  ({consolidatedDateGroups.length} datas • {consolidatedSubItems.length} itens)
+                  {(() => {
+                    // Linhas-resumo contam como mapeamentos, não como itens nem datas
+                    const summaries = consolidatedSubItems.filter((it) => it.isMappingSummary).length;
+                    const dates = consolidatedDateGroups.filter((dg) => !dg.isSummaryGroup).length;
+                    const itemsCount = consolidatedSubItems.length - summaries;
+                    const parts = [
+                      dates > 0 ? `${dates} ${dates === 1 ? 'data' : 'datas'}` : null,
+                      itemsCount > 0 ? `${itemsCount} ${itemsCount === 1 ? 'item' : 'itens'}` : null,
+                      summaries > 0 ? `${summaries} ${summaries === 1 ? 'mapeamento' : 'mapeamentos'}` : null,
+                    ].filter(Boolean);
+                    return `(${parts.join(' • ') || '0 itens'})`;
+                  })()}
                 </span>
               </button>
 
@@ -3411,7 +3472,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                   {/* Cabeçalho fixo (Sticky) contendo apenas a Data e o Subtotal do dia */}
                   <div className="sticky-date-group-header">
                     <span className="sticky-date-title">
-                      📅 {dg.dateFormatted}
+                      {dg.isSummaryGroup ? '📋' : '📅'} {dg.dateFormatted}
                     </span>
                     <div className="sticky-date-subtotal">
                       <span className="subtotal-prefix">Subtotal:</span>
