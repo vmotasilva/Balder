@@ -39,6 +39,10 @@ export const SharedPlanningPage: React.FC = () => {
   const [newExpenseCategory, setNewExpenseCategory] = useState('Alimentação');
   const [newExpensePaidBy, setNewExpensePaidBy] = useState<'USER' | 'PARTNER'>('USER');
 
+  // Sem parceiro(a) conectado não há nada compartilhado para mostrar
+  const partner = sharedScenario?.members?.find((m) => m.role === 'PARTNER');
+  const hasPartner = !!partner;
+
   // Cálculos do Rateio de Renda
   const userSalary = sharedScenario?.members?.find((m) => m.role === 'OWNER')?.monthlyIncome || 8500;
   const partnerSalary = sharedScenario?.members?.find((m) => m.role === 'PARTNER')?.monthlyIncome || 5200;
@@ -128,6 +132,7 @@ export const SharedPlanningPage: React.FC = () => {
           </p>
         </div>
 
+        {hasPartner && (
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -156,6 +161,7 @@ export const SharedPlanningPage: React.FC = () => {
             <span>Nova Despesa Conjunta</span>
           </button>
         </div>
+        )}
       </div>
 
       {/* ============================================================== */}
@@ -246,6 +252,17 @@ export const SharedPlanningPage: React.FC = () => {
         </div>
       </section>
 
+      {!hasPartner ? (
+        <section className="glass-card shared-empty-state">
+          <HeartHandshake size={32} className="text-pink-400" />
+          <h3>Nada compartilhado por enquanto</h3>
+          <p>
+            Você ainda não compartilhou seu planejamento com ninguém. Quando houver alguém conectado, aparecem aqui o
+            acerto do mês, as despesas conjuntas e as metas em comum.
+          </p>
+        </section>
+      ) : (
+      <>
       {/* ============================================================== */}
       {/* GRID DE MEMBROS & PARCERIA CONECTADA                            */}
       {/* ============================================================== */}
@@ -552,6 +569,9 @@ export const SharedPlanningPage: React.FC = () => {
           </div>
         </div>
       </section>
+
+      </>
+      )}
 
       {/* Modal / Diálogo Rápido de Nova Despesa Conjunta */}
       {isAddExpenseOpen && (

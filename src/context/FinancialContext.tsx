@@ -393,6 +393,13 @@ export const buildSuggestedMappingsForNature = (
 
 const FinancialContext = createContext<FinancialContextType | undefined>(undefined);
 
+// Dados de exemplo do Planejamento Compartilhado (modo convidado): parceira fictícia e 4 despesas
+const DEMO_SETTLEMENT_IDS = new Set(['settle_1', 'settle_2', 'settle_3', 'settle_4']);
+const withoutDemoPartner = (s: SharedScenario | null): SharedScenario | null =>
+  s && (s.members || []).some((m) => m.id === 'partner_1' && m.email === 'camila@email.com') ? null : s;
+const withoutDemoSettlements = (list: SharedSettlementItem[]): SharedSettlementItem[] =>
+  (Array.isArray(list) ? list : []).filter((x) => !DEMO_SETTLEMENT_IDS.has(x.id));
+
 export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
 
@@ -752,15 +759,18 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
-  // Cenário de Planejamento Compartilhado
+  // Cenário de Planejamento Compartilhado. O cenário de exemplo (com parceira fictícia) é só do modo
+  // convidado; na conta real começa vazio até haver um compartilhamento de verdade.
+  const isRealUser = !!user && !user.isGuest;
   const [sharedScenario, setSharedScenario] = useState<SharedScenario | null>(() => {
     try {
       const storageKey = user && !user.isGuest ? `balder_shared_scenario_${user.$id}` : 'balder_shared_scenario';
       const saved = localStorage.getItem(storageKey);
-      if (saved) return JSON.parse(saved);
+      if (saved) return isRealUser ? withoutDemoPartner(JSON.parse(saved)) : JSON.parse(saved);
     } catch {}
+    if (isRealUser) return null;
 
-    // Cenário padrão inicial inteligente
+    // Cenário de exemplo (modo convidado)
     return {
       id: 'shared_default',
       name: 'Planejamento Familiar & Casal',
@@ -878,8 +888,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     try {
       const storageKey = user && !user.isGuest ? `balder_shared_settlements_${user.$id}` : 'balder_shared_settlements';
       const saved = localStorage.getItem(storageKey);
-      if (saved) return JSON.parse(saved);
+      if (saved) return isRealUser ? withoutDemoSettlements(JSON.parse(saved)) : JSON.parse(saved);
     } catch {}
+    if (isRealUser) return [];
 
     const todayYm = new Date().toISOString().substring(0, 7);
     return [
@@ -1715,17 +1726,20 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             localStorage.setItem(`balder_monthly_closings_${user.$id}`, JSON.stringify(finalClosings));
           }
 
-          // 10. Planejamento Compartilhado & Acertos Mútuos
-          if (cloudProfileSettings?.sharedScenario) {
-            setSharedScenario(cloudProfileSettings.sharedScenario);
+          // 10. Planejamento Compartilhado & Acertos Mútuos (sem os dados de exemplo)
+          if (!cloudProfileSettings) {
+            // Perfil indisponível: mantém o que há, só sem os dados de exemplo
+            setSharedScenario((prev) => withoutDemoPartner(prev));
+            setSharedSettlements((prev) => withoutDemoSettlements(prev));
+          } else {
+            const cloudScenario = withoutDemoPartner(cloudProfileSettings?.sharedScenario ?? null);
+            const cloudSettlements = withoutDemoSettlements(cloudProfileSettings?.sharedSettlements ?? []);
+            setSharedScenario(cloudScenario);
+            setSharedSettlements(cloudSettlements);
             if (user) {
-              localStorage.setItem(`balder_shared_scenario_${user.$id}`, JSON.stringify(cloudProfileSettings.sharedScenario));
-            }
-          }
-          if (cloudProfileSettings?.sharedSettlements) {
-            setSharedSettlements(cloudProfileSettings.sharedSettlements);
-            if (user) {
-              localStorage.setItem(`balder_shared_settlements_${user.$id}`, JSON.stringify(cloudProfileSettings.sharedSettlements));
+              if (cloudScenario) localStorage.setItem(`balder_shared_scenario_${user.$id}`, JSON.stringify(cloudScenario));
+              else localStorage.removeItem(`balder_shared_scenario_${user.$id}`);
+              localStorage.setItem(`balder_shared_settlements_${user.$id}`, JSON.stringify(cloudSettlements));
             }
           }
           if (cloudProfileSettings?.checkpointCashInHand) {
