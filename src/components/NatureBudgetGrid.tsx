@@ -13,8 +13,8 @@ import {
 } from 'lucide-react';
 import type { ExpenseNature, MonthlyGridProjectionRow, MappingItem } from '../types';
 import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
-import { mappingItemMonthValue } from '../utils/mappingItemState';
-import { GridCellDetailModal, generateNatureDateGroups } from './GridCellDetailModal';
+import { mappingItemMonthValue, resolveMappingItemMonth } from '../utils/mappingItemState';
+import { GridCellDetailModal } from './GridCellDetailModal';
 import type { GridCellSelection } from './GridCellDetailModal';
 
 interface NatureBudgetRow {
@@ -25,7 +25,8 @@ interface NatureBudgetRow {
   type: string;
   category: string;
   plannedAmount: number;
-  realizedAmount: number;
+  realizedAmount: number; // Real: já pago no mês
+  pendingAmount: number;  // Previsto: ainda a pagar no mês
   diffAmount: number;
   percentUsed: number;
   isOverCeiling: boolean;
@@ -127,7 +128,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
           }
           return mp.items.some((it) => it.description.toLowerCase() === m.title.toLowerCase());
         });
-        return isExpense && inMonth && (nameMatch || itemMatch);
+        return isExpense && inMonth && m.status !== 'CANCELADA' && (nameMatch || itemMatch);
       });
 
       // Mapeamentos ativos no mês de competência
@@ -156,53 +157,57 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
         });
       });
 
-      // Itens pagos por terceiros na competência não entram nos valores
-      const mappedSum = natItems.reduce((acc, ni) => acc + mappingItemMonthValue(ni.item, selectedMonthKey), 0);
-
-      const realized =
-        matchingMovements.length > 0
-          ? matchingMovements.reduce((acc, m) => acc + m.amount, 0)
-          : mappedSum;
-
-      // 3. Diferença e Aderência
-      const diff = planned - realized;
-      const pct = planned > 0 ? Math.round((realized / planned) * 100) : (realized > 0 ? 100 : 0);
-      const isOver = realized > planned && planned > 0;
-
-      // 4. Última Transação
-      let lastTx: NatureBudgetRow['lastTransaction'] = null;
-
-      if (matchingMovements.length > 0) {
-        // Ordenar movimentos por data decrescente
-        const sortedMovements = [...matchingMovements].sort((a, b) => b.dueDate.localeCompare(a.dueDate));
-        const latestM = sortedMovements[0];
-        const dParts = latestM.dueDate.split('-');
-        const dateFormatted = dParts.length === 3 ? `${dParts[2]}/${dParts[1]}/${dParts[0]}` : latestM.dueDate;
-
-        lastTx = {
-          dateFormatted,
-          description: latestM.title,
-          amount: latestM.amount,
-          paymentMethod: latestM.type === 'CARTAO' ? 'Cartão' : 'Conta',
-          cardName: latestM.bank,
-        };
-      } else if (natItems.length > 0) {
-        // Gerar grupos de datas da natureza
-        const dateGroups = generateNatureDateGroups(currentRow.monthKey, nat.name, natItems);
-        if (dateGroups.length > 0) {
-          const sortedDgs = [...dateGroups].sort((a, b) => b.dateStr.localeCompare(a.dateStr));
-          const latestDg = sortedDgs[0];
-          const latestSub = latestDg.items[0] || null;
-
-          lastTx = {
-            dateFormatted: latestDg.dateFormatted.split(' ')[0], // pega só DD/MM/AAAA
-            description: latestSub ? latestSub.description : latestDg.eventTitle,
-            amount: latestSub ? latestSub.totalValue : latestDg.subtotal,
-            paymentMethod: latestSub?.paymentMethod === 'CARTAO' ? 'Cartão' : 'Conta',
-            cardName: latestSub?.cardName,
-          };
+      // 2. Real (já pago) | Previsto (ainda a pagar) no mês.
+      // Itens mapeados: pagamentos registrados no item; se o item também foi lançado como movimentação
+      // de mesmo nome, vale a movimentação (evita contar duas vezes). Movimentações da natureza que não
+      // correspondem a itens (avulsos, compras classificadas) entram pelo status.
+      const norm = (t: string) => t.trim().toLowerCase();
+      const itemTitles = new Set(natItems.map((ni) => norm(ni.item.description)));
+      let real = 0;
+      let pending = 0;
+      const payments: { date: string; description: string; amount: number }[] = [];
+      natItems.forEach((ni) => {
+        const summary = resolveMappingItemMonth(ni.item, selectedMonthKey);
+        if (summary.state.paidByOthers) return;
+        const launched = matchingMovements.filter((m) => norm(m.title) === norm(ni.item.description));
+        if (launched.length > 0) {
+          launched.forEach((m) => {
+            if (m.status === 'REALIZADA') real += m.amount;
+            else pending += m.amount;
+          });
+          return;
         }
-      }
+        real += summary.paid;
+        pending += summary.pending;
+        summary.payments.forEach((p) => payments.push({ date: p.paidAt, description: ni.item.description, amount: p.amount }));
+      });
+      matchingMovements
+        .filter((m) => !itemTitles.has(norm(m.title)))
+        .forEach((m) => {
+          if (m.status === 'REALIZADA') real += m.amount;
+          else pending += m.amount;
+        });
+      real = Math.round(real * 100) / 100;
+      pending = Math.round(pending * 100) / 100;
+      const realized = real;
+
+      // 3. Disponível (teto - real) e situação: acima do teto quando real + previsto passam do teto
+      const diff = Math.round((planned - realized) * 100) / 100;
+      const pct = planned > 0 ? Math.round((realized / planned) * 100) : (realized > 0 ? 100 : 0);
+      const isOver = planned > 0 && realized + pending > planned + 0.005;
+
+      // 4. Última transação: somente pagamentos reais (movimentações realizadas ou pagamentos de itens)
+      matchingMovements.filter((m) => m.status === 'REALIZADA').forEach((m) =>
+        payments.push({ date: m.paymentDate || m.dueDate, description: m.title, amount: m.amount })
+      );
+      const latestPayment = [...payments].sort((a, b) => b.date.localeCompare(a.date))[0];
+      const lastTx: NatureBudgetRow['lastTransaction'] = latestPayment
+        ? {
+            dateFormatted: latestPayment.date.split('-').reverse().join('/'),
+            description: latestPayment.description,
+            amount: latestPayment.amount,
+          }
+        : null;
 
       // 5. Identificação de Imprevistos e Gastos Atípicos (Ofensores)
       const ATYPICAL_KEYWORD_REGEX =
@@ -331,6 +336,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
         category: nat.description || 'Gasto Recorrente',
         plannedAmount: planned,
         realizedAmount: realized,
+        pendingAmount: pending,
         diffAmount: diff,
         percentUsed: pct,
         isOverCeiling: isOver,
@@ -368,7 +374,8 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
   const summaryTotals = useMemo(() => {
     const totalPlanned = natureRows.reduce((acc, r) => acc + r.plannedAmount, 0);
     const totalRealized = natureRows.reduce((acc, r) => acc + r.realizedAmount, 0);
-    const totalDiff = totalPlanned - totalRealized;
+    const totalPending = natureRows.reduce((acc, r) => acc + r.pendingAmount, 0);
+    const totalDiff = totalPlanned - totalRealized; // disponível: teto - real
     const overCount = natureRows.filter((r) => r.isOverCeiling).length;
     const withinCount = natureRows.length - overCount;
     const avgPct = totalPlanned > 0 ? Math.round((totalRealized / totalPlanned) * 100) : 0;
@@ -376,6 +383,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
     return {
       totalPlanned,
       totalRealized,
+      totalPending,
       totalDiff,
       overCount,
       withinCount,
@@ -421,10 +429,10 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
           </div>
           <h2 className="text-lg font-bold flex items-center gap-2 mt-1" style={{ color: 'var(--text-primary)' }}>
             <Layers size={20} className="text-cyan-400" />
-            Grid de Naturezas: Previsto vs Realizado
+            Naturezas do Mês: Teto, Real e Previsto
           </h2>
           <p className="text-xs text-muted mt-0.5">
-            Compare o teto orçado com as despesas executadas, analise desvios orçamentários e monitore a última transação.
+            Quanto já foi pago (Real) e quanto ainda falta pagar (Previsto) em cada natureza, frente ao teto.
           </p>
         </div>
 
@@ -554,52 +562,29 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
         </div>
       </div>
 
-      {/* KPI Chips de Resumo no Topo */}
+      {/* Indicadores do topo: Teto | Real | Previsto | Disponível */}
       <div className="nature-grid-kpis-bar">
         <div className="nature-kpi-chip">
-          <span className="nature-kpi-chip-label">Teto Previsto Total:</span>
+          <span className="nature-kpi-chip-label">Teto:</span>
           <span className="nature-kpi-chip-val font-mono font-bold" style={{ color: 'var(--text-primary)' }}>
             {formatBRL(summaryTotals.totalPlanned)}
           </span>
         </div>
         <div className="nature-kpi-chip">
-          <span className="nature-kpi-chip-label">Realizado Total:</span>
-          <span className="nature-kpi-chip-val font-mono font-bold" style={{ color: 'var(--text-primary)' }}>
-            {formatBRL(summaryTotals.totalRealized)}
+          <span className="nature-kpi-chip-label">Real:</span>
+          <span className="nature-kpi-chip-val font-mono font-bold text-emerald">{formatBRL(summaryTotals.totalRealized)}</span>
+        </div>
+        <div className="nature-kpi-chip">
+          <span className="nature-kpi-chip-label">Previsto:</span>
+          <span className="nature-kpi-chip-val font-mono font-bold text-amber">{formatBRL(summaryTotals.totalPending)}</span>
+        </div>
+        <div className="nature-kpi-chip">
+          <span className="nature-kpi-chip-label">{summaryTotals.totalDiff >= 0 ? 'Disponível:' : 'Estouro:'}</span>
+          <span className={`nature-kpi-chip-val font-mono font-bold ${summaryTotals.totalDiff >= 0 ? 'text-emerald' : 'text-rose'}`}>
+            {formatBRL(Math.abs(summaryTotals.totalDiff))}
           </span>
         </div>
         <div className="nature-kpi-chip">
-          <span className="nature-kpi-chip-label">
-            {summaryTotals.totalDiff >= 0 ? 'Saldo Restante:' : 'Estouro Global:'}
-          </span>
-          <span
-            className={`nature-kpi-chip-val font-mono font-bold ${
-              summaryTotals.totalDiff >= 0 ? 'text-emerald' : 'text-rose'
-            }`}
-          >
-            {summaryTotals.totalDiff >= 0 ? `+${formatBRL(summaryTotals.totalDiff)}` : `-${formatBRL(Math.abs(summaryTotals.totalDiff))}`}
-          </span>
-        </div>
-        <div className="nature-kpi-chip">
-          <span className="nature-kpi-chip-label">Aderência:</span>
-          <span
-            className={`nature-kpi-chip-val font-mono font-bold ${
-              summaryTotals.avgPct > 100 ? 'text-rose' : 'text-emerald'
-            }`}
-          >
-            {summaryTotals.avgPct}%
-          </span>
-          <div className="w-10 bg-slate-700/50 rounded-full h-1.5 overflow-hidden ml-1">
-            <div
-              className={`h-full rounded-full transition-all duration-300 ${
-                summaryTotals.avgPct > 100 ? 'bg-rose-500' : 'bg-emerald-500'
-              }`}
-              style={{ width: `${Math.min(summaryTotals.avgPct, 100)}%` }}
-            />
-          </div>
-        </div>
-        <div className="nature-kpi-chip">
-          <span className="nature-kpi-chip-label">Conformidade:</span>
           <span className="nature-kpi-chip-val font-bold text-xs" style={{ color: 'var(--text-primary)' }}>
             {summaryTotals.withinCount} de {natureRows.length} no teto
           </span>
@@ -613,9 +598,10 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
           <thead>
             <tr>
               <th style={{ width: '22%', minWidth: '190px' }}>Natureza</th>
-              <th style={{ width: '13%', minWidth: '110px', textAlign: 'right' }}>Previsto (R$)</th>
-              <th style={{ width: '13%', minWidth: '110px', textAlign: 'right' }}>Realizado (R$)</th>
-              <th style={{ width: '16%', minWidth: '130px', textAlign: 'right' }}>Diferença</th>
+              <th style={{ width: '11%', minWidth: '100px', textAlign: 'right' }}>Teto</th>
+              <th style={{ width: '11%', minWidth: '100px', textAlign: 'right' }}>Real</th>
+              <th style={{ width: '11%', minWidth: '100px', textAlign: 'right' }}>Previsto</th>
+              <th style={{ width: '13%', minWidth: '120px', textAlign: 'right' }}>Disponível</th>
               <th style={{ width: '22%', minWidth: '220px' }}>Observações</th>
               <th style={{ width: '14%', minWidth: '160px', textAlign: 'right' }}>Última transação</th>
             </tr>
@@ -695,8 +681,14 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
                     {formatBRL(row.realizedAmount)}
                   </div>
                   <span className="text-[10px] text-muted block">
-                    {row.realizedAmount > 0 ? `${row.percentUsed}% gasto` : 'Sem gastos'}
+                    {row.realizedAmount > 0 ? `${row.percentUsed}% do teto` : 'Nada pago'}
                   </span>
+                </td>
+
+                {/* Coluna: Previsto (ainda a pagar) */}
+                <td style={{ textAlign: 'right' }}>
+                  <div className="font-mono font-bold text-xs text-amber">{formatBRL(row.pendingAmount)}</div>
+                  <span className="text-[10px] text-muted block">A pagar</span>
                 </td>
 
                 {/* Coluna 4: Diferença */}
@@ -798,7 +790,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
 
             {filteredRows.length === 0 && (
               <tr>
-                <td colSpan={6} className="text-center py-8 text-muted text-xs">
+                <td colSpan={7} className="text-center py-8 text-muted text-xs">
                   Nenhuma natureza encontrada para o filtro selecionado.
                 </td>
               </tr>
@@ -822,6 +814,9 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
                 <span className="font-mono font-bold text-xs" style={{ color: 'var(--text-primary)' }}>
                   {formatBRL(summaryTotals.totalRealized)}
                 </span>
+              </th>
+              <th style={{ textAlign: 'right' }}>
+                <span className="font-mono font-bold text-xs text-amber">{formatBRL(summaryTotals.totalPending)}</span>
               </th>
               <th style={{ textAlign: 'right' }}>
                 <span
@@ -864,141 +859,83 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
               onClick={() => handleOpenNatureDetail(row)}
               title="Clique para ver os lançamentos desta natureza"
             >
-              {/* Header do Card: Nome, Tipo e Status do Teto */}
-              <div className="nature-card-header">
-                <div className="flex items-center gap-2 min-w-0">
-                  <div
-                    className="nature-color-dot flex-shrink-0"
-                    style={{
-                      backgroundColor: row.color || '#38BDF8',
-                      width: '11px',
-                      height: '11px',
-                      borderRadius: '50%',
-                      boxShadow: `0 0 6px ${row.color || '#38BDF8'}80`,
-                    }}
-                  />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <strong className="text-xs font-bold truncate max-w-[150px]" style={{ color: 'var(--text-primary)' }}>
-                        {row.name}
-                      </strong>
-                      <span className="badge badge-pill text-[9px] uppercase tracking-wider flex-shrink-0">
-                        {row.type}
+              {(() => {
+                const realPct = row.plannedAmount > 0 ? Math.min(100, (row.realizedAmount / row.plannedAmount) * 100) : 0;
+                const pendingPct =
+                  row.plannedAmount > 0 ? Math.min(100 - realPct, (row.pendingAmount / row.plannedAmount) * 100) : 0;
+                return (
+                  <>
+                    {/* Nome e situação */}
+                    <div className="nature-card-header">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="nature-color-dot flex-shrink-0" style={{ backgroundColor: row.color || '#38BDF8' }} />
+                        <strong className="text-xs font-bold truncate" style={{ color: 'var(--text-primary)' }} title={row.name}>
+                          {row.name}
+                        </strong>
+                      </div>
+                      <span
+                        className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
+                          row.isOverCeiling
+                            ? 'bg-rose-500/20 text-rose border border-rose-500/30'
+                            : 'bg-emerald-500/20 text-emerald border border-emerald-500/30'
+                        }`}
+                        title={row.isOverCeiling ? 'Real + Previsto passam do teto' : 'Real + Previsto dentro do teto'}
+                      >
+                        {row.isOverCeiling ? '⚠️ Acima do teto' : '✓ No teto'}
                       </span>
                     </div>
-                    <span className="text-[10px] text-muted block">
-                      {row.routinesCount} rotinas • {row.itemsCount} itens
-                    </span>
-                  </div>
-                </div>
 
-                {/* Status do Teto e Ação de Editar Nota */}
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <span
-                    className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full ${
-                      row.isOverCeiling
-                        ? 'bg-rose-500/20 text-rose border border-rose-500/30'
-                        : 'bg-emerald-500/20 text-emerald border border-emerald-500/30'
-                    }`}
-                  >
-                    {row.isOverCeiling ? '⚠️ Acima' : '✓ No Teto'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingNatureId(row.natureId);
-                      setEditingObservationText(row.customNotes || '');
-                    }}
-                    className="p-1 text-muted hover:text-cyan-400 rounded transition cursor-pointer"
-                    title="Editar anotação personalizada"
-                  >
-                    <Edit3 size={12} />
-                  </button>
-                </div>
-              </div>
+                    {/* Barra: Real (sólido) + Previsto (claro) sobre o teto */}
+                    <div
+                      className="nature-card-rp-bar"
+                      title={`Real ${formatBRL(row.realizedAmount)} + Previsto ${formatBRL(row.pendingAmount)} de ${formatBRL(row.plannedAmount)}`}
+                    >
+                      <div className={`real ${row.isOverCeiling ? 'over' : ''}`} style={{ width: `${realPct}%` }} />
+                      <div className={`planned ${row.isOverCeiling ? 'over' : ''}`} style={{ width: `${pendingPct}%` }} />
+                    </div>
 
-              {/* Barra de Progresso Visual de Aderência */}
-              <div className="nature-card-progress-wrap mt-2">
-                <div className="flex items-center justify-between text-[10px] mb-1">
-                  <span className="text-muted font-medium">Consumo do Teto</span>
-                  <span className={`font-mono font-bold ${row.isOverCeiling ? 'text-rose' : 'text-emerald'}`}>
-                    {row.percentUsed}% gasto
-                  </span>
-                </div>
-                <div className="w-full bg-slate-800/80 dark:bg-slate-800/80 rounded-full h-1.5 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-300 ${
-                      row.isOverCeiling
-                        ? 'bg-rose-500'
-                        : row.percentUsed > 80
-                        ? 'bg-amber-500'
-                        : 'bg-emerald-500'
-                    }`}
-                    style={{ width: `${Math.min(row.percentUsed, 100)}%` }}
-                  />
-                </div>
-              </div>
+                    {/* Real | Previsto e Teto */}
+                    <div className="nature-card-rp-values">
+                      <div>
+                        <span className="nature-card-metric-label">Real</span>
+                        <span className="font-mono font-bold text-xs text-emerald">{formatBRL(row.realizedAmount)}</span>
+                      </div>
+                      <div>
+                        <span className="nature-card-metric-label">Previsto</span>
+                        <span className="font-mono font-bold text-xs text-amber">{formatBRL(row.pendingAmount)}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="nature-card-metric-label">Teto</span>
+                        <span className="font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>
+                          {formatBRL(row.plannedAmount)}
+                        </span>
+                      </div>
+                    </div>
 
-              {/* Grid de 3 Valores Financeiros */}
-              <div className="nature-card-metrics-grid mt-2">
-                <div className="nature-card-metric-col">
-                  <span className="nature-card-metric-label">Previsto</span>
-                  <span className="nature-card-metric-val font-mono font-medium text-xs">{formatBRL(row.plannedAmount)}</span>
-                </div>
-                <div className="nature-card-metric-col">
-                  <span className="nature-card-metric-label">Realizado</span>
-                  <span className="nature-card-metric-val font-mono font-bold text-xs" style={{ color: 'var(--text-primary)' }}>
-                    {formatBRL(row.realizedAmount)}
-                  </span>
-                </div>
-                <div className="nature-card-metric-col text-right">
-                  <span className="nature-card-metric-label">Diferença</span>
-                  <span
-                    className={`nature-card-metric-val font-mono font-bold text-xs ${
-                      row.diffAmount >= 0 ? 'text-emerald' : 'text-rose'
-                    }`}
-                  >
-                    {row.diffAmount >= 0 ? `+${formatBRL(row.diffAmount)}` : `-${formatBRL(Math.abs(row.diffAmount))}`}
-                  </span>
-                </div>
-              </div>
-
-              {/* Observações / Ponto de Atenção se houver */}
-              {row.hasAttentionPoint && row.observations !== '-' && (
-                <div
-                  className={`obs-attention-chip mt-2 ${
-                    row.attentionType === 'OVER_CEILING' ? 'rose' : 'amber'
-                  }`}
-                >
-                  <div className="obs-attention-chip-header">
-                    <AlertTriangle size={11} className="flex-shrink-0" />
-                    <span className="obs-attention-chip-label">
-                      {row.attentionType === 'OVER_CEILING' ? 'Atenção • Estouro' : 'Atenção • Gasto Atípico'}
-                    </span>
-                  </div>
-                  <p className="obs-attention-chip-text line-clamp-2">{row.observations}</p>
-                </div>
-              )}
-
-              {/* Rodapé do Card com Última Transação */}
-              {row.lastTransaction && (
-                <div className="nature-card-footer mt-2 pt-2 border-t border-border/30 flex items-center justify-between text-[10px]">
-                  <div className="flex items-center gap-1 min-w-0 text-muted">
-                    <span className="font-mono font-medium text-slate-300 dark:text-slate-300">{row.lastTransaction.dateFormatted}</span>
-                    {row.lastTransaction.cardName && (
-                      <span className="badge badge-cyan text-[8.5px] px-1 py-0.2">
-                        {row.lastTransaction.cardName.split(' ')[0]}
-                      </span>
+                    {/* Estouro: aponta o maior causador */}
+                    {row.isOverCeiling && row.observations !== '-' && (
+                      <p className="nature-card-alert" title={row.observations}>
+                        <AlertTriangle size={11} className="flex-shrink-0" />
+                        <span className="truncate">{row.observations}</span>
+                      </p>
                     )}
-                    <span>•</span>
-                    <span className="truncate max-w-[95px]">{row.lastTransaction.description}</span>
-                  </div>
-                  <span className="font-mono font-bold text-emerald flex-shrink-0">
-                    {formatBRL(row.lastTransaction.amount)}
-                  </span>
-                </div>
-              )}
+
+                    {/* Último pagamento real */}
+                    <div className="nature-card-last">
+                      {row.lastTransaction ? (
+                        <>
+                          <span className="truncate">
+                            Último pagamento: {row.lastTransaction.dateFormatted} • {row.lastTransaction.description}
+                          </span>
+                          <span className="font-mono font-bold flex-shrink-0">{formatBRL(row.lastTransaction.amount)}</span>
+                        </>
+                      ) : (
+                        <span>Nenhum pagamento neste mês</span>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           ))}
 
@@ -1018,19 +955,23 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
                   </span>
                   <span className="text-[10px] text-muted">Competência {currentRow?.competenceLabel}</span>
                 </div>
-                <span className="badge badge-cyan text-[10px] font-bold">{summaryTotals.avgPct}% aderência</span>
+                <span className="badge badge-cyan text-[10px] font-bold">{summaryTotals.avgPct}% do teto pago</span>
               </div>
-              <div className="grid grid-cols-3 gap-3 mt-2 text-center">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2 text-center">
                 <div className="p-1.5 rounded-lg bg-black/10 dark:bg-black/20">
-                  <span className="text-[10px] text-muted block uppercase font-semibold">Previsto Total</span>
+                  <span className="text-[10px] text-muted block uppercase font-semibold">Teto</span>
                   <span className="font-mono font-bold text-xs" style={{ color: 'var(--text-primary)' }}>{formatBRL(summaryTotals.totalPlanned)}</span>
                 </div>
                 <div className="p-1.5 rounded-lg bg-black/10 dark:bg-black/20">
-                  <span className="text-[10px] text-muted block uppercase font-semibold">Realizado Total</span>
-                  <span className="font-mono font-bold text-xs" style={{ color: 'var(--text-primary)' }}>{formatBRL(summaryTotals.totalRealized)}</span>
+                  <span className="text-[10px] text-muted block uppercase font-semibold">Real</span>
+                  <span className="font-mono font-bold text-xs text-emerald">{formatBRL(summaryTotals.totalRealized)}</span>
                 </div>
                 <div className="p-1.5 rounded-lg bg-black/10 dark:bg-black/20">
-                  <span className="text-[10px] text-muted block uppercase font-semibold">Saldo / Estouro</span>
+                  <span className="text-[10px] text-muted block uppercase font-semibold">Previsto</span>
+                  <span className="font-mono font-bold text-xs text-amber">{formatBRL(summaryTotals.totalPending)}</span>
+                </div>
+                <div className="p-1.5 rounded-lg bg-black/10 dark:bg-black/20">
+                  <span className="text-[10px] text-muted block uppercase font-semibold">Disponível / Estouro</span>
                   <span className={`font-mono font-bold text-xs ${summaryTotals.totalDiff >= 0 ? 'text-emerald' : 'text-rose'}`}>
                     {summaryTotals.totalDiff >= 0 ? `+${formatBRL(summaryTotals.totalDiff)}` : `-${formatBRL(Math.abs(summaryTotals.totalDiff))}`}
                   </span>
