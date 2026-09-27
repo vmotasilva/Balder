@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Layers, CalendarDays, CalendarRange, List, ChevronRight, Search } from 'lucide-react';
+import { ChevronLeft, Layers, CalendarDays, CalendarRange, List, ChevronRight, Search } from 'lucide-react';
 import type { CellBreakdownSubItem } from './GridCellDetailModal';
 
 /** Estilos de visualização do detalhamento da grade. */
@@ -172,8 +172,22 @@ export const NatureDrillView: React.FC<{
   const effectiveMappingKey = mappingKey ?? (mappings.length === 1 ? mappings[0].key : null);
   const mapping = mappings.find((m) => m.key === effectiveMappingKey);
 
+  // Sobe um nível: itens → mapeamentos → naturezas
+  const goUp = () => {
+    if (mapping && mappings.length > 1) onOpenMapping(null);
+    else {
+      onOpenGroup(null);
+      onOpenMapping(null);
+    }
+  };
+
   const breadcrumb = (
     <div className="drill-breadcrumb">
+      {group && (
+        <button type="button" className="drill-back" onClick={goUp} aria-label="Voltar um nível">
+          <ChevronLeft size={14} /> Voltar
+        </button>
+      )}
       <button type="button" onClick={() => { onOpenGroup(null); onOpenMapping(null); }} disabled={!group}>
         Todas as naturezas
       </button>

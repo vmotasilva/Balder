@@ -911,6 +911,17 @@ export function buildSalaryBreakdownItem(
   };
 }
 
+// Moeda com até 3 casas (preços unitários); fora do componente para poder ser usada em qualquer cálculo
+const formatBRL = (val?: number) => {
+  if (val === undefined || val === null) return 'R$ 0,00';
+  return val.toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 3,
+  });
+};
+
 export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
   isOpen,
   onClose,
@@ -2632,15 +2643,6 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     };
   }, [isAll, activeItem, columnKey, currentRow, dynamicTotalValue, currentAmount, breakdownItems, natures, getNatureCeiling]);
 
-  const formatBRL = (val?: number) => {
-    if (val === undefined || val === null) return 'R$ 0,00';
-    return val.toLocaleString('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 3,
-    });
-  };
 
   // Renderizador unificado e interativo de linha de item/recebimento
   const renderSubItemRow = (sub: CellBreakdownSubItem) => {

@@ -186,7 +186,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         {/* Quick Action Buttons */}
         <button 
-          className="btn btn-secondary btn-sm"
+          className="btn btn-secondary btn-sm navbar-simulate-btn"
           onClick={onOpenSimulationModal}
           title="Simular decisões de compra e crédito"
         >
