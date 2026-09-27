@@ -17227,3 +17227,230 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 }
 
 
+
+/* ─── Detalhamento da grade: estilos de visualização ───────────────────────── */
+.detail-view-style-bar {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 3px;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-default);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.detail-view-style-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.detail-view-style-btn:hover {
+  color: var(--text-primary);
+}
+
+.detail-view-style-btn.active {
+  background: rgba(56, 189, 248, 0.15);
+  color: var(--accent-cyan);
+}
+
+/* Naturezas → mapeamentos → itens */
+.drill-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.drill-breadcrumb button {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  border-radius: 6px;
+  color: var(--accent-cyan);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.drill-breadcrumb button:disabled {
+  color: var(--text-primary);
+  cursor: default;
+}
+
+.drill-breadcrumb span {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.drill-row {
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+
+.drill-row-symbol {
+  font-size: 18px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.drill-subtotal {
+  margin-top: 8px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* Calendário */
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.cal-weekday {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 2px 0;
+}
+
+.cal-cell {
+  min-height: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(2, 6, 23, 0.35);
+  color: var(--text-muted);
+  font: inherit;
+  text-align: left;
+  min-width: 0;
+}
+
+.cal-cell.cal-blank {
+  background: transparent;
+  border-color: transparent;
+}
+
+.cal-cell.has-entries {
+  cursor: pointer;
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.06);
+  color: var(--text-primary);
+}
+
+.cal-cell.has-entries.is-realized {
+  border-color: rgba(16, 185, 129, 0.4);
+  background: rgba(16, 185, 129, 0.07);
+}
+
+.cal-cell.selected {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 1px var(--accent-cyan);
+}
+
+.cal-day {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.cal-symbols {
+  font-size: 15px;
+  line-height: 1.1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cal-value {
+  margin-top: auto;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.cal-undated {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px dashed var(--border-default);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cal-undated.selected {
+  border-color: var(--accent-cyan);
+}
+
+/* Semana: dia da ocorrência antes de cada linha */
+.week-entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.week-entry-day {
+  flex: 0 0 52px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+
+.week-entry-row {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (max-width: 768px) {
+  .cal-grid {
+    gap: 2px;
+  }
+
+  .cal-cell {
+    min-height: 52px;
+    padding: 3px;
+  }
+
+  .cal-symbols {
+    font-size: 12px;
+  }
+
+  .cal-value {
+    font-size: 9px;
+  }
+
+  .week-entry-day {
+    flex-basis: 40px;
+    font-size: 10px;
+  }
+}

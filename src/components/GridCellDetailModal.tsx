@@ -47,6 +47,15 @@ import {
   resolveMappingItemState,
 } from '../utils/mappingItemState';
 import { MappingItemStateModal, type MappingItemStateTarget } from './MappingItemStateModal';
+import {
+  DetailViewStyleBar,
+  NatureDrillView,
+  CalendarView,
+  WeekGroupedView,
+  DateGroupedView,
+  type DetailViewStyle,
+  type DetailViewGroup,
+} from './CellDetailViews';
 import { MovementDetailModal } from './MovementDetailModal';
 
 export interface GridCellSelection {
@@ -2374,73 +2383,99 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
   const currentOrigin = isAll ? `${breakdownItems.length} naturezas mapeadas` : activeItem?.bankOrOrigin || '';
   const currentBadge = isAll ? 'Visão Geral' : activeItem?.badge;
   const currentAmount = isAll ? dynamicTotalValue : activeItem?.amount || 0;
-  const currentSubItems = isAll ? consolidatedSubItems : activeItem?.subItems || [];
-  const currentDateGroups = isAll ? consolidatedDateGroups : activeItem?.dateGroups || [];
 
-  // Itens filtrados para exibição caso haja busca ativa por natureza/item ou filtro de Realizado/Previsto
-  const displayedSubItems = useMemo(() => {
-    let list = currentSubItems;
-    if (detailFilter === 'REALIZADO') {
-      list = list.filter((it) => it.status === 'REALIZADA');
-    } else if (detailFilter === 'PREVISTO') {
-      list = list.filter((it) => it.status !== 'REALIZADA' && it.status !== 'CANCELADA');
-    }
 
-    if (!natureSearchTerm.trim()) return list;
+  // ── Estilos de visualização do detalhamento ─────────────────────────────────
+  const [viewStyle, setViewStyle] = useState<DetailViewStyle>(() => {
+    try {
+      const saved = localStorage.getItem('balder_detail_view_style');
+      if (saved === 'NATUREZAS' || saved === 'CALENDARIO' || saved === 'SEMANA' || saved === 'DATA') return saved;
+    } catch {}
+    return 'NATUREZAS';
+  });
+  const handleViewStyleChange = (style: DetailViewStyle) => {
+    setViewStyle(style);
+    try {
+      localStorage.setItem('balder_detail_view_style', style);
+    } catch {}
+  };
+
+  // Mapeamento aberto na visão por natureza (volta ao nível de mapeamentos ao trocar natureza/mês)
+  const [drillMappingKey, setDrillMappingKey] = useState<string | null>(null);
+  useEffect(() => {
+    setDrillMappingKey(null);
+  }, [activeSelectionId, activeMonthKey, selection]);
+
+  // Grupos (naturezas, faturas, avulsos...) com itens e ocorrências datadas, já com filtro e busca aplicados
+  const viewGroups = useMemo<DetailViewGroup[]>(() => {
     const term = natureSearchTerm.trim().toLowerCase();
-    return list.filter(
-      (it) =>
-        it.description.toLowerCase().includes(term) ||
-        (it.mappingName && it.mappingName.toLowerCase().includes(term)) ||
-        (it.cardName && it.cardName.toLowerCase().includes(term)) ||
-        currentTitle.toLowerCase().includes(term)
-    );
-  }, [currentSubItems, detailFilter, natureSearchTerm, currentTitle]);
+    const passes = (s: CellBreakdownSubItem, b: CellBreakdownItem) => {
+      if (detailFilter === 'REALIZADO' && s.status !== 'REALIZADA') return false;
+      if (detailFilter === 'PREVISTO' && (s.status === 'REALIZADA' || s.status === 'CANCELADA')) return false;
+      if (!term) return true;
+      return (
+        s.description.toLowerCase().includes(term) ||
+        (s.mappingName || '').toLowerCase().includes(term) ||
+        (s.cardName || '').toLowerCase().includes(term) ||
+        b.title.toLowerCase().includes(term) ||
+        b.category.toLowerCase().includes(term)
+      );
+    };
+    const symbolOf = (b: CellBreakdownItem) => {
+      const nat = natures.find(
+        (n) => n.name.toLowerCase() === b.category.toLowerCase() || n.name.toLowerCase() === b.title.toLowerCase()
+      );
+      if (nat?.icon) return nat.icon;
+      const text = `${b.category} ${b.title}`.toLowerCase();
+      if (text.includes('cartão') || text.includes('fatura')) return '💳';
+      if (text.includes('empréstimo') || text.includes('financiamento') || text.includes('dívida')) return '🏦';
+      if (text.includes('salário')) return '💼';
+      if (text.includes('receita') || text.includes('extra')) return '💰';
+      if (text.includes('variá') || text.includes('avuls')) return '🧾';
+      if (text.includes('saldo') || text.includes('partida')) return '🏁';
+      return '📌';
+    };
+    // Grupo sem subitens vira um item único com o valor do grupo
+    const itemsOf = (b: CellBreakdownItem): CellBreakdownSubItem[] =>
+      b.subItems && b.subItems.length > 0
+        ? b.subItems
+        : b.amount > 0
+        ? [
+            {
+              id: b.id,
+              description: b.title,
+              quantity: 1,
+              price: b.amount,
+              multiplierWeeks: 1,
+              totalValue: b.amount,
+              mappingName: b.category,
+              cardName: b.bankOrOrigin,
+              status:
+                b.badge === 'Liquidado' || b.badge === 'Liquidada' || b.badge === 'Fatura Paga' ? 'REALIZADA' : 'PREVISTA',
+              movementId: b.movementId,
+            },
+          ]
+        : [];
 
-  const displayedDateGroups = useMemo(() => {
-    let list = currentDateGroups;
-    if (detailFilter === 'REALIZADO') {
-      list = list
-        .map((dg) => {
-          const items = dg.items.filter((it) => it.status === 'REALIZADA');
-          if (items.length === 0) return null;
-          const subtotal = items.reduce((acc, it) => acc + (it.paidByOthers ? 0 : it.totalValue || it.price || 0), 0);
-          return { ...dg, items, subtotal };
-        })
-        .filter((dg): dg is CellDateGroup => dg !== null);
-    } else if (detailFilter === 'PREVISTO') {
-      list = list
-        .map((dg) => {
-          const items = dg.items.filter((it) => it.status !== 'REALIZADA' && it.status !== 'CANCELADA');
-          if (items.length === 0) return null;
-          const subtotal = items.reduce((acc, it) => acc + (it.paidByOthers ? 0 : it.totalValue || it.price || 0), 0);
-          return { ...dg, items, subtotal };
-        })
-        .filter((dg): dg is CellDateGroup => dg !== null);
-    }
-
-    if (!natureSearchTerm.trim()) return list;
-    const term = natureSearchTerm.trim().toLowerCase();
-    return list
-      .map((dg) => {
-        const filteredItems = dg.items.filter(
-          (it) =>
-            it.description.toLowerCase().includes(term) ||
-            (it.mappingName && it.mappingName.toLowerCase().includes(term)) ||
-            (it.cardName && it.cardName.toLowerCase().includes(term)) ||
-            dg.eventTitle.toLowerCase().includes(term) ||
-            currentTitle.toLowerCase().includes(term)
-        );
-        if (filteredItems.length === 0) return null;
-        const subtotal = filteredItems.reduce((acc, it) => acc + (it.paidByOthers ? 0 : it.totalValue || it.price || 0), 0);
-        return {
-          ...dg,
-          items: filteredItems,
-          subtotal,
-        };
-      })
-      .filter((dg): dg is CellDateGroup => dg !== null);
-  }, [currentDateGroups, detailFilter, natureSearchTerm, currentTitle]);
+    const source = isAll ? filteredBreakdownItems : activeItem ? [activeItem] : [];
+    return source.map((b) => {
+      const base = itemsOf(b);
+      const dated =
+        b.dateGroups && b.dateGroups.length > 0
+          ? b.dateGroups.flatMap((dg) => dg.items.map((item) => ({ date: dg.isSummaryGroup ? null : dg.dateStr, item })))
+          : base.map((item) => ({
+              date: item.dueDate && /^\d{4}-\d{2}-\d{2}$/.test(item.dueDate) ? item.dueDate : null,
+              item,
+            }));
+      return {
+        id: b.id,
+        title: b.title,
+        symbol: symbolOf(b),
+        items: base.filter((s) => passes(s, b)),
+        dated: dated.filter((d) => passes(d.item, b)),
+      };
+    });
+  }, [isAll, filteredBreakdownItems, activeItem, detailFilter, natureSearchTerm, natures]);
 
   // Se a busca delimitar para exatamente uma natureza, auto-seleciona a aba dessa natureza
   useEffect(() => {
@@ -3466,47 +3501,47 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
               </div>
             )}
 
-            {displayedDateGroups.length > 0 ? (
-              displayedDateGroups.map((dg) => (
-                <div key={dg.id} className="sticky-date-group-block">
-                  {/* Cabeçalho fixo (Sticky) contendo apenas a Data e o Subtotal do dia */}
-                  <div className="sticky-date-group-header">
-                    <span className="sticky-date-title">
-                      {dg.isSummaryGroup ? '📋' : '📅'} {dg.dateFormatted}
-                    </span>
-                    <div className="sticky-date-subtotal">
-                      <span className="subtotal-prefix">Subtotal:</span>
-                      <span className="subtotal-val">{formatBRL(dg.subtotal)}</span>
-                    </div>
-                  </div>
+            {/* Estilos de visualização: Naturezas (padrão) → mapeamentos → itens, Calendário, Semana e Data */}
+            <DetailViewStyleBar value={viewStyle} onChange={handleViewStyleChange} />
 
-                  {/* Lista de itens da data */}
-                  <div className="sticky-date-items-list">
-                    {dg.items.map(renderSubItemRow)}
-                  </div>
-                </div>
-              ))
-            ) : displayedSubItems.length > 0 ? (
-              <div className="sticky-date-items-list">
-                {displayedSubItems.map(renderSubItemRow)}
-              </div>
+            {viewStyle === 'NATUREZAS' ? (
+              <NatureDrillView
+                groups={viewGroups}
+                activeGroupId={isAll ? null : activeSelectionId}
+                onOpenGroup={(id) => setActiveSelectionId(id ?? 'ALL')}
+                mappingKey={drillMappingKey}
+                onOpenMapping={setDrillMappingKey}
+                renderItem={renderSubItemRow}
+                formatBRL={formatBRL}
+              />
+            ) : viewStyle === 'CALENDARIO' ? (
+              <CalendarView
+                key={currentRow?.monthKey}
+                monthKey={currentRow?.monthKey || ''}
+                groups={viewGroups}
+                renderItem={renderSubItemRow}
+                formatBRL={formatBRL}
+              />
+            ) : viewStyle === 'SEMANA' ? (
+              <WeekGroupedView
+                monthKey={currentRow?.monthKey || ''}
+                groups={viewGroups}
+                renderItem={renderSubItemRow}
+                formatBRL={formatBRL}
+              />
             ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-center text-muted">
-                <Search size={32} className="opacity-30 mb-2" />
-                <p className="text-xs">
-                  {natureSearchTerm
-                    ? `Nenhum lançamento encontrado para "${natureSearchTerm}".`
-                    : 'Nenhum lançamento encontrado para esta seleção.'}
-                </p>
-                {natureSearchTerm && (
-                  <button
-                    type="button"
-                    onClick={() => setNatureSearchTerm('')}
-                    className="mt-2 text-xs text-cyan-500 hover:underline cursor-pointer font-medium"
-                  >
-                    Limpar filtro de busca
-                  </button>
-                )}
+              <DateGroupedView groups={viewGroups} renderItem={renderSubItemRow} formatBRL={formatBRL} />
+            )}
+
+            {natureSearchTerm && viewGroups.every((g) => g.items.length === 0 && g.dated.length === 0) && (
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => setNatureSearchTerm('')}
+                  className="mt-2 text-xs text-cyan-500 hover:underline cursor-pointer font-medium"
+                >
+                  Limpar filtro de busca
+                </button>
               </div>
             )}
           </div>
