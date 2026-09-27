@@ -3,7 +3,7 @@ import { parseMoney } from '../utils/parseDecimal';
 import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
 import type { MovementType, MovementStatus, Movement } from '../types';
-import { Calendar, Split } from 'lucide-react';
+import { Calendar, Split, Repeat } from 'lucide-react';
 
 // Valores digitados aceitam vírgula ou ponto como decimal ("7.073,70", "7073,70", "7073.70")
 const parseBRLAmount = (val: string): number => parseMoney(val);
@@ -54,11 +54,19 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
         setNotes('');
       }
       setIsInstallment(false);
+      setIsRecurring(false);
+      setRecurringMonths(12);
       setInstallmentsCount(3);
       setInstallmentValueType('TOTAL');
       setFirstInstallmentRealized(true);
     }
   }, [isOpen, defaultType, initialData, accounts]);
+
+  // Repetição mensal (mesmo valor nos meses seguintes) — contas a receber e a pagar
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurringMonths, setRecurringMonths] = useState(12);
+  const canRepeat = type === 'RECEBER' || type === 'PAGAR';
+  const repeating = canRepeat && isRecurring;
 
   // Estados de Parcelamento
   const [isInstallment, setIsInstallment] = useState(false);
@@ -111,7 +119,24 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
       return;
     }
 
-    if (isInstallment && count >= 2) {
+    if (repeating && recurringMonths >= 2) {
+      const groupId = `rec_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+      const dates = getInstallmentDates(dueDate, recurringMonths);
+      addMultipleMovements(
+        dates.map((dateStr, idx) => ({
+          title: title.trim(),
+          type,
+          amount: parsedAmount,
+          dueDate: dateStr,
+          bank,
+          // Só o primeiro mês pode já ter acontecido; os seguintes ficam previstos
+          status: idx === 0 ? status : 'PREVISTA',
+          category,
+          notes: (notes.trim() ? `${notes.trim()} • ` : '') + `Repetição mensal ${idx + 1}/${recurringMonths}`,
+          installmentGroupId: groupId,
+        }))
+      );
+    } else if (isInstallment && count >= 2) {
       const groupId = `inst_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
 
       const itemsToAdd: Omit<Movement, 'id'>[] = installmentDates.map((dateStr, idx) => {
@@ -306,7 +331,10 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
               <input
                 type="checkbox"
                 checked={isInstallment}
-                onChange={(e) => setIsInstallment(e.target.checked)}
+                onChange={(e) => {
+                  setIsInstallment(e.target.checked);
+                  if (e.target.checked) setIsRecurring(false);
+                }}
               />
               <span className="installment-switch-pill">
                 {isInstallment ? 'PARCELADO' : 'À VISTA / ÚNICA'}
@@ -395,6 +423,62 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
             </div>
           )}
         </div>
+
+        {/* REPETIÇÃO MENSAL (contas a receber e a pagar) */}
+        {canRepeat && (
+          <div className="installment-box glass-card">
+            <div className="installment-toggle-row">
+              <div className="installment-info-header">
+                <Repeat size={18} className="text-cyan" />
+                <div>
+                  <strong>Repetição mensal</strong>
+                  <span className="text-xs text-muted block">
+                    Repetir o mesmo valor todo mês, a partir da data informada
+                  </span>
+                </div>
+              </div>
+
+              <label className="installment-switch-label">
+                <input
+                  type="checkbox"
+                  checked={isRecurring}
+                  onChange={(e) => {
+                    setIsRecurring(e.target.checked);
+                    if (e.target.checked) setIsInstallment(false);
+                  }}
+                />
+                <span className="installment-switch-pill">{isRecurring ? 'TODO MÊS' : 'NÃO REPETE'}</span>
+              </label>
+            </div>
+
+            {isRecurring && (
+              <div className="installment-expanded-controls animate-fade-in mt-3">
+                <div className="form-group">
+                  <label>Repetir por</label>
+                  <select
+                    className="form-select"
+                    value={recurringMonths}
+                    onChange={(e) => setRecurringMonths(parseInt(e.target.value, 10))}
+                  >
+                    {[2, 3, 4, 6, 12, 18, 24, 36, 48, 60].map((n) => (
+                      <option key={n} value={n}>
+                        {n} meses {n === 12 ? '(1 ano)' : n === 24 ? '(2 anos)' : n === 36 ? '(3 anos)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {parsedAmount > 0 && (
+                  <p className="text-xs text-muted mt-2">
+                    {recurringMonths}× {parsedAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}, de{' '}
+                    {getInstallmentDates(dueDate, recurringMonths)[0]?.split('-').reverse().join('/')} até{' '}
+                    {getInstallmentDates(dueDate, recurringMonths)[recurringMonths - 1]?.split('-').reverse().join('/')}.
+                    {status === 'REALIZADA' ? ' O primeiro mês fica como realizado; os demais, previstos.' : ''}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Bank & Category */}
         <div className="form-row">
@@ -517,7 +601,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
             Cancelar
           </button>
           <button type="submit" className="btn btn-primary">
-            {isInstallment ? `Salvar ${count} Parcelas` : 'Salvar Movimentação'}
+            {repeating ? `Salvar ${recurringMonths} meses` : isInstallment ? `Salvar ${count} Parcelas` : 'Salvar Movimentação'}
           </button>
         </div>
       </form>
