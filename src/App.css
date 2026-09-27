@@ -19236,3 +19236,48 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .recurring-choice-only .btn {
   align-self: flex-start;
 }
+
+/* Movimentações: em conta × dinheiro em mãos */
+.origin-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.origin-summary-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: var(--bg-card);
+  text-align: left;
+  transition: border-color var(--transition-fast);
+}
+
+.origin-summary-card:hover,
+.origin-summary-card.is-active {
+  border-color: var(--accent-cyan);
+}
+
+.origin-summary-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.origin-summary-title small {
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.origin-summary-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-family: var(--font-display);
+  font-size: 13px;
+}

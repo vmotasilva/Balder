@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { CASH_IN_HAND } from '../utils/cashInHand';
 import { parseMoney } from '../utils/parseDecimal';
 import {
   CheckCircle2,
@@ -167,7 +168,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
 
   // Lista consolidada de opções de bancos
   const bankOptions = useMemo(() => {
-    const list: string[] = [];
+    const list: string[] = [CASH_IN_HAND];
     accounts.forEach((a) => {
       if (a.name && !list.includes(a.name)) list.push(a.name);
       if (a.bankName && !list.includes(a.bankName)) list.push(a.bankName);
@@ -1716,7 +1717,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
               >
                 {bankOptions.map((b) => (
                   <option key={b} value={b}>
-                    {b}
+                    {b === CASH_IN_HAND ? `💵 ${b}` : b}
                   </option>
                 ))}
               </select>

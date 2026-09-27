@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { CASH_IN_HAND } from '../utils/cashInHand';
 import { parseMoney } from '../utils/parseDecimal';
 import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
@@ -490,6 +491,9 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
               value={bank}
               onChange={(e) => setBank(e.target.value)}
             >
+              <optgroup label="Dinheiro">
+                <option value={CASH_IN_HAND}>💵 Dinheiro em mãos</option>
+              </optgroup>
               {accounts.length > 0 || cards.length > 0 || banks.length > 0 ? (
                 <>
                   {accounts.length > 0 && (

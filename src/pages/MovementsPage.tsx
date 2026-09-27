@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { isCashInHand } from '../utils/cashInHand';
 import { movementCompetenceDate } from '../utils/projectionMath';
 import { useFinancial } from '../context/FinancialContext';
 import {
@@ -38,6 +39,7 @@ interface MovementsPageProps {
 
 type TabFilter = 'TODOS' | 'RECEBER' | 'PAGAR' | 'EMPRESTIMO' | 'CARTAO';
 type StatusFilter = 'TODOS' | 'PREVISTA' | 'REALIZADA';
+type OriginFilter = 'TODOS' | 'CONTA' | 'DINHEIRO';
 
 const getCompetenceLabel = (yearMonthStr: string): string => {
   if (!yearMonthStr || yearMonthStr.length < 7) return yearMonthStr || 'Sem Data';
@@ -132,6 +134,8 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
   const [activeTab, setActiveTab] = useState<TabFilter>('TODOS');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('TODOS');
   const [bankFilter, setBankFilter] = useState<string>('TODOS');
+  // Origem do dinheiro: em conta (bancos, cartões) ou em mãos
+  const [originFilter, setOriginFilter] = useState<OriginFilter>('TODOS');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Ordenação e agrupamento por competência
@@ -213,6 +217,10 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
       if (statusFilter === 'PREVISTA' && item.status !== 'PREVISTA') return false;
       if (statusFilter === 'REALIZADA' && item.status !== 'REALIZADA') return false;
 
+      // Origem
+      if (originFilter === 'DINHEIRO' && !isCashInHand(item.bank)) return false;
+      if (originFilter === 'CONTA' && isCashInHand(item.bank)) return false;
+
       // Banco
       if (bankFilter !== 'TODOS' && item.bank && item.bank.toLowerCase() !== bankFilter.toLowerCase()) return false;
 
@@ -227,7 +235,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
 
       return true;
     });
-  }, [allMovements, activeTab, statusFilter, bankFilter, searchQuery, activeCheckpoint, includePreCheckpoint]);
+  }, [allMovements, activeTab, statusFilter, originFilter, bankFilter, searchQuery, activeCheckpoint, includePreCheckpoint]);
 
   // Ordenação prioritária por data de vencimento:
   // 'ASC' (Padrão): Vencimentos mais próximos e iminentes no topo (e.g. Set/2026 antes de 2027)
@@ -261,6 +269,20 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
     if (selectedCompetence === 'TODAS') return sortedMovements;
     return sortedMovements.filter((m) => m.dueDate && movementCompetenceDate(m).startsWith(selectedCompetence));
   }, [sortedMovements, selectedCompetence]);
+
+  // Resumo por origem (em conta × dinheiro em mãos) do que está na tela
+  const originSummary = useMemo(() => {
+    const blank = () => ({ income: 0, expense: 0, count: 0 });
+    const result = { CONTA: blank(), DINHEIRO: blank() };
+    displayedMovements.forEach((m) => {
+      if (m.status === 'CANCELADA') return;
+      const bucket = isCashInHand(m.bank) ? result.DINHEIRO : result.CONTA;
+      if (m.type === 'RECEBER') bucket.income += m.amount;
+      else bucket.expense += m.amount;
+      bucket.count += 1;
+    });
+    return result;
+  }, [displayedMovements]);
 
   // Estrutura agrupada por competência (Mês/Ano)
   interface CompetenceGroup {
@@ -848,6 +870,25 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
             </div>
           </div>
 
+          {/* Origem: em conta × dinheiro em mãos */}
+          <div className="control-group">
+            <span className="control-label">Origem:</span>
+            <div className="pill-selector">
+              <button className={`pill-btn ${originFilter === 'TODOS' ? 'active' : ''}`} onClick={() => setOriginFilter('TODOS')}>
+                Todas
+              </button>
+              <button className={`pill-btn ${originFilter === 'CONTA' ? 'active' : ''}`} onClick={() => setOriginFilter('CONTA')}>
+                Em conta
+              </button>
+              <button
+                className={`pill-btn ${originFilter === 'DINHEIRO' ? 'active' : ''}`}
+                onClick={() => setOriginFilter('DINHEIRO')}
+              >
+                💵 Dinheiro em mãos
+              </button>
+            </div>
+          </div>
+
           {/* Bank Filter */}
           <div className="control-group">
             <span className="control-label">Banco:</span>
@@ -969,6 +1010,34 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
       </div>
 
       {/* Movements Table */}
+      {/* Em conta × dinheiro em mãos, para o que está filtrado na tela */}
+      <div className="origin-summary">
+        {(['CONTA', 'DINHEIRO'] as const)
+          .filter((k) => originFilter === 'TODOS' || (originFilter === 'CONTA' ? k === 'CONTA' : k === 'DINHEIRO'))
+          .map((k) => {
+            const s = originSummary[k];
+            const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            return (
+              <button
+                key={k}
+                type="button"
+                className={`origin-summary-card ${originFilter === k ? 'is-active' : ''}`}
+                onClick={() => setOriginFilter(originFilter === k ? 'TODOS' : k)}
+                title="Filtrar por esta origem"
+              >
+                <span className="origin-summary-title">
+                  {k === 'DINHEIRO' ? '💵 Dinheiro em mãos' : '🏦 Em conta'} <small>({s.count})</small>
+                </span>
+                <span className="origin-summary-values">
+                  <span className="text-emerald">+{fmt(s.income)}</span>
+                  <span className="text-rose">−{fmt(s.expense)}</span>
+                  <strong className={s.income - s.expense < 0 ? 'text-rose' : 'text-emerald'}>= {fmt(s.income - s.expense)}</strong>
+                </span>
+              </button>
+            );
+          })}
+      </div>
+
       <div className="movements-table-card glass-card">
         {displayedMovements.length > 0 ? (
           <table className="movements-table">
