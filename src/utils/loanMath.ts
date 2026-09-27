@@ -1,9 +1,24 @@
 import type { Movement } from '../types';
 
+const isoAddMonths = (iso: string, delta: number): string => {
+  const [y, m, d] = iso.split('-').map(Number);
+  const target = new Date(y, m - 1 + delta, 1);
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}-${String(Math.min(d, lastDay)).padStart(2, '0')}`;
+};
+
+const isoDaysBetween = (from: string, to: string): number =>
+  Math.round((new Date(to + 'T12:00:00').getTime() - new Date(from + 'T12:00:00').getTime()) / 86400000);
+
 /**
- * Calcula o valor presente de uma parcela na data de pagamento informada
- * com base na taxa de juros mensal do contrato (descapitalização a juros compostos).
- * Conforme Resolução BACEN nº 3.516 e Art. 52 do Código de Defesa do Consumidor.
+ * Valor de uma parcela paga antes do vencimento (mesma regra da planilha, "Valor p/ Quitar Hoje"):
+ *
+ *   Valor da parcela / ((1 + i × (Vencimento − Data do pagamento) / 30) × (1 + i)^(Nº da parcela − 1))
+ *
+ * "Vencimento" é o primeiro vencimento do calendário da parcela que cai na data do pagamento ou depois
+ * dela, e "Nº da parcela − 1" é quantos meses a parcela está à frente desse vencimento. Ex.: pagar em
+ * 27/09 a parcela de 15/12 → Vencimento 15/10 (18 dias, juros simples pró-rata) × 2 meses compostos.
+ * No vencimento ou depois, vale o valor nominal.
  */
 export function calculatePresentValue(
   nominalAmount: number,
@@ -20,44 +35,34 @@ export function calculatePresentValue(
     return { discountedAmount: 0, discountAmount: 0, discountPercent: 0, daysToDueDate: 0 };
   }
 
-  try {
-    const due = new Date(dueDateStr + 'T12:00:00');
-    const pay = new Date(paymentDateStr + 'T12:00:00');
-    const diffMs = due.getTime() - pay.getTime();
-    const days = Math.round(diffMs / (1000 * 60 * 60 * 24));
-
-    // Se o pagamento for no dia ou após o vencimento, não há deságio de antecipação
-    if (days <= 0 || monthlyRatePercent <= 0) {
-      return {
-        discountedAmount: nominalAmount,
-        discountAmount: 0,
-        discountPercent: 0,
-        daysToDueDate: Math.max(0, days),
-      };
-    }
-
-    const i = monthlyRatePercent / 100;
-    const months = days / 30; // base comercial bancária padrão
-    const discounted = nominalAmount / Math.pow(1 + i, months);
-
-    const roundedDiscounted = Math.round(discounted * 100) / 100;
-    const discount = Math.max(0, Math.round((nominalAmount - roundedDiscounted) * 100) / 100);
-    const percent = Math.round((discount / nominalAmount) * 10000) / 100;
-
-    return {
-      discountedAmount: roundedDiscounted,
-      discountAmount: discount,
-      discountPercent: percent,
-      daysToDueDate: days,
-    };
-  } catch (err) {
-    return {
-      discountedAmount: nominalAmount,
-      discountAmount: 0,
-      discountPercent: 0,
-      daysToDueDate: 0,
-    };
+  const validIso = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+  if (!validIso(dueDateStr) || !validIso(paymentDateStr)) {
+    return { discountedAmount: nominalAmount, discountAmount: 0, discountPercent: 0, daysToDueDate: 0 };
   }
+
+  const days = isoDaysBetween(paymentDateStr, dueDateStr);
+  if (days <= 0 || monthlyRatePercent <= 0) {
+    return { discountedAmount: nominalAmount, discountAmount: 0, discountPercent: 0, daysToDueDate: Math.max(0, days) };
+  }
+
+  const i = monthlyRatePercent / 100;
+  // Meses inteiros entre o vencimento de referência (1º vencimento >= pagamento) e o da parcela
+  let monthsAhead = 0;
+  while (monthsAhead < 600 && isoAddMonths(dueDateStr, -(monthsAhead + 1)) >= paymentDateStr) monthsAhead++;
+  const referenceDue = isoAddMonths(dueDateStr, -monthsAhead);
+  const proRataDays = isoDaysBetween(paymentDateStr, referenceDue);
+
+  const divisor = (1 + i * (proRataDays / 30)) * Math.pow(1 + i, monthsAhead);
+  const roundedDiscounted = Math.round((nominalAmount / divisor) * 100) / 100;
+  const discount = Math.max(0, Math.round((nominalAmount - roundedDiscounted) * 100) / 100);
+  const percent = Math.round((discount / nominalAmount) * 10000) / 100;
+
+  return {
+    discountedAmount: roundedDiscounted,
+    discountAmount: discount,
+    discountPercent: percent,
+    daysToDueDate: days,
+  };
 }
 
 export interface LoanContractGroup {
@@ -120,6 +125,14 @@ export function groupLoanMovements(
       if (match) {
         rate = parseFloat(match[1].replace(',', '.'));
       }
+    }
+    if (!rate && firstItem.installmentGroupId) {
+      // Captação do mesmo contrato: "Captação financiada de R$ ... a 3.520% a.m."
+      const disbursement = movements.find(
+        (m) => m.installmentGroupId === firstItem.installmentGroupId && m.type === 'RECEBER' && m.notes
+      );
+      const match = disbursement?.notes?.match(/a\s*([\d.,]+)%\s*a\.m\./i);
+      if (match) rate = parseFloat(match[1].replace(',', '.'));
     }
     if (!rate) rate = 2.50; // fallback padrão se não especificado
 

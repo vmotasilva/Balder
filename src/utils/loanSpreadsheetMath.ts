@@ -7,6 +7,8 @@ export interface LoanSpreadsheetInput {
   contractDate: string;        // 'YYYY-MM-DD', ex: '2026-10-03'
   firstDueDate: string;        // 'YYYY-MM-DD', ex: '2026-10-15'
   simulationDate?: string;     // 'YYYY-MM-DD', default hoje ou data de contratação
+  /** Parcela cobrada pelo banco. A diferença para a parcela pela taxa é o IOS. */
+  installmentValueOverride?: number;
 }
 
 /**
@@ -72,6 +74,9 @@ export function calculateLoanSpreadsheet(input: LoanSpreadsheetInput): {
         firstDueDate,
         simulationDate,
         installmentValue: 0,
+        calculatedInstallmentValue: 0,
+        iosPerInstallment: 0,
+        iosTotal: 0,
         totalCost: 0,
         totalInterest: 0,
         totalPayoffToday: 0,
@@ -92,10 +97,16 @@ export function calculateLoanSpreadsheet(input: LoanSpreadsheetInput): {
   // Valor da Parcela (PMT Tabela Price)
   // PMT = adjustedPrincipal * (i / (1 - (1+i)^-n))
   const discountFactor = 1 - Math.pow(1 + i, -n);
-  const installmentValue = discountFactor > 0 ? (adjustedPrincipal * i) / discountFactor : 0;
+  const calculatedInstallment = discountFactor > 0 ? (adjustedPrincipal * i) / discountFactor : 0;
+  // Parcela efetivamente paga: a cobrada pelo banco, quando informada (inclui o IOS)
+  const override = input.installmentValueOverride;
+  const installmentValue = override && override > 0 ? override : calculatedInstallment;
+  // IOS em centavos, como aparece para o usuário (parcela cobrada − parcela pela taxa, ambas arredondadas)
+  const iosPerInstallment = Math.round(installmentValue * 100) / 100 - Math.round(calculatedInstallment * 100) / 100;
 
   const totalCost = installmentValue * n;
-  const totalInterest = totalCost - principalAmount;
+  // Juros pela taxa do banco; o IOS fica separado
+  const totalInterest = calculatedInstallment * n - principalAmount;
 
   // Linha 0 (Saldo Devedor Inicial)
   const rows: LoanSpreadsheetRow[] = [];
@@ -117,8 +128,9 @@ export function calculateLoanSpreadsheet(input: LoanSpreadsheetInput): {
 
   // Linhas 1 a N
   for (let k = 1; k <= n; k++) {
+    // Cronograma Price pela taxa do banco (juros/amortização/saldo)
     const interestValue = currentBalance * i;
-    const amortizationValue = installmentValue - interestValue;
+    const amortizationValue = calculatedInstallment - interestValue;
     currentBalance = Math.max(0, currentBalance - amortizationValue);
 
     // Valor p/ Quitar Hoje: C_k / ((1 + i * (daysDiff/30)) * (1+i)^(k-1))
@@ -161,6 +173,9 @@ export function calculateLoanSpreadsheet(input: LoanSpreadsheetInput): {
     firstDueDate,
     simulationDate,
     installmentValue: Math.round(installmentValue * 100) / 100,
+    calculatedInstallmentValue: Math.round(calculatedInstallment * 100) / 100,
+    iosPerInstallment: Math.round(iosPerInstallment * 100) / 100,
+    iosTotal: Math.round(iosPerInstallment * n * 100) / 100,
     totalCost: Math.round(totalCost * 100) / 100,
     totalInterest: Math.round(totalInterest * 100) / 100,
     totalPayoffToday: Math.round(totalPayoffTodaySum * 100) / 100,

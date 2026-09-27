@@ -106,7 +106,10 @@ export interface LoanSpreadsheetSummary {
   contractDate: string;        // '2026-10-03'
   firstDueDate: string;        // '2026-10-15'
   simulationDate: string;      // '2026-09-03'
-  installmentValue: number;    // R$ 3.598,88
+  installmentValue: number;    // R$ 3.598,88 (parcela cobrada pelo banco, quando informada)
+  calculatedInstallmentValue: number; // parcela pela Tabela Price com a taxa do banco
+  iosPerInstallment: number;   // parcela cobrada − parcela pela taxa
+  iosTotal: number;            // IOS em todas as parcelas
   totalCost: number;           // R$ 53.983,16
   totalInterest: number;       // R$ 11.983,16
   totalPayoffToday: number;    // R$ 42.000,00

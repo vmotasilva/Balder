@@ -96,26 +96,22 @@ export const LoansPage: React.FC = () => {
   }, [prepayModalMonth]);
 
   // Parâmetros do Simulador (default idêntico aos valores do arquivo Simulador Emprestimo.xlsx)
-  const [inputParams, setParams] = useState<LoanSpreadsheetInput>({
+  // Taxa e parcela vêm do banco e são informadas pelo usuário. A diferença entre a parcela cobrada e a
+  // parcela pela taxa é o IOS; as antecipações usam sempre a taxa do banco.
+  const [params, setParams] = useState<LoanSpreadsheetInput>({
     principalAmount: 42000,
     monthlyInterestRate: 0.03612, // 3.612% a.m.
     termMonths: 15,
     contractDate: '2026-10-03',
     firstDueDate: '2026-10-15',
     simulationDate: '2026-09-03',
+    installmentValueOverride: 0,
   });
-
-  // Duas formas de simular: informar a taxa (calcula a parcela) ou informar a parcela (calcula a taxa)
-  const [rateMode, setRateMode] = useState<'TAXA' | 'PARCELA'>('TAXA');
-  const [targetInstallment, setTargetInstallment] = useState(0);
-  const rateSolve = useMemo(
-    () => (rateMode === 'PARCELA' ? solveMonthlyRateForInstallment(inputParams, targetInstallment) : null),
-    [rateMode, inputParams, targetInstallment]
-  );
-  // Parâmetros efetivos: no modo parcela, a taxa vem do cálculo inverso
-  const params = useMemo<LoanSpreadsheetInput>(
-    () => (rateSolve && rateSolve.ok ? { ...inputParams, monthlyInterestRate: rateSolve.monthlyInterestRate } : inputParams),
-    [inputParams, rateSolve]
+  const typedInstallment = params.installmentValueOverride || 0;
+  // Taxa efetiva embutida na parcela cobrada (inclui o IOS), só para acompanhamento
+  const effectiveRate = useMemo(
+    () => (typedInstallment > 0 ? solveMonthlyRateForInstallment(params, typedInstallment) : null),
+    [params, typedInstallment]
   );
 
   const [contractName, setContractName] = useState('Empréstimo Financiado');
@@ -436,6 +432,10 @@ export const LoansPage: React.FC = () => {
 
   // Contratar / Efetivar simulação no fluxo de caixa do Balder
   const handleContractInBalder = () => {
+    if (typedInstallment <= 0 || params.monthlyInterestRate <= 0) {
+      alert('Informe a taxa de juros e o valor da parcela cobrados pelo banco.');
+      return;
+    }
     if (summary.installmentValue <= 0 || summary.termMonths <= 0) return;
 
     const newGroupId = `loan_sim_${Date.now()}`;
@@ -481,7 +481,8 @@ export const LoansPage: React.FC = () => {
         bank: 'Inter',
         status: isPaidPast ? 'REALIZADA' : 'PREVISTA',
         category: 'Empréstimos',
-        notes: `Tabela Price. Amortização: R$ ${row.amortizationValue.toFixed(2)} | Juros: R$ ${row.interestValue.toFixed(2)}${isPaidPast ? ' (Quitada anteriormente)' : ''}`,
+        notes: `Tabela Price. Taxa ${(params.monthlyInterestRate * 100).toFixed(5)}% a.m. Amortização: R$ ${row.amortizationValue.toFixed(2)} | Juros: R$ ${row.interestValue.toFixed(2)} | IOS: R$ ${summary.iosPerInstallment.toFixed(2)}${isPaidPast ? ' (Quitada anteriormente)' : ''}`,
+        interestRatePercent: params.monthlyInterestRate * 100,
         installmentNumber: row.month,
         installmentsTotal: summary.termMonths,
         installmentGroupId: newGroupId,
@@ -584,98 +585,80 @@ export const LoansPage: React.FC = () => {
                   />
                 </div>
 
-                <div className="form-group col-span-2">
-                  <label>Calcular a partir de</label>
-                  <div className="pill-selector loan-rate-mode" role="tablist" aria-label="Forma de cálculo">
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={rateMode === 'TAXA'}
-                      className={`pill-btn ${rateMode === 'TAXA' ? 'active' : ''}`}
-                      onClick={() => {
-                        // Mantém a taxa que estava sendo calculada como ponto de partida
-                        setParams({ ...params });
-                        setRateMode('TAXA');
-                      }}
-                    >
-                      Taxa de juros → calcula a parcela
-                    </button>
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={rateMode === 'PARCELA'}
-                      className={`pill-btn ${rateMode === 'PARCELA' ? 'active' : ''}`}
-                      onClick={() => {
-                        setTargetInstallment(summary.installmentValue);
-                        setRateMode('PARCELA');
-                      }}
-                    >
-                      Valor da parcela → calcula a taxa
-                    </button>
-                  </div>
+                <div className="form-group">
+                  <label>Taxa de Juros do banco (% a.m.) *</label>
+                  <DecimalInput
+                    money={false}
+                    maxFractionDigits={5}
+                    className="form-input"
+                    placeholder="0,00000"
+                    value={Math.round(params.monthlyInterestRate * 100 * 1e5) / 1e5}
+                    emptyWhenZero
+                    onValueChange={(v) => setParams({ ...params, monthlyInterestRate: v / 100 })}
+                  />
                 </div>
 
                 <div className="form-group">
-                  <label>
-                    Taxa de Juros (% a.m.)
-                    {rateMode === 'PARCELA' && <span className="loan-calc-tag">calculada</span>}
-                  </label>
-                  {rateMode === 'TAXA' ? (
-                    <DecimalInput
-                      money={false}
-                      maxFractionDigits={5}
-                      className="form-input"
-                      placeholder="0,00000"
-                      value={Math.round(params.monthlyInterestRate * 100 * 1e5) / 1e5}
-                      onValueChange={(v) => setParams({ ...params, monthlyInterestRate: v / 100 })}
-                    />
-                  ) : (
-                    <input
-                      type="text"
-                      readOnly
-                      className="form-input loan-calculated-field"
-                      value={
-                        rateSolve?.ok
-                          ? (params.monthlyInterestRate * 100).toLocaleString('pt-BR', { maximumFractionDigits: 5 })
-                          : '—'
-                      }
-                      title="Taxa mensal que resulta na parcela informada"
-                    />
+                  <label>Valor da Parcela cobrada (R$) *</label>
+                  <DecimalInput
+                    className="form-input"
+                    placeholder="0,00"
+                    value={typedInstallment}
+                    emptyWhenZero
+                    onValueChange={(v) => setParams({ ...params, installmentValueOverride: v })}
+                  />
+                  {typedInstallment <= 0 && (
+                    <small className="loan-calc-error">Informe a parcela que o banco cobra.</small>
                   )}
                 </div>
 
                 <div className="form-group">
                   <label>
-                    Valor da Parcela (R$)
-                    {rateMode === 'TAXA' && <span className="loan-calc-tag">calculado</span>}
+                    IOS por parcela (R$) <span className="loan-calc-tag">calculado</span>
                   </label>
-                  {rateMode === 'PARCELA' ? (
-                    <DecimalInput
-                      className="form-input"
-                      placeholder="0,00"
-                      value={targetInstallment}
-                      emptyWhenZero
-                      onValueChange={setTargetInstallment}
-                    />
-                  ) : (
-                    <input
-                      type="text"
-                      readOnly
-                      className="form-input loan-calculated-field"
-                      value={summary.installmentValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                      title="Parcela calculada pela Tabela Price com a taxa informada"
-                    />
-                  )}
-                  {rateMode === 'PARCELA' && rateSolve && !rateSolve.ok && (
-                    <small className="loan-calc-error">
-                      {rateSolve.reason === 'ABAIXO_DO_PRINCIPAL'
-                        ? `A parcela precisa ser maior que ${(rateSolve.minInstallment || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} para haver juros.`
-                        : rateSolve.reason === 'ACIMA_DO_LIMITE'
-                        ? 'Parcela alta demais: a taxa passaria de 100% a.m.'
-                        : 'Informe o valor financiado, o prazo e a parcela.'}
-                    </small>
-                  )}
+                  <input
+                    type="text"
+                    readOnly
+                    className="form-input loan-calculated-field"
+                    value={
+                      typedInstallment > 0
+                        ? summary.iosPerInstallment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                        : '—'
+                    }
+                    title="Parcela cobrada − parcela pela taxa"
+                  />
                 </div>
+
+                <div className="form-group">
+                  <label>
+                    IOS total (R$) <span className="loan-calc-tag">calculado</span>
+                  </label>
+                  <input
+                    type="text"
+                    readOnly
+                    className="form-input loan-calculated-field"
+                    value={
+                      typedInstallment > 0
+                        ? summary.iosTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+                        : '—'
+                    }
+                    title={`IOS nas ${params.termMonths} parcelas`}
+                  />
+                </div>
+
+                <p className="loan-ios-note col-span-2">
+                  Parcela pela taxa do banco:{' '}
+                  <strong>{summary.calculatedInstallmentValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+                  {effectiveRate?.ok && (
+                    <>
+                      {' '}· taxa efetiva com IOS:{' '}
+                      <strong>
+                        {(effectiveRate.monthlyInterestRate * 100).toLocaleString('pt-BR', { maximumFractionDigits: 5 })}% a.m.
+                      </strong>
+                    </>
+                  )}
+                  {' '}— os descontos por antecipação usam a taxa do banco.
+                </p>
 
                 <div className="form-group">
                   <label>Prazo (Meses)</label>
@@ -815,7 +798,9 @@ export const LoansPage: React.FC = () => {
 
               <div className="summary-metrics-list">
                 <div className="summary-metric-row highlight">
-                  <span className="metric-label">Valor da Parcela (R$):</span>
+                  <span className="metric-label">
+                    {typedInstallment > 0 ? 'Parcela cobrada (R$):' : 'Parcela pela taxa (R$):'}
+                  </span>
                   <strong className="metric-value text-cyan text-lg">
                     {summary.installmentValue.toLocaleString('pt-BR', {
                       style: 'currency',
@@ -843,6 +828,17 @@ export const LoansPage: React.FC = () => {
                     })}
                   </span>
                 </div>
+
+                {typedInstallment > 0 && (
+                  <div className="summary-metric-row">
+                    <span className="metric-label">
+                      IOS ({params.termMonths}× {summary.iosPerInstallment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}):
+                    </span>
+                    <span className="metric-value text-amber font-semibold">
+                      {summary.iosTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </span>
+                  </div>
+                )}
 
                 <div className="summary-metric-row">
                   <span className="metric-label">Valor p/ Quitar Hoje:</span>
@@ -2169,6 +2165,7 @@ export const LoansPage: React.FC = () => {
       {payingInstallment && (
         <InstallmentPaymentModal
           installment={payingInstallment}
+          monthlyRatePercent={selectedGroup?.interestRatePercent || 0}
           onClose={() => setPayingInstallment(null)}
           onConfirm={(paymentDate, amount) => {
             updateMovement(payingInstallment.id, {

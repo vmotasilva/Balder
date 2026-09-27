@@ -19119,15 +19119,6 @@ html:not([data-theme="light"]) .dark\:hover\:bg-slate-800:hover { background-col
 }
 
 /* Simulador: taxa ⇄ parcela */
-.loan-rate-mode {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 2px;
-  align-self: flex-start;
-  width: fit-content;
-  max-width: 100%;
-}
-
 .loan-calc-tag {
   margin-left: 6px;
   padding: 1px 6px;
@@ -19211,4 +19202,18 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .installment-paid-status small {
   font-size: 10.5px;
   color: var(--text-muted);
+}
+
+.loan-ios-note {
+  margin: -2px 0 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.loan-ios-note strong {
+  color: var(--text-primary);
+}
+
+.installment-pay-reset {
+  align-self: flex-start;
 }
