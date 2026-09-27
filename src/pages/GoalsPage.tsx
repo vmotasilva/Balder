@@ -1,12 +1,29 @@
 import React, { useState } from 'react';
 import { useFinancial } from '../context/FinancialContext';
-import { Plus, RefreshCw, FileText, CheckCircle2 } from 'lucide-react';
+import { Plus, RefreshCw, FileText, CheckCircle2, Archive, Ban, RotateCcw, Trash2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { NewGoalModal } from '../components/NewGoalModal';
+import { Modal } from '../components/Modal';
+import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
+import type { Goal } from '../types';
+
+type GoalFilter = 'ATIVAS' | 'ARQUIVADA' | 'CANCELADA';
 
 export const GoalsPage: React.FC = () => {
-  const { goals } = useFinancial();
+  const { goals, goalStatuses, setGoalStatus, deleteGoal } = useFinancial();
   const [isNewGoalOpen, setIsNewGoalOpen] = useState(false);
+  const [filter, setFilter] = useState<GoalFilter>('ATIVAS');
+  const [cancelingGoal, setCancelingGoal] = useState<Goal | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const { confirm, dialogProps } = useConfirmDialog();
+
+  const statusOf = (g: Goal) => goalStatuses[g.id]?.status;
+  const counts = {
+    ATIVAS: goals.filter((g) => !statusOf(g)).length,
+    ARQUIVADA: goals.filter((g) => statusOf(g) === 'ARQUIVADA').length,
+    CANCELADA: goals.filter((g) => statusOf(g) === 'CANCELADA').length,
+  };
+  const visibleGoals = goals.filter((g) => (filter === 'ATIVAS' ? !statusOf(g) : statusOf(g) === filter));
 
   const handleCelebrate = () => {
     confetti({
@@ -69,6 +86,27 @@ export const GoalsPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Filtro: ativas, arquivadas, canceladas */}
+      {(counts.ARQUIVADA > 0 || counts.CANCELADA > 0) && (
+        <div className="pill-selector goals-filter mb-4" role="tablist">
+          {([
+            ['ATIVAS', `Ativas (${counts.ATIVAS})`],
+            ['ARQUIVADA', `Arquivadas (${counts.ARQUIVADA})`],
+            ['CANCELADA', `Canceladas (${counts.CANCELADA})`],
+          ] as const).map(([id, label]) => (
+            <button key={id} type="button" className={`pill-btn ${filter === id ? 'active' : ''}`} onClick={() => setFilter(id)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {filter !== 'ATIVAS' && visibleGoals.length === 0 && (
+        <p className="text-sm text-muted mb-4">
+          Nenhuma meta {filter === 'ARQUIVADA' ? 'arquivada' : 'cancelada'}.
+        </p>
+      )}
+
       {/* Goals Grid */}
       {goals.length === 0 && (
         <div className="glass-card text-center" style={{ padding: '2rem 1rem' }}>
@@ -82,12 +120,12 @@ export const GoalsPage: React.FC = () => {
         </div>
       )}
       <div className="goals-cards-grid">
-        {goals.map((goal) => {
+        {visibleGoals.map((goal) => {
           const percent =
             goal.targetAmount > 0 ? Math.min(Math.round((goal.currentAmount / goal.targetAmount) * 100), 100) : 0;
 
           return (
-            <div key={goal.id} className="goal-detail-card glass-card">
+            <div key={goal.id} className={`goal-detail-card glass-card ${statusOf(goal) ? 'is-closed' : ''}`}>
               <div className="goal-detail-header">
                 <div className="goal-icon-tag">
                   <span className="goal-card-emoji">{goal.icon}</span>
@@ -136,12 +174,110 @@ export const GoalsPage: React.FC = () => {
                   <span className="metric-data text-cyan">{goal.targetDate}</span>
                 </div>
               </div>
+
+              {goalStatuses[goal.id] && (
+                <p className="goal-status-note">
+                  {goalStatuses[goal.id].status === 'CANCELADA' ? 'Cancelada' : 'Arquivada'} em{' '}
+                  {new Date(goalStatuses[goal.id].at).toLocaleDateString('pt-BR')}
+                  {goalStatuses[goal.id].reason ? `: ${goalStatuses[goal.id].reason}` : '.'}
+                </p>
+              )}
+
+              <div className="goal-card-actions">
+                {statusOf(goal) ? (
+                  <button type="button" className="btn btn-outline btn-xs" onClick={() => setGoalStatus(goal.id, null)}>
+                    <RotateCcw size={13} />
+                    <span>Reativar</span>
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-xs"
+                      onClick={() => setGoalStatus(goal.id, { status: 'ARQUIVADA', at: new Date().toISOString() })}
+                      title="Tirar da lista de ativas sem apagar"
+                    >
+                      <Archive size={13} />
+                      <span>Arquivar</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-xs"
+                      onClick={() => {
+                        setCancelReason('');
+                        setCancelingGoal(goal);
+                      }}
+                      title="Desistir da meta, registrando o motivo"
+                    >
+                      <Ban size={13} />
+                      <span>Cancelar</span>
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-outline btn-xs goal-delete-btn"
+                  onClick={() =>
+                    confirm({
+                      title: 'Excluir meta',
+                      message: `Excluir "${goal.title}" apaga a meta e o histórico dela. Isso não pode ser desfeito.`,
+                      confirmLabel: 'Excluir',
+                      onConfirm: () => deleteGoal(goal.id),
+                    })
+                  }
+                >
+                  <Trash2 size={13} />
+                  <span>Excluir</span>
+                </button>
+              </div>
             </div>
           );
         })}
       </div>
 
       <NewGoalModal isOpen={isNewGoalOpen} onClose={() => setIsNewGoalOpen(false)} />
+
+      {/* Cancelamento com justificativa */}
+      <Modal
+        isOpen={!!cancelingGoal}
+        onClose={() => setCancelingGoal(null)}
+        title="Cancelar meta"
+        subtitle={cancelingGoal?.title}
+        maxWidth="440px"
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!cancelingGoal || !cancelReason.trim()) return;
+            setGoalStatus(cancelingGoal.id, { status: 'CANCELADA', reason: cancelReason.trim(), at: new Date().toISOString() });
+            setCancelingGoal(null);
+          }}
+        >
+          <div className="form-group mb-3">
+            <label htmlFor="goal-cancel-reason">Por que esta meta foi cancelada?</label>
+            <textarea
+              id="goal-cancel-reason"
+              className="form-input"
+              rows={3}
+              placeholder="Ex.: mudança de prioridade, o objetivo deixou de fazer sentido"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <p className="text-xs text-muted mb-3">A meta sai da lista de ativas e fica em "Canceladas" com esta justificativa. Dá para reativar depois.</p>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <button type="button" className="btn btn-outline btn-sm" onClick={() => setCancelingGoal(null)}>
+              Voltar
+            </button>
+            <button type="submit" className="btn btn-primary btn-sm" disabled={!cancelReason.trim()}>
+              Cancelar meta
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <ConfirmDialog {...dialogProps} />
     </div>
   );
 };

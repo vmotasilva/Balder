@@ -82,6 +82,7 @@ export const NewGoalModal: React.FC<NewGoalModalProps> = ({ isOpen, onClose }) =
     goals,
     cards,
     activeCheckpoint,
+    goalStatuses,
   } = useFinancial();
 
   const [title, setTitle] = useState('');
@@ -116,8 +117,13 @@ export const NewGoalModal: React.FC<NewGoalModalProps> = ({ isOpen, onClose }) =
   }, [movements, natures, monthlyClosings, activeCheckpoint?.startDate]);
 
   const committedToOtherGoals = useMemo(
-    () => goals.reduce((acc, g) => acc + (g.currentAmount < g.targetAmount ? g.monthlyContribution || 0 : 0), 0),
-    [goals]
+    // Só metas ativas (arquivadas e canceladas não comprometem a folga)
+    () =>
+      goals.reduce(
+        (acc, g) => acc + (!goalStatuses[g.id] && g.currentAmount < g.targetAmount ? g.monthlyContribution || 0 : 0),
+        0
+      ),
+    [goals, goalStatuses]
   );
 
   const debts = useMemo(() => {

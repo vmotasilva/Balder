@@ -127,6 +127,13 @@ export interface CriticalEvent {
   relatedEntity?: string;
 }
 
+/** Meta arquivada ou cancelada (guardada no perfil). Sem registro = ativa. */
+export interface GoalStatusInfo {
+  status: 'ARQUIVADA' | 'CANCELADA';
+  reason?: string; // justificativa (obrigatória no cancelamento)
+  at: string;      // ISO
+}
+
 export interface Goal {
   id: string;
   title: string;
@@ -588,6 +595,8 @@ export interface UserProfileSettings {
   archivedLoanGroups?: string[];
   /** Quanto do saldo inicial de cada marco estava em dinheiro em mãos (id do marco → R$). */
   checkpointCashInHand?: Record<string, number>;
+  /** Situação das metas arquivadas/canceladas, por id da meta. */
+  goalStatuses?: Record<string, GoalStatusInfo>;
 }
 
 /**

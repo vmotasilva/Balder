@@ -28,7 +28,7 @@ const survivesFormat = (id: string, formattedAtIso?: string) => {
   return Number.isFinite(ts) && ts > Date.parse(formattedAtIso);
 };
 
-import type {
+import type { GoalStatusInfo,
   Movement,
   MovementType,
   DataFormatCategory,
@@ -161,6 +161,10 @@ interface FinancialContextType {
   prepayInstallments: (movementIds: string[], discountedAmounts: Record<string, number>, paymentDate: string) => void;
   addGoal: (goal: Omit<Goal, 'id'>) => void;
   updateGoal: (id: string, updates: Partial<Goal>) => void;
+  deleteGoal: (id: string) => void;
+  /** Arquivadas/canceladas por id (sem registro = ativa). */
+  goalStatuses: Record<string, GoalStatusInfo>;
+  setGoalStatus: (goalId: string, info: GoalStatusInfo | null) => void;
   runSimulation: (preset: SimulationPresetId) => SimulationScenario;
   simulateCustomFutureScenario: (input: CustomScenarioInput) => FutureScenarioResult;
   applyScenarioToBudget: (result: FutureScenarioResult) => void;
@@ -1829,6 +1833,12 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               localStorage.setItem(`balder_shared_settlements_${user.$id}`, JSON.stringify(cloudSettlements));
             }
           }
+          if (cloudProfileSettings?.goalStatuses) {
+            setGoalStatusesState(cloudProfileSettings.goalStatuses);
+            if (user) {
+              localStorage.setItem(`balder_goal_statuses_${user.$id}`, JSON.stringify(cloudProfileSettings.goalStatuses));
+            }
+          }
           if (cloudProfileSettings?.checkpointCashInHand) {
             setCheckpointCashInHandState(cloudProfileSettings.checkpointCashInHand);
             if (user) {
@@ -2473,6 +2483,43 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           }
         })
         .catch((err) => console.error('Erro ao adicionar meta no Supabase:', err));
+    }
+  };
+
+  // Situação das metas (arquivada / cancelada com justificativa), guardada no perfil
+  const goalStatusesKey = user && !user.isGuest ? `balder_goal_statuses_${user.$id}` : 'balder_goal_statuses_guest';
+  const [goalStatuses, setGoalStatusesState] = useState<Record<string, GoalStatusInfo>>(() => {
+    try {
+      const saved = localStorage.getItem(goalStatusesKey);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {};
+  });
+
+  const persistGoalStatuses = (next: Record<string, GoalStatusInfo>) => {
+    try {
+      localStorage.setItem(goalStatusesKey, JSON.stringify(next));
+    } catch {}
+    if (user && !user.isGuest) {
+      SupabaseService.saveUserProfileSettings({ goalStatuses: next }).catch(console.error);
+    }
+  };
+
+  const setGoalStatus = (goalId: string, info: GoalStatusInfo | null) => {
+    setGoalStatusesState((prev) => {
+      const next = { ...prev };
+      if (info) next[goalId] = info;
+      else delete next[goalId];
+      persistGoalStatuses(next);
+      return next;
+    });
+  };
+
+  const deleteGoal = (id: string) => {
+    setGoals((prev) => prev.filter((g) => g.id !== id));
+    if (goalStatuses[id]) setGoalStatus(id, null);
+    if (user && !user.isGuest) {
+      SupabaseService.deleteGoal(id).catch((err) => console.error('Erro ao excluir meta no Supabase:', err));
     }
   };
 
@@ -4497,6 +4544,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         prepayInstallments,
         addGoal,
         updateGoal,
+        deleteGoal,
+        goalStatuses,
+        setGoalStatus,
         runSimulation,
         simulateCustomFutureScenario,
         applyScenarioToBudget,
