@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { movementCompetenceDate } from '../utils/projectionMath';
 import { useFinancial } from '../context/FinancialContext';
 import {
   Plus,
@@ -248,7 +249,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
     const set = new Set<string>();
     filteredMovements.forEach((m) => {
       if (m.dueDate && m.dueDate.length >= 7) {
-        set.add(m.dueDate.substring(0, 7));
+        set.add(movementCompetenceDate(m).substring(0, 7));
       }
     });
     const sorted = Array.from(set).sort();
@@ -258,7 +259,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
   // Movimentações finais a exibir após filtro específico de competência
   const displayedMovements = useMemo(() => {
     if (selectedCompetence === 'TODAS') return sortedMovements;
-    return sortedMovements.filter((m) => m.dueDate && m.dueDate.startsWith(selectedCompetence));
+    return sortedMovements.filter((m) => m.dueDate && movementCompetenceDate(m).startsWith(selectedCompetence));
   }, [sortedMovements, selectedCompetence]);
 
   // Estrutura agrupada por competência (Mês/Ano)
@@ -278,7 +279,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
     const nowMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
     displayedMovements.forEach((item) => {
-      const key = item.dueDate && item.dueDate.length >= 7 ? item.dueDate.substring(0, 7) : 'Sem Data';
+      const key = item.dueDate && item.dueDate.length >= 7 ? movementCompetenceDate(item).substring(0, 7) : 'Sem Data';
       if (!map.has(key)) {
         map.set(key, []);
       }

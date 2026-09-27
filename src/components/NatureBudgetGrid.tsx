@@ -12,7 +12,7 @@ import {
   Table,
 } from 'lucide-react';
 import type { ExpenseNature, MonthlyGridProjectionRow, MappingItem } from '../types';
-import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
+import { buildMonthlyProjectionGrid, movementCompetenceDate } from '../utils/projectionMath';
 import { mappingItemMonthValue, resolveMappingItemMonth } from '../utils/mappingItemState';
 import { GridCellDetailModal } from './GridCellDetailModal';
 import type { GridCellSelection } from './GridCellDetailModal';
@@ -118,7 +118,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
       // 2. Realizado: apurado via movimentos reais ou mapeamentos ativos no ciclo
       const matchingMovements = movements.filter((m) => {
         const isExpense = m.type === 'PAGAR' || m.type === 'CARTAO';
-        const inMonth = m.dueDate.startsWith(selectedMonthKey);
+        const inMonth = movementCompetenceDate(m).startsWith(selectedMonthKey);
         const nameMatch = m.category.toLowerCase() === nat.name.toLowerCase();
         const itemMatch = nat.mappings.some((mp) => {
           if (

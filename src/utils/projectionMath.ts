@@ -55,6 +55,15 @@ export function isSalaryMovement(m: Movement): boolean {
  * Competência (YYYY-MM) de um salário: a vinculada explicitamente pelo detalhamento
  * (installmentGroupId `sal_q1_YYYY-MM` / `sal_q2_YYYY-MM`) ou, na ausência, o mês de vencimento.
  */
+/**
+ * Data que define a competência de um lançamento: quando já foi pago e tem data de pagamento,
+ * entra no mês do pagamento (ex.: parcela que vence em 15/10 paga em 28/09 aparece em setembro);
+ * caso contrário, no mês do vencimento.
+ */
+export function movementCompetenceDate(m: Movement): string {
+  return m.status === 'REALIZADA' && m.paymentDate ? m.paymentDate : m.dueDate;
+}
+
 export function getSalaryCompetenceKey(m: Movement): string {
   const linked = m.installmentGroupId?.match(/sal_q[12]_(\d{4}-\d{2})/);
   return linked ? linked[1] : m.dueDate.slice(0, 7);
@@ -93,7 +102,7 @@ export function buildMonthlyProjectionGrid(
   // só entram lançamentos a partir dela
   if (options.startDate) {
     const startDate = options.startDate;
-    movements = movements.filter((m) => !m.dueDate || m.dueDate >= startDate);
+    movements = movements.filter((m) => !m.dueDate || movementCompetenceDate(m) >= startDate);
   }
 
   const loanMovements = movements.filter((m) => m.type === 'EMPRESTIMO');
@@ -125,7 +134,7 @@ export function buildMonthlyProjectionGrid(
       .filter((m) => {
         if (m.type !== 'RECEBER') return false;
         if (isSalaryMovement(m)) return false;
-        if (!m.dueDate.startsWith(comp.key)) return false;
+        if (!movementCompetenceDate(m).startsWith(comp.key)) return false;
         if (viewMode === 'REALIZADO') return m.status === 'REALIZADA';
         if (viewMode === 'PREVISTO') return m.status === 'PREVISTA';
         return true;
@@ -171,7 +180,7 @@ export function buildMonthlyProjectionGrid(
     const creditCardTotal = movements
       .filter((m) => {
         if (m.type !== 'CARTAO') return false;
-        if (!m.dueDate.startsWith(comp.key)) return false;
+        if (!movementCompetenceDate(m).startsWith(comp.key)) return false;
         if (viewMode === 'REALIZADO') return m.status === 'REALIZADA';
         if (viewMode === 'PREVISTO') return m.status === 'PREVISTA';
         return true;
@@ -230,7 +239,7 @@ export function buildMonthlyProjectionGrid(
           m.type === 'PAGAR' &&
           m.category !== 'Cartões' &&
           m.category !== 'Empréstimos' &&
-          m.dueDate.startsWith(comp.key) &&
+          movementCompetenceDate(m).startsWith(comp.key) &&
           m.status === 'REALIZADA'
       );
 
@@ -287,7 +296,7 @@ export function buildMonthlyProjectionGrid(
             m.type === 'PAGAR' &&
             m.category !== 'Cartões' &&
             m.category !== 'Empréstimos' &&
-            m.dueDate.startsWith(comp.key) &&
+            movementCompetenceDate(m).startsWith(comp.key) &&
             m.status === 'PREVISTA'
         )
         .reduce((acc, m) => acc + m.amount, 0);
@@ -302,7 +311,7 @@ export function buildMonthlyProjectionGrid(
             m.type === 'PAGAR' &&
             m.category !== 'Cartões' &&
             m.category !== 'Empréstimos' &&
-            m.dueDate.startsWith(comp.key)
+            movementCompetenceDate(m).startsWith(comp.key)
         )
         .reduce((acc, m) => acc + m.amount, 0);
     }
@@ -310,7 +319,7 @@ export function buildMonthlyProjectionGrid(
     // ── 6. Empréstimos Recebidos (+) ───────────────────────────────────────────
     const loanReceived = movements
       .filter((m) => {
-        if (m.type !== 'EMPRESTIMO' || m.category !== 'Recebimento' || !m.dueDate.startsWith(comp.key)) return false;
+        if (m.type !== 'EMPRESTIMO' || m.category !== 'Recebimento' || !movementCompetenceDate(m).startsWith(comp.key)) return false;
         if (viewMode === 'REALIZADO') return m.status === 'REALIZADA';
         if (viewMode === 'PREVISTO') return m.status === 'PREVISTA';
         return true;
@@ -320,7 +329,7 @@ export function buildMonthlyProjectionGrid(
     // ── 7. Parcelas de Empréstimo (-) ──────────────────────────────────────────
     const loanPayment = loanMovements
       .filter((m) => {
-        if (m.category === 'Recebimento' || !m.dueDate.startsWith(comp.key)) return false;
+        if (m.category === 'Recebimento' || !movementCompetenceDate(m).startsWith(comp.key)) return false;
         if (viewMode === 'REALIZADO') return m.status === 'REALIZADA';
         if (viewMode === 'PREVISTO') return m.status === 'PREVISTA';
         return true;

@@ -22,6 +22,8 @@ import {
   Trash2,
 } from 'lucide-react';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
+import { InstallmentPaymentModal } from '../components/InstallmentPaymentModal';
+import type { Movement } from '../types';
 import { calculateLoanSpreadsheet, solveMonthlyRateForInstallment } from '../utils/loanSpreadsheetMath';
 import type { LoanSpreadsheetInput } from '../utils/loanSpreadsheetMath';
 import { groupLoanMovements, calculatePresentValue } from '../utils/loanMath';
@@ -41,7 +43,7 @@ export const LoansPage: React.FC = () => {
     natures,
     addMovement,
     prepayInstallments,
-    toggleMovementStatus,
+    updateMovement,
     activeCheckpoint,
     monthlyClosings,
     archivedLoanGroups,
@@ -50,6 +52,8 @@ export const LoansPage: React.FC = () => {
   } = useFinancial();
   const { confirm: confirmAction, dialogProps: confirmDialogProps } = useConfirmDialog();
   const [showArchivedLoans, setShowArchivedLoans] = useState(false);
+  // Parcela sendo paga: a data do pagamento define a competência em que ela aparece
+  const [payingInstallment, setPayingInstallment] = useState<Movement | null>(null);
 
   const [activeTab, setActiveTab] = useState<'CONTRACTED' | 'SIMULATOR'>('CONTRACTED');
   const [isSimulatorModalOpen, setIsSimulatorModalOpen] = useState(false);
@@ -1796,9 +1800,19 @@ export const LoansPage: React.FC = () => {
                                 </td>
                                 <td className="th-center">
                                   {isPaid ? (
-                                    <span className="badge badge-emerald flex items-center gap-1 justify-center">
-                                      <CheckCircle2 size={12} />
-                                      <span>Paga</span>
+                                    <span className="installment-paid-status">
+                                      <span className="badge badge-emerald flex items-center gap-1 justify-center">
+                                        <CheckCircle2 size={12} />
+                                        <span>Paga</span>
+                                      </span>
+                                      {inst.paymentDate && (
+                                        <small>
+                                          em {inst.paymentDate.split('-').reverse().join('/')}
+                                          {inst.originalAmount !== undefined && Math.abs(inst.originalAmount - inst.amount) > 0.005
+                                            ? ` · ${inst.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
+                                            : ''}
+                                        </small>
+                                      )}
                                     </span>
                                   ) : (
                                     <span className="badge badge-cyan flex items-center gap-1 justify-center">
@@ -1820,7 +1834,12 @@ export const LoansPage: React.FC = () => {
                                               `Deseja reabrir a parcela ${inst.installmentNumber || ''} e marcá-la como em aberto?`
                                             )
                                           ) {
-                                            toggleMovementStatus(inst.id);
+                                            // Volta ao valor previsto e ao mês do vencimento
+                                            updateMovement(inst.id, {
+                                              status: 'PREVISTA',
+                                              amount: inst.originalAmount ?? inst.amount,
+                                              paymentDate: '',
+                                            });
                                           }
                                         }}
                                       >
@@ -1832,8 +1851,8 @@ export const LoansPage: React.FC = () => {
                                         <button
                                           type="button"
                                           className="btn btn-outline btn-xs text-emerald border-emerald-500/30 hover:bg-emerald-500/10"
-                                          title="Marcar parcela como paga"
-                                          onClick={() => toggleMovementStatus(inst.id)}
+                                          title="Informar a data e o valor do pagamento"
+                                          onClick={() => setPayingInstallment(inst)}
                                         >
                                           <Check size={12} />
                                           <span>Marcar Paga</span>
@@ -2146,6 +2165,23 @@ export const LoansPage: React.FC = () => {
       )}
 
       <ConfirmDialog {...confirmDialogProps} />
+
+      {payingInstallment && (
+        <InstallmentPaymentModal
+          installment={payingInstallment}
+          onClose={() => setPayingInstallment(null)}
+          onConfirm={(paymentDate, amount) => {
+            updateMovement(payingInstallment.id, {
+              status: 'REALIZADA',
+              paymentDate,
+              amount,
+              actualAmount: amount,
+              originalAmount: payingInstallment.originalAmount ?? payingInstallment.amount,
+            });
+            setPayingInstallment(null);
+          }}
+        />
+      )}
     </div>
   );
 };

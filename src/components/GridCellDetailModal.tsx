@@ -38,7 +38,7 @@ import type {
   InvoiceNatureItemBreakdown,
   NatureDetailMode,
 } from '../types';
-import { buildMonthlyProjectionGrid, isSalaryMovement, getSalaryCompetenceKey } from '../utils/projectionMath';
+import { buildMonthlyProjectionGrid, isSalaryMovement, getSalaryCompetenceKey, movementCompetenceDate } from '../utils/projectionMath';
 import type { ProjectionViewMode } from '../utils/projectionMath';
 import { getItemManifestationDays } from '../utils/natureScheduling';
 import {
@@ -1298,7 +1298,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
     if (columnKey === 'extras') {
       const realMovements = movements.filter(
-        (m) => m.type === 'RECEBER' && !isSalaryMovement(m) && m.dueDate.startsWith(monthPrefix)
+        (m) => m.type === 'RECEBER' && !isSalaryMovement(m) && movementCompetenceDate(m).startsWith(monthPrefix)
       );
 
       realMovements.forEach((m) => {
@@ -1370,7 +1370,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         (m) =>
           (m.type === 'CARTAO' ||
             (m.type === 'PAGAR' && (m.category === 'Cartão' || m.category.toLowerCase().includes('cartão')))) &&
-          m.dueDate.startsWith(monthPrefix)
+          movementCompetenceDate(m).startsWith(monthPrefix)
       );
 
       realCards.forEach((m) => {
@@ -1615,7 +1615,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
           m.category !== 'Cartão' &&
           !m.category.toLowerCase().includes('cartão') &&
           m.category !== 'Custo Fixo' &&
-          m.dueDate.startsWith(monthPrefix)
+          movementCompetenceDate(m).startsWith(monthPrefix)
       );
 
       realVars.forEach((m) => {
@@ -1668,7 +1668,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         (m) =>
           m.type === 'PAGAR' &&
           (m.category === 'Empréstimo' || m.category.toLowerCase().includes('empréstimo') || m.category.toLowerCase().includes('financiamento')) &&
-          m.dueDate.startsWith(monthPrefix)
+          movementCompetenceDate(m).startsWith(monthPrefix)
       );
 
       if (realLoans.length > 0) {
@@ -1838,7 +1838,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
       // 2. Extras Total (Bônus, 13º, aportes, rendimentos)
       const isExtraOfMonth = (m: Movement) =>
-        m.type === 'RECEBER' && !isSalaryMovement(m) && m.dueDate.startsWith(monthPrefix);
+        m.type === 'RECEBER' && !isSalaryMovement(m) && movementCompetenceDate(m).startsWith(monthPrefix);
       if (currentRow.extrasTotal > 0 || movements.some(isExtraOfMonth)) {
         const realMovements = movements.filter(isExtraOfMonth);
         const subItemsList: CellBreakdownSubItem[] = [];
@@ -1937,7 +1937,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         (m) =>
           (m.type === 'CARTAO' ||
             (m.type === 'PAGAR' && (m.category === 'Cartão' || m.category.toLowerCase().includes('cartão')))) &&
-          m.dueDate.startsWith(monthPrefix)
+          movementCompetenceDate(m).startsWith(monthPrefix)
       );
 
       if (monthCardMovements.length > 0) {
@@ -3443,7 +3443,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                 (m) =>
                   (m.type === 'CARTAO' ||
                     (m.type === 'PAGAR' && (m.category === 'Cartão' || m.category.toLowerCase().includes('cartão')))) &&
-                  m.dueDate.startsWith(currentRow?.monthKey || row.monthKey)
+                  movementCompetenceDate(m).startsWith(currentRow?.monthKey || row.monthKey)
               );
 
               const totalAmt = invMov ? invMov.amount : (currentRow?.creditCardTotal || activeItem?.amount || 0);

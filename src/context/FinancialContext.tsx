@@ -77,6 +77,7 @@ import {
 import { deduplicateCards, getCardIdentityKey } from '../utils/cardUtils';
 import { mappingItemBaseValue, resolveMappingItemState } from '../utils/mappingItemState';
 import { buildForecastWindow, FORECAST_PERIODS, type ForecastPeriod, type ForecastWindow } from '../utils/forecastWindow';
+import { movementCompetenceDate } from '../utils/projectionMath';
 
 interface FinancialContextType {
   // Estado
@@ -1239,7 +1240,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (activeCheckpoint) {
       // Saldo = saldo inicial do marco + entradas realizadas - saídas realizadas (após startDate)
       const startDate = activeCheckpoint.startDate;
-      const realized = movements.filter((m) => m.dueDate >= startDate && m.status === 'REALIZADA');
+      const realized = movements.filter((m) => movementCompetenceDate(m) >= startDate && m.status === 'REALIZADA');
       const income  = realized.filter((m) => m.type === 'RECEBER').reduce((s, m) => s + m.amount, 0);
       const expense = realized.filter((m) => m.type !== 'RECEBER').reduce((s, m) => s + m.amount, 0);
       return Math.round((activeCheckpoint.initialBalance + income - expense) * 100) / 100;
