@@ -19680,3 +19680,22 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   font-weight: 600;
   color: var(--text-secondary);
 }
+
+.goal-base {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--border-default);
+}
+
+.goal-base-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.goal-base small {
+  font-size: 11px;
+  color: var(--text-muted);
+}

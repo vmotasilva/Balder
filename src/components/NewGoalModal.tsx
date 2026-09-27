@@ -104,17 +104,28 @@ export const NewGoalModal: React.FC<NewGoalModalProps> = ({ isOpen, onClose }) =
     return Math.round(natures.reduce((acc, n) => acc + getNatureCeiling(n, key), 0) * 100) / 100;
   }, [natures, getNatureCeiling]);
 
-  // Folga mensal: resultado médio da projeção nos próximos 6 meses
-  const monthlyCapacity = useMemo(() => {
+  // Ganho e gasto mensais: média dos próximos 6 meses da projeção (o usuário confirma ou corrige)
+  const projectedMonth = useMemo(() => {
     const key = currentMonthKey();
     const rows = buildMonthlyProjectionGrid(movements, natures, 0, monthlyClosings, 'PROJETADO', {
       startDate: activeCheckpoint?.startDate,
     })
       .filter((r) => r.monthKey >= key)
       .slice(0, 6);
-    if (rows.length === 0) return null;
-    return Math.round((rows.reduce((acc, r) => acc + r.monthNet, 0) / rows.length) * 100) / 100;
+    if (rows.length === 0) return { income: 0, expense: 0 };
+    const avg = (f: (r: (typeof rows)[number]) => number) =>
+      Math.round((rows.reduce((acc, r) => acc + f(r), 0) / rows.length) * 100) / 100;
+    return {
+      income: avg((r) => r.salary + r.extrasTotal),
+      expense: avg((r) => r.creditCardTotal + r.fixedCostDirect + r.variableCost + r.loanPayment),
+    };
   }, [movements, natures, monthlyClosings, activeCheckpoint?.startDate]);
+  const [incomeOverride, setIncomeOverride] = useState<number | null>(null);
+  const [expenseOverride, setExpenseOverride] = useState<number | null>(null);
+  const monthlyIncome = incomeOverride ?? projectedMonth.income;
+  const monthlyExpense = expenseOverride ?? projectedMonth.expense;
+  // Folga mensal = ganho − gasto (sem ganho informado, não há como avaliar)
+  const monthlyCapacity = monthlyIncome > 0 ? Math.round((monthlyIncome - monthlyExpense) * 100) / 100 : null;
 
   const committedToOtherGoals = useMemo(
     // Só metas ativas (arquivadas e canceladas não comprometem a folga)
@@ -150,6 +161,8 @@ export const NewGoalModal: React.FC<NewGoalModalProps> = ({ isOpen, onClose }) =
     setAssistOpen(false);
     setAnswers({});
     setDebtChoice('ALL');
+    setIncomeOverride(null);
+    setExpenseOverride(null);
   }, [isOpen]);
 
   const target = parseBRL(targetInput);
@@ -417,7 +430,7 @@ export const NewGoalModal: React.FC<NewGoalModalProps> = ({ isOpen, onClose }) =
       case 'SEM_FOLGA':
         return {
           tone: 'bad',
-          text: `Sua projeção não deixa folga mensal: o resultado médio dos próximos meses é ${formatBRL(monthlyCapacity ?? 0)}/mês${committedToOtherGoals > 0 ? ` e ${formatBRL(committedToOtherGoals)}/mês já vão para outras metas` : ''}. Revise gastos ou aumente as entradas para esta meta caber.`,
+          text: `Não sobra folga no mês: ganho de ${formatBRL(monthlyIncome)} e gasto de ${formatBRL(monthlyExpense)} (${formatBRL(monthlyCapacity ?? 0)}/mês)${committedToOtherGoals > 0 ? `, e ${formatBRL(committedToOtherGoals)}/mês já vão para outras metas` : ''}. Revise gastos ou aumente as entradas para esta meta caber.`,
         };
       default:
         return null;
@@ -478,6 +491,53 @@ export const NewGoalModal: React.FC<NewGoalModalProps> = ({ isOpen, onClose }) =
 
         {assistOpen && (
           <div className="goal-assist-panel mb-3">
+            {/* Antes de propor: o ganho e o gasto do mês */}
+            <div className="goal-base">
+              <span className="goal-base-title">Seu mês (confirme ou corrija antes das sugestões)</span>
+              <div className="goal-assist-grid">
+                <label className="goal-assist-field">
+                  <span>Ganho mensal (R$)</span>
+                  <DecimalInput
+                    className="form-input form-input-sm"
+                    value={monthlyIncome}
+                    emptyWhenZero
+                    onValueChange={(v) => setIncomeOverride(v)}
+                  />
+                </label>
+                <label className="goal-assist-field">
+                  <span>Gasto mensal (R$)</span>
+                  <DecimalInput
+                    className="form-input form-input-sm"
+                    value={monthlyExpense}
+                    emptyWhenZero
+                    onValueChange={(v) => setExpenseOverride(v)}
+                  />
+                </label>
+              </div>
+              <small>
+                {projectedMonth.income > 0
+                  ? `Da sua projeção: média dos próximos 6 meses (entradas previstas; saídas com naturezas, faturas e parcelas).`
+                  : 'Não encontramos entradas previstas na projeção: informe quanto você ganha por mês.'}{' '}
+                {monthlyCapacity !== null && (
+                  <strong className={monthlyCapacity < 0 ? 'text-rose' : 'text-emerald'}>
+                    Folga: {formatBRL(monthlyCapacity)}/mês.
+                  </strong>
+                )}
+                {(incomeOverride !== null || expenseOverride !== null) && (
+                  <button
+                    type="button"
+                    className="link-button"
+                    onClick={() => {
+                      setIncomeOverride(null);
+                      setExpenseOverride(null);
+                    }}
+                  >
+                    {' '}voltar aos valores da projeção
+                  </button>
+                )}
+              </small>
+            </div>
+
             <div className="goal-assist-title">
               <Sparkles size={14} />
               <span>
