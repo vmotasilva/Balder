@@ -743,12 +743,12 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
             borderRadius: '12px',
             background:
               movement.type === 'EMPRESTIMO'
-                ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(15, 23, 42, 0.8) 100%)'
+                ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, var(--mdm-surface-end) 100%)'
                 : movement.type === 'CARTAO'
-                ? 'linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, rgba(15, 23, 42, 0.8) 100%)'
+                ? 'linear-gradient(135deg, rgba(168, 85, 247, 0.12) 0%, var(--mdm-surface-end) 100%)'
                 : movement.type === 'RECEBER'
-                ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(15, 23, 42, 0.8) 100%)'
-                : 'linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, rgba(15, 23, 42, 0.8) 100%)',
+                ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, var(--mdm-surface-end) 100%)'
+                : 'linear-gradient(135deg, rgba(239, 68, 68, 0.12) 0%, var(--mdm-surface-end) 100%)',
             border:
               movement.type === 'EMPRESTIMO'
                 ? '1px solid rgba(245, 158, 11, 0.35)'
@@ -1024,8 +1024,8 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
               style={{
                 padding: '0.65rem 0.85rem',
                 borderRadius: '8px',
-                background: 'rgba(15, 23, 42, 0.65)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
+                background: 'var(--mdm-panel)',
+                border: '1px solid var(--border-default)',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '0.45rem',
@@ -1569,8 +1569,8 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
           style={{
             padding: '1rem',
             borderRadius: '12px',
-            background: 'rgba(15, 23, 42, 0.75)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
+            background: 'var(--mdm-panel)',
+            border: '1px solid var(--border-default)',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.85rem',
@@ -1603,7 +1603,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
                       : diffAmount < 0
                       ? 'rgba(16, 185, 129, 0.15)'
                       : 'rgba(244, 63, 94, 0.15)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  border: '1px solid var(--border-default)',
                 }}
               >
                 <span
@@ -1749,7 +1749,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
             bottom: '-24px',
             margin: '0.5rem -24px -24px -24px',
             padding: '0.85rem 24px',
-            background: 'rgba(15, 23, 42, 0.96)',
+            background: 'var(--mdm-footer)',
             backdropFilter: 'blur(10px)',
             borderTop: '1px solid var(--border-default)',
             display: 'flex',

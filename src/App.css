@@ -19281,3 +19281,33 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   font-family: var(--font-display);
   font-size: 13px;
 }
+
+/* Detalhe da movimentação: superfícies que seguem o tema */
+:root {
+  --mdm-surface-end: rgba(15, 23, 42, 0.8);
+  --mdm-panel: rgba(15, 23, 42, 0.75);
+  --mdm-footer: rgba(15, 23, 42, 0.96);
+}
+
+[data-theme="light"] {
+  --mdm-surface-end: #FFFFFF;
+  --mdm-panel: #F8FAFC;
+  --mdm-footer: rgba(255, 255, 255, 0.96);
+}
+
+/* Saldo em conta × em mãos */
+.navbar-stat-item .stat-split {
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.balance-split {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.balance-split strong {
+  color: var(--text-primary);
+}

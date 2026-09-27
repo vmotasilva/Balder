@@ -58,6 +58,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     isDataReady,
     totalNetWorth,
     availableBalance,
+    accountBalance,
+    cashInHandBalance,
     monthlyFreeCashflow,
     emergencyReserveMonths,
     emergencyReserveAmount,
@@ -243,10 +245,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 {availableBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
               </span>
               <div className="stat-card-footer">
-                <span className="stat-subtext">
-                  {activeCheckpoint
-                    ? (activeCheckpoint.label || 'Marco de Início Ativo')
-                    : 'Nubank + Inter conta corrente'}
+                <span className="stat-subtext balance-split">
+                  <span>🏦 Em conta: <strong>{accountBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></span>
+                  <span>💵 Em mãos: <strong>{cashInHandBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></span>
                 </span>
               </div>
             </div>

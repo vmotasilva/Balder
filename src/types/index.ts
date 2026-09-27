@@ -586,6 +586,8 @@ export interface UserProfileSettings {
   natureDetailModes?: Record<string, NatureDetailMode>;
   /** Contratos de empréstimo arquivados (id do grupo de parcelas): somem da lista, os lançamentos continuam. */
   archivedLoanGroups?: string[];
+  /** Quanto do saldo inicial de cada marco estava em dinheiro em mãos (id do marco → R$). */
+  checkpointCashInHand?: Record<string, number>;
 }
 
 /**

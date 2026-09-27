@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef } from 'react';
+import { isCashInHand } from '../utils/cashInHand';
 import { SupabaseService } from '../services/supabaseService';
 import { supabase, isSupabaseConfigured, TABLES } from '../lib/supabase';
 import { useAuth } from './AuthContext';
@@ -95,7 +96,7 @@ interface FinancialContextType {
   // Marco de Acompanhamento Financeiro & Planejamento / Cenários
   checkpoints: FinancialCheckpoint[];
   activeCheckpoint: FinancialCheckpoint | null;
-  addCheckpoint: (cp: Omit<FinancialCheckpoint, 'id' | 'createdAt' | 'isActive'>) => void;
+  addCheckpoint: (cp: Omit<FinancialCheckpoint, 'id' | 'createdAt' | 'isActive'>) => string;
   updateCheckpoint: (id: string, updates: Partial<FinancialCheckpoint>) => void;
   activateCheckpoint: (id: string) => void;
   archiveCheckpoint: (id: string) => void;
@@ -116,6 +117,11 @@ interface FinancialContextType {
   // Métricas Calculadas
   totalNetWorth: number;
   availableBalance: number;
+  /** Saldo separado por origem: em conta e em dinheiro em mãos (somam o availableBalance). */
+  accountBalance: number;
+  cashInHandBalance: number;
+  checkpointCashInHand: Record<string, number>;
+  setCheckpointCashInHand: (checkpointId: string, amount: number) => void;
   monthlyFreeCashflow: number;
   emergencyReserveMonths: number;
   emergencyReserveAmount: number;
@@ -498,6 +504,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         checkpoints: [...checkpoints.map((c) => ({ ...c, isActive: false })), newCp],
       }).catch(console.error);
     }
+    return newCp.id;
   };
 
   // Ativar um checkpoint existente pelo ID (garante que estritamente apenas 1 fique ativo)
@@ -810,6 +817,31 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       } catch {}
       if (user && !user.isGuest) {
         SupabaseService.saveUserProfileSettings({ natureDetailModes: next }).catch(console.error);
+      }
+      return next;
+    });
+  };
+
+  // Dinheiro em mãos no início de cada marco (guardado no perfil: a tabela de marcos não tem esse campo)
+  const cashInHandKey = user && !user.isGuest ? `balder_checkpoint_cash_${user.$id}` : 'balder_checkpoint_cash_guest';
+  const [checkpointCashInHand, setCheckpointCashInHandState] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem(cashInHandKey);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {};
+  });
+
+  const setCheckpointCashInHand = (checkpointId: string, amount: number) => {
+    setCheckpointCashInHandState((prev) => {
+      const next = { ...prev };
+      if (amount > 0) next[checkpointId] = Math.round(amount * 100) / 100;
+      else delete next[checkpointId];
+      try {
+        localStorage.setItem(cashInHandKey, JSON.stringify(next));
+      } catch {}
+      if (user && !user.isGuest) {
+        SupabaseService.saveUserProfileSettings({ checkpointCashInHand: next }).catch(console.error);
       }
       return next;
     });
@@ -1251,6 +1283,21 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       .reduce((acc, cur) => acc + cur.balance, 0);
   }, [activeCheckpoint, movements, accounts]);
 
+  // Dinheiro em mãos: o que havia no marco + entradas − saídas realizadas em dinheiro desde então.
+  // Sem marco: contas do tipo carteira. O restante do saldo em caixa está em conta.
+  const cashInHandBalance = useMemo(() => {
+    if (activeCheckpoint) {
+      const startDate = activeCheckpoint.startDate;
+      const flows = movements
+        .filter((m) => m.status === 'REALIZADA' && isCashInHand(m.bank) && movementCompetenceDate(m) >= startDate)
+        .reduce((acc, m) => acc + (m.type === 'RECEBER' ? m.amount : -m.amount), 0);
+      return Math.round(((checkpointCashInHand[activeCheckpoint.id] || 0) + flows) * 100) / 100;
+    }
+    return accounts.filter((a: any) => a.type === 'CARTEIRA').reduce((acc, cur) => acc + cur.balance, 0);
+  }, [activeCheckpoint, movements, checkpointCashInHand, accounts]);
+
+  const accountBalance = Math.round((availableBalance - cashInHandBalance) * 100) / 100;
+
   const totalNetWorth = useMemo(() => {
     if (activeCheckpoint) {
       if (activeCheckpoint.initialNetWorth !== undefined) {
@@ -1679,6 +1726,12 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             setSharedSettlements(cloudProfileSettings.sharedSettlements);
             if (user) {
               localStorage.setItem(`balder_shared_settlements_${user.$id}`, JSON.stringify(cloudProfileSettings.sharedSettlements));
+            }
+          }
+          if (cloudProfileSettings?.checkpointCashInHand) {
+            setCheckpointCashInHandState(cloudProfileSettings.checkpointCashInHand);
+            if (user) {
+              localStorage.setItem(`balder_checkpoint_cash_${user.$id}`, JSON.stringify(cloudProfileSettings.checkpointCashInHand));
             }
           }
           if (cloudProfileSettings?.archivedLoanGroups) {
@@ -4311,6 +4364,10 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         totalNetWorth,
 
         availableBalance,
+        accountBalance,
+        cashInHandBalance,
+        checkpointCashInHand,
+        setCheckpointCashInHand,
 
         monthlyFreeCashflow,
         emergencyReserveMonths,

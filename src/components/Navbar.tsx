@@ -30,6 +30,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const {
     availableBalance,
+    accountBalance,
+    cashInHandBalance,
     emergencyReserveMonths,
     nextCriticalEvent,
     activeCheckpoint,
@@ -105,8 +107,15 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* Quick Tickers */}
         <div className="navbar-stat-item">
           <span className="stat-label">Saldo em Caixa</span>
-          <span className="stat-value text-cyan">
+          <span
+            className="stat-value text-cyan"
+            title={`Em conta: ${accountBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} · Em mãos: ${cashInHandBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`}
+          >
             {availableBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+          </span>
+          <span className="stat-split">
+            🏦 {accountBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} · 💵{' '}
+            {cashInHandBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </span>
         </div>
 

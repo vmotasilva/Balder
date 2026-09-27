@@ -149,6 +149,8 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
     movements,
     updateCard,
     markMappingItemsFulfilled,
+    checkpointCashInHand,
+    setCheckpointCashInHand,
   } = useFinancial();
 
   const getTodayString = () => new Date().toISOString().split('T')[0];
@@ -165,6 +167,8 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
 
   const [startDate, setStartDate] = useState<string>(getTodayString());
   const [initialBalance, setInitialBalance] = useState<string>('0');
+  // Parte do saldo inicial que está em dinheiro em mãos (o restante está em conta)
+  const [initialCashInHand, setInitialCashInHand] = useState<string>('');
   const [label, setLabel] = useState<string>('');
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -191,6 +195,11 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
         const cDate = targetCheckpoint.startDate || todayStr;
         setStartDate(cDate);
         setInitialBalance(String(targetCheckpoint.initialBalance || 0));
+        setInitialCashInHand(
+          checkpointCashInHand[targetCheckpoint.id]
+            ? checkpointCashInHand[targetCheckpoint.id].toLocaleString('pt-BR', { minimumFractionDigits: 2 })
+            : ''
+        );
         setLabel(targetCheckpoint.label || `Recomeço ${new Date().toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })}`);
 
         if (targetCheckpoint.cardDebts && targetCheckpoint.cardDebts.length > 0) {
@@ -749,7 +758,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
 
     const maxInstallments = validBankDebts.reduce((max, b) => Math.max(max, b.invoices.length), 1);
 
-    addCheckpoint({
+    const newCheckpointId = addCheckpoint({
       startDate: startDate || getTodayString(),
       initialBalance: balanceNum,
       creditCardDebt: totalAllDebt > 0 ? totalAllDebt : undefined,
@@ -759,6 +768,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
       cardDebts: validBankDebts.length > 0 ? validBankDebts : undefined,
       label: label.trim() || (isInitialSetup ? 'Ponto de Partida Inicial' : `Marco de ${startDate}`),
     });
+    setCheckpointCashInHand(newCheckpointId, parseBRLNumber(initialCashInHand));
 
     // 1. Marcar itens de mapeamento das naturezas como atendidos se vinculados no detalhamento
     const itemsToFulfill: Array<{ natureId: string; mappingId: string; itemId: string; realizedValue?: number }> = [];
@@ -1021,6 +1031,28 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
             </div>
             <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 500, marginTop: '0.2rem', display: 'block' }}>
               Valor real disponível em contas e carteira no dia inicial escolhido. Em branco, começa em R$ 0,00.
+            </span>
+          </div>
+
+          {/* Campo 2b: quanto desse saldo está em dinheiro em mãos */}
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.84rem', marginBottom: '0.3rem' }}>
+              💵 Dos quais em dinheiro em mãos (R$)
+              <span style={{ fontWeight: 500, color: 'var(--text-muted)' }}>(opcional)</span>
+            </label>
+            <input
+              type="text"
+              inputMode="decimal"
+              className="form-input"
+              style={{ maxWidth: '300px' }}
+              placeholder="0,00"
+              value={initialCashInHand}
+              onChange={(e) => setInitialCashInHand(e.target.value)}
+            />
+            <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 500, marginTop: '0.2rem', display: 'block' }}>
+              {parseBRLNumber(initialCashInHand) > 0
+                ? `Em conta: ${(initialCashNum - parseBRLNumber(initialCashInHand)).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} · em mãos: ${parseBRLNumber(initialCashInHand).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`
+                : 'Dinheiro físico que você tinha nessa data. O restante do saldo fica como dinheiro em conta.'}
             </span>
           </div>
 
