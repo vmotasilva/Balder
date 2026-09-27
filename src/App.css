@@ -19626,3 +19626,15 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .goal-detail-card.is-closed {
   opacity: 0.8;
 }
+
+.vacation-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.vacation-hint .link-button {
+  margin-left: 6px;
+  font-size: 11.5px;
+}

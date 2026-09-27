@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getSalaryCompetenceKey, isSalaryMovement } from '../utils/projectionMath';
 import { CASH_IN_HAND } from '../utils/cashInHand';
 import { parseMoney } from '../utils/parseDecimal';
 import { Modal } from './Modal';
@@ -22,7 +23,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   defaultType = 'PAGAR',
   initialData,
 }) => {
-  const { addMovement, addMultipleMovements, accounts, cards, banks } = useFinancial();
+  const { addMovement, addMultipleMovements, accounts, cards, banks, movements } = useFinancial();
 
   const [type, setType] = useState<MovementType>(defaultType);
   const [title, setTitle] = useState('');
@@ -74,6 +75,27 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   const [installmentsCount, setInstallmentsCount] = useState(3);
   const [installmentValueType, setInstallmentValueType] = useState<'TOTAL' | 'PARCELA'>('TOTAL');
   const [firstInstallmentRealized, setFirstInstallmentRealized] = useState(true);
+
+  // Férias: sugere o último salário antes da data (somando as quinzenas da mesma competência) + 1/3 constitucional
+  const buildVacationSuggestion = (typeArg: MovementType, categoryArg: string, dateArg: string) => {
+    if (typeArg !== 'RECEBER' || categoryArg !== 'Férias') return null;
+    const salaries = movements
+      .filter((m) => isSalaryMovement(m) && m.status !== 'CANCELADA' && m.dueDate <= dateArg)
+      .sort((a, b) => b.dueDate.localeCompare(a.dueDate));
+    if (salaries.length === 0) return null;
+    // Prefere o último salário já recebido; senão, o último previsto
+    const reference = salaries.find((m) => m.status === 'REALIZADA') || salaries[0];
+    const competence = getSalaryCompetenceKey(reference);
+    const salary =
+      Math.round(
+        salaries
+          .filter((m) => getSalaryCompetenceKey(m) === competence && m.status === reference.status)
+          .reduce((acc, m) => acc + (m.actualAmount ?? m.amount), 0) * 100
+      ) / 100;
+    if (salary <= 0) return null;
+    return { salary, competence, value: Math.round((salary + salary / 3) * 100) / 100 };
+  };
+  const vacationSuggestion = buildVacationSuggestion(type, category, dueDate);
 
   // Cálculos das Parcelas
   const parsedAmount = parseBRLAmount(amount);
@@ -262,6 +284,22 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
               onChange={(e) => setAmount(e.target.value)}
               required
             />
+            {vacationSuggestion && (
+              <span className="form-hint vacation-hint">
+                Último salário ({vacationSuggestion.competence.split('-').reverse().join('/')}):{' '}
+                {vacationSuggestion.salary.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} + 1/3 de férias ={' '}
+                <strong>{vacationSuggestion.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+                {parseBRLAmount(amount) !== vacationSuggestion.value && (
+                  <button
+                    type="button"
+                    className="link-button"
+                    onClick={() => setAmount(vacationSuggestion.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 }))}
+                  >
+                    usar
+                  </button>
+                )}
+              </span>
+            )}
           </div>
 
           <div className="form-group flex-1">
@@ -543,7 +581,14 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
               id="mov-category"
               className="form-select"
               value={category}
-              onChange={(e) => setCategory(e.target.value)}
+              onChange={(e) => {
+                setCategory(e.target.value);
+                // Férias: já preenche o valor sugerido se o campo estiver vazio
+                const suggestion = buildVacationSuggestion(type, e.target.value, dueDate);
+                if (suggestion && !amount.trim()) {
+                  setAmount(suggestion.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 }));
+                }
+              }}
             >
               <option value="Salário">Salário & Renda</option>
               <option value="Horas Extras">Horas Extras</option>
