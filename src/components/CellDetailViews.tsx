@@ -344,6 +344,9 @@ export const DateGroupedView: React.FC<{ groups: DetailViewGroup[]; renderItem: 
 
 // ─── Por semana (uma coluna por semana) ──────────────────────────────────────
 
+/** Camada das linhas na visão por semana: naturezas, mapeamentos ou itens. */
+export type WeekLayer = 'NATUREZAS' | 'MAPEAMENTOS' | 'ITENS';
+
 export interface WeekColumnRow {
   key: string;
   symbol: string;
@@ -381,10 +384,12 @@ const monthWeeks = (monthKey: string) => {
 export function buildWeekColumns(
   monthKey: string,
   groups: DetailViewGroup[],
-  valueOf: (s: CellBreakdownSubItem) => number = itemValue
-): { columns: WeekColumn[]; rowLevel: 'NATUREZAS' | 'MAPEAMENTOS' } {
+  valueOf: (s: CellBreakdownSubItem) => number = itemValue,
+  layer?: WeekLayer
+): { columns: WeekColumn[]; rowLevel: WeekLayer } {
   const weeks = monthWeeks(monthKey);
-  const byMapping = groups.length === 1;
+  // Sem camada escolhida: mapeamentos dentro de uma natureza, naturezas quando há várias
+  const rowLevel: WeekLayer = layer ?? (groups.length === 1 ? 'MAPEAMENTOS' : 'NATUREZAS');
   const weekIndexOf = (iso: string) => {
     if (!iso.startsWith(monthKey)) return -1;
     const day = Number(iso.slice(8, 10));
@@ -400,10 +405,17 @@ export function buildWeekColumns(
   }
   const rows = new Map<string, RowAcc>();
   const rowFor = (g: DetailViewGroup, s: CellBreakdownSubItem) => {
-    const key = byMapping ? mappingKeyOf(s) : g.id;
+    const key =
+      rowLevel === 'NATUREZAS'
+        ? g.id
+        : rowLevel === 'MAPEAMENTOS'
+        ? `${g.id}|${mappingKeyOf(s)}`
+        : `${g.id}|${s.natureItemRef?.itemId ?? s.id}`;
     let row = rows.get(key);
     if (!row) {
-      row = { key, symbol: g.symbol, title: byMapping ? s.mappingName || g.title : g.title, total: 0, weights: new Map() };
+      const title =
+        rowLevel === 'NATUREZAS' ? g.title : rowLevel === 'MAPEAMENTOS' ? s.mappingName || g.title : s.description;
+      row = { key, symbol: g.symbol, title, total: 0, weights: new Map() };
       rows.set(key, row);
     }
     return row;
@@ -461,7 +473,7 @@ export function buildWeekColumns(
 
   const columns = weeks.map((w, idx) => toColumn(`w${idx}`, `Semana ${idx + 1}`, `${pad(w.start)} – ${pad(w.end)}`, buckets.get(idx)));
   if (buckets.has(-1)) columns.push(toColumn('sem-data', 'Sem data', 'fora do calendário', buckets.get(-1)));
-  return { columns, rowLevel: byMapping ? 'MAPEAMENTOS' : 'NATUREZAS' };
+  return { columns, rowLevel };
 }
 
 export interface WeekSummary {
@@ -521,8 +533,15 @@ export const WeekGroupedView: React.FC<{
   summaryGroups: DetailViewGroup[]; // sem filtro (resumo de teto, realizado e saldo)
   kind: 'in' | 'out';
   formatBRL: FormatBRL;
-}> = ({ monthKey, groups, summaryGroups, kind, formatBRL }) => {
-  const { columns, rowLevel } = useMemo(() => buildWeekColumns(monthKey, groups), [monthKey, groups]);
+  layer?: WeekLayer;                      // camada escolhida (sem valor: automática)
+  onLayerChange: (layer: WeekLayer) => void;
+  scope?: { title: string; symbol: string }; // natureza aberta (sem valor: todas)
+  onOpenGroup: (id: string | null) => void;  // null = subir para todas as naturezas
+}> = ({ monthKey, groups, summaryGroups, kind, formatBRL, layer, onLayerChange, scope, onOpenGroup }) => {
+  const { columns, rowLevel } = useMemo(
+    () => buildWeekColumns(monthKey, groups, itemValue, layer),
+    [monthKey, groups, layer]
+  );
   const summaries = useMemo(() => buildWeekSummaries(monthKey, summaryGroups), [monthKey, summaryGroups]);
   if (columns.every((c) => c.rows.length === 0) && summaryGroups.every((g) => g.items.length === 0)) {
     return <EmptyState />;
@@ -534,8 +553,50 @@ export const WeekGroupedView: React.FC<{
       ? { ceiling: 'Teto', spent: 'Gasto', left: 'Sobrou', over: 'Estourou' }
       : { ceiling: 'Previsto', spent: 'Recebido', left: 'A receber', over: 'Acima' };
 
+  const layerOptions: { value: WeekLayer; label: string }[] = [
+    { value: 'NATUREZAS', label: 'Naturezas' },
+    { value: 'MAPEAMENTOS', label: 'Mapeamentos' },
+    { value: 'ITENS', label: 'Itens' },
+  ];
+
   return (
     <div>
+      <div className="week-layer-bar">
+        {/* Trilha: subir para todas as naturezas */}
+        <div className="drill-breadcrumb" style={{ marginBottom: 0 }}>
+          <button type="button" onClick={() => onOpenGroup(null)} disabled={!scope}>
+            Todas as naturezas
+          </button>
+          {scope && (
+            <>
+              <ChevronRight size={12} />
+              <span>
+                {scope.symbol} {scope.title}
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* Camada das linhas: escolher Naturezas dentro de uma natureza sobe um nível */}
+        <div className="week-layer-toggle" role="group" aria-label="Camada">
+          <span>Camada:</span>
+          {layerOptions.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              className={rowLevel === opt.value ? 'active' : ''}
+              aria-pressed={rowLevel === opt.value}
+              onClick={() => {
+                if (opt.value === 'NATUREZAS' && scope) onOpenGroup(null);
+                onLayerChange(opt.value);
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="week-columns">
         {columns.map((col) => {
           const summary = summaries.get(col.key) || { ceiling: 0, spent: 0, remaining: 0 };
@@ -570,21 +631,35 @@ export const WeekGroupedView: React.FC<{
             {col.rows.length === 0 ? (
               <div className="week-column-empty">Sem lançamentos</div>
             ) : (
-              col.rows.map((r) => (
-                <div key={r.key} className="week-column-row" title={`${r.title}: ${formatBRL(r.value)} em ${col.label}`}>
-                  <span className="week-column-symbol">{r.symbol}</span>
-                  <span className="week-column-name">{r.title}</span>
-                  <span className="week-column-value font-mono">{formatBRL(r.value)}</span>
-                </div>
-              ))
+              col.rows.map((r) =>
+                rowLevel === 'NATUREZAS' ? (
+                  <button
+                    key={r.key}
+                    type="button"
+                    className="week-column-row is-clickable"
+                    onClick={() => onOpenGroup(r.key)}
+                    title={`${r.title}: ${formatBRL(r.value)} em ${col.label} — clique para ver os mapeamentos`}
+                  >
+                    <span className="week-column-symbol">{r.symbol}</span>
+                    <span className="week-column-name">{r.title}</span>
+                    <span className="week-column-value font-mono">{formatBRL(r.value)}</span>
+                  </button>
+                ) : (
+                  <div key={r.key} className="week-column-row" title={`${r.title}: ${formatBRL(r.value)} em ${col.label}`}>
+                    <span className="week-column-symbol">{r.symbol}</span>
+                    <span className="week-column-name">{r.title}</span>
+                    <span className="week-column-value font-mono">{formatBRL(r.value)}</span>
+                  </div>
+                )
+              )
             )}
           </div>
           );
         })}
       </div>
       <p className="text-[11px] text-muted mt-2">
-        Valor de cada {rowLevel === 'MAPEAMENTOS' ? 'mapeamento' : 'natureza'} distribuído pelos dias em que ocorre no
-        mês.
+        Valor de cada {rowLevel === 'MAPEAMENTOS' ? 'mapeamento' : rowLevel === 'ITENS' ? 'item' : 'natureza'} distribuído
+        pelos dias em que ocorre no mês.{rowLevel === 'NATUREZAS' ? ' Clique em uma natureza para ver os mapeamentos.' : ''}
       </p>
     </div>
   );

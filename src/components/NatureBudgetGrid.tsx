@@ -386,9 +386,11 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
   // Abrir modal de detalhamento para uma natureza específica
   const handleOpenNatureDetail = (row: NatureBudgetRow) => {
     if (!currentRow) return;
+    // Abre pelas saídas totais com foco na natureza: "Todas as naturezas" (subir um nível) mostra
+    // todas as naturezas do mês, não só as que têm itens no cartão
     setCellSelection({
-      columnKey: 'creditCard',
-      columnTitle: `Faturas & Detalhes — ${row.name}`,
+      columnKey: 'totalExpense',
+      columnTitle: `Detalhes — ${row.name}`,
       competenceLabel: currentRow.competenceLabel,
       formattedCompetence: currentRow.formattedCompetence,
       totalValue: row.realizedAmount,

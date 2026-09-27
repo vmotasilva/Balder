@@ -57,6 +57,7 @@ import {
   DateGroupedView,
   type DetailViewStyle,
   type DetailViewGroup,
+  type WeekLayer,
 } from './CellDetailViews';
 import { MovementDetailModal } from './MovementDetailModal';
 import { NewMovementModal } from './NewMovementModal';
@@ -2058,9 +2059,12 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
       // 2. Custos Fixos Mapeados pelas Naturezas
       if (row.fixedCostMapped > 0) {
+        const compMonthNum = parseInt(row.monthKey.split('-')[1], 10);
         natures.forEach((nat) => {
           let natItems: typeof allNatureItems = [];
           nat.mappings.forEach((m) => {
+            // Mapeamentos restritos a certos meses só entram nas competências em que se aplicam
+            if (m.applicableMonths && m.applicableMonths.length > 0 && !m.applicableMonths.includes(compMonthNum)) return;
             m.items.forEach((it) => {
               natItems.push({
                 natureId: nat.id,
@@ -2456,8 +2460,11 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
   // Mapeamento aberto na visão por natureza (volta ao nível de mapeamentos ao trocar natureza/mês)
   const [drillMappingKey, setDrillMappingKey] = useState<string | null>(null);
+  // Camada da visão por semana; null = automática (naturezas em "todas", mapeamentos dentro de uma natureza)
+  const [weekLayer, setWeekLayer] = useState<WeekLayer | null>(null);
   useEffect(() => {
     setDrillMappingKey(null);
+    setWeekLayer(null);
   }, [activeSelectionId, activeMonthKey, selection]);
 
   // Grupos (naturezas, faturas, avulsos...) com itens e ocorrências datadas, já com filtro e busca aplicados
@@ -3603,6 +3610,12 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                 summaryGroups={viewGroupsAll}
                 kind={newMovementType === 'RECEBER' ? 'in' : 'out'}
                 formatBRL={formatBRL}
+                layer={weekLayer ?? undefined}
+                onLayerChange={setWeekLayer}
+                scope={
+                  !isAll && activeItem ? { title: activeItem.title, symbol: viewGroups[0]?.symbol || '📌' } : undefined
+                }
+                onOpenGroup={(id) => setActiveSelectionId(id ?? 'ALL')}
               />
             ) : (
               <DateGroupedView groups={viewGroups} renderItem={renderSubItemRow} formatBRL={formatBRL} />

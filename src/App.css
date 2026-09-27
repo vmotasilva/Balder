@@ -17636,3 +17636,55 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .detail-view-toolbar .detail-view-style-bar {
   margin-bottom: 0;
 }
+
+/* Visão por semana: trilha (subir para todas as naturezas) e seletor de camada */
+.week-layer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.week-layer-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.week-layer-toggle button {
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.week-layer-toggle button.active {
+  border-color: var(--accent-cyan);
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--accent-cyan);
+}
+
+button.week-column-row {
+  width: 100%;
+  border: none;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+}
+
+.week-column-row.is-clickable {
+  cursor: pointer;
+}
+
+.week-column-row.is-clickable:hover {
+  background: rgba(56, 189, 248, 0.1);
+}
