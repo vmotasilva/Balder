@@ -2092,7 +2092,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
               id: `expense_fix_${nat.id}`,
               category: nat.name,
               bankOrOrigin: 'Débito / Cartão',
-              title: `Custo Fixo: ${nat.name}`,
+              title: nat.name,
               notes: nat.description || `Teto orçado mensal (${natItems.length} itens cadastrados)`,
               badge: 'Custo Fixo',
               badgeType: 'cyan',
