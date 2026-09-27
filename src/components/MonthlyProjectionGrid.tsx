@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useFinancial } from '../context/FinancialContext';
-import { Download, Info, Lock, CheckCircle2, ArrowRight, ChevronDown, ChevronUp, Clock, Layers } from 'lucide-react';
+import { Download, Info, Lock, CheckCircle2, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
 import type { ProjectionViewMode } from '../utils/projectionMath';
 import type { MonthlyGridProjectionRow } from '../types';
@@ -48,6 +48,65 @@ export const GlanceableCurrency: React.FC<{
   );
 };
 
+// Totais de entradas e saídas de uma linha da projeção
+const rowIncome = (r?: MonthlyGridProjectionRow) => (r ? r.salary + r.extrasTotal + r.loanReceived : 0);
+const rowExpense = (r?: MonthlyGridProjectionRow) =>
+  r ? r.creditCardTotal + r.fixedCostMapped + r.variableCost + r.loanPayment : 0;
+
+/**
+ * Par Real | Previsto de uma coluna (Entradas ou Saídas).
+ * Real (já recebido/pago) à esquerda e Previsto (ainda a receber/pagar) à direita; cada lado abre o detalhamento.
+ */
+const RealPlannedCell: React.FC<{
+  real: number;
+  planned: number;
+  kind: 'in' | 'out';
+  onReal: () => void;
+  onPlanned: () => void;
+}> = ({ real, planned, kind, onReal, onPlanned }) => {
+  const tone = kind === 'in' ? 'text-emerald font-bold' : 'text-rose font-semibold';
+  const what = kind === 'in' ? ['recebido', 'a receber'] : ['pago', 'a pagar'];
+  return (
+    <div className="rp-cell">
+      <button
+        type="button"
+        className="rp-part"
+        onClick={(e) => {
+          e.stopPropagation();
+          onReal();
+        }}
+        title={`Real: já ${what[0]} — clique para detalhar`}
+      >
+        <GlanceableCurrency value={real} prefix={kind === 'out' && real > 0 ? '-' : ''} isPositivePrefix={kind === 'in'} className={tone} />
+      </button>
+      <span className="rp-sep" aria-hidden="true">|</span>
+      <button
+        type="button"
+        className="rp-part rp-planned"
+        onClick={(e) => {
+          e.stopPropagation();
+          onPlanned();
+        }}
+        title={`Previsto: ainda ${what[1]} — clique para detalhar`}
+      >
+        <GlanceableCurrency value={planned} prefix={kind === 'out' && planned > 0 ? '-' : ''} isPositivePrefix={kind === 'in'} className={tone} />
+      </button>
+    </div>
+  );
+};
+
+/** Cabeçalho de coluna com as legendas Real | Previsto alinhadas às partes da célula. */
+const RealPlannedHeader: React.FC<{ title: string }> = ({ title }) => (
+  <>
+    <div>{title}</div>
+    <div className="rp-head">
+      <span>Real</span>
+      <span className="rp-sep" aria-hidden="true">|</span>
+      <span>Previsto</span>
+    </div>
+  </>
+);
+
 export const MonthlyProjectionGrid: React.FC = () => {
   const {
     movements,
@@ -60,30 +119,20 @@ export const MonthlyProjectionGrid: React.FC = () => {
 
   const initialBalance = activeCheckpoint ? activeCheckpoint.initialBalance : 0;
 
-  // Modo de visualização da projeção: 'PROJETADO' (Consolidado), 'REALIZADO' (Apenas Realizados), 'PREVISTO' (Apenas Previstos)
-  const [viewMode, setViewMode] = useState<ProjectionViewMode>(() => {
-    const saved = localStorage.getItem('balder_grid_view_mode');
-    if (saved === 'REALIZADO' || saved === 'PREVISTO' || saved === 'PROJETADO') {
-      return saved as ProjectionViewMode;
-    }
-    return 'PROJETADO';
-  });
-
-  const handleViewModeChange = (mode: ProjectionViewMode) => {
-    setViewMode(mode);
-    localStorage.setItem('balder_grid_view_mode', mode);
-  };
-
-  // Geração determinística dos dados mês a mês respeitando fechamentos, carryover e o modo ativo
-  const allRows: MonthlyGridProjectionRow[] = useMemo(() => {
-    return buildMonthlyProjectionGrid(
-      movements,
-      natures,
-      initialBalance,
-      monthlyClosings,
-      viewMode
-    );
-  }, [movements, natures, initialBalance, monthlyClosings, viewMode]);
+  // Uma única visão: Entradas e Saídas mostram Real (realizado) | Previsto (a vencer);
+  // Resultado e Saldo usam o consolidado (realizado + previsto)
+  const allRows: MonthlyGridProjectionRow[] = useMemo(
+    () => buildMonthlyProjectionGrid(movements, natures, initialBalance, monthlyClosings, 'PROJETADO'),
+    [movements, natures, initialBalance, monthlyClosings]
+  );
+  const realizedByMonth = useMemo(() => {
+    const rows = buildMonthlyProjectionGrid(movements, natures, initialBalance, monthlyClosings, 'REALIZADO');
+    return new Map(rows.map((r) => [r.monthKey, r]));
+  }, [movements, natures, initialBalance, monthlyClosings]);
+  const plannedByMonth = useMemo(() => {
+    const rows = buildMonthlyProjectionGrid(movements, natures, initialBalance, monthlyClosings, 'PREVISTO');
+    return new Map(rows.map((r) => [r.monthKey, r]));
+  }, [movements, natures, initialBalance, monthlyClosings]);
 
   // Anos disponíveis na base projetada
   const availableYears = useMemo(() => {
@@ -93,6 +142,7 @@ export const MonthlyProjectionGrid: React.FC = () => {
 
   // Filtro por Ano: padrão '2026' para garantir máximo de 12 linhas e zero scroll vertical
   const [selectedYear, setSelectedYear] = useState<string>('2026');
+  const periodLabel = selectedYear === 'ALL' ? 'Todos' : selectedYear;
 
   // Mês Atual de referência para ancorar a visão do usuário
   const currentMonthKey = '2026-09';
@@ -130,7 +180,8 @@ export const MonthlyProjectionGrid: React.FC = () => {
     row: MonthlyGridProjectionRow,
     columnKey: GridCellSelection['columnKey'],
     columnTitle: string,
-    totalValue: number
+    totalValue: number,
+    viewMode: ProjectionViewMode = 'PROJETADO'
   ) => {
     setCellSelection({
       columnKey,
@@ -143,36 +194,67 @@ export const MonthlyProjectionGrid: React.FC = () => {
     });
   };
 
+  // Atalhos de detalhamento Real | Previsto para Entradas e Saídas
+  const openIncome = (row: MonthlyGridProjectionRow, mode: 'REALIZADO' | 'PREVISTO') => {
+    const source = (mode === 'REALIZADO' ? realizedByMonth : plannedByMonth).get(row.monthKey) || row;
+    handleOpenCell(
+      source,
+      'totalIncome',
+      mode === 'REALIZADO' ? 'Entradas Reais (Recebidas)' : 'Entradas Previstas (A Receber)',
+      rowIncome(source),
+      mode
+    );
+  };
+  const openExpense = (row: MonthlyGridProjectionRow, mode: 'REALIZADO' | 'PREVISTO') => {
+    const source = (mode === 'REALIZADO' ? realizedByMonth : plannedByMonth).get(row.monthKey) || row;
+    handleOpenCell(
+      source,
+      'totalExpense',
+      mode === 'REALIZADO' ? 'Saídas Reais (Pagas)' : 'Saídas Previstas (A Pagar)',
+      rowExpense(source),
+      mode
+    );
+  };
+
   // Filtragem estrita por ano (máximo 12 linhas)
   const displayedRows = useMemo(() => {
     if (selectedYear === 'ALL') return allRows;
     return allRows.filter((r) => r.monthKey.startsWith(selectedYear));
   }, [allRows, selectedYear]);
 
+  // Valores Real | Previsto por competência exibida
+  const splitFor = (row: MonthlyGridProjectionRow) => {
+    const realized = realizedByMonth.get(row.monthKey);
+    const planned = plannedByMonth.get(row.monthKey);
+    return {
+      realIn: rowIncome(realized),
+      plannedIn: rowIncome(planned),
+      realOut: rowExpense(realized),
+      plannedOut: rowExpense(planned),
+    };
+  };
+
   // Maior resultado absoluto do período para cálculo proporcional do micro-gráfico in-line
   const maxAbsNet = useMemo(() => {
     return Math.max(...displayedRows.map((r) => Math.abs(r.monthNet)), 1);
   }, [displayedRows]);
 
-  // Totais macro consolidados do período filtrado
+  // Totais do período filtrado: Real | Previsto para entradas e saídas; resultado consolidado
   const totals = useMemo(() => {
     return displayedRows.reduce(
       (acc, r) => {
-        const totalIncome = r.salary + r.extrasTotal + r.loanReceived;
-        const totalExpense = r.creditCardTotal + r.fixedCostMapped + r.variableCost + r.loanPayment;
+        const s = splitFor(r);
         return {
-          totalIncome: acc.totalIncome + totalIncome,
-          totalExpense: acc.totalExpense + totalExpense,
+          realIn: acc.realIn + s.realIn,
+          plannedIn: acc.plannedIn + s.plannedIn,
+          realOut: acc.realOut + s.realOut,
+          plannedOut: acc.plannedOut + s.plannedOut,
           monthNet: acc.monthNet + r.monthNet,
         };
       },
-      {
-        totalIncome: 0,
-        totalExpense: 0,
-        monthNet: 0,
-      }
+      { realIn: 0, plannedIn: 0, realOut: 0, plannedOut: 0, monthNet: 0 }
     );
-  }, [displayedRows]);
+  }, [displayedRows, realizedByMonth, plannedByMonth]);
 
   const firstInitialBalance = displayedRows[0]?.initialBalance;
   const lastAccumulatedBalance = displayedRows[displayedRows.length - 1]?.accumulatedBalance || 0;
@@ -182,20 +264,23 @@ export const MonthlyProjectionGrid: React.FC = () => {
     const headers = [
       'Competencia',
       'Saldo_Inicial',
-      viewMode === 'REALIZADO' ? 'Total_Entradas_Recebidas' : viewMode === 'PREVISTO' ? 'Total_Entradas_Previstas' : 'Total_Entradas_Receitas',
-      viewMode === 'REALIZADO' ? 'Total_Saidas_Pagas' : viewMode === 'PREVISTO' ? 'Total_Saidas_Previstas' : 'Total_Saidas_Despesas',
+      'Entradas_Real',
+      'Entradas_Previsto',
+      'Saidas_Real',
+      'Saidas_Previsto',
       'Resultado_Mes',
       'Saldo_Acumulado',
     ];
 
     const csvRows = displayedRows.map((r) => {
-      const totalIncome = r.salary + r.extrasTotal + r.loanReceived;
-      const totalExpense = r.creditCardTotal + r.fixedCostMapped + r.variableCost + r.loanPayment;
+      const s = splitFor(r);
       return [
         r.formattedCompetence,
         r.initialBalance !== undefined ? r.initialBalance.toFixed(2) : '',
-        totalIncome.toFixed(2),
-        (-totalExpense).toFixed(2),
+        s.realIn.toFixed(2),
+        s.plannedIn.toFixed(2),
+        (-s.realOut).toFixed(2),
+        (-s.plannedOut).toFixed(2),
         r.monthNet.toFixed(2),
         r.accumulatedBalance.toFixed(2),
       ];
@@ -208,7 +293,7 @@ export const MonthlyProjectionGrid: React.FC = () => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Balder_Fluxo_Macro_${selectedYear}_${viewMode.toLowerCase()}.csv`);
+    link.setAttribute('download', `Balder_Fluxo_Macro_${selectedYear}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -216,70 +301,23 @@ export const MonthlyProjectionGrid: React.FC = () => {
 
   return (
     <div className="monthly-projection-grid-container glass-card animate-fade-in mt-6">
-      {/* Header com Título, Seletor de Modo (Real vs Previsto) & Filtro por Ano */}
+      {/* Header com Título & Filtro por Ano */}
       <div className="grid-section-header">
         <div className="grid-header-title-col hide-on-mobile">
           <div className="flex items-center gap-2 mb-1">
-            <span className="badge badge-cyan text-xs">VISÃO GERAL GLANCEABLE</span>
+            <span className="badge badge-cyan text-xs">VISÃO GERAL</span>
             <span className="text-xs text-muted">Fluxo de Caixa Macro</span>
           </div>
           <h2 className="text-lg font-bold flex items-center gap-2 monthly-projection-heading hide-on-mobile" style={{ color: 'var(--text-primary)' }}>
             <span>Projeção Orçamentária Mês a Mês</span>
-            <span className={`text-xs font-normal dre-competence-badge px-2 py-0.5 rounded ${
-              viewMode === 'REALIZADO'
-                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                : viewMode === 'PREVISTO'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                : ''
-            }`}>
-              {viewMode === 'REALIZADO'
-                ? 'DRE Realizada (Valores Reais)'
-                : viewMode === 'PREVISTO'
-                ? 'DRE Prevista (Planejamento)'
-                : 'DRE Sintética (Consolidada)'}
-            </span>
           </h2>
           <p className="text-xs text-secondary mt-1 monthly-projection-subtext hide-on-mobile">
-            {viewMode === 'REALIZADO'
-              ? 'Exibindo estritamente movimentações financeiras já realizadas/efetivadas. Clique nas células para inspecionar os lançamentos quitados.'
-              : viewMode === 'PREVISTO'
-              ? 'Exibindo projeção de lançamentos e orçamentos previstos a vencer. Clique nas células para inspecionar o planejamento.'
-              : 'Visão consolidada sem rolagem. Clique nas células de Entradas ou Saídas para inspecionar o detalhamento completo dos lançamentos.'}
+            Entradas e saídas mostram o que já foi <strong>realizado</strong> (esquerda) e o que ainda está{' '}
+            <strong>previsto</strong> (direita). Resultado e saldo consideram os dois.
           </p>
         </div>
 
         <div className="grid-header-actions">
-          {/* Seletor de Modo: Realizado vs Previsto vs Projetado */}
-          <div className="view-mode-filter-pills" role="group" aria-label="Modo de visualização da projeção">
-            <button
-              type="button"
-              className={`pill-btn ${viewMode === 'PROJETADO' ? 'active mode-projetado' : ''}`}
-              onClick={() => handleViewModeChange('PROJETADO')}
-              title="Visão Projetada: reúne lançamentos realizados e previsões futuras em um fluxo contínuo"
-            >
-              <Layers size={13} />
-              <span>Projetado</span>
-            </button>
-            <button
-              type="button"
-              className={`pill-btn ${viewMode === 'REALIZADO' ? 'active mode-realizado' : ''}`}
-              onClick={() => handleViewModeChange('REALIZADO')}
-              title="Apenas Valores Reais: filtra estritamente movimentações e receitas efetivadas em caixa"
-            >
-              <CheckCircle2 size={13} />
-              <span>Valores Reais</span>
-            </button>
-            <button
-              type="button"
-              className={`pill-btn ${viewMode === 'PREVISTO' ? 'active mode-previsto' : ''}`}
-              onClick={() => handleViewModeChange('PREVISTO')}
-              title="Apenas Valores Previstos: exibe os lançamentos e despesas planejados a vencer"
-            >
-              <Clock size={13} />
-              <span>Valores Previstos</span>
-            </button>
-          </div>
-
           {/* Seletor de Ano em Tabs Compactas */}
           <div className="horizon-filter-pills">
             {availableYears.map((year) => (
@@ -316,64 +354,69 @@ export const MonthlyProjectionGrid: React.FC = () => {
       {/* 4 Mini Cards de Indicadores do Grid */}
       <div className="grid-summary-kpis-row mt-3 mb-3">
         <div className="grid-kpi-card">
-          <span className="grid-kpi-title">
-            {viewMode === 'REALIZADO' ? 'Entradas Realizadas' : viewMode === 'PREVISTO' ? 'Entradas Previstas' : 'Média de Entradas'} ({selectedYear})
-          </span>
-          <strong className="grid-kpi-num text-emerald">
-            <GlanceableCurrency value={displayedRows.length > 0 ? totals.totalIncome / displayedRows.length : 0} />
-          </strong>
-          <span className="grid-kpi-sub">
-            {viewMode === 'REALIZADO' ? 'Salários + Extras já recebidos' : viewMode === 'PREVISTO' ? 'Salários + Extras planejados' : 'Salários + Extras médios'}
-          </span>
+          <span className="grid-kpi-title">Entradas ({periodLabel})</span>
+          <div className="kpi-rp">
+            <div>
+              <span className="kpi-rp-label">Real</span>
+              <strong className="grid-kpi-num text-emerald">
+                <GlanceableCurrency value={totals.realIn} />
+              </strong>
+            </div>
+            <div className="rp-planned">
+              <span className="kpi-rp-label">Previsto</span>
+              <strong className="grid-kpi-num text-emerald">
+                <GlanceableCurrency value={totals.plannedIn} />
+              </strong>
+            </div>
+          </div>
+          <span className="grid-kpi-sub">Recebido | a receber</span>
         </div>
 
         <div className="grid-kpi-card">
-          <span className="grid-kpi-title">
-            {viewMode === 'REALIZADO' ? 'Saídas Realizadas' : viewMode === 'PREVISTO' ? 'Saídas Previstas' : 'Média de Saídas'} ({selectedYear})
-          </span>
-          <strong className="grid-kpi-num text-rose">
-            <GlanceableCurrency value={displayedRows.length > 0 ? totals.totalExpense / displayedRows.length : 0} prefix="-" />
-          </strong>
-          <span className="grid-kpi-sub">
-            {viewMode === 'REALIZADO' ? 'Cartões + Fixos + Avulsos pagos' : viewMode === 'PREVISTO' ? 'Teto orçado + Faturas a vencer' : 'Cartões + Fixos + Avulsos'}
-          </span>
+          <span className="grid-kpi-title">Saídas ({periodLabel})</span>
+          <div className="kpi-rp">
+            <div>
+              <span className="kpi-rp-label">Real</span>
+              <strong className="grid-kpi-num text-rose">
+                <GlanceableCurrency value={totals.realOut} prefix={totals.realOut > 0 ? '-' : ''} />
+              </strong>
+            </div>
+            <div className="rp-planned">
+              <span className="kpi-rp-label">Previsto</span>
+              <strong className="grid-kpi-num text-rose">
+                <GlanceableCurrency value={totals.plannedOut} prefix={totals.plannedOut > 0 ? '-' : ''} />
+              </strong>
+            </div>
+          </div>
+          <span className="grid-kpi-sub">Pago | a pagar</span>
         </div>
 
         <div className="grid-kpi-card">
-          <span className="grid-kpi-title">
-            {viewMode === 'REALIZADO' ? 'Resultado Realizado' : viewMode === 'PREVISTO' ? 'Resultado Previsto' : 'Resultado Líquido do Ciclo'}
-          </span>
+          <span className="grid-kpi-title">Resultado ({periodLabel})</span>
           <strong className={`grid-kpi-num ${totals.monthNet >= 0 ? 'text-emerald' : 'text-rose'}`}>
             <GlanceableCurrency value={totals.monthNet} isPositivePrefix={true} />
           </strong>
           <span className="grid-kpi-sub">
-            {totals.monthNet >= 0
-              ? (viewMode === 'REALIZADO' ? 'Superávit efetivado em caixa' : 'Superávit acumulado')
-              : (viewMode === 'REALIZADO' ? 'Déficit efetivado em caixa' : 'Déficit acumulado')}
+            {totals.monthNet >= 0 ? 'Superávit' : 'Déficit'} considerando real + previsto
           </span>
         </div>
 
         <div className="grid-kpi-card highlight">
-          <span className="grid-kpi-title">
-            {viewMode === 'REALIZADO' ? 'Saldo Final Realizado' : viewMode === 'PREVISTO' ? 'Saldo Final Previsto' : 'Saldo Final Projetado'} ({selectedYear})
-          </span>
+          <span className="grid-kpi-title">Saldo Final ({periodLabel})</span>
           <strong className={`grid-kpi-num ${lastAccumulatedBalance >= 0 ? 'text-emerald font-bold' : 'text-rose'}`}>
             <GlanceableCurrency value={lastAccumulatedBalance} />
           </strong>
-          <span className="grid-kpi-sub">
-            {viewMode === 'REALIZADO' ? 'Posição real de caixa apurada' : viewMode === 'PREVISTO' ? 'Posição orçada ao fim do ciclo' : 'Posição de caixa ao fim do ano'}
-          </span>
+          <span className="grid-kpi-sub">Posição de caixa ao fim do período</span>
         </div>
       </div>
 
-      {/* Dica de Interatividade (Oculta na Versão Mobile) */}
+      {/* Legenda Real | Previsto (Oculta na Versão Mobile) */}
       <div className="grid-interactive-tip hide-on-mobile flex items-center gap-2 mb-2 text-xs px-3 py-2 rounded-lg">
         <Info size={14} className="flex-shrink-0 text-cyan" />
         <span>
-          <strong>Layout Glanceable:</strong> 6 macro-colunas sem rolagem. Modo ativo:{' '}
-          <strong className={viewMode === 'REALIZADO' ? 'text-emerald' : viewMode === 'PREVISTO' ? 'text-amber' : 'text-cyan'}>
-            {viewMode === 'REALIZADO' ? 'Valores Reais (Realizado)' : viewMode === 'PREVISTO' ? 'Valores Previstos (Planejado)' : 'Projetado (Consolidado)'}
-          </strong>. Clique nas células de <strong>Entradas</strong> ou <strong>Saídas</strong> para inspecionar os lançamentos e naturezas.
+          Em <strong>Entradas</strong> e <strong>Saídas</strong>: <strong>Real</strong> (esquerda) é o que já foi recebido ou
+          pago; <strong>Previsto</strong> (direita) é o que ainda vai acontecer. Clique em qualquer valor para ver os
+          lançamentos e naturezas.
         </span>
       </div>
 
@@ -382,24 +425,21 @@ export const MonthlyProjectionGrid: React.FC = () => {
         <table className="projection-glanceable-grid">
           <thead>
             <tr>
-              <th className="th-competence" style={{ width: '18%' }}>Competência</th>
-              <th style={{ width: '14%', textAlign: 'right' }}>Saldo Inicial</th>
-              <th style={{ width: '17%', textAlign: 'right' }}>
-                {viewMode === 'REALIZADO' ? 'Total Entradas (Recebidas)' : viewMode === 'PREVISTO' ? 'Total Entradas (A Receber)' : 'Total Entradas (Receitas)'}
+              <th className="th-competence" style={{ width: '16%' }}>Competência</th>
+              <th style={{ width: '12%', textAlign: 'right' }}>Saldo Inicial</th>
+              <th style={{ width: '22%', textAlign: 'right' }}>
+                <RealPlannedHeader title="Entradas" />
               </th>
-              <th style={{ width: '17%', textAlign: 'right' }}>
-                {viewMode === 'REALIZADO' ? 'Total Saídas (Pagas)' : viewMode === 'PREVISTO' ? 'Total Saídas (A Pagar)' : 'Total Saídas (Despesas)'}
+              <th style={{ width: '22%', textAlign: 'right' }}>
+                <RealPlannedHeader title="Saídas" />
               </th>
-              <th className="th-saldo" style={{ width: '20%', textAlign: 'right' }}>Resultado (Mês)</th>
-              <th className="th-acumulado" style={{ width: '14%', textAlign: 'right' }}>
-                {viewMode === 'REALIZADO' ? 'Saldo Efetivado' : viewMode === 'PREVISTO' ? 'Saldo Estimado' : 'Saldo Acumulado'}
-              </th>
+              <th className="th-saldo" style={{ width: '16%', textAlign: 'right' }}>Resultado (Mês)</th>
+              <th className="th-acumulado" style={{ width: '12%', textAlign: 'right' }}>Saldo Acumulado</th>
             </tr>
           </thead>
           <tbody>
             {displayedRows.map((row) => {
-              const totalIncome = row.salary + row.extrasTotal + row.loanReceived;
-              const totalExpense = row.creditCardTotal + row.fixedCostMapped + row.variableCost + row.loanPayment;
+              const s = splitFor(row);
               const isCurrentMonth = row.monthKey === currentMonthKey;
               const isSurplus = row.monthNet >= 0;
               const barPercent = Math.min(Math.round((Math.abs(row.monthNet) / maxAbsNet) * 100), 100);
@@ -480,28 +520,26 @@ export const MonthlyProjectionGrid: React.FC = () => {
                     </div>
                   </td>
 
-                  {/* 3. Total Entradas (Receitas) */}
-                  <td
-                    style={{ textAlign: 'right' }}
-                    className="td-clickable"
-                    title="Clique para detalhar todas as entradas (Salário CLT, 13º/Bônus e Créditos)"
-                    onClick={() =>
-                      handleOpenCell(row, 'totalIncome', 'Detalhamento de Entradas (Receitas)', totalIncome)
-                    }
-                  >
-                    <GlanceableCurrency value={totalIncome} isPositivePrefix={true} className="text-emerald font-bold" />
+                  {/* 3. Entradas: Real | Previsto */}
+                  <td style={{ textAlign: 'right' }}>
+                    <RealPlannedCell
+                      kind="in"
+                      real={s.realIn}
+                      planned={s.plannedIn}
+                      onReal={() => openIncome(row, 'REALIZADO')}
+                      onPlanned={() => openIncome(row, 'PREVISTO')}
+                    />
                   </td>
 
-                  {/* 4. Total Saídas (Despesas) */}
-                  <td
-                    style={{ textAlign: 'right' }}
-                    className="td-clickable"
-                    title="Clique para detalhar todas as saídas (Cartão, Custos Fixos Mapeados, Avulsos e Financiamentos)"
-                    onClick={() =>
-                      handleOpenCell(row, 'totalExpense', 'Detalhamento de Saídas (Despesas)', totalExpense)
-                    }
-                  >
-                    <GlanceableCurrency value={totalExpense} prefix="-" className="text-rose font-semibold" />
+                  {/* 4. Saídas: Real | Previsto */}
+                  <td style={{ textAlign: 'right' }}>
+                    <RealPlannedCell
+                      kind="out"
+                      real={s.realOut}
+                      planned={s.plannedOut}
+                      onReal={() => openExpense(row, 'REALIZADO')}
+                      onPlanned={() => openExpense(row, 'PREVISTO')}
+                    />
                   </td>
 
                   {/* 5. Resultado (Mês) com Micro-Gráfico In-line */}
@@ -551,24 +589,30 @@ export const MonthlyProjectionGrid: React.FC = () => {
             })}
           </tbody>
 
-          {/* Linha de Totais Consolidados no Rodapé */}
+          {/* Linha de Totais no Rodapé */}
           <tfoot>
             <tr className="tfoot-totals-row font-bold">
-              <th className="td-competence">
-                {viewMode === 'REALIZADO'
-                  ? 'TOTAIS REALIZADOS'
-                  : viewMode === 'PREVISTO'
-                  ? 'TOTAIS PREVISTOS'
-                  : 'TOTAIS CONSOLIDADOS'}
-              </th>
+              <th className="td-competence">TOTAIS</th>
               <th style={{ textAlign: 'right' }}>
                 <GlanceableCurrency value={firstInitialBalance} className="text-muted" />
               </th>
               <th style={{ textAlign: 'right' }}>
-                <GlanceableCurrency value={totals.totalIncome} isPositivePrefix={true} className="text-emerald" />
+                <div className="rp-cell">
+                  <GlanceableCurrency value={totals.realIn} isPositivePrefix={true} className="text-emerald" />
+                  <span className="rp-sep" aria-hidden="true">|</span>
+                  <span className="rp-planned">
+                    <GlanceableCurrency value={totals.plannedIn} isPositivePrefix={true} className="text-emerald" />
+                  </span>
+                </div>
               </th>
               <th style={{ textAlign: 'right' }}>
-                <GlanceableCurrency value={totals.totalExpense} prefix="-" className="text-rose" />
+                <div className="rp-cell">
+                  <GlanceableCurrency value={totals.realOut} prefix={totals.realOut > 0 ? '-' : ''} className="text-rose" />
+                  <span className="rp-sep" aria-hidden="true">|</span>
+                  <span className="rp-planned">
+                    <GlanceableCurrency value={totals.plannedOut} prefix={totals.plannedOut > 0 ? '-' : ''} className="text-rose" />
+                  </span>
+                </div>
               </th>
               <th style={{ textAlign: 'right' }}>
                 <div className="flex items-center justify-end gap-2.5 w-full">
@@ -596,7 +640,7 @@ export const MonthlyProjectionGrid: React.FC = () => {
         {/* Barra de controle superior dos cards mobile */}
         <div className="proj-mobile-list-header flex items-center justify-between px-1 mb-1">
           <span className="text-[11px] font-semibold text-secondary">
-            {displayedRows.length} competências ({selectedYear === 'ALL' ? 'Todos' : selectedYear})
+            {displayedRows.length} competências ({periodLabel}) • Real | Previsto
           </span>
           <button
             type="button"
@@ -608,8 +652,7 @@ export const MonthlyProjectionGrid: React.FC = () => {
         </div>
 
         {displayedRows.map((row) => {
-          const totalIncome = row.salary + row.extrasTotal + row.loanReceived;
-          const totalExpense = row.creditCardTotal + row.fixedCostMapped + row.variableCost + row.loanPayment;
+          const s = splitFor(row);
           const isCurrentMonth = row.monthKey === currentMonthKey;
           const isSurplus = row.monthNet >= 0;
           const barPercent = Math.min(Math.round((Math.abs(row.monthNet) / maxAbsNet) * 100), 100);
@@ -691,13 +734,21 @@ export const MonthlyProjectionGrid: React.FC = () => {
                     <span className="proj-sigla">SI</span>
                     <GlanceableCurrency value={row.initialBalance} className="proj-val text-secondary font-semibold" />
                   </div>
-                  <div className="proj-micro-badge" title="Entradas (Receitas)">
+                  <div className="proj-micro-badge" title="Entradas: Real | Previsto">
                     <span className="proj-sigla text-emerald">ENT</span>
-                    <GlanceableCurrency value={totalIncome} isPositivePrefix={true} className="proj-val text-emerald font-bold" />
+                    <GlanceableCurrency value={s.realIn} className="proj-val text-emerald font-bold" />
+                    <span className="rp-sep" aria-hidden="true">|</span>
+                    <span className="rp-planned">
+                      <GlanceableCurrency value={s.plannedIn} className="proj-val text-emerald font-bold" />
+                    </span>
                   </div>
-                  <div className="proj-micro-badge" title="Saídas (Despesas)">
+                  <div className="proj-micro-badge" title="Saídas: Real | Previsto">
                     <span className="proj-sigla text-rose">SAÍ</span>
-                    <GlanceableCurrency value={totalExpense} prefix="-" className="proj-val text-rose font-bold" />
+                    <GlanceableCurrency value={s.realOut} className="proj-val text-rose font-bold" />
+                    <span className="rp-sep" aria-hidden="true">|</span>
+                    <span className="rp-planned">
+                      <GlanceableCurrency value={s.plannedOut} className="proj-val text-rose font-bold" />
+                    </span>
                   </div>
                   <div className="proj-micro-badge" title="Resultado (Mês)">
                     <span className={`proj-sigla ${isSurplus ? 'text-emerald' : 'text-rose'}`}>RES</span>
@@ -738,33 +789,31 @@ export const MonthlyProjectionGrid: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Entradas */}
-                    <div
-                      className="proj-card-metric-box cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenCell(row, 'totalIncome', 'Detalhamento de Entradas (Receitas)', totalIncome);
-                      }}
-                      title="Toque para detalhar entradas"
-                    >
-                      <span className="proj-metric-label text-emerald">Entradas (Receitas)</span>
+                    {/* Entradas: Real | Previsto */}
+                    <div className="proj-card-metric-box" onClick={(e) => e.stopPropagation()}>
+                      <span className="proj-metric-label text-emerald">Entradas · Real | Previsto</span>
                       <div className="mt-0.5">
-                        <GlanceableCurrency value={totalIncome} isPositivePrefix={true} className="text-emerald font-bold text-xs" />
+                        <RealPlannedCell
+                          kind="in"
+                          real={s.realIn}
+                          planned={s.plannedIn}
+                          onReal={() => openIncome(row, 'REALIZADO')}
+                          onPlanned={() => openIncome(row, 'PREVISTO')}
+                        />
                       </div>
                     </div>
 
-                    {/* Saídas */}
-                    <div
-                      className="proj-card-metric-box cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenCell(row, 'totalExpense', 'Detalhamento de Saídas (Despesas)', totalExpense);
-                      }}
-                      title="Toque para detalhar saídas"
-                    >
-                      <span className="proj-metric-label text-rose">Saídas (Despesas)</span>
+                    {/* Saídas: Real | Previsto */}
+                    <div className="proj-card-metric-box" onClick={(e) => e.stopPropagation()}>
+                      <span className="proj-metric-label text-rose">Saídas · Real | Previsto</span>
                       <div className="mt-0.5">
-                        <GlanceableCurrency value={totalExpense} prefix="-" className="text-rose font-bold text-xs" />
+                        <RealPlannedCell
+                          kind="out"
+                          real={s.realOut}
+                          planned={s.plannedOut}
+                          onReal={() => openExpense(row, 'REALIZADO')}
+                          onPlanned={() => openExpense(row, 'PREVISTO')}
+                        />
                       </div>
                     </div>
 
@@ -829,44 +878,36 @@ export const MonthlyProjectionGrid: React.FC = () => {
           );
         })}
 
-        {/* Card de Totais Consolidados no Mobile */}
+        {/* Card de Totais no Mobile */}
         <div className="proj-mobile-totals-card">
           <div className="flex items-center justify-between pb-2 border-b border-border/40">
-            <span className="text-xs font-bold uppercase tracking-wider text-primary">
-              {viewMode === 'REALIZADO'
-                ? 'Totais Realizados'
-                : viewMode === 'PREVISTO'
-                ? 'Totais Previstos'
-                : 'Totais Consolidados'}
-            </span>
-            <span className={`badge text-[10px] ${
-              viewMode === 'REALIZADO'
-                ? 'badge-emerald'
-                : viewMode === 'PREVISTO'
-                ? 'badge-amber'
-                : 'badge-cyan'
-            }`}>
-              {viewMode === 'REALIZADO' ? 'Efetivado' : viewMode === 'PREVISTO' ? 'Planejado' : 'Consolidado'} ({displayedRows.length}m)
-            </span>
+            <span className="text-xs font-bold uppercase tracking-wider text-primary">Totais</span>
+            <span className="badge badge-cyan text-[10px]">Real | Previsto ({displayedRows.length}m)</span>
           </div>
 
           <div className="grid grid-cols-2 gap-2 mt-2">
             <div>
-              <span className="text-[10px] text-muted block">
-                {viewMode === 'REALIZADO' ? 'Total Recebido' : viewMode === 'PREVISTO' ? 'Total a Receber' : 'Total Entradas'}
-              </span>
-              <GlanceableCurrency value={totals.totalIncome} isPositivePrefix={true} className="text-emerald font-bold text-xs" />
+              <span className="text-[10px] text-muted block">Entradas · Real | Previsto</span>
+              <div className="rp-cell">
+                <GlanceableCurrency value={totals.realIn} className="text-emerald font-bold text-xs" />
+                <span className="rp-sep" aria-hidden="true">|</span>
+                <span className="rp-planned">
+                  <GlanceableCurrency value={totals.plannedIn} className="text-emerald font-bold text-xs" />
+                </span>
+              </div>
             </div>
             <div>
-              <span className="text-[10px] text-muted block">
-                {viewMode === 'REALIZADO' ? 'Total Pago' : viewMode === 'PREVISTO' ? 'Total a Pagar' : 'Total Saídas'}
-              </span>
-              <GlanceableCurrency value={totals.totalExpense} prefix="-" className="text-rose font-bold text-xs" />
+              <span className="text-[10px] text-muted block">Saídas · Real | Previsto</span>
+              <div className="rp-cell">
+                <GlanceableCurrency value={totals.realOut} prefix={totals.realOut > 0 ? '-' : ''} className="text-rose font-bold text-xs" />
+                <span className="rp-sep" aria-hidden="true">|</span>
+                <span className="rp-planned">
+                  <GlanceableCurrency value={totals.plannedOut} prefix={totals.plannedOut > 0 ? '-' : ''} className="text-rose font-bold text-xs" />
+                </span>
+              </div>
             </div>
             <div>
-              <span className="text-[10px] text-muted block">
-                {viewMode === 'REALIZADO' ? 'Resultado Efetivado' : viewMode === 'PREVISTO' ? 'Resultado Planejado' : 'Resultado Líquido'}
-              </span>
+              <span className="text-[10px] text-muted block">Resultado</span>
               <GlanceableCurrency
                 value={totals.monthNet}
                 isPositivePrefix={true}
@@ -874,9 +915,7 @@ export const MonthlyProjectionGrid: React.FC = () => {
               />
             </div>
             <div>
-              <span className="text-[10px] text-muted block">
-                {viewMode === 'REALIZADO' ? 'Saldo Final Real' : viewMode === 'PREVISTO' ? 'Saldo Final Previsto' : 'Saldo Final Projetado'}
-              </span>
+              <span className="text-[10px] text-muted block">Saldo Final</span>
               <GlanceableCurrency
                 value={lastAccumulatedBalance}
                 className={`font-bold text-xs ${lastAccumulatedBalance >= 0 ? 'text-amber' : 'text-rose'}`}

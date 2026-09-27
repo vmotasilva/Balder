@@ -8272,6 +8272,77 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   gap: 0.85rem;
 }
 
+/* Par Real | Previsto (Entradas e Saídas da projeção): realizado à esquerda, previsto à direita */
+.rp-cell {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 6px;
+}
+
+.rp-part {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  border-radius: 6px;
+  color: inherit;
+  font: inherit;
+  text-align: right;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.rp-part:hover {
+  background: rgba(56, 189, 248, 0.1);
+}
+
+.rp-sep {
+  color: var(--text-muted);
+  opacity: 0.45;
+}
+
+/* Previsto aparece esmaecido para diferenciar do que já aconteceu */
+.rp-planned .font-mono {
+  opacity: 0.68;
+}
+
+.rp-head {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 6px;
+  margin-top: 3px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  opacity: 0.75;
+}
+
+.rp-head span {
+  text-align: right;
+}
+
+.kpi-rp {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.kpi-rp > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.kpi-rp > div:last-child {
+  text-align: right;
+}
+
+.kpi-rp-label {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
 .grid-kpi-card {
   background: rgba(8, 14, 26, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.06);
