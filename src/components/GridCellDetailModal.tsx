@@ -28,7 +28,14 @@ import {
   Calendar,
   Sparkles,
 } from 'lucide-react';
-import type { MonthlyGridProjectionRow, MappingItem, MovementStatus, Movement, InvoiceNatureItemBreakdown } from '../types';
+import type {
+  MonthlyGridProjectionRow,
+  MappingItem,
+  MovementStatus,
+  Movement,
+  InvoiceNatureItemBreakdown,
+  NatureDetailMode,
+} from '../types';
 import { buildMonthlyProjectionGrid, isSalaryMovement, getSalaryCompetenceKey } from '../utils/projectionMath';
 import type { ProjectionViewMode } from '../utils/projectionMath';
 import { getItemManifestationDays } from '../utils/natureScheduling';
@@ -165,6 +172,7 @@ export interface CellBreakdownItem {
 export interface NatureItemEntry {
   natureId?: string;
   mappingId?: string;
+  mappingDetailMode?: NatureDetailMode; // escolha do mapeamento; sem valor, segue a natureza
   natureName: string;
   natureColor: string;
   mappingName: string;
@@ -197,14 +205,14 @@ function natureItemStateFields(ni: NatureItemEntry, monthKey: string): Partial<C
 function summarizeNatureEntries(
   entries: NatureItemEntry[],
   monthKey: string,
-  isSummarized: (natureId?: string) => boolean
+  isSummarized: (ni: NatureItemEntry) => boolean
 ): NatureItemEntry[] {
   const result: NatureItemEntry[] = [];
   const groups = new Map<string, { entry: NatureItemEntry; items: MappingItem[]; mappingKey: string }>();
   const payGroupsByMapping = new Map<string, Set<string>>();
 
   entries.forEach((ni) => {
-    if (!isSummarized(ni.natureId)) {
+    if (!isSummarized(ni)) {
       result.push(ni);
       return;
     }
@@ -847,9 +855,9 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     natureDetailModes,
   } = useFinancial();
 
-  // Naturezas configuradas para exibir só o título de cada mapeamento com o total previsto
-  const isNatureSummarized = (natureId?: string) =>
-    !!natureId && natureDetailModes[natureId] === 'MAPEAMENTOS';
+  // Mapeamentos exibidos só pelo título com o total previsto: escolha do mapeamento ou, sem ela, da natureza
+  const isNatureSummarized = (ni: NatureItemEntry) =>
+    (ni.mappingDetailMode ?? (ni.natureId ? natureDetailModes[ni.natureId] : undefined)) === 'MAPEAMENTOS';
 
   const columnKey = selection?.columnKey;
   const baseRow = selection?.row;
@@ -1190,6 +1198,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
           itemsList.push({
             natureId: nat.id,
             mappingId: m.id,
+            mappingDetailMode: m.detailMode,
             natureName: nat.name,
             natureColor: nat.color,
             mappingName: m.name,
@@ -1628,6 +1637,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             natItems.push({
               natureId: nat.id,
               mappingId: m.id,
+              mappingDetailMode: m.detailMode,
               natureName: nat.name,
               natureColor: nat.color,
               mappingName: m.name,
@@ -1979,6 +1989,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
               natItems.push({
                 natureId: nat.id,
                 mappingId: m.id,
+                mappingDetailMode: m.detailMode,
                 natureName: nat.name,
                 natureColor: nat.color,
                 mappingName: m.name,

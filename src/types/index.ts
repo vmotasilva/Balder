@@ -418,6 +418,7 @@ export interface FixedExpenseMapping {
   dayOfWeek?: string;          // ex: 'Sábado', 'Domingo', 'Segunda'
   dayOfMonth?: number;         // ex: 5, 7, 10
   keywords?: string[];         // Palavras-chave para a IA associar itens/transações diretamente a este mapeamento
+  detailMode?: NatureDetailMode; // Exibição no detalhamento da grade; sem valor, segue o padrão da natureza
 }
 
 export interface CeilingJustificationRecord {

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { getPendingFixedBills, type PendingFixedBill } from '../utils/fixedBillsAlert';
-import type { Movement, MovementType, FixedExpenseMapping } from '../types';
+import type { Movement, MovementType, FixedExpenseMapping, NatureDetailMode } from '../types';
 import {
   Layers,
   Plus,
@@ -24,6 +24,8 @@ import {
   Tag,
   ArrowRightLeft,
   GripVertical,
+  List,
+  Sigma,
 } from 'lucide-react';
 import { Modal } from '../components/Modal';
 import { NatureModal } from '../components/NatureModal';
@@ -46,6 +48,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
     movements,
     deleteNature,
     updateMapping,
+    natureDetailModes,
     deleteMapping,
     addItemToMapping,
     updateMappingItem,
@@ -1387,9 +1390,10 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                           transition: 'all 0.15s ease',
                         }}
                       >
-                        <div className="mapping-card-header" style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px' }}>
+                        {/* Desktop: tudo em uma linha; celular: três linhas empilhadas (CSS .mapping-card-header--compact) */}
+                        <div className="mapping-card-header mapping-card-header--compact">
                           {/* LINHA 1: Ícones de Arraste, Emoji e Título */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div className="mapping-card-title-row">
                             {/* Alça de Arraste e Setas de Ordenação */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
                               <div
@@ -1470,13 +1474,13 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                               {mapping.icon || '📋'}
                             </div>
 
-                            <h5 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                            <h5 className="mapping-card-title" style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                               {mapping.name}
                             </h5>
                           </div>
 
-                          {/* LINHA 2: Subtotal (apenas o valor), qtd Itens e o simbolo de palavras chave */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          {/* LINHA 2: Subtotal (apenas o valor), qtd Itens, palavras-chave e exibição no detalhamento */}
+                          <div className="mapping-card-meta-row">
                             <span className="badge badge-cyan" style={{ fontSize: '12px', padding: '4px 10px', fontWeight: 600 }}>
                               {mappingTotal.toLocaleString('pt-BR', {
                                 style: 'currency',
@@ -1498,16 +1502,44 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                             >
                               <Tag size={13} />
                             </button>
+
+                            {/* Exibição no detalhamento da grade: cada item ou só o mapeamento com o total */}
+                            {(() => {
+                              const effectiveMode =
+                                mapping.detailMode ?? natureDetailModes[selectedNature.id] ?? 'ITENS';
+                              const options: { value: NatureDetailMode; label: string; icon: React.ReactNode; title: string }[] = [
+                                { value: 'ITENS', label: 'Detalhado', icon: <List size={12} />, title: 'No detalhamento da grade, mostrar cada item deste mapeamento' },
+                                { value: 'MAPEAMENTOS', label: 'Resumo', icon: <Sigma size={12} />, title: 'No detalhamento da grade, mostrar só o mapeamento com o valor total' },
+                              ];
+                              return (
+                                <div className="mapping-detail-mode-toggle" role="group" aria-label="Exibição no detalhamento da grade">
+                                  {options.map((opt) => {
+                                    const active = effectiveMode === opt.value;
+                                    return (
+                                      <button
+                                        key={opt.value}
+                                        type="button"
+                                        aria-pressed={active}
+                                        title={`${opt.title}${!mapping.detailMode && active ? ' (padrão da natureza)' : ''}`}
+                                        onClick={() => updateMapping(selectedNature.id, mapping.id, { detailMode: opt.value })}
+                                        className={active ? 'active' : ''}
+                                      >
+                                        {opt.icon}
+                                        <span>{opt.label}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
                           </div>
 
                           {/* LINHA 3: Botões (Expandir, editar e Excluir) */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <div className="mapping-card-actions-row">
                             <button
                               type="button"
                               className="btn btn-outline"
                               style={{
-                                flex: 1,
-                                padding: '6px 0',
                                 fontSize: '12px',
                                 display: 'flex',
                                 alignItems: 'center',
@@ -1529,7 +1561,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                               className="btn btn-outline text-cyan"
                               title="Editar Nome, Emoji e Vencimento deste Mapeamento"
                               onClick={() => handleOpenEditMapping(mapping)}
-                              style={{ flex: 1, padding: '6px 0', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                              style={{ fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                             >
                               <Edit2 size={13} />
                               <span>Editar</span>
@@ -1546,7 +1578,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                   onConfirm: () => deleteMapping(selectedNature.id, mapping.id),
                                 });
                               }}
-                              style={{ flex: 1, padding: '6px 0', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                              style={{ fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
                             >
                               <Trash2 size={13} />
                               <span>Excluir</span>
