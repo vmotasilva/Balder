@@ -82,9 +82,11 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
       movements,
       natures,
       initialBalance,
-      monthlyClosings
+      monthlyClosings,
+      'PROJETADO',
+      { startDate: activeCheckpoint?.startDate }
     );
-  }, [movements, natures, initialBalance, monthlyClosings]);
+  }, [movements, natures, initialBalance, monthlyClosings, activeCheckpoint?.startDate]);
 
   // Lista de competências disponíveis
   const availableMonths = useMemo(() => {

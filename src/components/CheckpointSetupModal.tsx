@@ -990,6 +990,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.84rem', marginBottom: '0.3rem' }}>
               <DollarSign size={14} className="text-emerald" />
               Saldo Total em Caixa nessa Data (R$)
+              <span style={{ fontWeight: 500, color: 'var(--text-muted)' }}>(opcional)</span>
             </label>
             <div style={{ position: 'relative' }}>
               <span
@@ -1008,7 +1009,6 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
               <input
                 type="text"
                 inputMode="decimal"
-                required
                 className="form-input"
                 style={{ paddingLeft: '40px', fontWeight: 700, color: 'var(--accent-emerald)', fontSize: '1.05rem' }}
                 placeholder="0,00"
@@ -1020,7 +1020,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
               />
             </div>
             <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', fontWeight: 500, marginTop: '0.2rem', display: 'block' }}>
-              Valor real disponível em contas e carteira no dia inicial escolhido.
+              Valor real disponível em contas e carteira no dia inicial escolhido. Em branco, começa em R$ 0,00.
             </span>
           </div>
 
@@ -1602,11 +1602,10 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
 
           {/* Botões do Rodapé na Etapa 1 */}
           <div
-            className="modal-footer-actions"
+            className="modal-footer-actions checkpoint-footer-sticky"
             style={{
               position: 'sticky',
               bottom: 0,
-              background: 'rgba(15, 23, 42, 0.96)',
               backdropFilter: 'blur(10px)',
               marginTop: '0.65rem',
               paddingTop: '0.75rem',

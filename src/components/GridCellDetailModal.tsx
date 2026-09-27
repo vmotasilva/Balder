@@ -945,7 +945,8 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
       natures,
       initialBalance,
       monthlyClosings,
-      selection?.viewMode || 'PROJETADO'
+      selection?.viewMode || 'PROJETADO',
+      { startDate: activeCheckpoint?.startDate }
     );
   }, [movements, natures, activeCheckpoint, monthlyClosings, baseRow, selection?.viewMode]);
 

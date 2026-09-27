@@ -11,11 +11,21 @@ export interface ProjectionGridConfig {
 /**
  * Gera as competências do horizonte de projeção: 15 meses a partir do mês atual.
  */
-function generateCompetenceMonths() {
+/**
+ * Competências da grade. Começa no mês do ponto de partida (marco), quando informado, ou no mês atual,
+ * e vai até 15 meses à frente do mês atual (no mínimo 15 meses, no máximo 36).
+ */
+function generateCompetenceMonths(startDate?: string) {
   const now = new Date();
+  let start = new Date(now.getFullYear(), now.getMonth(), 1);
+  if (startDate && /^\d{4}-\d{2}/.test(startDate)) {
+    start = new Date(Number(startDate.slice(0, 4)), Number(startDate.slice(5, 7)) - 1, 1);
+  }
+  const monthsBeforeNow = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+  const count = Math.min(36, Math.max(15, monthsBeforeNow + 15));
   const months = [];
-  for (let i = 0; i < 15; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+  for (let i = 0; i < count; i++) {
+    const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
     const year = d.getFullYear();
     const month = d.getMonth() + 1;
     const key = `${year}-${String(month).padStart(2, '0')}`;
@@ -75,9 +85,16 @@ export function buildMonthlyProjectionGrid(
   natures: ExpenseNature[],
   initialBalance: number = 0,
   monthlyClosings?: MonthlyClosing[],
-  viewMode: ProjectionViewMode = 'PROJETADO'
+  viewMode: ProjectionViewMode = 'PROJETADO',
+  options: { startDate?: string } = {}
 ): MonthlyGridProjectionRow[] {
-  const competenceMonths = generateCompetenceMonths();
+  const competenceMonths = generateCompetenceMonths(options.startDate);
+  // Com ponto de partida, o saldo inicial do marco já inclui o que aconteceu antes da data:
+  // só entram lançamentos a partir dela
+  if (options.startDate) {
+    const startDate = options.startDate;
+    movements = movements.filter((m) => !m.dueDate || m.dueDate >= startDate);
+  }
 
   const loanMovements = movements.filter((m) => m.type === 'EMPRESTIMO');
 

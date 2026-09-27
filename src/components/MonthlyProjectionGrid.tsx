@@ -122,15 +122,15 @@ export const MonthlyProjectionGrid: React.FC = () => {
   // Uma única visão: Entradas e Saídas mostram Real (realizado) | Previsto (a vencer);
   // Resultado e Saldo usam o consolidado (realizado + previsto)
   const allRows: MonthlyGridProjectionRow[] = useMemo(
-    () => buildMonthlyProjectionGrid(movements, natures, initialBalance, monthlyClosings, 'PROJETADO'),
+    () => buildMonthlyProjectionGrid(movements, natures, initialBalance, monthlyClosings, 'PROJETADO', { startDate: activeCheckpoint?.startDate }),
     [movements, natures, initialBalance, monthlyClosings]
   );
   const realizedByMonth = useMemo(() => {
-    const rows = buildMonthlyProjectionGrid(movements, natures, initialBalance, monthlyClosings, 'REALIZADO');
+    const rows = buildMonthlyProjectionGrid(movements, natures, initialBalance, monthlyClosings, 'REALIZADO', { startDate: activeCheckpoint?.startDate });
     return new Map(rows.map((r) => [r.monthKey, r]));
   }, [movements, natures, initialBalance, monthlyClosings]);
   const plannedByMonth = useMemo(() => {
-    const rows = buildMonthlyProjectionGrid(movements, natures, initialBalance, monthlyClosings, 'PREVISTO');
+    const rows = buildMonthlyProjectionGrid(movements, natures, initialBalance, monthlyClosings, 'PREVISTO', { startDate: activeCheckpoint?.startDate });
     return new Map(rows.map((r) => [r.monthKey, r]));
   }, [movements, natures, initialBalance, monthlyClosings]);
 

@@ -19089,3 +19089,31 @@ html:not([data-theme="light"]) .dark\:hover\:bg-slate-800:hover { background-col
   border-color: color-mix(in srgb, var(--accent-rose) 45%, transparent);
   background: color-mix(in srgb, var(--accent-rose) 8%, transparent);
 }
+
+/* Ponto de partida: rodapé fixo com o fundo do tema */
+.checkpoint-footer-sticky {
+  background: rgba(15, 23, 42, 0.96);
+}
+
+[data-theme="light"] .checkpoint-footer-sticky {
+  background: rgba(255, 255, 255, 0.96);
+}
+
+/* Atalho da Forseti na barra superior */
+.navbar-forseti-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-color: color-mix(in srgb, var(--accent-purple) 40%, var(--border-default));
+}
+
+.navbar-forseti-btn:hover {
+  border-color: var(--accent-purple);
+}
+
+.navbar-forseti-avatar {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: cover;
+}

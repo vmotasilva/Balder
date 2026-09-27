@@ -161,6 +161,20 @@ export const Navbar: React.FC<NavbarProps> = ({
           {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
         </button>
 
+        {/* Atalho da Forseti */}
+        {onNavigateToCopilot && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm navbar-forseti-btn"
+            onClick={onNavigateToCopilot}
+            title="Conversar com a Forseti"
+            aria-label="Abrir Forseti"
+          >
+            <img src="/forseti-avatar.png" alt="" className="navbar-forseti-avatar" />
+            <span>Forseti</span>
+          </button>
+        )}
+
         {/* Quick Action Buttons */}
         <button 
           className="btn btn-secondary btn-sm"

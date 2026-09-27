@@ -81,6 +81,7 @@ export const NewGoalModal: React.FC<NewGoalModalProps> = ({ isOpen, onClose }) =
     emergencyReserveAmount,
     goals,
     cards,
+    activeCheckpoint,
   } = useFinancial();
 
   const [title, setTitle] = useState('');
@@ -105,12 +106,14 @@ export const NewGoalModal: React.FC<NewGoalModalProps> = ({ isOpen, onClose }) =
   // Folga mensal: resultado médio da projeção nos próximos 6 meses
   const monthlyCapacity = useMemo(() => {
     const key = currentMonthKey();
-    const rows = buildMonthlyProjectionGrid(movements, natures, 0, monthlyClosings)
+    const rows = buildMonthlyProjectionGrid(movements, natures, 0, monthlyClosings, 'PROJETADO', {
+      startDate: activeCheckpoint?.startDate,
+    })
       .filter((r) => r.monthKey >= key)
       .slice(0, 6);
     if (rows.length === 0) return null;
     return Math.round((rows.reduce((acc, r) => acc + r.monthNet, 0) / rows.length) * 100) / 100;
-  }, [movements, natures, monthlyClosings]);
+  }, [movements, natures, monthlyClosings, activeCheckpoint?.startDate]);
 
   const committedToOtherGoals = useMemo(
     () => goals.reduce((acc, g) => acc + (g.currentAmount < g.targetAmount ? g.monthlyContribution || 0 : 0), 0),
