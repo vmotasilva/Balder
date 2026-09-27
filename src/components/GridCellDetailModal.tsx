@@ -129,6 +129,8 @@ export interface CellBreakdownSubItem {
   isMappingSummary?: boolean; // linha-resumo de um mapeamento (nome + valor total)
   summaryItemCount?: number;  // quantos itens o resumo agrega
   occurrenceWeights?: { date: string; weight: number }[]; // dias reais dos itens agregados (distribuição semanal)
+  paidAmount?: number;    // Real: já pago/recebido na competência (itens mapeados)
+  pendingAmount?: number; // Previsto: ainda a pagar/receber na competência (itens mapeados)
 }
 
 export interface EditingReceiptData {
@@ -203,11 +205,16 @@ function natureItemStateFields(ni: NatureItemEntry, monthKey: string): Partial<C
   const { state } = summary;
   // Realizado quando nada ficou pendente no mês e houve pagamento (ou o mês foi marcado como realizado)
   const isRealized = !state.paidByOthers && summary.isSettled && summary.paid > 0;
+  // Real | Previsto do mês: na linha-resumo, soma dos itens agregados
+  const sources = ni.summarySourceItems ? ni.summarySourceItems.map((it) => resolveMappingItemMonth(it, monthKey)) : [summary];
+  const round2 = (v: number) => Math.round(v * 100) / 100;
   return {
     ...(isRealized ? { status: 'REALIZADA' as const } : {}),
     paidByOthers: !!state.paidByOthers,
     paidBy: state.paidBy,
     baseValue: summary.base,
+    paidAmount: round2(sources.reduce((acc, s) => acc + (s.state.paidByOthers ? 0 : s.paid), 0)),
+    pendingAmount: round2(sources.reduce((acc, s) => acc + (s.state.paidByOthers ? 0 : s.pending), 0)),
     ...(ni.summaryItemCount
       ? {
           isMappingSummary: true,
@@ -408,6 +415,8 @@ export function generateNatureDateGroups(
           attentionReason: p.reason ? `Pagamento parcial: ${p.reason}` : 'Pagamento parcial',
           ...natureItemStateFields(ni, monthKey),
           status: undefined,
+          paidAmount: 0,
+          pendingAmount: Math.round((p.expectedAmount - p.amount) * 100) / 100,
           occurrenceDate: anchor,
         });
       });
@@ -445,6 +454,8 @@ export function generateNatureDateGroups(
         ...natureItemStateFields(ni, monthKey),
         // Situação por ocorrência: paga (ou mês marcado como realizado) x prevista
         status: !summary.state.paidByOthers && (payment || legacyRealized) ? 'REALIZADA' : undefined,
+        paidAmount: payment || legacyRealized ? occValue : 0,
+        pendingAmount: payment || legacyRealized ? 0 : occValue,
         baseValue: unitOccBase,
         occurrenceDate: dateStr,
       });

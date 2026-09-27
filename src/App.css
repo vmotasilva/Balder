@@ -17310,10 +17310,66 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .drill-subtotal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-top: 8px;
-  text-align: right;
+  padding: 0 12px;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+/* Real | Previsto nas linhas de natureza/mapeamento: colunas fixas para alinhar com a legenda */
+.drill-rp {
+  display: inline-grid;
+  grid-template-columns: 104px auto 104px;
+  align-items: center;
+  gap: 6px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.drill-rp-legend {
+  display: flex;
+  justify-content: flex-end;
+  /* padding da linha (12px) + chevron (16px) + espaço (8px) */
+  padding: 0 36px 2px 12px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.drill-rp-legend .drill-rp {
+  font-size: inherit;
+  color: inherit;
+}
+
+/* Card de mapeamento (tela de Naturezas): Real | Previsto do mês atual */
+.mapping-rp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 4px 10px;
+  font-weight: 600;
+}
+
+.mapping-rp-badge .mapping-rp-label {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+@media (max-width: 768px) {
+  .drill-rp {
+    grid-template-columns: 78px auto 78px;
+    font-size: 11px;
+  }
 }
 
 /* Calendário */

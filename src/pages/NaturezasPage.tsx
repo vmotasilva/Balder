@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useFinancial } from '../context/FinancialContext';
+import { resolveMappingItemMonth } from '../utils/mappingItemState';
 import { getPendingFixedBills, type PendingFixedBill } from '../utils/fixedBillsAlert';
 import type { Movement, MovementType, FixedExpenseMapping, NatureDetailMode } from '../types';
 import {
@@ -1520,14 +1521,46 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
 
                           {/* LINHA 2: Subtotal (apenas o valor), qtd Itens, palavras-chave e exibição no detalhamento */}
                           <div className="mapping-card-meta-row">
-                            <span className="badge badge-cyan" style={{ fontSize: '12px', padding: '4px 10px', fontWeight: 600 }}>
-                              {mappingTotal.toLocaleString('pt-BR', {
-                                style: 'currency',
-                                currency: 'BRL',
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 3,
-                              })}
-                            </span>
+                            {(() => {
+                              // Real (pago) | Previsto (a pagar) do mês atual; o teto do mapeamento fica no título
+                              const brl = (v: number) =>
+                                v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
+                              const now = new Date();
+                              const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                              const monthLabel = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                              const applies =
+                                !mapping.applicableMonths ||
+                                mapping.applicableMonths.length === 0 ||
+                                mapping.applicableMonths.includes(now.getMonth() + 1);
+                              const teto = `Teto do mapeamento: ${brl(mappingTotal)}`;
+                              if (!applies) {
+                                return (
+                                  <span className="badge badge-cyan mapping-rp-badge" title={`${teto} • não se aplica em ${monthLabel}`}>
+                                    {brl(mappingTotal)}
+                                  </span>
+                                );
+                              }
+                              const split = (mapping.items || []).reduce(
+                                (acc, it) => {
+                                  const s = resolveMappingItemMonth(it, monthKey);
+                                  if (s.state.paidByOthers) return acc;
+                                  return { real: acc.real + s.paid, planned: acc.planned + s.pending };
+                                },
+                                { real: 0, planned: 0 }
+                              );
+                              return (
+                                <span
+                                  className="badge badge-cyan mapping-rp-badge"
+                                  title={`${monthLabel} • Real: já pago • Previsto: a pagar • ${teto}`}
+                                >
+                                  <span className="mapping-rp-label">Real</span>
+                                  {brl(split.real)}
+                                  <span className="rp-sep" aria-hidden="true">|</span>
+                                  <span className="mapping-rp-label">Previsto</span>
+                                  {brl(split.planned)}
+                                </span>
+                              );
+                            })()}
                             <span className="badge badge-emerald" style={{ fontSize: '12px', padding: '4px 10px', fontWeight: 600 }}>
                               {mapping.items.length}{' '}
                               {mapping.items.length === 1 ? 'ITEM' : 'ITENS'}

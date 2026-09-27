@@ -21,6 +21,44 @@ type FormatBRL = (v?: number) => string;
 const itemValue = (s: CellBreakdownSubItem) => (s.paidByOthers ? 0 : s.totalValue || 0);
 const sumItems = (list: CellBreakdownSubItem[]) => Math.round(list.reduce((acc, s) => acc + itemValue(s), 0) * 100) / 100;
 
+// Real (já pago/recebido) | Previsto (ainda a pagar/receber) de um item; itens mapeados trazem os valores do mês
+const splitItem = (s: CellBreakdownSubItem) => {
+  if (s.paidByOthers || s.status === 'CANCELADA') return { real: 0, planned: 0 };
+  if (s.paidAmount !== undefined || s.pendingAmount !== undefined) {
+    return { real: s.paidAmount || 0, planned: s.pendingAmount || 0 };
+  }
+  const v = s.totalValue || 0;
+  return s.status === 'REALIZADA' ? { real: v, planned: 0 } : { real: 0, planned: v };
+};
+const splitItems = (list: CellBreakdownSubItem[]) => {
+  const acc = list.reduce((a, s) => {
+    const r = splitItem(s);
+    return { real: a.real + r.real, planned: a.planned + r.planned };
+  }, { real: 0, planned: 0 });
+  return { real: Math.round(acc.real * 100) / 100, planned: Math.round(acc.planned * 100) / 100 };
+};
+
+/** Par Real | Previsto com colunas de largura fixa (alinhadas entre as linhas e com a legenda). */
+const RealPlanned: React.FC<{ real: number; planned: number; formatBRL: FormatBRL }> = ({ real, planned, formatBRL }) => (
+  <span className="drill-rp">
+    <span className="font-mono" title="Real: já pago/recebido">{formatBRL(real)}</span>
+    <span className="rp-sep" aria-hidden="true">|</span>
+    <span className="rp-planned" title="Previsto: ainda a pagar/receber">
+      <span className="font-mono">{formatBRL(planned)}</span>
+    </span>
+  </span>
+);
+
+const RealPlannedLegend: React.FC = () => (
+  <div className="drill-rp-legend" aria-hidden="true">
+    <span className="drill-rp">
+      <span>Real</span>
+      <span className="rp-sep">|</span>
+      <span>Previsto</span>
+    </span>
+  </div>
+);
+
 const WEEKDAYS_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const WEEKDAYS_LONG = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 
@@ -75,14 +113,16 @@ const EmptyState: React.FC<{ message?: string }> = ({ message }) => (
 );
 
 /** Linha navegável (natureza ou mapeamento) com quantidade e total. */
-const DrillRow: React.FC<{ symbol?: string; title: string; count: number; total: number; onClick: () => void; formatBRL: FormatBRL }> = ({
+const DrillRow: React.FC<{ symbol?: string; title: string; count: number; items: CellBreakdownSubItem[]; onClick: () => void; formatBRL: FormatBRL }> = ({
   symbol,
   title,
   count,
-  total,
+  items,
   onClick,
   formatBRL,
-}) => (
+}) => {
+  const { real, planned } = splitItems(items);
+  return (
   <button type="button" className="detail-item-row drill-row" onClick={onClick} title={`Abrir ${title}`}>
     <div className="detail-item-main min-w-0 flex-1" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
       {symbol && <span className="drill-row-symbol">{symbol}</span>}
@@ -94,11 +134,12 @@ const DrillRow: React.FC<{ symbol?: string; title: string; count: number; total:
       </div>
     </div>
     <div className="flex items-center gap-2 flex-shrink-0">
-      <span className="detail-item-amount font-mono">{formatBRL(total)}</span>
+      <RealPlanned real={real} planned={planned} formatBRL={formatBRL} />
       <ChevronRight size={16} className="text-muted" />
     </div>
   </button>
-);
+  );
+};
 
 // ─── Naturezas → Mapeamentos → Itens (padrão) ────────────────────────────────
 
@@ -163,13 +204,14 @@ export const NatureDrillView: React.FC<{
           <EmptyState />
         ) : (
           <div className="sticky-date-items-list">
+            <RealPlannedLegend />
             {visible.map((g) => (
               <DrillRow
                 key={g.id}
                 symbol={g.symbol}
                 title={g.title}
                 count={g.items.length}
-                total={sumItems(g.items)}
+                items={g.items}
                 onClick={() => {
                   onOpenGroup(g.id);
                   onOpenMapping(null);
@@ -194,6 +236,7 @@ export const NatureDrillView: React.FC<{
           <EmptyState />
         ) : (
           <div className="sticky-date-items-list">
+            <RealPlannedLegend />
             {mappings.map((m) => {
               const isSummary = m.items.length === 1 && m.items[0].isMappingSummary;
               return (
@@ -201,7 +244,7 @@ export const NatureDrillView: React.FC<{
                   key={m.key}
                   title={m.label}
                   count={isSummary ? m.items[0].summaryItemCount || 1 : m.items.length}
-                  total={sumItems(m.items)}
+                  items={m.items}
                   onClick={() => onOpenMapping(m.key)}
                   formatBRL={formatBRL}
                 />
@@ -225,7 +268,11 @@ export const NatureDrillView: React.FC<{
       )}
       <div className="sticky-date-items-list">{mapping.items.map(renderItem)}</div>
       <div className="drill-subtotal">
-        Subtotal do mapeamento: <strong>{formatBRL(sumItems(mapping.items))}</strong>
+        <span>Subtotal do mapeamento · Real | Previsto</span>
+        {(() => {
+          const { real, planned } = splitItems(mapping.items);
+          return <RealPlanned real={real} planned={planned} formatBRL={formatBRL} />;
+        })()}
       </div>
     </div>
   );
