@@ -59,7 +59,7 @@ const RealPlannedLegend: React.FC = () => (
   </div>
 );
 
-const WEEKDAYS_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const WEEKDAYS_MONDAY_FIRST = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 const WEEKDAYS_LONG = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 
 const parseIso = (iso: string) => {
@@ -363,18 +363,34 @@ export interface WeekColumn {
 }
 
 /** Semanas da competência (domingo a sábado), recortadas aos dias do mês. */
+// Índice do dia na semana começando na segunda (0 = segunda … 6 = domingo)
+const mondayIndex = (d: Date) => (d.getDay() + 6) % 7;
+
+/**
+ * Semanas de 7 dias, de segunda a domingo, que tocam a competência. start/end são os dias do mês
+ * contidos na semana (para agrupar valores); weekStart/weekEnd são as datas reais da semana, que podem
+ * cair no mês anterior ou seguinte (ex.: 31/08 – 06/09).
+ */
 const monthWeeks = (monthKey: string) => {
   const [y, m] = monthKey.split('-').map(Number);
   const daysInMonth = new Date(y, m, 0).getDate();
-  const weeks: { start: number; end: number }[] = [];
+  const weeks: { start: number; end: number; weekStart: Date; weekEnd: Date }[] = [];
   let start = 1;
   while (start <= daysInMonth) {
-    const end = Math.min(daysInMonth, start + (6 - new Date(y, m - 1, start).getDay()));
-    weeks.push({ start, end });
+    const offset = mondayIndex(new Date(y, m - 1, start));
+    const end = Math.min(daysInMonth, start + (6 - offset));
+    weeks.push({
+      start,
+      end,
+      weekStart: new Date(y, m - 1, start - offset),
+      weekEnd: new Date(y, m - 1, start - offset + 6),
+    });
     start = end + 1;
   }
   return weeks;
 };
+
+const ddmmOf = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
 
 /**
  * Colunas por semana: cada linha (natureza, ou mapeamento quando há uma só natureza) tem seu total do mês
@@ -461,8 +477,6 @@ export function buildWeekColumns(
       });
   });
 
-  const [, m] = monthKey.split('-').map(Number);
-  const pad = (d: number) => `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
   const toColumn = (key: string, label: string, range: string, list: WeekColumnRow[] = []): WeekColumn => ({
     key,
     label,
@@ -471,7 +485,7 @@ export function buildWeekColumns(
     total: Math.round(list.reduce((acc, r) => acc + r.value, 0) * 100) / 100,
   });
 
-  const columns = weeks.map((w, idx) => toColumn(`w${idx}`, `Semana ${idx + 1}`, `${pad(w.start)} – ${pad(w.end)}`, buckets.get(idx)));
+  const columns = weeks.map((w, idx) => toColumn(`w${idx}`, `Semana ${idx + 1}`, `${ddmmOf(w.weekStart)} – ${ddmmOf(w.weekEnd)}`, buckets.get(idx)));
   if (buckets.has(-1)) columns.push(toColumn('sem-data', 'Sem data', 'fora do calendário', buckets.get(-1)));
   return { columns, rowLevel };
 }
@@ -679,7 +693,7 @@ export const CalendarView: React.FC<{
 
   const [y, m] = monthKey.split('-').map(Number);
   const daysInMonth = new Date(y, m, 0).getDate();
-  const leadingBlanks = new Date(y, m - 1, 1).getDay();
+  const leadingBlanks = mondayIndex(new Date(y, m - 1, 1)); // grade de segunda a domingo
   const byDay = new Map<number, DatedEntry[]>();
   entries
     .filter((e) => e.date && e.date.startsWith(monthKey))
@@ -705,7 +719,7 @@ export const CalendarView: React.FC<{
   return (
     <div>
       <div className="cal-grid" role="grid" aria-label="Calendário da competência">
-        {WEEKDAYS_SHORT.map((w) => (
+        {WEEKDAYS_MONDAY_FIRST.map((w) => (
           <div key={w} className="cal-weekday">
             {w}
           </div>
