@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   Edit3,
   User,
+  Plus,
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
@@ -57,6 +58,7 @@ import {
   type DetailViewGroup,
 } from './CellDetailViews';
 import { MovementDetailModal } from './MovementDetailModal';
+import { NewMovementModal } from './NewMovementModal';
 
 export interface GridCellSelection {
   columnKey:
@@ -993,6 +995,10 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
   // Item mapeado cuja situação na competência está sendo definida
   const [itemStateTarget, setItemStateTarget] = useState<MappingItemStateTarget | null>(null);
 
+  // Rascunho de nova conta a receber/pagar; estável enquanto o formulário estiver aberto
+  // (o formulário reinicia os campos se initialData mudar)
+  const [newMovementDraft, setNewMovementDraft] = useState<Partial<Movement> | null>(null);
+
   // Estado para modal completo de ajuste de fatura do cartão
   const [editingInvoiceMovement, setEditingInvoiceMovement] = useState<Movement | null>(null);
 
@@ -1209,8 +1215,8 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (itemStateTarget) {
-          // O pop-up de situação fecha a si mesmo; não fecha o detalhamento junto
+        if (itemStateTarget || newMovementDraft) {
+          // Pop-ups sobrepostos fecham a si mesmos; não fecham o detalhamento junto
           return;
         } else if (editingReceipt) {
           setEditingReceipt(null);
@@ -1221,7 +1227,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, editingReceipt, itemStateTarget]);
+  }, [onClose, editingReceipt, itemStateTarget, newMovementDraft]);
 
   // Lista achatada de todos os itens das naturezas mapeadas
   const allNatureItems = useMemo(() => {
@@ -2400,6 +2406,30 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     } catch {}
   };
 
+  // Botão "+": conta a receber nas telas de entradas, conta a pagar nas de saídas (no mês da competência)
+  const newMovementType: 'RECEBER' | 'PAGAR' | null =
+    columnKey === 'totalIncome' || columnKey === 'salary' || columnKey === 'extras' || columnKey === 'loanReceived'
+      ? 'RECEBER'
+      : columnKey === 'totalExpense' ||
+        columnKey === 'fixedCost' ||
+        columnKey === 'variableCost' ||
+        columnKey === 'creditCard' ||
+        columnKey === 'loanPayment'
+      ? 'PAGAR'
+      : null;
+  const openNewMovement = () => {
+    if (!newMovementType || !currentRow) return;
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const todayKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+    setNewMovementDraft({
+      type: newMovementType,
+      dueDate: currentRow.monthKey === todayKey ? `${todayKey}-${pad(now.getDate())}` : `${currentRow.monthKey}-01`,
+      status: selection?.viewMode === 'REALIZADO' ? 'REALIZADA' : 'PREVISTA',
+      category: newMovementType === 'RECEBER' ? 'Receita' : 'Geral',
+    });
+  };
+
   // Mapeamento aberto na visão por natureza (volta ao nível de mapeamentos ao trocar natureza/mês)
   const [drillMappingKey, setDrillMappingKey] = useState<string | null>(null);
   useEffect(() => {
@@ -3502,7 +3532,21 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             )}
 
             {/* Estilos de visualização: Naturezas (padrão) → mapeamentos → itens, Calendário, Semana e Data */}
-            <DetailViewStyleBar value={viewStyle} onChange={handleViewStyleChange} />
+            <div className="detail-view-toolbar">
+              <DetailViewStyleBar value={viewStyle} onChange={handleViewStyleChange} />
+              {newMovementType && (
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={openNewMovement}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  title={`Lançar ${newMovementType === 'RECEBER' ? 'conta a receber' : 'conta a pagar'} em ${competenceLabel}`}
+                >
+                  <Plus size={14} />
+                  <span>{newMovementType === 'RECEBER' ? 'Nova conta a receber' : 'Nova conta a pagar'}</span>
+                </button>
+              )}
+            </div>
 
             {viewStyle === 'NATUREZAS' ? (
               <NatureDrillView
@@ -3948,6 +3992,14 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
       {/* POP-UP DE SITUAÇÃO DO ITEM MAPEADO (REALIZADO / QUEM PAGOU / PRÓXIMAS COMPETÊNCIAS) */}
       <MappingItemStateModal target={itemStateTarget} onClose={() => setItemStateTarget(null)} />
+
+      {/* FORMULÁRIO DE NOVA CONTA A RECEBER / A PAGAR NA COMPETÊNCIA */}
+      <NewMovementModal
+        isOpen={!!newMovementDraft}
+        onClose={() => setNewMovementDraft(null)}
+        defaultType={newMovementDraft?.type || 'PAGAR'}
+        initialData={newMovementDraft || undefined}
+      />
     </>
   );
 };

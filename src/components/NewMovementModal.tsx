@@ -470,6 +470,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
               onChange={(e) => setCategory(e.target.value)}
             >
               <option value="Salário">Salário & Renda</option>
+              <option value="Receita">Outras Receitas</option>
               <option value="Moradia">Moradia / Condomínio</option>
               <option value="Alimentação">Alimentação & Mercado</option>
               <option value="Educação">Educação</option>

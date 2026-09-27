@@ -17454,3 +17454,17 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     font-size: 10px;
   }
 }
+
+/* Barra do detalhamento: estilos de visualização à esquerda, "+ Nova conta" à direita */
+.detail-view-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.detail-view-toolbar .detail-view-style-bar {
+  margin-bottom: 0;
+}
