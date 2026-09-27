@@ -2634,6 +2634,16 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
       sub.originalAmount > sub.totalValue &&
       sub.totalValue > 0;
     const discountDiff = hasDiscount ? sub.originalAmount! - sub.totalValue : 0;
+    // Já pago/recebido: valor tachado; se pago diferente do previsto, mostra também quanto teria sido
+    const isPaid = sub.status === 'REALIZADA' && !isCanceled && !sub.paidByOthers;
+    const paidValue = sub.totalValue || 0;
+    const expectedValue = sub.baseValue ?? sub.originalAmount;
+    const paidDiff = isPaid && expectedValue !== undefined ? Math.round((paidValue - expectedValue) * 100) / 100 : 0;
+    const paidDiffers = isPaid && Math.abs(paidDiff) >= 0.01;
+    // Nas entradas, receber a mais é bom (verde); nas saídas, pagar a mais é ruim (vermelho)
+    const isIncomeContext = newMovementType === 'RECEBER';
+    const paidVerb = isIncomeContext ? 'Recebido' : 'Pago';
+    const paidDiffClass = paidDiff > 0 !== isIncomeContext ? 'paid-diff-up' : 'paid-diff-down';
     // Item mapeado de natureza: clique define a situação na competência (realizado / quem pagou)
     const isNatureItem = !isReceipt && !!sub.natureItemRef;
     const openItemState = () => {
@@ -2813,7 +2823,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         </div>
 
         <div className="flex items-center gap-3 flex-shrink-0">
-          {hasDiscount && (
+          {hasDiscount && !isPaid && (
             <div className="text-right flex flex-col items-end">
               <span className="text-[10px] line-through text-muted">
                 {formatBRL(sub.originalAmount)}
@@ -2824,6 +2834,30 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             </div>
           )}
 
+          {isPaid ? (
+            <div
+              className="detail-item-amount font-mono detail-item-paid"
+              title={
+                paidDiffers
+                  ? `${paidVerb} ${formatBRL(paidValue)} • teria sido ${formatBRL(expectedValue)}`
+                  : `${paidVerb} ${formatBRL(paidValue)}`
+              }
+            >
+              <span className="detail-item-paid-value">
+                <Check size={12} /> {formatBRL(paidValue)}
+              </span>
+              {paidDiffers && (
+                <span className="detail-item-paid-expected">
+                  teria sido {formatBRL(expectedValue)}
+                  <span className={paidDiffClass}>
+                    {' '}
+                    ({paidDiff > 0 ? '+' : '−'}
+                    {formatBRL(Math.abs(paidDiff))})
+                  </span>
+                </span>
+              )}
+            </div>
+          ) : (
           <div
             className={`detail-item-amount font-mono ${
               isCanceled || sub.paidByOthers
@@ -2842,6 +2876,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                 : sub.totalValue || sub.quantity * sub.price * (sub.multiplierWeeks || 1)
             )}
           </div>
+          )}
 
           {isNatureItem && (
             <button

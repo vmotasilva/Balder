@@ -17759,3 +17759,36 @@ button.week-column-row {
   color: var(--text-muted);
   min-width: 0;
 }
+
+/* Detalhamento: valor já pago/recebido tachado; pago diferente mostra quanto teria sido */
+.detail-item-paid {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.detail-item-paid-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #34d399;
+  font-weight: 700;
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+
+.detail-item-paid-expected {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.detail-item-paid-expected .paid-diff-up {
+  color: #f87171;
+}
+
+.detail-item-paid-expected .paid-diff-down {
+  color: #34d399;
+}
