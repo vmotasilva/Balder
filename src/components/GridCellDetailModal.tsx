@@ -32,7 +32,13 @@ import type { MonthlyGridProjectionRow, MappingItem, MovementStatus, Movement, I
 import { buildMonthlyProjectionGrid, isSalaryMovement, getSalaryCompetenceKey } from '../utils/projectionMath';
 import type { ProjectionViewMode } from '../utils/projectionMath';
 import { getItemManifestationDays } from '../utils/natureScheduling';
-import { mappingItemBaseValue, mappingItemMonthValue, resolveMappingItemState } from '../utils/mappingItemState';
+import {
+  itemUnitPrice,
+  mappingItemBaseValue,
+  mappingItemMonthValue,
+  resolveMappingItemMonth,
+  resolveMappingItemState,
+} from '../utils/mappingItemState';
 import { MappingItemStateModal, type MappingItemStateTarget } from './MappingItemStateModal';
 import { MovementDetailModal } from './MovementDetailModal';
 
@@ -100,6 +106,7 @@ export interface CellBreakdownSubItem {
   paidByOthers?: boolean;
   paidBy?: string;
   baseValue?: number; // valor planejado, exibido riscado quando pago por terceiros
+  occurrenceDate?: string; // data da ocorrência (YYYY-MM-DD) no agrupamento por data
 }
 
 export interface EditingReceiptData {
@@ -166,12 +173,15 @@ export interface NatureItemEntry {
 
 /** Situação do item na competência (realizado / pago por terceiros) para o detalhamento. */
 function natureItemStateFields(ni: NatureItemEntry, monthKey: string): Partial<CellBreakdownSubItem> {
-  const state = resolveMappingItemState(ni.item, monthKey);
+  const summary = resolveMappingItemMonth(ni.item, monthKey);
+  const { state } = summary;
+  // Realizado quando nada ficou pendente no mês e houve pagamento (ou o mês foi marcado como realizado)
+  const isRealized = !state.paidByOthers && summary.isSettled && summary.paid > 0;
   return {
-    ...(state.realized ? { status: 'REALIZADA' as const } : {}),
+    ...(isRealized ? { status: 'REALIZADA' as const } : {}),
     paidByOthers: !!state.paidByOthers,
     paidBy: state.paidBy,
-    baseValue: mappingItemBaseValue(ni.item),
+    baseValue: summary.base,
     natureItemRef:
       ni.natureId && ni.mappingId
         ? { natureId: ni.natureId, mappingId: ni.mappingId, itemId: ni.item.id }
@@ -221,8 +231,8 @@ function summarizeNatureEntries(
     const first = group.items[0];
     const total = group.items.reduce((acc, it) => acc + mappingItemMonthValue(it, monthKey), 0);
     const allRealized = group.items.every((it) => {
-      const state = resolveMappingItemState(it, monthKey);
-      return state.realized || state.paidByOthers;
+      const summary = resolveMappingItemMonth(it, monthKey);
+      return summary.state.paidByOthers || (summary.isSettled && summary.paid > 0);
     });
     const days = group.items.map((it) => it.dayOfMonth).filter((d): d is number => !!d && d > 0);
     const isMixed = (payGroupsByMapping.get(group.mappingKey)?.size || 0) > 1;
@@ -294,42 +304,21 @@ export function generateNatureDateGroups(
     const { days, periodType } = getItemManifestationDays(item, year, month);
 
     // Valor de cada ocorrência individual (ex: se é semanal com 4 sábados, cada sábado vale quantity * price)
-    const unitOccBase = Math.round((item.quantity || 1) * (item.price || 0) * 1000) / 1000;
-    // Pago por terceiros na competência: aparece no detalhamento, mas não soma
-    const unitOccVal = resolveMappingItemState(item, competence.slice(0, 7)).paidByOthers ? 0 : unitOccBase;
+    const monthKey = competence.slice(0, 7);
+    const summary = resolveMappingItemMonth(item, monthKey);
+    const unitOccBase = Math.round((item.quantity || 1) * itemUnitPrice(item, monthKey) * 1000) / 1000;
+    const legacyRealized = summary.payments.length === 0 && !!summary.state.realized;
     const isAtyp = ATYPICAL_KEYWORD_REGEX.test(`${item.description} ${ni.mappingName || ''}`);
 
-    days.forEach((day) => {
-      // Ajuste de segurança caso o dia exceda os dias do mês
-      const clampedDay = Math.min(Math.max(1, day), daysInMonth);
-      const padD = String(clampedDay).padStart(2, '0');
-      const dateStr = `${year}-${padM}-${padD}`;
-      const dObj = new Date(year, month - 1, clampedDay);
-      const weekdayName = WEEKDAY_NAMES[dObj.getDay()];
-      const dateFormatted = `${padD}/${padM}/${year} (${weekdayName})`;
-
-      const subItem: CellBreakdownSubItem = {
-        id: `${item.id}_${dateStr}`,
-        description: item.description,
-        quantity: item.quantity,
-        price: item.price,
-        multiplierWeeks: 1, // 1 ocorrência nesta data específica
-        totalValue: unitOccVal,
-        paymentMethod: item.paymentMethod,
-        cardName: item.cardName,
-        mappingName: ni.mappingName,
-        isAtypical: isAtyp,
-        attentionReason: isAtyp ? 'Gasto Atípico / Não-Recorrente' : undefined,
-        ...natureItemStateFields(ni, competence.slice(0, 7)),
-        baseValue: unitOccBase,
-      };
-
+    const addToGroup = (dateStr: string, day: number, subItem: CellBreakdownSubItem) => {
+      const dObj = new Date(year, month - 1, day);
+      const padD = String(day).padStart(2, '0');
       let group = groupsByDate.get(dateStr);
       if (!group) {
         group = {
           dateStr,
-          dateFormatted,
-          day: clampedDay,
+          dateFormatted: `${padD}/${padM}/${year} (${WEEKDAY_NAMES[dObj.getDay()]})`,
+          day,
           periodTypes: new Set(),
           mappingNames: new Set(),
           items: [],
@@ -337,11 +326,72 @@ export function generateNatureDateGroups(
         };
         groupsByDate.set(dateStr, group);
       }
-
       group.periodTypes.add(periodType);
       if (ni.mappingName) group.mappingNames.add(ni.mappingName);
       group.items.push(subItem);
-      group.subtotal = Math.round((group.subtotal + unitOccVal) * 100) / 100;
+      group.subtotal = Math.round((group.subtotal + subItem.totalValue) * 100) / 100;
+    };
+
+    // Diferenças deixadas em aberto aparecem como linha própria na data do pagamento
+    summary.payments
+      .filter((p) => p.action === 'SALDO_ABERTO' && p.expectedAmount - p.amount > 0.005)
+      .forEach((p) => {
+        const anchor = p.coveredDates[p.coveredDates.length - 1];
+        const day = Number(anchor.slice(8, 10));
+        if (!anchor.startsWith(monthKey) || !day) return;
+        addToGroup(anchor, Math.min(day, daysInMonth), {
+          id: `${item.id}_saldo_${p.id}`,
+          description: `${item.description} — saldo em aberto`,
+          quantity: 1,
+          price: Math.round((p.expectedAmount - p.amount) * 100) / 100,
+          multiplierWeeks: 1,
+          totalValue: Math.round((p.expectedAmount - p.amount) * 100) / 100,
+          paymentMethod: item.paymentMethod,
+          cardName: item.cardName,
+          mappingName: ni.mappingName,
+          attentionReason: p.reason ? `Pagamento parcial: ${p.reason}` : 'Pagamento parcial',
+          ...natureItemStateFields(ni, monthKey),
+          status: undefined,
+          occurrenceDate: anchor,
+        });
+      });
+
+    days.forEach((day) => {
+      // Ajuste de segurança caso o dia exceda os dias do mês
+      const clampedDay = Math.min(Math.max(1, day), daysInMonth);
+      const dateStr = `${year}-${padM}-${String(clampedDay).padStart(2, '0')}`;
+
+      // Data paga: mostra a parte do pagamento que coube a ela; pago por terceiros: aparece sem somar
+      const payment = summary.coveredDates.get(dateStr);
+      const occValue = summary.state.paidByOthers
+        ? 0
+        : payment
+        ? Math.round((payment.amount / payment.coveredDates.length) * 100) / 100
+        : unitOccBase;
+      const differs = !!payment && Math.abs(payment.amount - payment.expectedAmount) >= 0.01;
+
+      addToGroup(dateStr, clampedDay, {
+        id: `${item.id}_${dateStr}`,
+        description: item.description,
+        quantity: item.quantity,
+        price: item.price,
+        multiplierWeeks: 1, // 1 ocorrência nesta data específica
+        totalValue: occValue,
+        paymentMethod: item.paymentMethod,
+        cardName: item.cardName,
+        mappingName: ni.mappingName,
+        isAtypical: isAtyp,
+        attentionReason: differs
+          ? `Pago ${occValue > unitOccBase ? 'acima' : 'abaixo'} do previsto${payment?.reason ? `: ${payment.reason}` : ''}`
+          : isAtyp
+          ? 'Gasto Atípico / Não-Recorrente'
+          : undefined,
+        ...natureItemStateFields(ni, monthKey),
+        // Situação por ocorrência: paga (ou mês marcado como realizado) x prevista
+        status: !summary.state.paidByOthers && (payment || legacyRealized) ? 'REALIZADA' : undefined,
+        baseValue: unitOccBase,
+        occurrenceDate: dateStr,
+      });
     });
   });
 
@@ -2437,7 +2487,11 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     const isNatureItem = !isReceipt && !!sub.natureItemRef;
     const openItemState = () => {
       if (sub.natureItemRef && currentRow) {
-        setItemStateTarget({ ...sub.natureItemRef, monthKey: currentRow.monthKey });
+        setItemStateTarget({
+          ...sub.natureItemRef,
+          monthKey: currentRow.monthKey,
+          occurrenceDate: sub.occurrenceDate,
+        });
       }
     };
 

@@ -367,6 +367,32 @@ export interface MappingItem {
   // Situação do item por competência (ver utils/mappingItemState.ts):
   monthStates?: Record<string, MappingItemMonthState>; // ajustes pontuais, chave = competência (YYYY-MM)
   stateRules?: MappingItemStateRule[];                 // regras que valem de uma competência em diante
+  payments?: Record<string, MappingItemPayment[]>;     // pagamentos registrados, chave = competência (YYYY-MM)
+  priceRules?: MappingItemPriceRule[];                 // reajustes de preço agendados (competências futuras)
+}
+
+/** O que fazer quando o valor pago difere do esperado para as datas cobertas. */
+export type MappingItemPaymentAction =
+  | 'PONTUAL'       // diferença só neste pagamento; o previsto não muda
+  | 'REAJUSTE'      // novo preço vale desta competência em diante
+  | 'SALDO_ABERTO'  // pagou menos: o que faltou continua previsto no mês
+  | 'QUITADO';      // pagou menos e não haverá cobrança do restante destas datas
+
+/** Pagamento de um item mapeado, cobrindo ocorrências (datas) específicas da competência. */
+export interface MappingItemPayment {
+  id: string;
+  paidAt: string;          // data do pagamento (YYYY-MM-DD)
+  amount: number;          // valor efetivamente pago
+  expectedAmount: number;  // valor previsto das datas cobertas no momento do pagamento
+  coveredDates: string[];  // ocorrências cobertas (YYYY-MM-DD); cada data só pode ser paga uma vez
+  reason?: string;         // por que o valor foi diferente
+  action?: MappingItemPaymentAction;
+}
+
+/** Preço por ocorrência que passa a valer a partir de uma competência (inclusive). */
+export interface MappingItemPriceRule {
+  fromMonth: string; // YYYY-MM
+  price: number;
 }
 
 /** Situação de um item mapeado em uma competência. */

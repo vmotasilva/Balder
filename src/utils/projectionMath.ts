@@ -1,5 +1,5 @@
 import type { Movement, ExpenseNature, MonthlyGridProjectionRow, MonthlyClosing } from '../types';
-import { mappingItemBaseValue, resolveMappingItemState } from './mappingItemState';
+import { resolveMappingItemMonth } from './mappingItemState';
 
 export interface ProjectionGridConfig {
   initialBalance?: number;
@@ -182,26 +182,20 @@ export function buildMonthlyProjectionGrid(
           return;
         }
         m.items.forEach((item) => {
-          const state = resolveMappingItemState(item, comp.key);
+          // Pago + ainda pendente no mês (pagamentos registrados substituem o previsto das datas cobertas)
+          const summary = resolveMappingItemMonth(item, comp.key);
           // Itens pagos por terceiros na competência não entram nos valores
-          if (state.paidByOthers) return;
-          const itemVal = mappingItemBaseValue(item);
+          if (summary.state.paidByOthers) return;
           const onCard = item.paymentMethod === 'CARTAO';
-          monthlyFixedFromNatures += itemVal;
+          monthlyFixedFromNatures += summary.value;
+          pendingFixedFromNatures += summary.pending;
           if (onCard) {
-            monthlyFixedOnCard += itemVal;
+            monthlyFixedOnCard += summary.value;
+            pendingFixedOnCard += summary.pending;
           } else {
-            monthlyFixedDirect += itemVal;
-          }
-          if (state.realized) {
-            if (!onCard) realizedDirectItems.push({ description: item.description, value: itemVal });
-          } else {
-            pendingFixedFromNatures += itemVal;
-            if (onCard) {
-              pendingFixedOnCard += itemVal;
-            } else {
-              pendingFixedDirect += itemVal;
-            }
+            monthlyFixedDirect += summary.value;
+            pendingFixedDirect += summary.pending;
+            if (summary.paid > 0) realizedDirectItems.push({ description: item.description, value: summary.paid });
           }
         });
       });

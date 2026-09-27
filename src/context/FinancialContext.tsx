@@ -75,7 +75,7 @@ import {
   DEMO_BANKS,
 } from '../utils/demoData';
 import { deduplicateCards, getCardIdentityKey } from '../utils/cardUtils';
-import { resolveMappingItemState } from '../utils/mappingItemState';
+import { mappingItemBaseValue, resolveMappingItemState } from '../utils/mappingItemState';
 
 interface FinancialContextType {
   // Estado
@@ -209,7 +209,7 @@ interface FinancialContextType {
     natureId: string,
     mappingId: string,
     itemId: string,
-    state: Pick<MappingItem, 'monthStates' | 'stateRules'>
+    state: Partial<MappingItem>
   ) => void;
   deleteMappingItem: (natureId: string, mappingId: string, itemId: string) => void;
   moveMappingItem: (fromNatureId: string, fromMappingId: string, toNatureId: string, toMappingId: string, itemId: string) => boolean;
@@ -3670,12 +3670,13 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
-  // Situação do item por competência (realizado / pago por terceiros); não recalcula valores
+  // Situação e pagamentos do item por competência (realizado, quem pagou, pagamentos, reajustes);
+  // grava o patch como veio, sem recalcular valores
   const updateMappingItemState = (
     natureId: string,
     mappingId: string,
     itemId: string,
-    state: Pick<MappingItem, 'monthStates' | 'stateRules'>
+    state: Partial<MappingItem>
   ) => {
     setNatures((prev) => {
       let updatedMappings: FixedExpenseMapping[] = [];
@@ -4018,7 +4019,12 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const monthKey = typeof month === 'string' && /^\d{4}-\d{2}/.test(month) ? month.slice(0, 7) : undefined;
       const mapTotal = (map.items || []).reduce(
         (accItem, it) =>
-          accItem + (monthKey && resolveMappingItemState(it, monthKey).paidByOthers ? 0 : it.totalValue || 0),
+          accItem +
+          (monthKey
+            ? resolveMappingItemState(it, monthKey).paidByOthers
+              ? 0
+              : mappingItemBaseValue(it, monthKey)
+            : it.totalValue || 0),
         0
       );
       return accMap + mapTotal;
