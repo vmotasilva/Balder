@@ -17,7 +17,11 @@ import {
   Check,
   Zap,
   TrendingDown,
+  Archive,
+  ArchiveRestore,
+  Trash2,
 } from 'lucide-react';
+import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
 import { calculateLoanSpreadsheet } from '../utils/loanSpreadsheetMath';
 import type { LoanSpreadsheetInput } from '../utils/loanSpreadsheetMath';
 import { groupLoanMovements, calculatePresentValue } from '../utils/loanMath';
@@ -40,7 +44,12 @@ export const LoansPage: React.FC = () => {
     toggleMovementStatus,
     activeCheckpoint,
     monthlyClosings,
+    archivedLoanGroups,
+    setLoanGroupArchived,
+    deleteLoanContract,
   } = useFinancial();
+  const { confirm: confirmAction, dialogProps: confirmDialogProps } = useConfirmDialog();
+  const [showArchivedLoans, setShowArchivedLoans] = useState(false);
 
   const [activeTab, setActiveTab] = useState<'CONTRACTED' | 'SIMULATOR'>('CONTRACTED');
   const [isSimulatorModalOpen, setIsSimulatorModalOpen] = useState(false);
@@ -351,13 +360,50 @@ export const LoansPage: React.FC = () => {
     return groupLoanMovements(movements);
   }, [movements]);
 
+  // Arquivados somem da lista principal (os lançamentos continuam no fluxo)
+  const activeLoanGroups = useMemo(
+    () => contractedGroups.filter((g) => !archivedLoanGroups.includes(g.groupId)),
+    [contractedGroups, archivedLoanGroups]
+  );
+  const archivedLoanGroupsList = useMemo(
+    () => contractedGroups.filter((g) => archivedLoanGroups.includes(g.groupId)),
+    [contractedGroups, archivedLoanGroups]
+  );
+  const visibleLoanGroups = showArchivedLoans ? archivedLoanGroupsList : activeLoanGroups;
+
   const [selectedGroupId, setSelectedGroupId] = useState<string>(
     contractedGroups[0]?.groupId || ''
   );
 
   const selectedGroup = useMemo(() => {
-    return contractedGroups.find((g) => g.groupId === selectedGroupId) || contractedGroups[0];
-  }, [contractedGroups, selectedGroupId]);
+    return visibleLoanGroups.find((g) => g.groupId === selectedGroupId) || visibleLoanGroups[0];
+  }, [visibleLoanGroups, selectedGroupId]);
+
+  const fmtLoanBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  const handleArchiveLoan = (groupId: string, title: string, openCount: number, openBalance: number) => {
+    if (openCount === 0) {
+      setLoanGroupArchived(groupId, true);
+      return;
+    }
+    confirmAction({
+      title: 'Arquivar contrato',
+      message: `"${title}" ainda tem ${openCount} parcela(s) em aberto (${fmtLoanBRL(openBalance)}). Arquivar só tira o contrato da lista: as parcelas continuam no fluxo de caixa e nas projeções. Para retirá-las, exclua o contrato.`,
+      confirmLabel: 'Arquivar',
+      variant: 'warning',
+      onConfirm: () => setLoanGroupArchived(groupId, true),
+    });
+  };
+
+  const handleDeleteLoan = (groupId: string, title: string, movementIds: string[], paidCount: number) => {
+    confirmAction({
+      title: 'Excluir contrato',
+      message: `Excluir "${title}" apaga as ${movementIds.length} parcela(s)${paidCount > 0 ? ` (incluindo ${paidCount} já paga(s))` : ''} e a captação registrada no contrato, se houver. Isso muda o saldo e as projeções e não pode ser desfeito.`,
+      confirmLabel: 'Excluir contrato',
+      variant: 'danger',
+      onConfirm: () => deleteLoanContract(groupId, movementIds),
+    });
+  };
 
   // Parcelas do contrato selecionado a serem exibidas conforme o filtro ativo ('ALL' | 'OPEN' | 'PAID')
   const displayedInstallments = useMemo(() => {
@@ -1351,7 +1397,7 @@ export const LoansPage: React.FC = () => {
             onClick={() => setActiveTab('CONTRACTED')}
           >
             <FileSpreadsheet size={16} />
-            <span>Contratos Ativos ({contractedGroups.length})</span>
+            <span>Contratos Ativos ({activeLoanGroups.length})</span>
           </button>
           <button
             type="button"
@@ -1409,20 +1455,42 @@ export const LoansPage: React.FC = () => {
                     Acompanhe parcelas em aberto, saldo devedor e execute amortizações antecipadas
                   </p>
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => setIsSimulatorModalOpen(true)}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
-                >
-                  <PlusCircle size={16} />
-                  <span>+ Novo Empréstimo</span>
-                </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {(archivedLoanGroupsList.length > 0 || showArchivedLoans) && (
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      onClick={() => setShowArchivedLoans((v) => !v)}
+                    >
+                      {showArchivedLoans ? <FileSpreadsheet size={14} /> : <Archive size={14} />}
+                      <span>{showArchivedLoans ? `Ver ativos (${activeLoanGroups.length})` : `Arquivados (${archivedLoanGroupsList.length})`}</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => setIsSimulatorModalOpen(true)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
+                  >
+                    <PlusCircle size={16} />
+                    <span>+ Novo Empréstimo</span>
+                  </button>
+                </div>
               </div>
+
+              {visibleLoanGroups.length === 0 && (
+                <div className="glass-card text-center p-8 mb-4">
+                  <p className="text-sm text-secondary">
+                    {showArchivedLoans
+                      ? 'Nenhum contrato arquivado.'
+                      : `Nenhum contrato ativo. ${archivedLoanGroupsList.length} contrato(s) arquivado(s).`}
+                  </p>
+                </div>
+              )}
 
               {/* Seletor de Contratos Contratados */}
               <div className="contract-selector-cards-grid mb-4">
-                {contractedGroups.map((g) => {
+                {visibleLoanGroups.map((g) => {
                   const isSelected = g.groupId === selectedGroupId;
                   const openCount = g.openInstallments.length;
                   const paidCount = g.paidInstallments.length;
@@ -1437,7 +1505,7 @@ export const LoansPage: React.FC = () => {
                       key={g.groupId}
                       className={`contract-card glass-card cursor-pointer ${
                         isSelected ? 'active' : ''
-                      }`}
+                      } ${showArchivedLoans ? 'contract-card--archived' : ''}`}
                       onClick={() => setSelectedGroupId(g.groupId)}
                     >
                       <div className="flex justify-between items-start mb-2">
@@ -1446,6 +1514,7 @@ export const LoansPage: React.FC = () => {
                           <h4 className="font-bold text-white text-md">{g.title}</h4>
                         </div>
                         <span className={`badge ${paidCount === totalCount && totalCount > 0 ? 'badge-emerald' : 'badge-cyan'} text-xs`}>
+                          {showArchivedLoans ? 'Arquivado · ' : ''}
                           {paidCount}/{totalCount} Pagas
                         </span>
                       </div>
@@ -1482,6 +1551,53 @@ export const LoansPage: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-3 flex-wrap">
+                      <div className="contract-actions">
+                        {archivedLoanGroups.includes(selectedGroup.groupId) ? (
+                          <button
+                            type="button"
+                            className="btn btn-outline btn-xs"
+                            onClick={() => setLoanGroupArchived(selectedGroup.groupId, false)}
+                            title="Voltar o contrato para a lista de ativos"
+                          >
+                            <ArchiveRestore size={13} />
+                            <span>Restaurar</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn btn-outline btn-xs"
+                            onClick={() =>
+                              handleArchiveLoan(
+                                selectedGroup.groupId,
+                                selectedGroup.title,
+                                selectedGroup.openInstallments.length,
+                                selectedGroup.nominalBalance
+                              )
+                            }
+                            title="Tirar o contrato da lista (os lançamentos continuam)"
+                          >
+                            <Archive size={13} />
+                            <span>Arquivar</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-xs contract-delete-btn"
+                          onClick={() =>
+                            handleDeleteLoan(
+                              selectedGroup.groupId,
+                              selectedGroup.title,
+                              selectedGroup.allInstallments.map((m) => m.id),
+                              selectedGroup.paidInstallments.length
+                            )
+                          }
+                          title="Excluir o contrato e todos os lançamentos dele"
+                        >
+                          <Trash2 size={13} />
+                          <span>Excluir</span>
+                        </button>
+                      </div>
+
                       <div className="grid-filter-pills">
                         <button
                           type="button"
@@ -1932,6 +2048,8 @@ export const LoansPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      <ConfirmDialog {...confirmDialogProps} />
     </div>
   );
 };

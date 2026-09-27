@@ -234,6 +234,11 @@ interface FinancialContextType {
   // Exibição das naturezas no detalhamento da grade (itens ou só mapeamentos)
   natureDetailModes: Record<string, NatureDetailMode>;
   setNatureDetailMode: (natureId: string, mode: NatureDetailMode) => void;
+
+  // Contratos de empréstimo: arquivar (some da lista) e excluir (apaga parcelas e captação)
+  archivedLoanGroups: string[];
+  setLoanGroupArchived: (groupId: string, archived: boolean) => void;
+  deleteLoanContract: (groupId: string, movementIds: string[]) => void;
   addSharedSettlement: (item: Omit<SharedSettlementItem, 'id'>) => void;
   toggleSharedSettlementStatus: (id: string) => void;
   settleAllSharedDebts: () => void;
@@ -805,6 +810,33 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (user && !user.isGuest) {
         SupabaseService.saveUserProfileSettings({ natureDetailModes: next }).catch(console.error);
       }
+      return next;
+    });
+  };
+
+  // Contratos de empréstimo arquivados (guardados no perfil, como a exibição das naturezas)
+  const archivedLoansKey = user && !user.isGuest ? `balder_archived_loans_${user.$id}` : 'balder_archived_loans_guest';
+  const [archivedLoanGroups, setArchivedLoanGroups] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem(archivedLoansKey);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [];
+  });
+
+  const persistArchivedLoans = (next: string[]) => {
+    try {
+      localStorage.setItem(archivedLoansKey, JSON.stringify(next));
+    } catch {}
+    if (user && !user.isGuest) {
+      SupabaseService.saveUserProfileSettings({ archivedLoanGroups: next }).catch(console.error);
+    }
+  };
+
+  const setLoanGroupArchived = (groupId: string, archived: boolean) => {
+    setArchivedLoanGroups((prev) => {
+      const next = archived ? Array.from(new Set([...prev, groupId])) : prev.filter((id) => id !== groupId);
+      persistArchivedLoans(next);
       return next;
     });
   };
@@ -1648,6 +1680,12 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               localStorage.setItem(`balder_shared_settlements_${user.$id}`, JSON.stringify(cloudProfileSettings.sharedSettlements));
             }
           }
+          if (cloudProfileSettings?.archivedLoanGroups) {
+            setArchivedLoanGroups(cloudProfileSettings.archivedLoanGroups);
+            if (user) {
+              localStorage.setItem(`balder_archived_loans_${user.$id}`, JSON.stringify(cloudProfileSettings.archivedLoanGroups));
+            }
+          }
           if (cloudProfileSettings?.natureDetailModes) {
             setNatureDetailModes(cloudProfileSettings.natureDetailModes);
             if (user) {
@@ -2056,6 +2094,16 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         console.error('Erro ao excluir no Supabase:', err)
       );
     }
+  };
+
+  // Exclui um contrato de empréstimo inteiro: parcelas (pagas ou não) e a captação do mesmo grupo
+  const deleteLoanContract = (groupId: string, movementIds: string[]) => {
+    const ids = new Set(movementIds);
+    movements.forEach((m) => {
+      if (m.installmentGroupId && m.installmentGroupId === groupId) ids.add(m.id);
+    });
+    ids.forEach((id) => deleteMovement(id));
+    if (archivedLoanGroups.includes(groupId)) setLoanGroupArchived(groupId, false);
   };
 
   // Alternar Status Prevista / Realizada
@@ -4327,6 +4375,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         sharedSettlements,
         natureDetailModes,
         setNatureDetailMode,
+        archivedLoanGroups,
+        setLoanGroupArchived,
+        deleteLoanContract,
         addSharedSettlement,
         toggleSharedSettlementStatus,
         settleAllSharedDebts,

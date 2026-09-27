@@ -581,6 +581,8 @@ export interface UserProfileSettings {
   formattedAt?: Partial<Record<DataFormatCategory, string>>;
   /** Exibição de cada natureza no detalhamento da grade, por id da natureza (padrão: 'ITENS'). */
   natureDetailModes?: Record<string, NatureDetailMode>;
+  /** Contratos de empréstimo arquivados (id do grupo de parcelas): somem da lista, os lançamentos continuam. */
+  archivedLoanGroups?: string[];
 }
 
 /**

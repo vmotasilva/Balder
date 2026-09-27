@@ -18912,3 +18912,29 @@ html:not([data-theme="light"]) .dark\:hover\:bg-slate-800:hover { background-col
 .forecast-row-amount.is-out {
   color: var(--accent-rose);
 }
+
+/* Contratos de empréstimo: arquivar / excluir */
+.contract-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.contract-delete-btn {
+  color: var(--accent-rose);
+}
+
+.contract-delete-btn:hover {
+  border-color: var(--accent-rose);
+  background: var(--accent-rose-glow);
+}
+
+.contract-card--archived {
+  opacity: 0.72;
+  border-style: dashed;
+}
+
+.contract-card--archived.active,
+.contract-card--archived:hover {
+  opacity: 1;
+}
