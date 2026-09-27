@@ -17792,3 +17792,148 @@ button.week-column-row {
 .detail-item-paid-expected .paid-diff-down {
   color: #34d399;
 }
+
+/* Seletor Todos / Realizado / Previsto do detalhamento */
+.detail-filter-segment {
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+/* ─── Tema claro: visões do detalhamento, semana, calendário e pagos ─────── */
+[data-theme="light"] .detail-filter-segment {
+  background: #F1F5F9;
+  border-color: #E2E8F0;
+}
+
+[data-theme="light"] .detail-view-style-bar,
+[data-theme="light"] .mapping-detail-mode-toggle {
+  background: #F8FAFC;
+  border-color: #E2E8F0;
+}
+
+[data-theme="light"] .detail-view-style-btn.active,
+[data-theme="light"] .mapping-detail-mode-toggle button.active,
+[data-theme="light"] .week-layer-toggle button.active {
+  background: #E0F2FE;
+  color: #0369A1;
+  border-color: #7DD3FC;
+}
+
+[data-theme="light"] .week-layer-toggle button {
+  background: #FFFFFF;
+  border-color: #E2E8F0;
+  color: #475569;
+}
+
+[data-theme="light"] .drill-breadcrumb button {
+  color: #0369A1;
+}
+
+[data-theme="light"] .drill-breadcrumb button:disabled,
+[data-theme="light"] .drill-breadcrumb span {
+  color: #0F172A;
+}
+
+/* Colunas da visão por semana */
+[data-theme="light"] .week-column {
+  background: #F8FAFC;
+  border-color: #E2E8F0;
+}
+
+[data-theme="light"] .week-column-header,
+[data-theme="light"] .week-column-name {
+  color: #0F172A;
+}
+
+[data-theme="light"] .week-column-summary {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+}
+
+[data-theme="light"] .week-column-summary strong {
+  color: #0F172A;
+}
+
+[data-theme="light"] .week-column-summary .is-over strong,
+[data-theme="light"] .week-column-summary .is-over span {
+  color: #DC2626;
+}
+
+[data-theme="light"] .week-column-summary .is-good strong {
+  color: #059669;
+}
+
+[data-theme="light"] .week-column-progress {
+  background: #E2E8F0;
+}
+
+[data-theme="light"] .week-column-row {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+}
+
+[data-theme="light"] .week-column-row.is-clickable:hover {
+  background: #F0F9FF;
+  border-color: #BAE6FD;
+}
+
+[data-theme="light"] .week-column-value {
+  color: #0F172A;
+}
+
+/* Calendário */
+[data-theme="light"] .cal-cell {
+  background: #FFFFFF;
+  border-color: #E2E8F0;
+}
+
+[data-theme="light"] .cal-cell.cal-blank {
+  background: transparent;
+  border-color: transparent;
+}
+
+[data-theme="light"] .cal-cell.has-entries {
+  background: #FFFBEB;
+  border-color: #FCD34D;
+  color: #0F172A;
+}
+
+[data-theme="light"] .cal-cell.has-entries.is-realized {
+  background: #ECFDF5;
+  border-color: #6EE7B7;
+}
+
+[data-theme="light"] .cal-undated {
+  color: #334155;
+  border-color: #CBD5E1;
+}
+
+/* Real | Previsto e valores já pagos */
+[data-theme="light"] .drill-rp {
+  color: #0F172A;
+}
+
+[data-theme="light"] .detail-item-paid-value {
+  color: #059669;
+}
+
+[data-theme="light"] .detail-item-paid-expected .paid-diff-up {
+  color: #DC2626;
+}
+
+[data-theme="light"] .detail-item-paid-expected .paid-diff-down {
+  color: #059669;
+}
+
+/* Grid de naturezas */
+[data-theme="light"] .nature-card-rp-bar {
+  background: #E2E8F0;
+}
+
+[data-theme="light"] .nature-card-alert {
+  color: #DC2626;
+}
+
+[data-theme="light"] .nature-card-last {
+  border-top-color: #E2E8F0;
+}

@@ -3120,15 +3120,14 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
           </div>
 
           <div className="cell-detail-header-actions flex items-center gap-3 flex-shrink-0 ml-auto flex-wrap justify-end">
-            {/* Seletor Segmentado: Realizado vs Previsto vs Todos */}
+            {/* Seletor Segmentado: Realizado vs Previsto vs Todos (cores por tema em .detail-filter-segment) */}
             <div
+              className="detail-filter-segment"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 padding: '3px',
                 borderRadius: '10px',
-                background: 'rgba(15, 23, 42, 0.75)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
                 gap: '3px',
               }}
             >
