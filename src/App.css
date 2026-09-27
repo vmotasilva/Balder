@@ -19117,3 +19117,67 @@ html:not([data-theme="light"]) .dark\:hover\:bg-slate-800:hover { background-col
   border-radius: 50%;
   object-fit: cover;
 }
+
+/* Simulador: taxa ⇄ parcela */
+.loan-rate-mode {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  align-self: flex-start;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.loan-calc-tag {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent-cyan);
+  background: var(--accent-cyan-glow);
+}
+
+.loan-calculated-field {
+  font-weight: 700;
+  color: var(--accent-cyan) !important;
+  background: color-mix(in srgb, var(--accent-cyan) 6%, transparent) !important;
+  cursor: default;
+}
+
+.loan-calc-error {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--accent-rose);
+}
+
+/* Campos de data e mês: ícone de calendário visível nos dois temas, com cara de botão */
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator {
+  filter: none;
+  opacity: 1;
+  width: 18px;
+  height: 18px;
+  padding: 5px;
+  border-radius: 6px;
+  background: rgba(34, 211, 238, 0.12) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322d3ee' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/svg%3E") center / 16px no-repeat;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover,
+input[type="month"]::-webkit-calendar-picker-indicator:hover {
+  background-color: rgba(34, 211, 238, 0.25);
+  transform: none;
+}
+
+[data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator,
+[data-theme="light"] input[type="month"]::-webkit-calendar-picker-indicator {
+  background: rgba(2, 132, 199, 0.1) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230284c7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18'/%3E%3C/svg%3E") center / 16px no-repeat;
+}
+
+[data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator:hover,
+[data-theme="light"] input[type="month"]::-webkit-calendar-picker-indicator:hover {
+  background-color: rgba(2, 132, 199, 0.2);
+}

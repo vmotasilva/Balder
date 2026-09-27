@@ -45,13 +45,19 @@ export const DecimalInput: React.FC<DecimalInputProps> = ({
       autoComplete="off"
       value={text}
       onChange={(e) => {
-        const next = e.target.value.replace(/[^\d.,\-\sR$%]/g, '');
+        let next = e.target.value.replace(/[^\d.,\-\sR$%]/g, '');
+        // Taxas e quantidades: não deixa digitar além das casas decimais permitidas
+        if (!money && maxFractionDigits !== undefined) {
+          const sep = Math.max(next.lastIndexOf(','), next.lastIndexOf('.'));
+          if (sep >= 0 && next.length - sep - 1 > maxFractionDigits) next = next.slice(0, sep + 1 + maxFractionDigits);
+        }
         setText(next);
         onValueChange(parse(next));
       }}
       onBlur={(e) => {
-        // Ao sair do campo, mostra o número como foi entendido ("1500.5" → "1.500,50")
-        if (text.trim() !== '') setText(format(parse(text)));
+        // Valores em reais: ao sair do campo, mostra o número como foi entendido ("1500.5" → "1.500,50").
+        // Taxas e quantidades ficam exatamente como foram digitadas ("3,520" continua "3,520").
+        if (money && text.trim() !== '') setText(format(parse(text)));
         onBlur?.(e);
       }}
     />

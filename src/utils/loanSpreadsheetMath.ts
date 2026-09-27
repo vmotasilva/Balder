@@ -173,3 +173,59 @@ export function calculateLoanSpreadsheet(input: LoanSpreadsheetInput): {
 function savingsAtAdvanceSum(rows: LoanSpreadsheetRow[]): number {
   return rows.reduce((acc, r) => acc + (r.savingsAtAdvance || 0), 0);
 }
+
+/** Parcela (sem arredondamento) pela mesma fórmula da planilha: Price com juros pró-rata no 1º período. */
+function installmentForRate(
+  input: Pick<LoanSpreadsheetInput, 'principalAmount' | 'termMonths' | 'contractDate' | 'firstDueDate'>,
+  i: number
+): number {
+  const daysDiff = getDaysDiff(input.contractDate, input.firstDueDate);
+  const adjustedPrincipal = (input.principalAmount * (1 + i * (daysDiff / 30))) / (1 + i);
+  const discountFactor = 1 - Math.pow(1 + i, -input.termMonths);
+  return discountFactor > 0 ? (adjustedPrincipal * i) / discountFactor : 0;
+}
+
+export type RateSolveResult =
+  | { ok: true; monthlyInterestRate: number }
+  | { ok: false; reason: 'ABAIXO_DO_PRINCIPAL' | 'ACIMA_DO_LIMITE' | 'DADOS_INCOMPLETOS'; minInstallment?: number };
+
+/**
+ * Taxa mensal que resulta na parcela informada (inverso de calculateLoanSpreadsheet).
+ * A parcela cresce com a taxa, então a busca é por bisseção entre ~0% e 100% a.m.
+ * O resultado vem arredondado a 5 casas no percentual (ex.: 3,52012% a.m.).
+ */
+export function solveMonthlyRateForInstallment(
+  input: Pick<LoanSpreadsheetInput, 'principalAmount' | 'termMonths' | 'contractDate' | 'firstDueDate'>,
+  targetInstallment: number
+): RateSolveResult {
+  if (input.principalAmount <= 0 || input.termMonths <= 0 || targetInstallment <= 0) {
+    return { ok: false, reason: 'DADOS_INCOMPLETOS' };
+  }
+  let low = 1e-9;
+  let high = 1;
+  const minInstallment = installmentForRate(input, low);
+  if (targetInstallment <= minInstallment) {
+    return { ok: false, reason: 'ABAIXO_DO_PRINCIPAL', minInstallment: Math.round(minInstallment * 100) / 100 };
+  }
+  if (targetInstallment > installmentForRate(input, high)) {
+    return { ok: false, reason: 'ACIMA_DO_LIMITE' };
+  }
+  for (let k = 0; k < 200 && high - low > 1e-12; k++) {
+    const mid = (low + high) / 2;
+    if (installmentForRate(input, mid) < targetInstallment) low = mid;
+    else high = mid;
+  }
+  const exact = (low + high) / 2;
+  // A parcela informada vem arredondada em centavos: prefere a taxa mais curta (2 a 5 casas no percentual)
+  // que gera a mesma parcela (ex.: 3,52% em vez de 3,51999%)
+  const cents = (v: number) => Math.round(v * 100);
+  for (let decimals = 2; decimals <= 5; decimals++) {
+    const factor = Math.pow(10, decimals + 2);
+    const candidate = Math.round(exact * factor) / factor;
+    if (candidate > 0 && cents(installmentForRate(input, candidate)) === cents(targetInstallment)) {
+      return { ok: true, monthlyInterestRate: candidate };
+    }
+  }
+  // 5 casas no percentual = 7 casas na fração
+  return { ok: true, monthlyInterestRate: Math.round(exact * 1e7) / 1e7 };
+}
