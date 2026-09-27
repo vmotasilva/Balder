@@ -620,8 +620,47 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
           </div>
         )}
 
-        {/* Seletor de Naturezas em Dropdown */}
-        <div className="naturezas-dropdown-container" style={{ position: 'relative', marginBottom: '20px' }}>
+        {/* Seletor de Naturezas no desktop: todas as naturezas como botões */}
+        <div className="naturezas-selector-grid" role="group" aria-label="Naturezas">
+          {natures.map((nat) => {
+            const ceil = getNatureCeiling(nat);
+            const spent = getNatureSpent(nat);
+            const isOver = ceil > 0 && spent > ceil;
+            const isFar = ceil > 0 && spent < ceil * 0.75;
+            const isSelected = selectedNature?.id === nat.id;
+            return (
+              <button
+                key={nat.id}
+                type="button"
+                className={`natureza-tab-item ${isSelected ? 'active' : ''}`}
+                aria-pressed={isSelected}
+                onClick={() => setSelectedNatureId(nat.id)}
+                style={{ borderLeftColor: nat.color }}
+                title={nat.name}
+              >
+                <div className="natureza-tab-top">
+                  <span className="natureza-tab-icon">{nat.icon}</span>
+                  <strong className="natureza-tab-name">{nat.name}</strong>
+                </div>
+                <div className="natureza-tab-meta">
+                  <span className="natureza-tab-ceiling">
+                    Teto: {ceil.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </span>
+                  {isOver ? (
+                    <span className="badge badge-rose text-xs">TETO EXCEDIDO</span>
+                  ) : isFar ? (
+                    <span className="badge badge-cyan text-xs">LONGE DO TETO</span>
+                  ) : (
+                    <span className="badge badge-emerald text-xs">NO LIMITE</span>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Seletor de Naturezas em Dropdown (celular) */}
+        <div className="naturezas-dropdown-container naturezas-dropdown-container--mobile" style={{ position: 'relative', marginBottom: '20px' }}>
           {selectedNature && (() => {
             const ceil = getNatureCeiling(selectedNature);
             const spent = getNatureSpent(selectedNature);

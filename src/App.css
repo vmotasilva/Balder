@@ -4668,6 +4668,37 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   gap: 8px;
 }
 
+/* Seletor de naturezas: botões no desktop, dropdown no celular */
+.naturezas-selector-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.naturezas-selector-grid .natureza-tab-top {
+  min-width: 0;
+}
+
+.naturezas-selector-grid .natureza-tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.naturezas-dropdown-container--mobile {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .naturezas-selector-grid {
+    display: none;
+  }
+
+  .naturezas-dropdown-container--mobile {
+    display: block;
+  }
+}
+
 .natureza-tab-icon {
   font-size: 16px;
 }
