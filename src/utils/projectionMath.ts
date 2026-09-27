@@ -40,8 +40,12 @@ function generateCompetenceMonths(startDate?: string) {
  * Identifica recebimentos de salário. Regra única usada pela grade e pelo detalhamento,
  * para que um lançamento nunca seja contado como salário e extra ao mesmo tempo.
  */
+/** Proventos que entram como receita extra, não como salário regular (mesmo tendo "salário" no nome). */
+export const EXTRA_EARNING_CATEGORIES = ['Horas Extras', 'Férias', '13º Salário'];
+
 export function isSalaryMovement(m: Movement): boolean {
   if (m.type !== 'RECEBER') return false;
+  if (EXTRA_EARNING_CATEGORIES.includes(m.category)) return false;
   const title = m.title.toLowerCase();
   return (
     m.category === 'Salário' ||
