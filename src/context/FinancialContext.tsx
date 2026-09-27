@@ -76,6 +76,7 @@ import {
 } from '../utils/demoData';
 import { deduplicateCards, getCardIdentityKey } from '../utils/cardUtils';
 import { mappingItemBaseValue, resolveMappingItemState } from '../utils/mappingItemState';
+import { buildForecastWindow, FORECAST_PERIODS, type ForecastPeriod, type ForecastWindow } from '../utils/forecastWindow';
 
 interface FinancialContextType {
   // Estado
@@ -118,12 +119,10 @@ interface FinancialContextType {
   emergencyReserveMonths: number;
   emergencyReserveAmount: number;
 
-  forecast30d: {
-    income: number;
-    expenses: number;
-    net: number;
-    projectedBalance: number;
-  };
+  /** Próximos 30 dias (base do fluxo livre mensal e da reserva em meses). */
+  forecast30d: ForecastWindow;
+  /** Saldo previsto de hoje até o fim de cada período (semana, quinzena, mês, 30 dias), com o detalhamento. */
+  forecasts: Record<ForecastPeriod, ForecastWindow>;
 
   nextCriticalEvent: CriticalEvent | null;
 
@@ -1235,22 +1234,19 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return res.reduce((acc, cur) => acc + cur.balance, 0);
   }, [accounts]);
 
-  // Projeção dos Próximos 30 Dias (filtra por startDate quando há checkpoint)
-  const forecast30d = useMemo(() => {
+  // Saldo previsto por período (semana, quinzena, mês, 30 dias): movimentos previstos + itens das
+  // naturezas ainda não pagos até o fim do período (filtra por startDate quando há checkpoint)
+  const forecasts = useMemo(() => {
     const startDate = activeCheckpoint?.startDate ?? '0000-01-01';
-    const plannedIncome = movements
-      .filter((m) => m.type === 'RECEBER' && m.status === 'PREVISTA' && m.dueDate >= startDate)
-      .reduce((acc, cur) => acc + cur.amount, 0);
-
-    const plannedExpenses = movements
-      .filter((m) => (m.type === 'PAGAR' || m.type === 'EMPRESTIMO' || m.type === 'CARTAO') && m.status === 'PREVISTA' && m.dueDate >= startDate)
-      .reduce((acc, cur) => acc + cur.amount, 0);
-
-    const net = plannedIncome - plannedExpenses;
-    const projectedBalance = availableBalance + net;
-
-    return { income: plannedIncome, expenses: plannedExpenses, net, projectedBalance };
-  }, [movements, availableBalance, activeCheckpoint]);
+    const today = new Date();
+    return Object.fromEntries(
+      FORECAST_PERIODS.map(({ id }) => [
+        id,
+        buildForecastWindow({ movements, natures, startingBalance: availableBalance, startDate, today, period: id }),
+      ])
+    ) as Record<ForecastPeriod, ForecastWindow>;
+  }, [movements, natures, availableBalance, activeCheckpoint]);
+  const forecast30d = forecasts.DIAS_30;
 
   const monthlyFreeCashflow = forecast30d.net;
   const emergencyReserveMonths = useMemo(() => {
@@ -4271,6 +4267,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         emergencyReserveMonths,
         emergencyReserveAmount,
         forecast30d,
+        forecasts,
         nextCriticalEvent,
         addAccount,
         updateAccount,

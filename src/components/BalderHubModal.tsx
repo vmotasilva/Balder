@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useFinancial } from '../context/FinancialContext';
+import { ForecastBreakdownModal, forecastPeriodLabel, formatBRL, useForecastPeriod } from './ForecastBreakdownModal';
 import { auditOnboardingProgress, getOnboardingDisplayStep } from '../utils/onboardingProgress';
 import {
   Sparkles,
@@ -56,8 +57,10 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
     nextCriticalEvent,
     emergencyReserveMonths,
     goals,
-    forecast30d,
+    forecasts,
   } = useFinancial();
+  const [forecastPeriod, setForecastPeriod] = useForecastPeriod('MES');
+  const [isForecastDetailOpen, setIsForecastDetailOpen] = useState(false);
 
   // IDs de notificações dispensadas pelo usuário nesta sessão
   const [dismissedIds, setDismissedIds] = useState<string[]>(() => {
@@ -274,6 +277,7 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
   if (!isOpen) return null;
 
   return (
+    <>
     <div
       className="balder-hub-overlay animate-fade-in"
       role="dialog"
@@ -412,12 +416,20 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
 
         {/* Hub Footer */}
         <div className="balder-hub-footer">
-          <div className="flex items-center gap-2 text-xs text-muted">
+          <button
+            type="button"
+            className="hub-forecast-btn"
+            onClick={() => setIsForecastDetailOpen(true)}
+            title="Ver o que compõe o saldo previsto"
+          >
             <Calendar size={13} className="text-cyan" />
             <span>
-              Projeção 30d: <strong>{forecast30d.projectedBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+              {forecastPeriodLabel(forecastPeriod)}:{' '}
+              <strong className={forecasts[forecastPeriod].projectedBalance < 0 ? 'text-rose' : ''}>
+                {formatBRL(forecasts[forecastPeriod].projectedBalance)}
+              </strong>
             </span>
-          </div>
+          </button>
 
           <div className="flex items-center gap-2">
             {onNavigateToCopilot && (
@@ -444,5 +456,13 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
         </div>
       </div>
     </div>
+
+    <ForecastBreakdownModal
+      isOpen={isForecastDetailOpen}
+      onClose={() => setIsForecastDetailOpen(false)}
+      period={forecastPeriod}
+      onPeriodChange={setForecastPeriod}
+    />
+    </>
   );
 };

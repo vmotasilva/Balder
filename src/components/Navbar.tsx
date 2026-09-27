@@ -14,12 +14,14 @@ interface NavbarProps {
   onNavigateToInvoices?: () => void;
   onNavigateToGoals?: () => void;
   onNavigateToCopilot?: () => void;
+  onNavigateToDashboard?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   onOpenNewMovementModal,
   onOpenSimulationModal,
   onOpenNavMenu,
+  onNavigateToDashboard,
   onOpenOnboarding,
   onNavigateToMovements,
   onNavigateToInvoices,
@@ -65,9 +67,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           <button
             type="button"
             className="navbar-brand-btn"
-            onClick={() => setIsHubOpen(true)}
-            title="Abrir Central Balder: Notificações & Get Started"
-            aria-label="Abrir Central Balder: Notificações & Get Started"
+            onClick={() => (onNavigateToDashboard ? onNavigateToDashboard() : setIsHubOpen(true))}
+            title="Ir para o Dashboard"
+            aria-label="Ir para o Dashboard"
           >
             <div className="navbar-brand-logo-icon">
               <img src="/logo-app.png" alt="Balder" className="navbar-brand-logo-img" />

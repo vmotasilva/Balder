@@ -23,6 +23,13 @@ import { MonthlyProjectionGrid } from '../components/MonthlyProjectionGrid';
 import { NatureBudgetGrid } from '../components/NatureBudgetGrid';
 import { CheckpointSetupModal } from '../components/CheckpointSetupModal';
 import { QuickActionsDropdown } from '../components/QuickActionsDropdown';
+import {
+  ForecastBreakdownModal,
+  ForecastPeriodPills,
+  ddmm,
+  formatBRL,
+  useForecastPeriod,
+} from '../components/ForecastBreakdownModal';
 
 interface DashboardPageProps {
   onNavigateToMovements: () => void;
@@ -54,7 +61,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
     monthlyFreeCashflow,
     emergencyReserveMonths,
     emergencyReserveAmount,
-    forecast30d,
+    forecasts,
     nextCriticalEvent,
     goals,
     activeCheckpoint,
@@ -65,6 +72,10 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   const [isCheckpointModalOpen, setIsCheckpointModalOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<DashboardTab>('PROJECAO_MES');
+  const [forecastPeriod, setForecastPeriod] = useForecastPeriod('MES');
+  const [isForecastDetailOpen, setIsForecastDetailOpen] = useState(false);
+  const forecast = forecasts[forecastPeriod];
+  const forecastOverdue = forecast.entries.filter((e) => e.overdue).length;
 
   // Cálculo real do crescimento patrimonial relativo ao marco inicial (evita exibir dados estáticos/falsos)
   const netWorthGrowth = useMemo(() => {
@@ -349,64 +360,80 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         <div key="projecao-mes" className="dashboard-tab-content animate-fade-in">
           {/* Seção O Que Vai Acontecer (30 Dias) */}
           <section className="dashboard-section">
-            <div className="section-title-row">
+            <div className="section-title-row forecast-title-row">
               <div className="section-title-left">
-                <span className="badge badge-purple">PROJEÇÃO PROSPECTIVA</span>
+                <ForecastPeriodPills value={forecastPeriod} onChange={setForecastPeriod} />
               </div>
               <button className="link-button" onClick={onNavigateToMovements}>
                 Ver todas as movimentações e filtros →
               </button>
             </div>
 
-            <div className="cashflow-projection-card glass-card">
+            <div
+              className="cashflow-projection-card glass-card forecast-card-clickable"
+              role="button"
+              tabIndex={0}
+              onClick={() => setIsForecastDetailOpen(true)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setIsForecastDetailOpen(true);
+                }
+              }}
+              title="Ver o que compõe estes valores"
+            >
               <div className="projection-grid-4">
                 <div className="projection-col">
                   <div className="proj-label-row">
                     <span className="proj-icon text-emerald">↓</span>
                     <span className="proj-label">A RECEBER</span>
                   </div>
-                  <span className="proj-value text-emerald">
-                    +{forecast30d.income.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </span>
-                  <span className="proj-subtext">Salários & Proventos previstos</span>
+                  <span className="proj-value text-emerald">+{formatBRL(forecast.income)}</span>
+                  <span className="proj-subtext">Entradas previstas até {ddmm(forecast.toDate)}</span>
                 </div>
 
                 <div className="projection-col">
                   <div className="proj-label-row">
                     <span className="proj-icon text-rose">↑</span>
-                    <span className="proj-label">A PAGAR (TOTAL)</span>
+                    <span className="proj-label">A PAGAR</span>
                   </div>
-                  <span className="proj-value text-rose">
-                    -{forecast30d.expenses.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </span>
-                  <span className="proj-subtext">Contas fixas, faturas e empréstimos</span>
+                  <span className="proj-value text-rose">-{formatBRL(forecast.expenses)}</span>
+                  <span className="proj-subtext">Contas, faturas, parcelas e naturezas</span>
                 </div>
 
                 <div className="projection-col">
                   <div className="proj-label-row">
                     <span className="proj-icon text-cyan">±</span>
-                    <span className="proj-label">RESULTADO LÍQUIDO 30D</span>
+                    <span className="proj-label">RESULTADO</span>
                   </div>
-                  <span className={`proj-value ${forecast30d.net >= 0 ? 'text-cyan' : 'text-rose'}`}>
-                    {forecast30d.net >= 0 ? '+' : ''}
-                    {forecast30d.net.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  <span className={`proj-value ${forecast.net >= 0 ? 'text-cyan' : 'text-rose'}`}>
+                    {forecast.net >= 0 ? '+' : ''}
+                    {formatBRL(forecast.net)}
                   </span>
-                  <span className="proj-subtext">Saldo gerado no ciclo</span>
+                  <span className="proj-subtext">
+                    {forecastOverdue > 0 ? `Inclui ${forecastOverdue} item(ns) em atraso` : 'Entradas menos saídas no período'}
+                  </span>
                 </div>
 
                 <div className="projection-col highlighted-col">
                   <div className="proj-label-row">
                     <span className="proj-icon text-amber">🏛️</span>
-                    <span className="proj-label">SALDO PROJETADO EM 30 DIAS</span>
+                    <span className="proj-label">SALDO EM {ddmm(forecast.toDate)}</span>
                   </div>
-                  <span className="proj-value text-white font-bold">
-                    {forecast30d.projectedBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </span>
-                  <span className="proj-subtext">Caixa final estimado com folga</span>
+                  <span className="proj-value text-white font-bold">{formatBRL(forecast.projectedBalance)}</span>
+                  <span className="proj-subtext">Saldo em caixa hoje + resultado</span>
                 </div>
               </div>
+              <span className="forecast-card-hint">Ver detalhamento →</span>
             </div>
           </section>
+
+          <ForecastBreakdownModal
+            isOpen={isForecastDetailOpen}
+            onClose={() => setIsForecastDetailOpen(false)}
+            period={forecastPeriod}
+            onPeriodChange={setForecastPeriod}
+          />
 
           {/* Seção Próximo Evento Crítico */}
           <section className="dashboard-section">

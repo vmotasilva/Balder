@@ -119,6 +119,10 @@ export function AppContent() {
           onNavigateToInvoices={() => setActiveTab('FATURAS')}
           onNavigateToGoals={() => setActiveTab('METAS')}
           onNavigateToCopilot={() => setIsCopilotOpen(true)}
+          onNavigateToDashboard={() => {
+            setActiveTab('DASHBOARD');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
         />
 
         <main className="app-content-viewport">

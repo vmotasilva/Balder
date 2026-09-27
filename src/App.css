@@ -18704,3 +18704,211 @@ html:not([data-theme="light"]) .dark\:hover\:bg-slate-800:hover { background-col
 [data-theme="light"] .to-emerald-950\/40 { --tw-gradient-to: rgba(16, 185, 129, 0.08); }
 [data-theme="light"] .to-slate-900\/40 { --tw-gradient-to: #f8fafc; }
 [data-theme="light"] .via-slate-900\/50 { --tw-gradient-stops: var(--tw-gradient-from), #f8fafc, var(--tw-gradient-to); }
+
+/* ==========================================================================
+   SALDO PREVISTO POR PERÍODO (Dashboard, Central e detalhamento)
+   ========================================================================== */
+.forecast-period-pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.forecast-title-row {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.forecast-card-clickable {
+  position: relative;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.forecast-card-clickable:hover,
+.forecast-card-clickable:focus-visible {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 3px var(--accent-cyan-glow);
+  outline: none;
+}
+
+.forecast-card-hint {
+  display: block;
+  margin-top: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-cyan);
+  text-align: right;
+}
+
+.hub-forecast-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  margin-left: -8px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text-muted);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.hub-forecast-btn:hover {
+  background: var(--accent-cyan-glow);
+  color: var(--text-primary);
+}
+
+.forecast-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.forecast-summary {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.forecast-summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.forecast-summary-row + .forecast-summary-row {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.forecast-summary-row strong {
+  font-family: var(--font-display);
+  white-space: nowrap;
+}
+
+/* Cor padrão sem especificidade, para as classes text-emerald/text-rose prevalecerem */
+:where(.forecast-summary-row) strong {
+  color: var(--text-primary);
+}
+
+.forecast-summary-row.is-total {
+  background: var(--accent-cyan-glow);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.forecast-summary-row.is-total strong {
+  font-size: 15px;
+}
+
+.forecast-empty,
+.forecast-footnote,
+.forecast-section-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.forecast-section h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.forecast-section--overdue {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent-amber) 40%, transparent);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent-amber) 8%, transparent);
+}
+
+.forecast-section--overdue h4 {
+  color: var(--accent-amber);
+}
+
+.forecast-section-hint {
+  margin-bottom: 8px;
+}
+
+.forecast-group + .forecast-group {
+  margin-top: 8px;
+}
+
+.forecast-group-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.forecast-group-header small {
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.forecast-rows {
+  list-style: none;
+}
+
+.forecast-row {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 6px 0;
+  font-size: 12.5px;
+}
+
+.forecast-row + .forecast-row {
+  border-top: 1px dashed var(--border-subtle);
+}
+
+.forecast-row-date {
+  font-family: var(--font-display);
+  color: var(--text-muted);
+}
+
+.forecast-row-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.forecast-row-title strong {
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forecast-row-title small {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.forecast-row-amount {
+  font-family: var(--font-display);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.forecast-row-amount.is-in {
+  color: var(--accent-emerald);
+}
+
+.forecast-row-amount.is-out {
+  color: var(--accent-rose);
+}
