@@ -17411,24 +17411,137 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   border-color: var(--accent-cyan);
 }
 
-/* Semana: dia da ocorrência antes de cada linha */
-.week-entry {
-  display: flex;
-  align-items: center;
+/* Semana: uma coluna por semana com resumo (teto, gasto, sobrou) e a distribuição por natureza/mapeamento */
+.week-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 8px;
 }
 
-.week-entry-day {
-  flex: 0 0 52px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: capitalize;
+.week-column {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(2, 6, 23, 0.35);
+  min-width: 0;
 }
 
-.week-entry-row {
+.week-column-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.week-column-range {
+  display: block;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.week-column-total {
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.week-column-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 6px;
+  margin-bottom: 4px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.week-column-summary > div:not(.week-column-progress) {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.week-column-summary span {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.week-column-summary strong {
+  font-size: 11px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.week-column-summary .is-over strong,
+.week-column-summary .is-over span {
+  color: #f87171;
+}
+
+.week-column-summary .is-good strong {
+  color: #34d399;
+}
+
+.week-column-progress {
+  grid-column: 1 / -1;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.week-column-progress > div {
+  height: 100%;
+  border-radius: 999px;
+  background: #10b981;
+}
+
+.week-column-progress > div.is-over {
+  background: #ef4444;
+}
+
+.week-column-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: rgba(2, 6, 23, 0.45);
+  font-size: 12px;
+}
+
+.week-column-symbol {
+  flex-shrink: 0;
+}
+
+.week-column-name {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.week-column-value {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.week-column-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 8px 0;
 }
 
 @media (max-width: 768px) {
@@ -17449,9 +17562,8 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     font-size: 9px;
   }
 
-  .week-entry-day {
-    flex-basis: 40px;
-    font-size: 10px;
+  .week-columns {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
 }
 

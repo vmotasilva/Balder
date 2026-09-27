@@ -41,6 +41,7 @@ import { buildMonthlyProjectionGrid, isSalaryMovement, getSalaryCompetenceKey } 
 import type { ProjectionViewMode } from '../utils/projectionMath';
 import { getItemManifestationDays } from '../utils/natureScheduling';
 import {
+  getItemOccurrences,
   itemUnitPrice,
   mappingItemBaseValue,
   mappingItemMonthValue,
@@ -127,6 +128,7 @@ export interface CellBreakdownSubItem {
   occurrenceDate?: string; // data da ocorrência (YYYY-MM-DD) no agrupamento por data
   isMappingSummary?: boolean; // linha-resumo de um mapeamento (nome + valor total)
   summaryItemCount?: number;  // quantos itens o resumo agrega
+  occurrenceWeights?: { date: string; weight: number }[]; // dias reais dos itens agregados (distribuição semanal)
 }
 
 export interface EditingReceiptData {
@@ -188,6 +190,7 @@ export interface NatureItemEntry {
   mappingId?: string;
   mappingDetailMode?: NatureDetailMode; // escolha do mapeamento; sem valor, segue a natureza
   summaryItemCount?: number; // preenchido nas linhas-resumo de mapeamento
+  summarySourceItems?: MappingItem[]; // itens agregados pela linha-resumo
   natureName: string;
   natureColor: string;
   mappingName: string;
@@ -205,7 +208,16 @@ function natureItemStateFields(ni: NatureItemEntry, monthKey: string): Partial<C
     paidByOthers: !!state.paidByOthers,
     paidBy: state.paidBy,
     baseValue: summary.base,
-    ...(ni.summaryItemCount ? { isMappingSummary: true, summaryItemCount: ni.summaryItemCount } : {}),
+    ...(ni.summaryItemCount
+      ? {
+          isMappingSummary: true,
+          summaryItemCount: ni.summaryItemCount,
+          // Pesos por dia (valor previsto de cada ocorrência dos itens) para distribuir o resumo nas semanas
+          occurrenceWeights: (ni.summarySourceItems || [])
+            .filter((it) => !resolveMappingItemState(it, monthKey).paidByOthers)
+            .flatMap((it) => getItemOccurrences(it, monthKey).map((o) => ({ date: o.date, weight: o.value }))),
+        }
+      : {}),
     natureItemRef:
       ni.natureId && ni.mappingId
         ? { natureId: ni.natureId, mappingId: ni.mappingId, itemId: ni.item.id }
@@ -263,6 +275,7 @@ function summarizeNatureEntries(
     const suffix = isMixed ? (first.paymentMethod === 'CARTAO' ? ' (cartão)' : ' (conta)') : '';
 
     group.entry.summaryItemCount = group.items.length;
+    group.entry.summarySourceItems = group.items;
     group.entry.item = {
       id: `summary_${key}`,
       description: `${group.entry.mappingName}${suffix}`,
@@ -2437,11 +2450,12 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
   }, [activeSelectionId, activeMonthKey, selection]);
 
   // Grupos (naturezas, faturas, avulsos...) com itens e ocorrências datadas, já com filtro e busca aplicados
-  const viewGroups = useMemo<DetailViewGroup[]>(() => {
+  // viewGroupsAll ignora o filtro Realizado/Previsto (resumos de teto, gasto e saldo das semanas)
+  const { viewGroups, viewGroupsAll } = useMemo<{ viewGroups: DetailViewGroup[]; viewGroupsAll: DetailViewGroup[] }>(() => {
     const term = natureSearchTerm.trim().toLowerCase();
-    const passes = (s: CellBreakdownSubItem, b: CellBreakdownItem) => {
-      if (detailFilter === 'REALIZADO' && s.status !== 'REALIZADA') return false;
-      if (detailFilter === 'PREVISTO' && (s.status === 'REALIZADA' || s.status === 'CANCELADA')) return false;
+    const passes = (s: CellBreakdownSubItem, b: CellBreakdownItem, applyStatus: boolean) => {
+      if (applyStatus && detailFilter === 'REALIZADO' && s.status !== 'REALIZADA') return false;
+      if (applyStatus && detailFilter === 'PREVISTO' && (s.status === 'REALIZADA' || s.status === 'CANCELADA')) return false;
       if (!term) return true;
       return (
         s.description.toLowerCase().includes(term) ||
@@ -2487,25 +2501,30 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
           ]
         : [];
 
-    const source = isAll ? filteredBreakdownItems : activeItem ? [activeItem] : [];
-    return source.map((b) => {
-      const base = itemsOf(b);
-      const dated =
-        b.dateGroups && b.dateGroups.length > 0
-          ? b.dateGroups.flatMap((dg) => dg.items.map((item) => ({ date: dg.isSummaryGroup ? null : dg.dateStr, item })))
-          : base.map((item) => ({
-              date: item.dueDate && /^\d{4}-\d{2}-\d{2}$/.test(item.dueDate) ? item.dueDate : null,
-              item,
-            }));
-      return {
-        id: b.id,
-        title: b.title,
-        symbol: symbolOf(b),
-        items: base.filter((s) => passes(s, b)),
-        dated: dated.filter((d) => passes(d.item, b)),
-      };
-    });
-  }, [isAll, filteredBreakdownItems, activeItem, detailFilter, natureSearchTerm, natures]);
+    const build = (source: CellBreakdownItem[], applyStatus: boolean): DetailViewGroup[] =>
+      source.map((b) => {
+        const base = itemsOf(b);
+        const dated =
+          b.dateGroups && b.dateGroups.length > 0
+            ? b.dateGroups.flatMap((dg) => dg.items.map((item) => ({ date: dg.isSummaryGroup ? null : dg.dateStr, item })))
+            : base.map((item) => ({
+                date: item.dueDate && /^\d{4}-\d{2}-\d{2}$/.test(item.dueDate) ? item.dueDate : null,
+                item,
+              }));
+        return {
+          id: b.id,
+          title: b.title,
+          symbol: symbolOf(b),
+          items: base.filter((s) => passes(s, b, applyStatus)),
+          dated: dated.filter((d) => passes(d.item, b, applyStatus)),
+        };
+      });
+
+    return {
+      viewGroups: build(isAll ? filteredBreakdownItems : activeItem ? [activeItem] : [], true),
+      viewGroupsAll: build(isAll ? breakdownItems : activeItem ? [activeItem] : [], false),
+    };
+  }, [isAll, filteredBreakdownItems, breakdownItems, activeItem, detailFilter, natureSearchTerm, natures]);
 
   // Se a busca delimitar para exatamente uma natureza, auto-seleciona a aba dessa natureza
   useEffect(() => {
@@ -3570,7 +3589,8 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
               <WeekGroupedView
                 monthKey={currentRow?.monthKey || ''}
                 groups={viewGroups}
-                renderItem={renderSubItemRow}
+                summaryGroups={viewGroupsAll}
+                kind={newMovementType === 'RECEBER' ? 'in' : 'out'}
                 formatBRL={formatBRL}
               />
             ) : (

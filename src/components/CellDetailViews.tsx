@@ -295,18 +295,25 @@ export const DateGroupedView: React.FC<{ groups: DetailViewGroup[]; renderItem: 
   );
 };
 
-// ─── Por semana ──────────────────────────────────────────────────────────────
+// ─── Por semana (uma coluna por semana) ──────────────────────────────────────
 
-export const WeekGroupedView: React.FC<{
-  monthKey: string;
-  groups: DetailViewGroup[];
-  renderItem: RenderItem;
-  formatBRL: FormatBRL;
-}> = ({ monthKey, groups, renderItem, formatBRL }) => {
-  const entries = flattenDated(groups);
-  const undated = entries.filter((e) => !e.date);
+export interface WeekColumnRow {
+  key: string;
+  symbol: string;
+  title: string;
+  value: number;
+}
 
-  // Semanas do mês (domingo a sábado), recortadas aos dias da competência
+export interface WeekColumn {
+  key: string;
+  label: string;
+  range: string;
+  rows: WeekColumnRow[];
+  total: number;
+}
+
+/** Semanas da competência (domingo a sábado), recortadas aos dias do mês. */
+const monthWeeks = (monthKey: string) => {
   const [y, m] = monthKey.split('-').map(Number);
   const daysInMonth = new Date(y, m, 0).getDate();
   const weeks: { start: number; end: number }[] = [];
@@ -316,46 +323,222 @@ export const WeekGroupedView: React.FC<{
     weeks.push({ start, end });
     start = end + 1;
   }
+  return weeks;
+};
 
-  const dated = entries.filter((e) => e.date && e.date.startsWith(monthKey));
-  if (entries.length === 0) return <EmptyState />;
+/**
+ * Colunas por semana: cada linha (natureza, ou mapeamento quando há uma só natureza) tem seu total do mês
+ * distribuído entre as semanas proporcionalmente aos dias em que ocorre — ocorrências datadas dos itens e,
+ * nos resumos por mapeamento, os dias reais dos itens agregados. A soma das colunas fecha com o total.
+ */
+export function buildWeekColumns(
+  monthKey: string,
+  groups: DetailViewGroup[],
+  valueOf: (s: CellBreakdownSubItem) => number = itemValue
+): { columns: WeekColumn[]; rowLevel: 'NATUREZAS' | 'MAPEAMENTOS' } {
+  const weeks = monthWeeks(monthKey);
+  const byMapping = groups.length === 1;
+  const weekIndexOf = (iso: string) => {
+    if (!iso.startsWith(monthKey)) return -1;
+    const day = Number(iso.slice(8, 10));
+    return weeks.findIndex((w) => day >= w.start && day <= w.end);
+  };
+
+  interface RowAcc {
+    key: string;
+    symbol: string;
+    title: string;
+    total: number;
+    weights: Map<number, number>; // semana (-1 = sem data) -> peso
+  }
+  const rows = new Map<string, RowAcc>();
+  const rowFor = (g: DetailViewGroup, s: CellBreakdownSubItem) => {
+    const key = byMapping ? mappingKeyOf(s) : g.id;
+    let row = rows.get(key);
+    if (!row) {
+      row = { key, symbol: g.symbol, title: byMapping ? s.mappingName || g.title : g.title, total: 0, weights: new Map() };
+      rows.set(key, row);
+    }
+    return row;
+  };
+  const addWeight = (row: RowAcc, week: number, weight: number) => {
+    if (weight > 0) row.weights.set(week, (row.weights.get(week) || 0) + weight);
+  };
+
+  groups.forEach((g) => {
+    g.items.forEach((s) => {
+      rowFor(g, s).total += valueOf(s);
+    });
+    g.dated.forEach(({ date, item }) => {
+      const row = rowFor(g, item);
+      if (date) {
+        addWeight(row, weekIndexOf(date), itemValue(item));
+      } else if (item.occurrenceWeights && item.occurrenceWeights.length > 0) {
+        item.occurrenceWeights.forEach((o) => addWeight(row, weekIndexOf(o.date), o.weight));
+      } else {
+        addWeight(row, -1, itemValue(item));
+      }
+    });
+  });
+
+  const buckets = new Map<number, WeekColumnRow[]>();
+  rows.forEach((row) => {
+    if (row.total <= 0) return;
+    const totalWeight = Array.from(row.weights.values()).reduce((a, b) => a + b, 0);
+    const shares: [number, number][] = totalWeight > 0 ? Array.from(row.weights.entries()) : [[-1, 1]];
+    const weightSum = totalWeight > 0 ? totalWeight : 1;
+    let allocated = 0;
+    shares
+      .sort((a, b) => a[0] - b[0])
+      .forEach(([week, weight], idx) => {
+        // Última fatia recebe o resto do arredondamento, para a soma fechar com o total
+        const value =
+          idx === shares.length - 1
+            ? Math.round((row.total - allocated) * 100) / 100
+            : Math.round(((row.total * weight) / weightSum) * 100) / 100;
+        allocated += value;
+        if (value <= 0) return;
+        buckets.set(week, [...(buckets.get(week) || []), { key: row.key, symbol: row.symbol, title: row.title, value }]);
+      });
+  });
+
+  const [, m] = monthKey.split('-').map(Number);
+  const pad = (d: number) => `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
+  const toColumn = (key: string, label: string, range: string, list: WeekColumnRow[] = []): WeekColumn => ({
+    key,
+    label,
+    range,
+    rows: [...list].sort((a, b) => b.value - a.value),
+    total: Math.round(list.reduce((acc, r) => acc + r.value, 0) * 100) / 100,
+  });
+
+  const columns = weeks.map((w, idx) => toColumn(`w${idx}`, `Semana ${idx + 1}`, `${pad(w.start)} – ${pad(w.end)}`, buckets.get(idx)));
+  if (buckets.has(-1)) columns.push(toColumn('sem-data', 'Sem data', 'fora do calendário', buckets.get(-1)));
+  return { columns, rowLevel: byMapping ? 'MAPEAMENTOS' : 'NATUREZAS' };
+}
+
+export interface WeekSummary {
+  ceiling: number;   // teto (valor planejado distribuído na semana)
+  spent: number;     // realizado de fato na semana
+  remaining: number; // teto - realizado (negativo = estourou)
+}
+
+/**
+ * Resumo por semana, sem filtro de situação: teto = planejado distribuído pelos dias de ocorrência;
+ * realizado = ocorrências/lançamentos já pagos (ou recebidos) na semana; resumos quitados são
+ * distribuídos pelos dias reais dos itens agregados.
+ */
+export function buildWeekSummaries(monthKey: string, groups: DetailViewGroup[]): Map<string, WeekSummary> {
+  const planned = (s: CellBreakdownSubItem) => (s.paidByOthers ? 0 : s.baseValue ?? s.totalValue ?? 0);
+  const { columns } = buildWeekColumns(monthKey, groups, planned);
+
+  const weeks = monthWeeks(monthKey);
+  const keyOf = (iso: string) => {
+    if (!iso.startsWith(monthKey)) return 'sem-data';
+    const day = Number(iso.slice(8, 10));
+    const idx = weeks.findIndex((w) => day >= w.start && day <= w.end);
+    return idx >= 0 ? `w${idx}` : 'sem-data';
+  };
+
+  const spent = new Map<string, number>();
+  const add = (key: string, v: number) => spent.set(key, (spent.get(key) || 0) + v);
+  groups.forEach((g) =>
+    g.dated.forEach(({ date, item }) => {
+      if (item.status !== 'REALIZADA') return;
+      const value = itemValue(item);
+      if (value <= 0) return;
+      if (date) {
+        add(keyOf(date), value);
+      } else if (item.occurrenceWeights && item.occurrenceWeights.length > 0) {
+        const total = item.occurrenceWeights.reduce((a, o) => a + o.weight, 0);
+        item.occurrenceWeights.forEach((o) => add(keyOf(o.date), total > 0 ? (value * o.weight) / total : 0));
+      } else {
+        add('sem-data', value);
+      }
+    })
+  );
+
+  const result = new Map<string, WeekSummary>();
+  const keys = new Set([...columns.map((c) => c.key), ...spent.keys()]);
+  keys.forEach((key) => {
+    const ceiling = columns.find((c) => c.key === key)?.total || 0;
+    const s = Math.round((spent.get(key) || 0) * 100) / 100;
+    result.set(key, { ceiling, spent: s, remaining: Math.round((ceiling - s) * 100) / 100 });
+  });
+  return result;
+}
+
+export const WeekGroupedView: React.FC<{
+  monthKey: string;
+  groups: DetailViewGroup[];        // com o filtro Realizado/Previsto (itens listados nas colunas)
+  summaryGroups: DetailViewGroup[]; // sem filtro (resumo de teto, realizado e saldo)
+  kind: 'in' | 'out';
+  formatBRL: FormatBRL;
+}> = ({ monthKey, groups, summaryGroups, kind, formatBRL }) => {
+  const { columns, rowLevel } = useMemo(() => buildWeekColumns(monthKey, groups), [monthKey, groups]);
+  const summaries = useMemo(() => buildWeekSummaries(monthKey, summaryGroups), [monthKey, summaryGroups]);
+  if (columns.every((c) => c.rows.length === 0) && summaryGroups.every((g) => g.items.length === 0)) {
+    return <EmptyState />;
+  }
+
+  // Saídas: Teto / Gasto / Sobrou; Entradas: Previsto / Recebido / A receber
+  const labels =
+    kind === 'out'
+      ? { ceiling: 'Teto', spent: 'Gasto', left: 'Sobrou', over: 'Estourou' }
+      : { ceiling: 'Previsto', spent: 'Recebido', left: 'A receber', over: 'Acima' };
 
   return (
     <div>
-      <UndatedBlock entries={undated} renderItem={renderItem} formatBRL={formatBRL} />
-      {weeks.map((w, idx) => {
-        const inWeek = dated
-          .filter((e) => {
-            const day = Number(e.date!.slice(8, 10));
-            return day >= w.start && day <= w.end;
-          })
-          .sort((a, b) => a.date!.localeCompare(b.date!));
-        if (inWeek.length === 0) return null;
-        const pad = (d: number) => `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}`;
-        return (
-          <div key={w.start} className="sticky-date-group-block">
-            <div className="sticky-date-group-header">
-              <span className="sticky-date-title">
-                🗓️ Semana {idx + 1} · {pad(w.start)} – {pad(w.end)}
-              </span>
-              <div className="sticky-date-subtotal">
-                <span className="subtotal-prefix">Subtotal:</span>
-                <span className="subtotal-val">{formatBRL(sumItems(inWeek.map((e) => e.item)))}</span>
+      <div className="week-columns">
+        {columns.map((col) => {
+          const summary = summaries.get(col.key) || { ceiling: 0, spent: 0, remaining: 0 };
+          const pct = summary.ceiling > 0 ? Math.min(100, Math.round((summary.spent / summary.ceiling) * 100)) : 0;
+          const isOver = summary.remaining < 0;
+          return (
+          <div key={col.key} className="week-column">
+            <div className="week-column-header">
+              <div>
+                <strong>{col.label}</strong>
+                <span className="week-column-range">{col.range}</span>
+              </div>
+              <span className="week-column-total font-mono">{formatBRL(col.total)}</span>
+            </div>
+            <div className="week-column-summary">
+              <div>
+                <span>{labels.ceiling}</span>
+                <strong className="font-mono">{formatBRL(summary.ceiling)}</strong>
+              </div>
+              <div>
+                <span>{labels.spent}</span>
+                <strong className="font-mono">{formatBRL(summary.spent)}</strong>
+              </div>
+              <div className={isOver ? (kind === 'out' ? 'is-over' : 'is-good') : ''}>
+                <span>{isOver ? labels.over : labels.left}</span>
+                <strong className="font-mono">{formatBRL(Math.abs(summary.remaining))}</strong>
+              </div>
+              <div className="week-column-progress" title={`${pct}% ${kind === 'out' ? 'do teto gasto' : 'do previsto recebido'}`}>
+                <div className={isOver && kind === 'out' ? 'is-over' : ''} style={{ width: `${pct}%` }} />
               </div>
             </div>
-            <div className="sticky-date-items-list">
-              {inWeek.map((e) => (
-                <div key={`${e.date}_${e.item.id}`} className="week-entry">
-                  <span className="week-entry-day" title={longDate(e.date!)}>
-                    {WEEKDAYS_SHORT[parseIso(e.date!).getDay()]} {e.date!.slice(8, 10)}
-                  </span>
-                  <div className="week-entry-row">{renderItem(e.item)}</div>
+            {col.rows.length === 0 ? (
+              <div className="week-column-empty">Sem lançamentos</div>
+            ) : (
+              col.rows.map((r) => (
+                <div key={r.key} className="week-column-row" title={`${r.title}: ${formatBRL(r.value)} em ${col.label}`}>
+                  <span className="week-column-symbol">{r.symbol}</span>
+                  <span className="week-column-name">{r.title}</span>
+                  <span className="week-column-value font-mono">{formatBRL(r.value)}</span>
                 </div>
-              ))}
-            </div>
+              ))
+            )}
           </div>
-        );
-      })}
+          );
+        })}
+      </div>
+      <p className="text-[11px] text-muted mt-2">
+        Valor de cada {rowLevel === 'MAPEAMENTOS' ? 'mapeamento' : 'natureza'} distribuído pelos dias em que ocorre no
+        mês.
+      </p>
     </div>
   );
 };
