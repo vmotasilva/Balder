@@ -19217,3 +19217,22 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .installment-pay-reset {
   align-self: flex-start;
 }
+
+/* Alteração em série mensal */
+.recurring-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.recurring-choice-only {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border-default);
+}
+
+.recurring-choice-only .btn {
+  align-self: flex-start;
+}

@@ -26,15 +26,18 @@ interface MonthClosingModalProps {
   onReopenMonth: (monthKey: string) => void;
 }
 
-export const MonthClosingModal: React.FC<MonthClosingModalProps> = ({
-  isOpen,
+// Invólucro: decide se abre; o conteúdo (com os hooks) só monta quando está aberto
+export const MonthClosingModal: React.FC<MonthClosingModalProps> = (props) =>
+  props.isOpen && props.row ? <MonthClosingModalContent {...props} row={props.row} /> : null;
+
+const MonthClosingModalContent: React.FC<
+  Omit<MonthClosingModalProps, 'row'> & { row: NonNullable<MonthClosingModalProps['row']> }
+> = ({
   onClose,
   row,
   onCloseMonth,
   onReopenMonth,
 }) => {
-  if (!isOpen || !row) return null;
-
   // Próxima competência para feedback visual
   const [yearStr, monthStr] = row.monthKey.split('-');
   const year = parseInt(yearStr, 10);

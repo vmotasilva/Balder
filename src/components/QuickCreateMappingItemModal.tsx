@@ -23,15 +23,19 @@ interface Props {
   onAddNewRoutine?: (natureId: string, routineName: string) => string;
 }
 
-export const QuickCreateMappingItemModal: React.FC<Props> = ({
-  isOpen,
+// Invólucro: decide se abre; o conteúdo (com os hooks) só monta quando está aberto
+export const QuickCreateMappingItemModal: React.FC<Props> = (props) =>
+  props.isOpen && props.receiptItem ? <QuickCreateMappingItemModalContent {...props} receiptItem={props.receiptItem} /> : null;
+
+const QuickCreateMappingItemModalContent: React.FC<
+  Omit<Props, 'receiptItem'> & { receiptItem: NonNullable<Props['receiptItem']> }
+> = ({
   onClose,
   receiptItem,
   natures,
   onSaveAndAssociate,
   onAddNewRoutine,
 }) => {
-  if (!isOpen || !receiptItem) return null;
 
   // Natureza padrão: Alimentos se existir, ou a primeira
   const defaultNature =

@@ -18,6 +18,7 @@ import { Modal } from './Modal';
 import { InvoiceImportModal } from './InvoiceImportModal';
 import { ConfirmDialog, useConfirmDialog } from './ConfirmDialog';
 import { useFinancial } from '../context/FinancialContext';
+import { RecurringChangeDialog, futureRecurringSiblings, type RecurringChangePrompt } from './RecurringChangeDialog';
 import type { Movement, MovementStatus, InvoiceNatureItemBreakdown } from '../types';
 
 interface MovementDetailModalProps {
@@ -59,6 +60,9 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
     natures,
     markMappingItemsFulfilled,
   } = useFinancial();
+
+  // Alteração de valor em série mensal: pergunta se vale para os meses seguintes
+  const [recurringPrompt, setRecurringPrompt] = useState<RecurringChangePrompt | null>(null);
 
   // Estados locais do formulário
   const [title, setTitle] = useState('');
@@ -477,6 +481,9 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
     }
   };
 
+  // Hooks antes do retorno antecipado (a ordem dos hooks não pode mudar entre renderizações)
+  const { confirm: confirmAction, dialogProps: confirmDialogProps } = useConfirmDialog();
+
   if (!isOpen || !movement) return null;
 
   // Manipuladores de modos específicos
@@ -681,10 +688,20 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
       }
     }
 
+    const futures = futureRecurringSiblings(movement, movements);
+    if (futures.length > 0 && Math.abs(finalAmount - movement.amount) > 0.005) {
+      setRecurringPrompt({
+        movementId: movement.id,
+        previousAmount: movement.amount,
+        newAmount: finalAmount,
+        futureIds: futures.map((f) => f.id),
+        firstFutureDate: futures[0].dueDate,
+      });
+      return;
+    }
+
     onClose();
   };
-
-  const { confirm: confirmAction, dialogProps: confirmDialogProps } = useConfirmDialog();
 
   const handleDelete = () => {
     confirmAction({
@@ -1791,6 +1808,24 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
       />
     )}
     <ConfirmDialog {...confirmDialogProps} />
+    {recurringPrompt && (
+      <RecurringChangeDialog
+        prompt={recurringPrompt}
+        onApplyToFuture={() => {
+          recurringPrompt.futureIds.forEach((id) => updateMovement(id, { amount: recurringPrompt.newAmount }));
+          setRecurringPrompt(null);
+          onClose();
+        }}
+        onThisMonthOnly={(reason) => {
+          updateMovement(recurringPrompt.movementId, {
+            originalAmount: recurringPrompt.previousAmount,
+            ...(reason.trim() ? { adjustmentReason: reason.trim() } : {}),
+          });
+          setRecurringPrompt(null);
+          onClose();
+        }}
+      />
+    )}
     </>
   );
 };

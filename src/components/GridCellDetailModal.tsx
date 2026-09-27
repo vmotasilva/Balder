@@ -61,6 +61,7 @@ import {
   type WeekLayer,
 } from './CellDetailViews';
 import { MovementDetailModal } from './MovementDetailModal';
+import { RecurringChangeDialog, futureRecurringSiblings, type RecurringChangePrompt } from './RecurringChangeDialog';
 import { NewMovementModal } from './NewMovementModal';
 
 export interface GridCellSelection {
@@ -1185,9 +1186,15 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     });
   };
 
+  // Alteração de valor em série mensal: pergunta se vale para os meses seguintes
+  const [recurringPrompt, setRecurringPrompt] = useState<RecurringChangePrompt | null>(null);
+
   // Salvar alterações do recebimento editado
   const handleSaveReceipt = () => {
     if (!editingReceipt) return;
+    const previousMovement = editingReceipt.receiptMovementId
+      ? movements.find((m) => m.id === editingReceipt.receiptMovementId)
+      : undefined;
 
     const isCanceled = editingReceipt.status === 'CANCELADA';
     const effectiveAmount = isCanceled ? 0 : Number(editingReceipt.amount) || 0;
@@ -1224,6 +1231,19 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         notes: editingReceipt.notes,
         installmentGroupId: editingReceipt.installmentGroupId,
       });
+    }
+
+    if (previousMovement && !isCanceled && Math.abs(effectiveAmount - previousMovement.amount) > 0.005) {
+      const futures = futureRecurringSiblings(previousMovement, movements);
+      if (futures.length > 0) {
+        setRecurringPrompt({
+          movementId: previousMovement.id,
+          previousAmount: previousMovement.amount,
+          newAmount: effectiveAmount,
+          futureIds: futures.map((f) => f.id),
+          firstFutureDate: futures[0].dueDate,
+        });
+      }
     }
 
     setEditingReceipt(null);
@@ -4062,6 +4082,24 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
           isOpen={!!editingInvoiceMovement}
           onClose={() => setEditingInvoiceMovement(null)}
           movement={editingInvoiceMovement}
+        />
+      )}
+
+      {/* ALTERAÇÃO DE VALOR EM SÉRIE MENSAL */}
+      {recurringPrompt && (
+        <RecurringChangeDialog
+          prompt={recurringPrompt}
+          onApplyToFuture={() => {
+            recurringPrompt.futureIds.forEach((id) => updateMovement(id, { amount: recurringPrompt.newAmount }));
+            setRecurringPrompt(null);
+          }}
+          onThisMonthOnly={(reason) => {
+            updateMovement(recurringPrompt.movementId, {
+              originalAmount: recurringPrompt.previousAmount,
+              ...(reason.trim() ? { adjustmentReason: reason.trim() } : {}),
+            });
+            setRecurringPrompt(null);
+          }}
         />
       )}
 
