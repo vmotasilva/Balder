@@ -13,17 +13,20 @@ export interface ProjectionGridConfig {
  * Gera as competências do horizonte de projeção: 15 meses a partir do mês atual.
  */
 /**
- * Competências da grade. Começa no mês do ponto de partida (marco), quando informado, ou no mês atual,
- * e vai até 15 meses à frente do mês atual (no mínimo 15 meses, no máximo 36).
+ * Competências da grade. Começa no mês do ponto de partida (marco), quando informado, ou no mês atual.
+ * Com horizonte definido, vai até `horizonMonths` meses a partir do mês atual; sem ele, 15 meses à frente
+ * (no mínimo 15 meses, no máximo 36).
  */
-function generateCompetenceMonths(startDate?: string) {
+function generateCompetenceMonths(startDate?: string, horizonMonths?: number) {
   const now = new Date();
   let start = new Date(now.getFullYear(), now.getMonth(), 1);
   if (startDate && /^\d{4}-\d{2}/.test(startDate)) {
     start = new Date(Number(startDate.slice(0, 4)), Number(startDate.slice(5, 7)) - 1, 1);
   }
   const monthsBeforeNow = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
-  const count = Math.min(36, Math.max(15, monthsBeforeNow + 15));
+  const count = horizonMonths
+    ? Math.max(1, monthsBeforeNow + Math.min(120, Math.max(1, Math.round(horizonMonths))))
+    : Math.min(36, Math.max(15, monthsBeforeNow + 15));
   const months = [];
   for (let i = 0; i < count; i++) {
     const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
@@ -110,9 +113,9 @@ export function buildMonthlyProjectionGrid(
   initialBalance: number = 0,
   monthlyClosings?: MonthlyClosing[],
   viewMode: ProjectionViewMode = 'PROJETADO',
-  options: { startDate?: string } = {}
+  options: { startDate?: string; horizonMonths?: number } = {}
 ): MonthlyGridProjectionRow[] {
-  const competenceMonths = generateCompetenceMonths(options.startDate);
+  const competenceMonths = generateCompetenceMonths(options.startDate, options.horizonMonths);
   // Com ponto de partida, o saldo inicial do marco já inclui o que aconteceu antes da data:
   // só entram lançamentos a partir dela
   if (options.startDate) {

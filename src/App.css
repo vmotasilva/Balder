@@ -19933,3 +19933,143 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   min-width: 0;
   text-align: left;
 }
+
+/* Cards de competência (mobile): 3 linhas — competência/situação/saldo inicial, entrada/saída, saldo/acumulado */
+.proj-card-month {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.proj-card-status {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.proj-card-status.is-closed {
+  color: var(--accent-emerald);
+  border-color: color-mix(in srgb, var(--accent-emerald) 40%, transparent);
+  background: color-mix(in srgb, var(--accent-emerald) 12%, transparent);
+}
+
+.proj-card-status.is-open {
+  color: var(--accent-cyan);
+  border-color: color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+  background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+}
+
+.proj-card-initial {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.2;
+  min-width: 0;
+}
+
+.proj-card-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px;
+}
+
+.proj-card-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 6px 7px;
+  border-radius: var(--radius-sm);
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.proj-card-cell.is-clickable {
+  cursor: pointer;
+}
+
+.proj-card-cell.is-clickable:active {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.proj-card-label {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.proj-card-label-main {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+:where(.proj-card-label-main) {
+  color: var(--text-primary);
+}
+
+.proj-card-label-hint {
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.proj-card-cell .rp-cell {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+}
+
+.proj-card-cell .rp-part {
+  padding: 1px 0;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.proj-card-cell .font-mono,
+.proj-card-initial .font-mono {
+  white-space: nowrap;
+}
+
+[data-theme="light"] .proj-card-cell {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+[data-theme="light"] .proj-card-cell.is-clickable:active {
+  background: #eef2f7;
+}
+
+/* Horizonte da projeção e ano exibido */
+.grid-horizon-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.grid-horizon-select select {
+  width: auto;
+  min-width: 0;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 12px;
+}
+
+.proj-card-dre-btn {
+  white-space: nowrap;
+  flex-shrink: 0;
+}

@@ -61,11 +61,24 @@ const RealPlannedCell: React.FC<{
   real: number;
   planned: number;
   kind: 'in' | 'out';
-  onReal: () => void;
-  onPlanned: () => void;
+  onReal?: () => void;
+  onPlanned?: () => void;
 }> = ({ real, planned, kind, onReal, onPlanned }) => {
   const tone = kind === 'in' ? 'text-emerald font-bold' : 'text-rose font-semibold';
   const what = kind === 'in' ? ['recebido', 'a receber'] : ['pago', 'a pagar'];
+  if (!onReal || !onPlanned) {
+    return (
+      <div className="rp-cell">
+        <span className="rp-part">
+          <GlanceableCurrency value={real} prefix={kind === 'out' && real > 0 ? '-' : ''} isPositivePrefix={kind === 'in'} className={tone} />
+        </span>
+        <span className="rp-sep" aria-hidden="true">|</span>
+        <span className="rp-part rp-planned">
+          <GlanceableCurrency value={planned} prefix={kind === 'out' && planned > 0 ? '-' : ''} isPositivePrefix={kind === 'in'} className={tone} />
+        </span>
+      </div>
+    );
+  }
   return (
     <div className="rp-cell">
       <button
@@ -95,6 +108,37 @@ const RealPlannedCell: React.FC<{
   );
 };
 
+const SHORT_MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+/** "2026-10" → "Out/2026" */
+const shortCompetence = (monthKey: string) => {
+  const [y, m] = monthKey.split('-');
+  return `${SHORT_MONTHS[Number(m) - 1]}/${y}`;
+};
+
+/** Situação da competência: fechada, em andamento (em aberto) ou ainda por vir (não iniciada). */
+const competenceStatus = (row: MonthlyGridProjectionRow, currentMonthKey: string) => {
+  if (row.isClosed) return { key: 'closed', label: 'Fechado' };
+  if (row.monthKey > currentMonthKey) return { key: 'future', label: 'Não iniciado' };
+  return { key: 'open', label: 'Em aberto' };
+};
+
+/** Rótulo principal com a legenda "Real | Previsto" na linha de baixo, em fonte menor. */
+const CardLabel: React.FC<{ title: string; hint?: string; className?: string }> = ({ title, hint, className }) => (
+  <div className="proj-card-label">
+    <span className={`proj-card-label-main ${className || ''}`}>{title}</span>
+    {hint && <span className="proj-card-label-hint">{hint}</span>}
+  </div>
+);
+
+const HORIZON_OPTIONS = [
+  { months: 12, label: '1 ano' },
+  { months: 24, label: '2 anos' },
+  { months: 36, label: '3 anos' },
+  { months: 60, label: '5 anos' },
+  { months: 120, label: '10 anos' },
+];
+
 /** Cabeçalho de coluna com as legendas Real | Previsto alinhadas às partes da célula. */
 const RealPlannedHeader: React.FC<{ title: string }> = ({ title }) => (
   <>
@@ -115,24 +159,27 @@ export const MonthlyProjectionGrid: React.FC = () => {
     monthlyClosings,
     closeMonth,
     reopenMonth,
+    projectionHorizonMonths,
+    setProjectionHorizonMonths,
   } = useFinancial();
+  const gridOptions = { startDate: activeCheckpoint?.startDate, horizonMonths: projectionHorizonMonths };
 
   const initialBalance = activeCheckpoint ? activeCheckpoint.initialBalance : 0;
 
   // Uma única visão: Entradas e Saídas mostram Real (realizado) | Previsto (a vencer);
   // Resultado e Saldo usam o consolidado (realizado + previsto)
   const allRows: MonthlyGridProjectionRow[] = useMemo(
-    () => buildMonthlyProjectionGrid(movements, natures, initialBalance, monthlyClosings, 'PROJETADO', { startDate: activeCheckpoint?.startDate }),
-    [movements, natures, initialBalance, monthlyClosings]
+    () => buildMonthlyProjectionGrid(movements, natures, initialBalance, monthlyClosings, 'PROJETADO', gridOptions),
+    [movements, natures, initialBalance, monthlyClosings, activeCheckpoint?.startDate, projectionHorizonMonths]
   );
   const realizedByMonth = useMemo(() => {
-    const rows = buildMonthlyProjectionGrid(movements, natures, initialBalance, monthlyClosings, 'REALIZADO', { startDate: activeCheckpoint?.startDate });
+    const rows = buildMonthlyProjectionGrid(movements, natures, initialBalance, monthlyClosings, 'REALIZADO', gridOptions);
     return new Map(rows.map((r) => [r.monthKey, r]));
-  }, [movements, natures, initialBalance, monthlyClosings]);
+  }, [movements, natures, initialBalance, monthlyClosings, activeCheckpoint?.startDate, projectionHorizonMonths]);
   const plannedByMonth = useMemo(() => {
-    const rows = buildMonthlyProjectionGrid(movements, natures, initialBalance, monthlyClosings, 'PREVISTO', { startDate: activeCheckpoint?.startDate });
+    const rows = buildMonthlyProjectionGrid(movements, natures, initialBalance, monthlyClosings, 'PREVISTO', gridOptions);
     return new Map(rows.map((r) => [r.monthKey, r]));
-  }, [movements, natures, initialBalance, monthlyClosings]);
+  }, [movements, natures, initialBalance, monthlyClosings, activeCheckpoint?.startDate, projectionHorizonMonths]);
 
   // Anos disponíveis na base projetada
   const availableYears = useMemo(() => {
@@ -140,12 +187,13 @@ export const MonthlyProjectionGrid: React.FC = () => {
     return Array.from(setYears).sort();
   }, [allRows]);
 
-  // Filtro por Ano: padrão '2026' para garantir máximo de 12 linhas e zero scroll vertical
-  const [selectedYear, setSelectedYear] = useState<string>('2026');
-  const periodLabel = selectedYear === 'ALL' ? 'Todos' : selectedYear;
+  // Mês atual de referência para ancorar a visão do usuário
+  const today = new Date();
+  const currentMonthKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
 
-  // Mês Atual de referência para ancorar a visão do usuário
-  const currentMonthKey = '2026-09';
+  // Filtro por ano: padrão o ano atual (no máximo 12 linhas)
+  const [selectedYear, setSelectedYear] = useState<string>(() => String(new Date().getFullYear()));
+  const periodLabel = selectedYear === 'ALL' ? 'Todos' : selectedYear;
 
   // Estado para abertura do pop-up modal de detalhamento da célula clicada
   const [cellSelection, setCellSelection] = useState<GridCellSelection | null>(null);
@@ -318,26 +366,39 @@ export const MonthlyProjectionGrid: React.FC = () => {
         </div>
 
         <div className="grid-header-actions">
-          {/* Seletor de Ano em Tabs Compactas */}
-          <div className="horizon-filter-pills">
-            {availableYears.map((year) => (
-              <button
-                key={year}
-                type="button"
-                className={`pill-btn ${selectedYear === year ? 'active' : ''}`}
-                onClick={() => setSelectedYear(year)}
-              >
-                Ano {year}
-              </button>
-            ))}
-            <button
-              type="button"
-              className={`pill-btn ${selectedYear === 'ALL' ? 'active' : ''}`}
-              onClick={() => setSelectedYear('ALL')}
+          {/* Até onde enxergar e qual ano exibir */}
+          <label className="grid-horizon-select" title="Até onde a projeção enxerga, a partir do mês atual">
+            <span>Horizonte</span>
+            <select
+              className="form-input form-input-sm"
+              value={projectionHorizonMonths}
+              onChange={(e) => setProjectionHorizonMonths(Number(e.target.value))}
             >
-              Todos ({allRows.length}m)
-            </button>
-          </div>
+              {!HORIZON_OPTIONS.some((o) => o.months === projectionHorizonMonths) && (
+                <option value={projectionHorizonMonths}>{projectionHorizonMonths} meses</option>
+              )}
+              {HORIZON_OPTIONS.map((o) => (
+                <option key={o.months} value={o.months}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid-horizon-select" title="Competências exibidas">
+            <span>Exibir</span>
+            <select
+              className="form-input form-input-sm"
+              value={availableYears.includes(selectedYear) || selectedYear === 'ALL' ? selectedYear : 'ALL'}
+              onChange={(e) => setSelectedYear(e.target.value)}
+            >
+              {availableYears.map((year) => (
+                <option key={year} value={year}>
+                  Ano {year}
+                </option>
+              ))}
+              <option value="ALL">Todos ({allRows.length} meses)</option>
+            </select>
+          </label>
 
           <button
             type="button"
@@ -640,7 +701,7 @@ export const MonthlyProjectionGrid: React.FC = () => {
         {/* Barra de controle superior dos cards mobile */}
         <div className="proj-mobile-list-header flex items-center justify-between px-1 mb-1">
           <span className="text-[11px] font-semibold text-secondary">
-            {displayedRows.length} competências ({periodLabel}) • Real | Previsto
+            {displayedRows.length} competências ({periodLabel})
           </span>
           <button
             type="button"
@@ -657,6 +718,7 @@ export const MonthlyProjectionGrid: React.FC = () => {
           const isSurplus = row.monthNet >= 0;
           const barPercent = Math.min(Math.round((Math.abs(row.monthNet) / maxAbsNet) * 100), 100);
           const isExpanded = expandedMonthKeys.has(row.monthKey);
+          const status = competenceStatus(row, currentMonthKey);
 
           return (
             <div
@@ -668,7 +730,7 @@ export const MonthlyProjectionGrid: React.FC = () => {
                 }
               }}
             >
-              {/* Card Header: Competência, Badges, Botão Fechamento e Ícone de Expansão */}
+              {/* Linha 1: competência · situação · saldo inicial · expandir */}
               <div
                 className="proj-card-header"
                 onClick={(e) => {
@@ -677,201 +739,117 @@ export const MonthlyProjectionGrid: React.FC = () => {
                 }}
                 title={isExpanded ? 'Toque para recolher' : 'Toque para abrir detalhes'}
               >
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="proj-card-competence-badge">
-                    <span className="font-bold">{row.formattedCompetence}</span>
-                    <span className="proj-card-competence-label">{row.competenceLabel}</span>
-                  </div>
-                  {isCurrentMonth && (
-                    <span className="current-month-pill" title="Competência em andamento no Balder">
-                      Atual
-                    </span>
-                  )}
+                <span className="proj-card-month">{shortCompetence(row.monthKey)}</span>
+                <button
+                  type="button"
+                  className={`proj-card-status is-${status.key}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setClosingModalRow(row);
+                  }}
+                  title={row.isClosed ? 'Competência fechada: toque para gerenciar' : 'Toque para fechar este mês'}
+                >
+                  {status.label}
+                </button>
+                <div
+                  className="proj-card-initial"
+                  onClick={(e) => {
+                    if (!isExpanded) return;
+                    e.stopPropagation();
+                    handleOpenCell(row, 'accumulated', 'Saldo Inicial do Ciclo', row.initialBalance || 0);
+                  }}
+                >
+                  <span className="proj-card-label-hint">Saldo inicial</span>
+                  <GlanceableCurrency value={row.initialBalance} className="font-semibold text-xs" />
                 </div>
-
-                <div className="flex items-center gap-2">
-                  {row.isClosed ? (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setClosingModalRow(row);
-                      }}
-                      className="px-2 py-1 text-[11px] font-semibold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg flex items-center gap-1"
-                      title="Competência Fechada — Toque para gerenciar"
-                    >
-                      <Lock className="w-3 h-3" />
-                      <span>Fechado</span>
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setClosingModalRow(row);
-                      }}
-                      className="px-2 py-1 text-[11px] font-medium text-slate-300 hover:text-white bg-slate-800/80 border border-slate-700 rounded-lg flex items-center gap-1"
-                      title="Toque para fechar este mês"
-                    >
-                      <Lock className="w-3 h-3 opacity-60" />
-                      <span>Fechar</span>
-                    </button>
-                  )}
-
-                  <div
-                    className="proj-card-toggle-icon"
-                    title={isExpanded ? 'Recolher detalhes' : 'Abrir detalhes'}
-                  >
-                    {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                  </div>
+                <div className="proj-card-toggle-icon" title={isExpanded ? 'Recolher detalhes' : 'Abrir detalhes'}>
+                  {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                 </div>
               </div>
 
-              {/* Versão Recolhida (Siglas e Valores Compactos) */}
-              {!isExpanded && (
-                <div className="proj-collapsed-metrics-row animate-fade-in">
-                  <div className="proj-micro-badge" title="Saldo Inicial">
-                    <span className="proj-sigla">SI</span>
-                    <GlanceableCurrency value={row.initialBalance} className="proj-val text-secondary font-semibold" />
-                  </div>
-                  <div className="proj-micro-badge" title="Entradas: Real | Previsto">
-                    <span className="proj-sigla text-emerald">ENT</span>
-                    <GlanceableCurrency value={s.realIn} className="proj-val text-emerald font-bold" />
-                    <span className="rp-sep" aria-hidden="true">|</span>
-                    <span className="rp-planned">
-                      <GlanceableCurrency value={s.plannedIn} className="proj-val text-emerald font-bold" />
-                    </span>
-                  </div>
-                  <div className="proj-micro-badge" title="Saídas: Real | Previsto">
-                    <span className="proj-sigla text-rose">SAÍ</span>
-                    <GlanceableCurrency value={s.realOut} className="proj-val text-rose font-bold" />
-                    <span className="rp-sep" aria-hidden="true">|</span>
-                    <span className="rp-planned">
-                      <GlanceableCurrency value={s.plannedOut} className="proj-val text-rose font-bold" />
-                    </span>
-                  </div>
-                  <div className="proj-micro-badge" title="Resultado (Mês)">
-                    <span className={`proj-sigla ${isSurplus ? 'text-emerald' : 'text-rose'}`}>RES</span>
+              {/* Linha 2: Entrada · Saída (Real | Previsto) */}
+              <div className="proj-card-row">
+                <div className="proj-card-cell" onClick={(e) => isExpanded && e.stopPropagation()}>
+                  <CardLabel title="Entrada" hint="Real | Previsto" className="text-emerald" />
+                  <RealPlannedCell
+                    kind="in"
+                    real={s.realIn}
+                    planned={s.plannedIn}
+                    onReal={isExpanded ? () => openIncome(row, 'REALIZADO') : undefined}
+                    onPlanned={isExpanded ? () => openIncome(row, 'PREVISTO') : undefined}
+                  />
+                </div>
+                <div className="proj-card-cell" onClick={(e) => isExpanded && e.stopPropagation()}>
+                  <CardLabel title="Saída" hint="Real | Previsto" className="text-rose" />
+                  <RealPlannedCell
+                    kind="out"
+                    real={s.realOut}
+                    planned={s.plannedOut}
+                    onReal={isExpanded ? () => openExpense(row, 'REALIZADO') : undefined}
+                    onPlanned={isExpanded ? () => openExpense(row, 'PREVISTO') : undefined}
+                  />
+                </div>
+              </div>
+
+              {/* Linha 3: Saldo do mês (Entrada − Saída) · Saldo acumulado */}
+              <div className="proj-card-row">
+                <div
+                  className={`proj-card-cell ${isExpanded ? 'is-clickable' : ''}`}
+                  onClick={(e) => {
+                    if (!isExpanded) return;
+                    e.stopPropagation();
+                    handleOpenCell(row, 'monthNet', 'Resultado Líquido do Mês (Entradas - Saídas)', row.monthNet);
+                  }}
+                >
+                  <CardLabel title="Saldo" hint="Entrada − Saída" />
+                  <div className="flex items-center gap-2">
                     <GlanceableCurrency
                       value={row.monthNet}
                       isPositivePrefix={true}
-                      className={`proj-val font-bold ${isSurplus ? 'text-emerald' : 'text-rose'}`}
+                      className={`font-bold text-xs ${isSurplus ? 'text-emerald' : 'text-rose'}`}
                     />
-                  </div>
-                  <div className="proj-micro-badge" title="Saldo Acumulado">
-                    <span className={`proj-sigla ${row.accumulatedBalance < 0 ? 'text-rose' : 'text-amber'}`}>ACUM</span>
-                    <GlanceableCurrency
-                      value={row.accumulatedBalance}
-                      className={`proj-val font-bold ${row.accumulatedBalance < 0 ? 'text-rose' : 'val-surplus-gold'}`}
-                    />
+                    {isExpanded && (
+                      <div className="mini-result-track flex-shrink-0">
+                        <div
+                          className={`mini-result-fill ${isSurplus ? 'surplus' : 'deficit'}`}
+                          style={{ width: `${Math.max(barPercent, 12)}%` }}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
-              )}
+                <div
+                  className={`proj-card-cell ${isExpanded ? 'is-clickable' : ''}`}
+                  onClick={(e) => {
+                    if (!isExpanded) return;
+                    e.stopPropagation();
+                    handleOpenCell(row, 'accumulated', 'Saldo Acumulado Projetado', row.accumulatedBalance);
+                  }}
+                >
+                  <CardLabel title="Saldo acumulado" />
+                  <GlanceableCurrency
+                    value={row.accumulatedBalance}
+                    className={`font-bold text-xs ${row.accumulatedBalance < 0 ? 'text-rose' : 'val-surplus-gold'}`}
+                  />
+                </div>
+              </div>
 
-              {/* Versão Expandida (Detalhamento Completo) */}
+              {/* Expandido: toques abrem os lançamentos; DRE do mês */}
               {isExpanded && (
-                <div className="proj-expanded-details animate-fade-in">
-                  {/* Grid 2x2 com os Valores Financeiros Principais */}
-                  <div className="proj-card-metrics-grid">
-                    {/* Saldo Inicial */}
-                    <div
-                      className="proj-card-metric-box cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenCell(row, 'accumulated', 'Saldo Inicial do Ciclo', row.initialBalance || 0);
-                      }}
-                      title="Toque para ver o saldo inicial"
-                    >
-                      <span className="proj-metric-label">Saldo Inicial</span>
-                      <div className="flex items-center gap-1 mt-0.5">
-                        <GlanceableCurrency value={row.initialBalance} className="font-semibold text-xs" />
-                        {row.isClosed && <CheckCircle2 className="w-3 h-3 text-emerald-400 flex-shrink-0" />}
-                      </div>
-                    </div>
-
-                    {/* Entradas: Real | Previsto */}
-                    <div className="proj-card-metric-box" onClick={(e) => e.stopPropagation()}>
-                      <span className="proj-metric-label text-emerald">Entradas · Real | Previsto</span>
-                      <div className="mt-0.5">
-                        <RealPlannedCell
-                          kind="in"
-                          real={s.realIn}
-                          planned={s.plannedIn}
-                          onReal={() => openIncome(row, 'REALIZADO')}
-                          onPlanned={() => openIncome(row, 'PREVISTO')}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Saídas: Real | Previsto */}
-                    <div className="proj-card-metric-box" onClick={(e) => e.stopPropagation()}>
-                      <span className="proj-metric-label text-rose">Saídas · Real | Previsto</span>
-                      <div className="mt-0.5">
-                        <RealPlannedCell
-                          kind="out"
-                          real={s.realOut}
-                          planned={s.plannedOut}
-                          onReal={() => openExpense(row, 'REALIZADO')}
-                          onPlanned={() => openExpense(row, 'PREVISTO')}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Resultado Líquido */}
-                    <div
-                      className="proj-card-metric-box cursor-pointer"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenCell(row, 'monthNet', 'Resultado Líquido do Mês (Entradas - Saídas)', row.monthNet);
-                      }}
-                      title="Toque para detalhar o resultado do mês"
-                    >
-                      <span className="proj-metric-label">Resultado (Mês)</span>
-                      <div className="flex items-center justify-between gap-1 w-full mt-0.5">
-                        <GlanceableCurrency
-                          value={row.monthNet}
-                          isPositivePrefix={true}
-                          className={`font-bold text-xs ${isSurplus ? 'text-emerald' : 'text-rose'}`}
-                        />
-                        <div className="mini-result-track flex-shrink-0">
-                          <div
-                            className={`mini-result-fill ${isSurplus ? 'surplus' : 'deficit'}`}
-                            style={{ width: `${Math.max(barPercent, 12)}%` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Barra Inferior do Card: Saldo Acumulado & Botão DRE */}
-                  <div
-                    className="proj-card-footer cursor-pointer"
+                <div className="proj-card-footer animate-fade-in">
+                  <span className="text-[11px] text-muted">Toque nos valores para detalhar</span>
+                  <button
+                    type="button"
+                    className="proj-card-dre-btn"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleOpenCell(row, 'accumulated', 'Saldo Acumulado Projetado', row.accumulatedBalance);
+                      handleOpenCell(row, 'monthNet', `DRE Resumo: ${row.competenceLabel}`, row.monthNet);
                     }}
+                    title="Ver demonstrativo completo"
                   >
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] text-muted font-medium">Saldo Acumulado:</span>
-                      <GlanceableCurrency
-                        value={row.accumulatedBalance}
-                        className={`font-bold text-sm ${row.accumulatedBalance < 0 ? 'text-rose' : 'val-surplus-gold'}`}
-                      />
-                    </div>
-
-                    <button
-                      type="button"
-                      className="proj-card-dre-btn"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenCell(row, 'monthNet', `DRE Resumo: ${row.competenceLabel}`, row.monthNet);
-                      }}
-                      title="Ver demonstrativo completo"
-                    >
-                      <span>Ver DRE</span>
-                      <ArrowRight size={12} />
-                    </button>
-                  </div>
+                    <span>Ver DRE</span>
+                    <ArrowRight size={12} />
+                  </button>
                 </div>
               )}
             </div>
@@ -882,12 +860,12 @@ export const MonthlyProjectionGrid: React.FC = () => {
         <div className="proj-mobile-totals-card">
           <div className="flex items-center justify-between pb-2 border-b border-border/40">
             <span className="text-xs font-bold uppercase tracking-wider text-primary">Totais</span>
-            <span className="badge badge-cyan text-[10px]">Real | Previsto ({displayedRows.length}m)</span>
+            <span className="badge badge-cyan text-[10px]">{displayedRows.length} meses</span>
           </div>
 
           <div className="grid grid-cols-2 gap-2 mt-2">
             <div>
-              <span className="text-[10px] text-muted block">Entradas · Real | Previsto</span>
+              <CardLabel title="Entradas" hint="Real | Previsto" />
               <div className="rp-cell">
                 <GlanceableCurrency value={totals.realIn} className="text-emerald font-bold text-xs" />
                 <span className="rp-sep" aria-hidden="true">|</span>
@@ -897,7 +875,7 @@ export const MonthlyProjectionGrid: React.FC = () => {
               </div>
             </div>
             <div>
-              <span className="text-[10px] text-muted block">Saídas · Real | Previsto</span>
+              <CardLabel title="Saídas" hint="Real | Previsto" />
               <div className="rp-cell">
                 <GlanceableCurrency value={totals.realOut} prefix={totals.realOut > 0 ? '-' : ''} className="text-rose font-bold text-xs" />
                 <span className="rp-sep" aria-hidden="true">|</span>
@@ -907,7 +885,7 @@ export const MonthlyProjectionGrid: React.FC = () => {
               </div>
             </div>
             <div>
-              <span className="text-[10px] text-muted block">Resultado</span>
+              <CardLabel title="Resultado" />
               <GlanceableCurrency
                 value={totals.monthNet}
                 isPositivePrefix={true}
@@ -915,7 +893,7 @@ export const MonthlyProjectionGrid: React.FC = () => {
               />
             </div>
             <div>
-              <span className="text-[10px] text-muted block">Saldo Final</span>
+              <CardLabel title="Saldo Final" />
               <GlanceableCurrency
                 value={lastAccumulatedBalance}
                 className={`font-bold text-xs ${lastAccumulatedBalance >= 0 ? 'text-amber' : 'text-rose'}`}

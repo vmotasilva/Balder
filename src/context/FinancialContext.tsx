@@ -250,6 +250,9 @@ interface FinancialContextType {
   // Contratos de empréstimo: arquivar (some da lista) e excluir (apaga parcelas e captação)
   archivedLoanGroups: string[];
   setLoanGroupArchived: (groupId: string, archived: boolean) => void;
+  // Até onde a projeção mês a mês enxerga (meses a partir do mês atual)
+  projectionHorizonMonths: number;
+  setProjectionHorizonMonths: (months: number) => void;
   deleteLoanContract: (groupId: string, movementIds: string[]) => void;
   addSharedSettlement: (item: Omit<SharedSettlementItem, 'id'>) => void;
   toggleSharedSettlementStatus: (id: string) => void;
@@ -416,6 +419,7 @@ const SHARED_READ_ONLY_SAFE = new Set([
   'getNatureSpent',
   'getNatureMissingItems',
   'setActiveTrackingScope',
+  'setProjectionHorizonMonths',
 ]);
 // Registro de pagamentos: liberado ao colaborador
 const SHARED_PAYMENT_ACTIONS = new Set([
@@ -933,6 +937,26 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
       return next;
     });
+  };
+
+  // Horizonte da projeção: preferência de exibição de quem está usando (guardada no próprio perfil)
+  const horizonKey = user && !user.isGuest ? `balder_projection_horizon_${user.$id}` : 'balder_projection_horizon_guest';
+  const [projectionHorizonMonths, setProjectionHorizonState] = useState<number>(() => {
+    try {
+      const saved = Number(localStorage.getItem(horizonKey));
+      if (saved > 0) return saved;
+    } catch {}
+    return 60;
+  });
+
+  const setProjectionHorizonMonths = (months: number) => {
+    setProjectionHorizonState(months);
+    try {
+      localStorage.setItem(horizonKey, String(months));
+    } catch {}
+    if (user && !user.isGuest) {
+      SupabaseService.saveUserProfileSettings({ projectionHorizonMonths: months }).catch(console.error);
+    }
   };
 
   // Contratos de empréstimo arquivados (guardados no perfil, como a exibição das naturezas)
@@ -1843,6 +1867,12 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             setCheckpointCashInHandState(cloudProfileSettings.checkpointCashInHand);
             if (user) {
               localStorage.setItem(`balder_checkpoint_cash_${user.$id}`, JSON.stringify(cloudProfileSettings.checkpointCashInHand));
+            }
+          }
+          if (cloudProfileSettings?.projectionHorizonMonths) {
+            setProjectionHorizonState(cloudProfileSettings.projectionHorizonMonths);
+            if (user) {
+              localStorage.setItem(`balder_projection_horizon_${user.$id}`, String(cloudProfileSettings.projectionHorizonMonths));
             }
           }
           if (cloudProfileSettings?.archivedLoanGroups) {
@@ -4586,6 +4616,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setNatureDetailMode,
         archivedLoanGroups,
         setLoanGroupArchived,
+        projectionHorizonMonths,
+        setProjectionHorizonMonths,
         deleteLoanContract,
         addSharedSettlement,
         toggleSharedSettlementStatus,

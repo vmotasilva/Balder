@@ -595,6 +595,8 @@ export interface UserProfileSettings {
   natureDetailModes?: Record<string, NatureDetailMode>;
   /** Contratos de empréstimo arquivados (id do grupo de parcelas): somem da lista, os lançamentos continuam. */
   archivedLoanGroups?: string[];
+  /** Quantos meses à frente a projeção mês a mês mostra (padrão: 60, 5 anos). */
+  projectionHorizonMonths?: number;
   /** Quanto do saldo inicial de cada marco estava em dinheiro em mãos (id do marco → R$). */
   checkpointCashInHand?: Record<string, number>;
   /** Situação das metas arquivadas/canceladas, por id da meta. */
