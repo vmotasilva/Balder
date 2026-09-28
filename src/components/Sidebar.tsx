@@ -19,6 +19,8 @@ import {
   Users,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useFinancial } from '../context/FinancialContext';
+import { displayName } from '../utils/displayName';
 
 export type TabId = 'INICIO' | 'DASHBOARD' | 'MOVIMENTACOES' | 'FATURAS' | 'NATUREZAS' | 'EMPRESTIMOS' | 'COPILOT' | 'METAS' | 'COMPARTILHADO' | 'PERFIL';
 
@@ -201,6 +203,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     };
   }, [isMenuOpen]);
 
+  const { viewPreferences } = useFinancial();
+  const shortName = displayName(user?.name, viewPreferences) || 'Perfil';
   const userInitials = (user?.name || 'VM')
     .split(' ')
     .map((n) => n[0])
@@ -273,9 +277,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
   ];
 
-  // No menu mobile sheet, Forseti fica em destaque ao lado do perfil no rodapé,
-  // permitindo que os 8 módulos fiquem em uma grade 2x4 equilibrada.
-  const mobileNavGridItems = desktopNavItems.filter((item) => item.id !== 'COPILOT');
+  // No menu mobile sheet, Início, perfil e Forseti ficam na barra de atalhos do rodapé;
+  // os demais módulos vão na grade de 2 colunas.
+  // Início, perfil, Forseti e sair ficam na barra de atalhos do rodapé
+  const mobileNavGridItems = desktopNavItems.filter((item) => item.id !== 'COPILOT' && item.id !== 'INICIO');
 
   const activeItem = desktopNavItems.find((item) => item.id === activeTab) || {
     id: 'PERFIL' as TabId,
@@ -386,7 +391,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className="user-info" style={{ overflow: 'hidden' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span className="user-name" style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', display: 'block' }}>
-                      {user?.name || 'Vinicius Mota'}
+                      {shortName}
                     </span>
                     <Settings size={12} className="text-cyan" style={{ opacity: 0.8 }} />
                   </div>
@@ -543,63 +548,65 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </div>
             </div>
 
-            {/* User Profile, Forseti IA & Logout Footer */}
-            <div className="mobile-nav-sheet-footer">
-              {/* Perfil do Usuário */}
+            {/* Atalhos: Início, perfil, Forseti e sair (ícone com o nome embaixo) */}
+            <div className="mobile-nav-sheet-footer mobile-nav-quickbar">
               <button
                 type="button"
-                className={`mobile-nav-user-btn ${activeTab === 'PERFIL' ? 'active' : ''}`}
+                className={`mobile-nav-quick ${activeTab === 'INICIO' ? 'active' : ''}`}
+                onClick={() => {
+                  onSelectTab('INICIO');
+                  setIsMenuOpen(false);
+                }}
+              >
+                <span className="mobile-nav-quick-icon">
+                  <Home size={18} />
+                </span>
+                <span className="mobile-nav-quick-label">Início</span>
+              </button>
+
+              <button
+                type="button"
+                className={`mobile-nav-quick ${activeTab === 'PERFIL' ? 'active' : ''}`}
                 onClick={() => {
                   onSelectTab('PERFIL');
                   setIsMenuOpen(false);
                 }}
-                title="Acessar Configurações do Perfil"
+                title="Meu perfil"
               >
-                <div className="user-avatar" style={{ boxShadow: activeTab === 'PERFIL' ? '0 0 10px var(--accent-cyan)' : 'none' }}>
+                <span className="mobile-nav-quick-icon is-avatar">
                   <span>{userInitials}</span>
-                </div>
-                <div className="user-info">
-                  <span className="user-name">{user?.name || 'Vinicius Mota'}</span>
-                  <span className="user-role-label">Meu Perfil</span>
-                </div>
+                </span>
+                <span className="mobile-nav-quick-label">{shortName}</span>
               </button>
 
-              {/* Destaque Especial: Forseti IA */}
               <button
                 type="button"
-                className={`mobile-nav-forseti-btn ${activeTab === 'COPILOT' ? 'active' : ''}`}
+                className={`mobile-nav-quick ${activeTab === 'COPILOT' ? 'active' : ''}`}
                 onClick={() => {
                   onSelectTab('COPILOT');
                   setIsMenuOpen(false);
                 }}
-                title="Abrir Forseti — Assistente & Auditor IA"
+                title="Forseti: assistente e auditora"
               >
-                <div className="forseti-btn-avatar">
-                  <img src="/forseti-avatar.png" alt="Forseti IA" className="forseti-btn-avatar-img" />
+                <span className="mobile-nav-quick-icon forseti-btn-avatar">
+                  <img src="/forseti-avatar.png" alt="" className="forseti-btn-avatar-img" />
                   <span className="forseti-pulse-dot" />
-                </div>
-                <div className="forseti-btn-info">
-                  <div className="forseti-btn-title-row">
-                    <span className="forseti-btn-title">Forseti</span>
-                    <span className="forseti-badge-ia">IA</span>
-                  </div>
-                  <span className="forseti-btn-sub">Auditor</span>
-                </div>
+                </span>
+                <span className="mobile-nav-quick-label">Forseti</span>
               </button>
 
-              {/* Botão Sair */}
               <button
                 type="button"
-                className="mobile-nav-logout-btn"
+                className="mobile-nav-quick is-logout"
                 onClick={() => {
                   setIsMenuOpen(false);
                   logout();
                 }}
-                title="Sair da Conta"
-                aria-label="Sair da Conta"
               >
-                <LogOut size={16} />
-                <span className="logout-text">Sair</span>
+                <span className="mobile-nav-quick-icon">
+                  <LogOut size={18} />
+                </span>
+                <span className="mobile-nav-quick-label">Sair</span>
               </button>
             </div>
 

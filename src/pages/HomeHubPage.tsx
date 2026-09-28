@@ -22,6 +22,7 @@ import { buildPeriodInsights, TRACKING_PERIOD_LABELS } from '../utils/periodSpen
 import type { TrackingPeriod } from '../utils/periodSpending';
 import { getItemOccurrences } from '../utils/mappingItemState';
 import type { ForecastEntry } from '../utils/forecastWindow';
+import { displayName } from '../utils/displayName';
 
 interface HomeHubPageProps {
   onNavigate: (tab: TabId) => void;
@@ -73,7 +74,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   const labels = TRACKING_PERIOD_LABELS[period];
   const today = new Date();
   const todayIso = isoOf(today);
-  const firstName = (user?.name || '').split(' ')[0];
+  const firstName = displayName(user?.name, viewPreferences);
 
   const onboardingDone = (() => {
     try {

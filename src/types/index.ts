@@ -410,6 +410,7 @@ export interface ViewPreferences {
   homeScreen?: 'INICIO' | 'PAINEL';            // tela aberta ao entrar
   experienceMode?: 'GUIADO' | 'MANUAL';        // a Forseti conduz e sugere, ou a pessoa configura tudo
   trackingPeriod?: 'SEMANA' | 'QUINZENA' | 'MES'; // período dos resumos do Início
+  nickname?: string;                           // como a pessoa quer ser chamada
 }
 
 /** Situação de um item mapeado em uma competência. */

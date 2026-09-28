@@ -8,7 +8,7 @@ import { POPULAR_BANKS, getBankBranding } from '../utils/bankBranding';
 import type { TrackingPeriod } from '../utils/periodSpending';
 import type { ExpenseNature, FixedExpenseMapping, MappingItem, Movement } from '../types';
 
-type Step = 'MODE' | 'BANKS' | 'BALANCE' | 'INCOME' | 'BILLS' | 'CARD' | 'PERIOD' | 'DONE';
+type Step = 'NAME' | 'MODE' | 'BANKS' | 'BALANCE' | 'INCOME' | 'BILLS' | 'CARD' | 'PERIOD' | 'DONE';
 
 interface IncomeRow {
   name: string;
@@ -113,11 +113,12 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onChooseManual, onFini
     setViewPreferences,
   } = useFinancial();
 
-  const [step, setStep] = useState<Step>('MODE');
+  const [step, setStep] = useState<Step>('NAME');
+  const [nickname, setNickname] = useState(() => (user?.name || '').trim().split(/\s+/)[0] || '');
   const panelRef = useRef<HTMLDivElement>(null);
   // A cada resposta, traz a pergunta seguinte para a tela
   useEffect(() => {
-    if (step !== 'MODE') panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (step !== 'NAME') panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [step]);
   const [history, setHistory] = useState<{ step: Step; question: string; answer: string }[]>([]);
 
@@ -134,7 +135,8 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onChooseManual, onFini
   const [error, setError] = useState<string | null>(null);
 
   const QUESTIONS: Record<Step, string> = {
-    MODE: 'Oi! Eu sou a Forseti. Vou te ajudar a organizar o seu dinheiro. Como você prefere usar o Balder?',
+    NAME: 'Oi! Eu sou a Forseti e vou te ajudar a organizar o seu dinheiro. Como você quer ser chamado?',
+    MODE: `Prazer, ${nickname.trim() || 'tudo bem'}! Como você prefere usar o Balder?`,
     BANKS: 'Em quais bancos você tem conta?',
     BALANCE: 'Quanto você tem hoje, somando tudo?',
     INCOME: 'Quanto entra por mês?',
@@ -144,7 +146,7 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onChooseManual, onFini
     DONE: '',
   };
 
-  const ORDER: Step[] = ['MODE', 'BANKS', 'BALANCE', 'INCOME', 'BILLS', 'CARD', 'PERIOD', 'DONE'];
+  const ORDER: Step[] = ['NAME', 'MODE', 'BANKS', 'BALANCE', 'INCOME', 'BILLS', 'CARD', 'PERIOD', 'DONE'];
 
   const advance = (answer: string) => {
     setHistory((prev) => [...prev.filter((h) => h.step !== step), { step, question: QUESTIONS[step], answer }]);
@@ -329,6 +331,38 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onChooseManual, onFini
 
   const renderStep = () => {
     switch (step) {
+      case 'NAME':
+        return (
+          <>
+            <input
+              className="form-input"
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+              placeholder="Seu nome ou apelido"
+              aria-label="Como você quer ser chamado"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && nickname.trim()) {
+                  setViewPreferences({ nickname: nickname.trim() });
+                  advance(nickname.trim());
+                }
+              }}
+            />
+            <div className="guided-actions">
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={!nickname.trim()}
+                onClick={() => {
+                  setViewPreferences({ nickname: nickname.trim() });
+                  advance(nickname.trim());
+                }}
+              >
+                Continuar
+              </button>
+            </div>
+          </>
+        );
+
       case 'MODE':
         return (
           <div className="guided-choices">
@@ -655,7 +689,7 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onChooseManual, onFini
           <Bubble from="forseti">{QUESTIONS[step]}</Bubble>
           <div className="guided-panel" ref={panelRef}>
             {renderStep()}
-            {step !== 'MODE' && (
+            {step !== 'NAME' && (
               <button type="button" className="guided-back" onClick={goBack}>
                 <ArrowLeft size={12} /> Voltar à pergunta anterior
               </button>

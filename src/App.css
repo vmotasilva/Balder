@@ -5914,60 +5914,13 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   flex-shrink: 0;
 }
 
-.mobile-nav-user-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--border-subtle);
-  border-radius: 12px;
-  padding: 6px 8px;
-  text-align: left;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  flex: 1.1;
-  min-width: 0;
-  overflow: hidden;
-}
 
-.mobile-nav-user-btn:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: var(--border-default);
-}
 
-.mobile-nav-user-btn:active {
-  transform: scale(0.97);
-}
 
-.mobile-nav-user-btn.active {
-  background: rgba(56, 189, 248, 0.12);
-  border-color: var(--accent-cyan);
-  box-shadow: 0 0 14px rgba(56, 189, 248, 0.2);
-}
 
-[data-theme="light"] .mobile-nav-user-btn {
-  background: rgba(0, 0, 0, 0.02);
-  border-color: var(--border-default);
-}
 
-[data-theme="light"] .mobile-nav-user-btn:hover {
-  background: rgba(0, 0, 0, 0.05);
-}
 
-[data-theme="light"] .mobile-nav-user-btn.active {
-  background: rgba(2, 132, 199, 0.1);
-  border-color: var(--accent-cyan);
-}
 
-.mobile-nav-user-btn .user-name {
-  font-size: 11.5px;
-  font-weight: 700;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: block;
-}
 
 .user-role-label {
   font-size: 10px;
@@ -5977,58 +5930,12 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   line-height: 1.2;
 }
 
-/* Botão de Destaque Exclusivo: Forseti IA */
-.mobile-nav-forseti-btn {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(168, 85, 247, 0.15));
-  border: 1px solid rgba(56, 189, 248, 0.35);
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.15);
-  border-radius: 12px;
-  padding: 6px 9px;
-  text-align: left;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  flex: 1;
-  min-width: 0;
-  position: relative;
-  overflow: hidden;
-}
 
-.mobile-nav-forseti-btn:hover {
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(168, 85, 247, 0.25));
-  border-color: var(--accent-cyan);
-  box-shadow: 0 0 16px rgba(56, 189, 248, 0.3);
-  transform: translateY(-1px);
-}
 
-.mobile-nav-forseti-btn:active {
-  transform: scale(0.97);
-}
 
-.mobile-nav-forseti-btn.active {
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.25), rgba(168, 85, 247, 0.3));
-  border-color: #38bdf8;
-  box-shadow: 0 0 18px rgba(56, 189, 248, 0.4);
-}
 
-[data-theme="light"] .mobile-nav-forseti-btn {
-  background: linear-gradient(135deg, rgba(2, 132, 199, 0.08), rgba(147, 51, 234, 0.09));
-  border: 1px solid rgba(2, 132, 199, 0.3);
-  box-shadow: 0 2px 8px rgba(2, 132, 199, 0.1);
-}
 
-[data-theme="light"] .mobile-nav-forseti-btn:hover {
-  background: linear-gradient(135deg, rgba(2, 132, 199, 0.14), rgba(147, 51, 234, 0.16));
-  border-color: #0284c7;
-}
 
-[data-theme="light"] .mobile-nav-forseti-btn.active {
-  background: linear-gradient(135deg, rgba(2, 132, 199, 0.18), rgba(147, 51, 234, 0.2));
-  border-color: #0284c7;
-  box-shadow: 0 0 14px rgba(2, 132, 199, 0.25);
-}
 
 .forseti-btn-avatar {
   position: relative;
@@ -6065,66 +5972,12 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   50% { opacity: 0.6; transform: scale(1.2); }
 }
 
-.forseti-btn-info {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  overflow: hidden;
-}
 
-.forseti-btn-title-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
 
-.forseti-btn-title {
-  font-size: 11.5px;
-  font-weight: 700;
-  color: var(--text-primary);
-  white-space: nowrap;
-}
 
-.forseti-badge-ia {
-  font-size: 8px;
-  font-weight: 800;
-  padding: 1px 4px;
-  border-radius: 4px;
-  background: linear-gradient(135deg, #06b6d4, #8b5cf6);
-  color: #ffffff;
-  letter-spacing: 0.04em;
-}
 
-.forseti-btn-sub {
-  font-size: 9.5px;
-  color: var(--accent-cyan);
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 
-.mobile-nav-logout-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 8px 10px;
-  border-radius: 10px;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.25);
-  color: #ef4444;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.2s;
-  flex-shrink: 0;
-}
 
-.mobile-nav-logout-btn:active {
-  transform: scale(0.95);
-  background: rgba(239, 68, 68, 0.2);
-}
 
 /* ==========================================================================
    ADAPTAÇÃO ESPECÍFICA PARA WEB / DESKTOP (>= 769px)
@@ -6352,27 +6205,9 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
   }
 
-  .mobile-nav-user-btn {
-    padding: 5px 8px;
-    border-radius: 10px;
-    gap: 7px;
-  }
 
-  .mobile-nav-user-btn .user-name {
-    font-size: 11px;
-  }
 
-  .mobile-nav-forseti-btn {
-    padding: 5px 8px;
-    border-radius: 10px;
-    gap: 6px;
-  }
 
-  .mobile-nav-logout-btn {
-    padding: 5px 8px;
-    border-radius: 10px;
-    height: 36px;
-  }
 
   .mobile-nav-gs-row {
     padding: 3px 12px calc(8px + env(safe-area-inset-bottom, 0px));
@@ -20638,4 +20473,87 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   .guided-row-name {
     flex-basis: 100%;
   }
+}
+
+/* Barra de atalhos do menu (celular): ícone com o nome embaixo */
+.mobile-nav-quickbar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.mobile-nav-quick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 4px 2px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.mobile-nav-quick-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border-default);
+  background: var(--bg-card-elevated);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  transition: border-color 0.15s ease;
+}
+
+.mobile-nav-quick-icon.is-avatar {
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+  border: none;
+  color: #fff;
+}
+
+.mobile-nav-quick-icon.forseti-btn-avatar {
+  width: 40px;
+  height: 40px;
+  border: none;
+}
+
+.mobile-nav-quick-label {
+  max-width: 100%;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-nav-quick.active .mobile-nav-quick-icon {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-cyan) 35%, transparent);
+}
+
+.mobile-nav-quick.active .mobile-nav-quick-label {
+  color: var(--accent-cyan);
+}
+
+.mobile-nav-quick.is-logout .mobile-nav-quick-icon,
+.mobile-nav-quick.is-logout .mobile-nav-quick-label {
+  color: var(--accent-rose);
+}
+
+/* Grade com número ímpar de módulos: o último ocupa a linha toda */
+.mobile-nav-grid > .mobile-nav-card:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+/* Com o menu aberto, o botão flutuante sai de cena (o menu tem o próprio X) para não cobrir os atalhos */
+.mobile-nav-orb-btn.open {
+  opacity: 0;
+  pointer-events: none;
 }

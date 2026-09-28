@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { parseDecimal, parseMoney } from '../utils/parseDecimal';
 import { useFinancial } from '../context/FinancialContext';
+import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { auditOnboardingProgress } from '../utils/onboardingProgress';
 import {
@@ -100,6 +101,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
     setViewPreferences,
   } = useFinancial();
   const { theme, setTheme } = useTheme();
+  const { user } = useAuth();
 
   // Confirm Dialog
   const { confirm: confirmAction, dialogProps: confirmDialogProps } = useConfirmDialog();
@@ -277,11 +279,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
         <div className="profile-nav-card glass-card">
           <div className="profile-user-summary">
             <div className="profile-avatar-large">
-              <span>VM</span>
+              <span>{(user?.name || '?').split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()}</span>
             </div>
             <div className="profile-user-text">
-              <h3>Vinicius Mota</h3>
-              <span className="profile-user-email">vinicius@balder.internal</span>
+              <h3>{user?.name || 'Perfil'}</h3>
+              <span className="profile-user-email">{user?.email}</span>
               <button
                 type="button"
                 className="badge badge-emerald mt-1 profile-beta-badge flex items-center gap-1 cursor-pointer"
@@ -449,11 +451,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
               <div className="form-grid-2">
                 <div className="form-group">
                   <label>Nome Completo</label>
-                  <input type="text" className="form-input" defaultValue="Vinicius Mota" readOnly />
+                  <input type="text" className="form-input" value={user?.name || ''} readOnly />
                 </div>
                 <div className="form-group">
                   <label>E-mail Principal</label>
-                  <input type="email" className="form-input" defaultValue="vinicius@balder.internal" readOnly />
+                  <input type="email" className="form-input" value={user?.email || ''} readOnly />
                 </div>
                 <div className="form-group">
                   <label>Moeda Padrão</label>
@@ -3231,6 +3233,25 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                       <span>Escuro</span>
                     </button>
                   </div>
+                </div>
+
+                <div className="pref-row">
+                  <div>
+                    <strong>Como quer ser chamado</strong>
+                    <p>Nome usado nas saudações e no menu. Sem apelido, usamos o primeiro nome.</p>
+                  </div>
+                  <input
+                    className="form-input form-input-sm"
+                    style={{ maxWidth: '200px' }}
+                    defaultValue={viewPreferences.nickname || ''}
+                    placeholder={(user?.name || '').split(' ')[0] || 'Seu apelido'}
+                    aria-label="Como quer ser chamado"
+                    onBlur={(e) => {
+                      if (e.target.value.trim() !== (viewPreferences.nickname || '')) {
+                        setViewPreferences({ nickname: e.target.value.trim() });
+                      }
+                    }}
+                  />
                 </div>
 
                 <div className="pref-row">
