@@ -586,13 +586,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onSelectTab('COPILOT');
                   setIsMenuOpen(false);
                 }}
-                title="Forseti: assistente e auditora"
+                title="Abrir a Forseti, sua IA auxiliar"
               >
                 <span className="mobile-nav-quick-icon forseti-btn-avatar">
                   <img src="/forseti-avatar.png" alt="" className="forseti-btn-avatar-img" />
                   <span className="forseti-pulse-dot" />
                 </span>
-                <span className="mobile-nav-quick-label">Forseti</span>
+                <span className="mobile-nav-quick-label">IA auxiliar</span>
               </button>
 
               <button
