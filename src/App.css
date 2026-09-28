@@ -19058,6 +19058,150 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   align-self: flex-start;
 }
 
+/* Parcela de empréstimo aberta pelo detalhamento da competência */
+.loan-inst-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.loan-inst-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.loan-inst-hint svg {
+  color: var(--accent-amber);
+  flex-shrink: 0;
+}
+
+.loan-inst-paid {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+}
+
+.loan-inst-paid p {
+  margin: 6px 0 0;
+}
+
+.loan-inst-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.loan-inst-contract {
+  border-top: 1px solid var(--border-default);
+  padding-top: 14px;
+}
+
+.loan-inst-contract-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.loan-inst-contract-head h4 {
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.loan-inst-table-wrap {
+  max-height: 280px;
+  overflow: auto;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+}
+
+.loan-inst-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.loan-inst-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 7px 10px;
+  text-align: left;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  background: var(--bg-card-elevated);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.loan-inst-table td {
+  padding: 7px 10px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+
+.loan-inst-table tbody tr {
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.loan-inst-table tbody tr:hover {
+  background: var(--accent-cyan-glow);
+}
+
+.loan-inst-table tbody tr.is-focused {
+  background: var(--accent-cyan-glow);
+  box-shadow: inset 3px 0 0 var(--accent-cyan);
+}
+
+.loan-inst-table tbody tr.is-paid td {
+  color: var(--text-muted);
+}
+
+.loan-inst-table .th-right {
+  text-align: right;
+}
+
+.loan-inst-table .th-center {
+  text-align: center;
+}
+
+.loan-inst-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.loan-inst-status.paid {
+  color: var(--accent-emerald);
+}
+
+.loan-inst-status.open {
+  color: var(--accent-cyan);
+}
+
+@media (max-width: 640px) {
+  .loan-inst-contract-head {
+    flex-direction: column;
+  }
+}
+
 /* Alteração em série mensal */
 .recurring-choice {
   display: flex;

@@ -38,7 +38,13 @@ import type {
   InvoiceNatureItemBreakdown,
   NatureDetailMode,
 } from '../types';
-import { buildMonthlyProjectionGrid, isSalaryMovement, movementCompetenceDate, salaryCompetenceKey } from '../utils/projectionMath';
+import {
+  buildMonthlyProjectionGrid,
+  isSalaryMovement,
+  loanInstallmentsOfMonth,
+  movementCompetenceDate,
+  salaryCompetenceKey,
+} from '../utils/projectionMath';
 import type { ProjectionViewMode } from '../utils/projectionMath';
 import { getItemManifestationDays } from '../utils/natureScheduling';
 import {
@@ -65,6 +71,7 @@ import { MovementDetailModal } from './MovementDetailModal';
 import { InitialBalancePanel } from './InitialBalancePanel';
 import { RecurringChangeDialog, futureRecurringSiblings, type RecurringChangePrompt } from './RecurringChangeDialog';
 import { NewMovementModal } from './NewMovementModal';
+import { LoanInstallmentModal } from './LoanInstallmentModal';
 
 export interface GridCellSelection {
   columnKey:
@@ -138,6 +145,7 @@ export interface CellBreakdownSubItem {
   occurrenceWeights?: { date: string; weight: number }[]; // dias reais dos itens agregados (distribuição semanal)
   paidAmount?: number;    // Real: já pago/recebido na competência (itens mapeados)
   pendingAmount?: number; // Previsto: ainda a pagar/receber na competência (itens mapeados)
+  loanMovementId?: string; // parcela de empréstimo: clique abre o manuseio da parcela
 }
 
 export interface EditingReceiptData {
@@ -204,6 +212,51 @@ export interface NatureItemEntry {
   natureColor: string;
   mappingName: string;
   item: MappingItem;
+}
+
+/**
+ * Grupo "Parcelas de Empréstimos & Dívidas" da competência: uma linha por parcela, agrupadas por contrato
+ * (mapeamento). O valor do grupo é o da coluna Empréstimo (-) da grade.
+ */
+function loanInstallmentsBreakdownItem(
+  movements: Movement[],
+  monthKey: string,
+  viewMode: ProjectionViewMode | undefined,
+  startDate: string | undefined,
+  amount: number
+): CellBreakdownItem {
+  const subItems: CellBreakdownSubItem[] = loanInstallmentsOfMonth(movements, monthKey, viewMode, startDate).map((m) => {
+    const total = m.installmentsTotal;
+    return {
+      id: `loan_${m.id}`,
+      description: m.installmentNumber ? `Parcela ${m.installmentNumber}${total ? `/${total}` : ''}` : m.title,
+      quantity: 1,
+      price: m.amount,
+      multiplierWeeks: 1,
+      totalValue: m.amount,
+      mappingName: m.title.replace(/\s*\(\d+\/\d+\).*/, '').trim(),
+      status: m.status,
+      originalAmount: m.originalAmount,
+      dueDate: movementCompetenceDate(m, startDate),
+      paymentDate: m.paymentDate,
+      bank: m.bank,
+      movementId: m.id,
+      loanMovementId: m.id,
+    };
+  });
+  return {
+    id: `expense_loan_${monthKey}`,
+    category: 'Financiamentos & Dívidas',
+    bankOrOrigin: 'Débito em Conta',
+    title: 'Parcelas de Empréstimos & Dívidas',
+    notes: 'Amortização e juros das parcelas ativas (Tabela Price)',
+    badge: 'Empréstimo (-)',
+    badgeType: 'amber',
+    amount,
+    dateOrDue: `Vencimento: ${monthKey}-10`,
+    isProjected: true,
+    subItems: subItems.length > 0 ? subItems : undefined,
+  };
 }
 
 /** Situação do item na competência (realizado / pago por terceiros) para o detalhamento. */
@@ -1039,6 +1092,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
   // Item mapeado cuja situação na competência está sendo definida
   const [itemStateTarget, setItemStateTarget] = useState<MappingItemStateTarget | null>(null);
+  const [loanInstallmentTarget, setLoanInstallmentTarget] = useState<string | null>(null);
 
   // Rascunho de nova conta a receber/pagar; estável enquanto o formulário estiver aberto
   // (o formulário reinicia os campos se initialData mudar)
@@ -1279,7 +1333,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (itemStateTarget || newMovementDraft) {
+        if (itemStateTarget || newMovementDraft || loanInstallmentTarget) {
           // Pop-ups sobrepostos fecham a si mesmos; não fecham o detalhamento junto
           return;
         } else if (editingReceipt) {
@@ -1291,7 +1345,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, editingReceipt, itemStateTarget, newMovementDraft]);
+  }, [onClose, editingReceipt, itemStateTarget, newMovementDraft, loanInstallmentTarget]);
 
   // Lista achatada de todos os itens das naturezas mapeadas
   const allNatureItems = useMemo(() => {
@@ -1701,42 +1755,9 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         items.push(salItem);
       }
     } else if (columnKey === 'loanPayment') {
-      const realLoans = movements.filter(
-        (m) =>
-          m.type === 'PAGAR' &&
-          (m.category === 'Empréstimo' || m.category.toLowerCase().includes('empréstimo') || m.category.toLowerCase().includes('financiamento')) &&
-          movementCompetenceDate(m, activeCheckpoint?.startDate).startsWith(monthPrefix)
+      items.push(
+        loanInstallmentsBreakdownItem(movements, monthPrefix, selection?.viewMode, activeCheckpoint?.startDate, totalValue)
       );
-
-      if (realLoans.length > 0) {
-        realLoans.forEach((m) => {
-          items.push({
-            id: m.id,
-            category: 'Amortização',
-            bankOrOrigin: m.bank,
-            title: m.title,
-            notes: m.notes || 'Parcela de empréstimo contratado',
-            badge: m.status === 'REALIZADA' ? 'Pago' : 'A Vencer',
-            badgeType: m.status === 'REALIZADA' ? 'emerald' : 'amber',
-            amount: m.amount,
-            dateOrDue: `Vencimento: ${m.dueDate}`,
-            isProjected: false,
-          });
-        });
-      } else {
-        items.push({
-          id: `loan_inst_${monthPrefix}`,
-          category: 'Empréstimo Contratado',
-          bankOrOrigin: 'Débito em Conta',
-          title: 'Parcela de Financiamento / Empréstimo',
-          notes: 'Amortização e juros da dívida em curso (Tabela Price)',
-          badge: 'Contrato Ativo',
-          badgeType: 'amber',
-          amount: totalValue,
-          dateOrDue: `Vencimento: ${monthPrefix}-10`,
-          isProjected: true,
-        });
-      }
     } else if (columnKey === 'fixedCost') {
       const monthNum = parseInt(row.monthKey.split('-')[1], 10);
       natures.forEach((nat) => {
@@ -2174,18 +2195,9 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
       // 4. Parcelas de Empréstimo / Financiamento
       if (row.loanPayment > 0) {
-        items.push({
-          id: `expense_loan_${monthPrefix}`,
-          category: 'Financiamentos & Dívidas',
-          bankOrOrigin: 'Débito em Conta',
-          title: 'Parcelas de Empréstimos & Dívidas',
-          notes: 'Amortização e juros das parcelas ativas (Tabela Price)',
-          badge: 'Empréstimo (-)',
-          badgeType: 'amber',
-          amount: row.loanPayment,
-          dateOrDue: `Vencimento: ${monthPrefix}-10`,
-          isProjected: true,
-        });
+        items.push(
+          loanInstallmentsBreakdownItem(movements, monthPrefix, selection?.viewMode, activeCheckpoint?.startDate, row.loanPayment)
+        );
       }
     } else if (columnTitle === 'Saldo Inicial do Ciclo') {
       const isFirst = row?.isFirstMonth ?? (monthPrefix === '2026-09');
@@ -2676,6 +2688,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     const paidDiffClass = paidDiff > 0 !== isIncomeContext ? 'paid-diff-up' : 'paid-diff-down';
     // Item mapeado de natureza: clique define a situação na competência (realizado / quem pagou)
     const isNatureItem = !isReceipt && !!sub.natureItemRef;
+    const isLoanInstallment = !isReceipt && !!sub.loanMovementId;
     const openItemState = () => {
       if (sub.natureItemRef && currentRow) {
         setItemStateTarget({
@@ -2694,10 +2707,12 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             handleOpenReceiptEditor(sub);
           } else if (isNatureItem) {
             openItemState();
+          } else if (isLoanInstallment) {
+            setLoanInstallmentTarget(sub.loanMovementId!);
           }
         }}
         className={`detail-item-row group/receipt transition-all ${
-          isReceipt || isNatureItem
+          isReceipt || isNatureItem || isLoanInstallment
             ? 'cursor-pointer hover:bg-cyan-500/[0.08] dark:hover:bg-cyan-500/[0.12] hover:border-cyan-500/30'
             : ''
         } ${
@@ -2714,6 +2729,8 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             ? 'Clique para editar este recebimento (já aconteceu, cancelado ou com desconto)'
             : isNatureItem
             ? 'Clique para definir se já foi realizado e quem pagou'
+            : isLoanInstallment
+            ? 'Clique para pagar ou antecipar esta parcela'
             : undefined
         }
       >
@@ -4135,6 +4152,11 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
       {/* POP-UP DE SITUAÇÃO DO ITEM MAPEADO (REALIZADO / QUEM PAGOU / PRÓXIMAS COMPETÊNCIAS) */}
       <MappingItemStateModal target={itemStateTarget} onClose={() => setItemStateTarget(null)} />
+
+      {/* POP-UP DA PARCELA DE EMPRÉSTIMO (PAGAR / ANTECIPAR / REABRIR) */}
+      {loanInstallmentTarget && (
+        <LoanInstallmentModal movementId={loanInstallmentTarget} onClose={() => setLoanInstallmentTarget(null)} />
+      )}
 
       {/* FORMULÁRIO DE NOVA CONTA A RECEBER / A PAGAR NA COMPETÊNCIA */}
       <NewMovementModal

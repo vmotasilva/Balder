@@ -100,6 +100,27 @@ export function getSalaryCompetenceKey(m: Movement): string {
 export type ProjectionViewMode = 'PROJETADO' | 'REALIZADO' | 'PREVISTO';
 
 /**
+ * Parcelas de empréstimo (saídas) com competência no mês, conforme a visão — o que compõe a coluna
+ * "Empréstimo (-)" da grade.
+ */
+export function loanInstallmentsOfMonth(
+  movements: Movement[],
+  monthKey: string,
+  viewMode: ProjectionViewMode = 'PROJETADO',
+  startDate?: string
+): Movement[] {
+  return movements.filter((m) => {
+    if (m.type !== 'EMPRESTIMO' || m.category === 'Recebimento') return false;
+    // Realizados antes do marco já estão no saldo inicial
+    if (startDate && m.dueDate && m.status !== 'PREVISTA' && movementCompetenceDate(m) < startDate) return false;
+    if (!movementCompetenceDate(m, startDate)?.startsWith(monthKey)) return false;
+    if (viewMode === 'REALIZADO') return m.status === 'REALIZADA';
+    if (viewMode === 'PREVISTO') return m.status === 'PREVISTA';
+    return true;
+  });
+}
+
+/**
  * Constrói as linhas do Grid Mensal (Visão Macro & DRE Glanceable)
  *
  * Suporta 3 modos de visão (viewMode):
@@ -346,13 +367,7 @@ export function buildMonthlyProjectionGrid(
       .reduce((acc, m) => acc + m.amount, 0);
 
     // ── 7. Parcelas de Empréstimo (-) ──────────────────────────────────────────
-    const loanPayment = loanMovements
-      .filter((m) => {
-        if (m.category === 'Recebimento' || !movementCompetenceDate(m, options.startDate).startsWith(comp.key)) return false;
-        if (viewMode === 'REALIZADO') return m.status === 'REALIZADA';
-        if (viewMode === 'PREVISTO') return m.status === 'PREVISTA';
-        return true;
-      })
+    const loanPayment = loanInstallmentsOfMonth(loanMovements, comp.key, viewMode, options.startDate)
       .reduce((acc, m) => acc + m.amount, 0);
 
     // ── 8. Saldo do Mês ────────────────────────────────────────────────────────
