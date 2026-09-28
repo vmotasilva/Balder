@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Check, Copy, ExternalLink, Link2, Mail, Share2, Trash2, UserMinus, Users } from 'lucide-react';
+import { Check, Copy, ExternalLink, Link2, Mail, MessageCircle, MessageSquare, Share2, Trash2, UserMinus, Users } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useFinancial } from '../context/FinancialContext';
 import { useAccountScope } from '../context/AccountScopeContext';
@@ -20,15 +20,24 @@ const STATUS_LABEL: Record<AccountShare['status'], string> = {
   REVOGADO: 'Revogado',
 };
 
-const mailtoFor = (share: AccountShare, ownerName: string) => {
-  const subject = `${ownerName} compartilhou a conta do Balder com você`;
-  const body =
-    `Olá!\n\n${ownerName} compartilhou a conta do Balder com você.\n` +
-    `Acesso: ${SCOPE_LABEL[share.scope]}\nPapel: ${ROLE_LABEL[share.role]}\n\n` +
-    `Para aceitar, abra o link e entre com a sua conta Google${share.invitedEmail ? ` (${share.invitedEmail})` : ''}:\n` +
-    `${inviteLink(share.inviteToken)}\n`;
-  return `mailto:${encodeURIComponent(share.invitedEmail || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-};
+const inviteSubject = (ownerName: string) => `${ownerName} compartilhou a conta do Balder com você`;
+
+const inviteMessage = (share: AccountShare, ownerName: string) =>
+  `Olá!\n\n${ownerName} compartilhou a conta do Balder com você.\n` +
+  `Acesso: ${SCOPE_LABEL[share.scope]}\nPapel: ${ROLE_LABEL[share.role]}\n\n` +
+  `Para aceitar, abra o link e entre com a sua conta Google${share.invitedEmail ? ` (${share.invitedEmail})` : ''}:\n` +
+  `${inviteLink(share.inviteToken)}\n`;
+
+const mailtoFor = (share: AccountShare, ownerName: string) =>
+  `mailto:${encodeURIComponent(share.invitedEmail || '')}?subject=${encodeURIComponent(inviteSubject(ownerName))}&body=${encodeURIComponent(inviteMessage(share, ownerName))}`;
+
+const whatsappFor = (share: AccountShare, ownerName: string) =>
+  `https://wa.me/?text=${encodeURIComponent(inviteMessage(share, ownerName))}`;
+
+// "?&body=" é aceito tanto pelo Android quanto pelo iOS
+const smsFor = (share: AccountShare, ownerName: string) => `sms:?&body=${encodeURIComponent(inviteMessage(share, ownerName))}`;
+
+const canNativeShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
 
 /**
  * Compartilhamento da conta: o dono convida por link ou e-mail, escolhendo alcance (conta inteira ou só o
@@ -83,6 +92,44 @@ export const AccountSharingPanel: React.FC = () => {
       window.prompt('Copie o link do convite:', inviteLink(share.inviteToken));
     }
   };
+
+  const shareInvite = async (share: AccountShare) => {
+    try {
+      await navigator.share({
+        title: inviteSubject(ownerName),
+        text: inviteMessage(share, ownerName),
+      });
+    } catch {
+      // Usuário fechou a janela de compartilhamento
+    }
+  };
+
+  const sendActions = (share: AccountShare, compact: boolean) => (
+    <>
+      <button type="button" className="btn btn-outline btn-xs" onClick={() => copyLink(share)}>
+        {copiedId === share.id ? <Check size={13} /> : <Copy size={13} />}
+        <span>{copiedId === share.id ? 'Copiado' : compact ? 'Link' : 'Copiar link'}</span>
+      </button>
+      <a className="btn btn-outline btn-xs" href={whatsappFor(share, ownerName)} target="_blank" rel="noopener noreferrer">
+        <MessageCircle size={13} />
+        <span>WhatsApp</span>
+      </a>
+      <a className="btn btn-outline btn-xs" href={smsFor(share, ownerName)}>
+        <MessageSquare size={13} />
+        <span>SMS</span>
+      </a>
+      <a className="btn btn-outline btn-xs" href={mailtoFor(share, ownerName)}>
+        <Mail size={13} />
+        <span>{compact ? 'E-mail' : 'Enviar por e-mail'}</span>
+      </a>
+      {canNativeShare && (
+        <button type="button" className="btn btn-outline btn-xs" onClick={() => void shareInvite(share)}>
+          <Share2 size={13} />
+          <span>Compartilhar</span>
+        </button>
+      )}
+    </>
+  );
 
   const run = async (action: () => Promise<void>) => {
     try {
@@ -140,7 +187,7 @@ export const AccountSharingPanel: React.FC = () => {
         <h3>Compartilhar minha conta</h3>
       </div>
       <p className="text-xs text-muted mb-3">
-        Convide por link ou por e-mail. O colaborador vê e registra pagamentos; o visualizador só vê. Você pode alterar ou
+        Convide por link, WhatsApp, SMS ou e-mail. O colaborador vê e registra pagamentos; o visualizador só vê. Você pode alterar ou
         revogar o acesso a qualquer momento, e a mudança vale na hora.
       </p>
 
@@ -208,16 +255,7 @@ export const AccountSharingPanel: React.FC = () => {
             Envie o link:
           </span>
           <code>{inviteLink(justCreated.inviteToken)}</code>
-          <div className="sharing-created-actions">
-            <button type="button" className="btn btn-outline btn-xs" onClick={() => copyLink(justCreated)}>
-              {copiedId === justCreated.id ? <Check size={13} /> : <Copy size={13} />}
-              <span>{copiedId === justCreated.id ? 'Copiado' : 'Copiar link'}</span>
-            </button>
-            <a className="btn btn-outline btn-xs" href={mailtoFor(justCreated, ownerName)}>
-              <Mail size={13} />
-              <span>Enviar por e-mail</span>
-            </a>
-          </div>
+          <div className="sharing-created-actions">{sendActions(justCreated, false)}</div>
         </div>
       )}
 
@@ -260,18 +298,7 @@ export const AccountSharingPanel: React.FC = () => {
                 <option value="VISUALIZADOR">{ROLE_LABEL.VISUALIZADOR}</option>
               </select>
               <div className="sharing-item-actions">
-                {share.status === 'PENDENTE' && (
-                  <>
-                    <button type="button" className="btn btn-outline btn-xs" onClick={() => copyLink(share)}>
-                      {copiedId === share.id ? <Check size={13} /> : <Copy size={13} />}
-                      <span>{copiedId === share.id ? 'Copiado' : 'Link'}</span>
-                    </button>
-                    <a className="btn btn-outline btn-xs" href={mailtoFor(share, ownerName)}>
-                      <Mail size={13} />
-                      <span>E-mail</span>
-                    </a>
-                  </>
-                )}
+                {share.status === 'PENDENTE' && sendActions(share, true)}
                 {share.status === 'ATIVO' && !partnerInScenario && (
                   <button type="button" className="btn btn-outline btn-xs" onClick={() => addToPlanning(share)}>
                     <Users size={13} />
