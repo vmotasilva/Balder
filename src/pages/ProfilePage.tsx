@@ -96,6 +96,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
     clearAllCheckpoints,
     duplicateCheckpointAsSimulation,
     movements,
+    viewPreferences,
+    setViewPreferences,
   } = useFinancial();
   const { theme, setTheme } = useTheme();
 
@@ -3228,6 +3230,83 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                       <Moon size={14} />
                       <span>Escuro</span>
                     </button>
+                  </div>
+                </div>
+
+                <div className="pref-row">
+                  <div>
+                    <strong>Tela inicial</strong>
+                    <p>O que abre quando você entra no Balder. O logo no topo também leva para ela.</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {(
+                      [
+                        ['INICIO', 'Início'],
+                        ['PAINEL', 'Painel'],
+                      ] as const
+                    ).map(([id, label]) => (
+                      <button
+                        key={id}
+                        type="button"
+                        className={`btn btn-sm ${(viewPreferences.homeScreen || (activeCheckpoint ? 'PAINEL' : 'INICIO')) === id ? 'btn-primary' : 'btn-outline'}`}
+                        onClick={() => setViewPreferences({ homeScreen: id })}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pref-row">
+                  <div>
+                    <strong>Modo de uso</strong>
+                    <p>
+                      {viewPreferences.experienceMode === 'GUIADO'
+                        ? 'Guiado: a Forseti conduz, sugere e te lembra do que fazer.'
+                        : 'Manual: você configura e acompanha tudo do seu jeito.'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {(
+                      [
+                        ['GUIADO', 'Guiado'],
+                        ['MANUAL', 'Manual'],
+                      ] as const
+                    ).map(([id, label]) => (
+                      <button
+                        key={id}
+                        type="button"
+                        className={`btn btn-sm ${(viewPreferences.experienceMode || 'MANUAL') === id ? 'btn-primary' : 'btn-outline'}`}
+                        onClick={() => setViewPreferences({ experienceMode: id })}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pref-row">
+                  <div>
+                    <strong>Acompanhamento</strong>
+                    <p>Período dos resumos de gastos e das tarefas no Início.</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {(
+                      [
+                        ['SEMANA', 'Semanal'],
+                        ['QUINZENA', 'Quinzenal'],
+                        ['MES', 'Mensal'],
+                      ] as const
+                    ).map(([id, label]) => (
+                      <button
+                        key={id}
+                        type="button"
+                        className={`btn btn-sm ${(viewPreferences.trackingPeriod || 'MES') === id ? 'btn-primary' : 'btn-outline'}`}
+                        onClick={() => setViewPreferences({ trackingPeriod: id })}
+                      >
+                        {label}
+                      </button>
+                    ))}
                   </div>
                 </div>
 

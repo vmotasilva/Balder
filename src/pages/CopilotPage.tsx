@@ -13,7 +13,8 @@ export interface CopilotPageProps {
 }
 
 const SCREEN_NAMES: Record<TabId, string> = {
-  DASHBOARD: 'Meu Dinheiro (Dashboard)',
+  INICIO: 'Início',
+  DASHBOARD: 'Painel (Meu Dinheiro)',
   MOVIMENTACOES: 'Lançamentos & Movimentações',
   FATURAS: 'Faturas de Cartão',
   NATUREZAS: 'Naturezas & Tetos',

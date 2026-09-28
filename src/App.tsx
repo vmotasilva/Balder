@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
-import { FinancialProvider } from './context/FinancialContext';
+import { FinancialProvider, useFinancial } from './context/FinancialContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AccountScopeProvider, useAccountScope } from './context/AccountScopeContext';
 import { SharedAccountBanner } from './components/SharedAccountBanner';
@@ -10,6 +10,7 @@ import type { TabId } from './components/Sidebar';
 import { Navbar } from './components/Navbar';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
+import { HomeHubPage } from './pages/HomeHubPage';
 import { MovementsPage } from './pages/MovementsPage';
 import { InvoicesPage } from './pages/InvoicesPage';
 import { CopilotPage } from './pages/CopilotPage';
@@ -59,7 +60,19 @@ function ScopedFinancialApp() {
 }
 
 export function AppContent() {
-  const [activeTab, setActiveTab] = useState<TabId>('DASHBOARD');
+  // Sem tela escolhida (null), abre a tela inicial da preferência: Início ou Painel.
+  // Quem já usava o Balder antes do Início continua abrindo no Painel até escolher outra.
+  const [chosenTab, setActiveTab] = useState<TabId | null>(null);
+  const { viewPreferences, activeCheckpoint } = useFinancial();
+  const homeTab: TabId =
+    viewPreferences.homeScreen === 'PAINEL'
+      ? 'DASHBOARD'
+      : viewPreferences.homeScreen === 'INICIO'
+      ? 'INICIO'
+      : activeCheckpoint
+      ? 'DASHBOARD'
+      : 'INICIO';
+  const activeTab: TabId = chosenTab ?? homeTab;
   // Compartilhamento só do planejamento: a conta aberta mostra apenas o Planejamento Compartilhado
   const { viewing } = useAccountScope();
   const planningOnly = viewing?.scope === 'PLANEJAMENTO';
@@ -140,13 +153,21 @@ export function AppContent() {
           onNavigateToGoals={() => setActiveTab('METAS')}
           onNavigateToCopilot={() => setIsCopilotOpen(true)}
           onNavigateToDashboard={() => {
-            setActiveTab('DASHBOARD');
+            setActiveTab(homeTab);
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
         />
 
         <SharedAccountBanner />
         <main className="app-content-viewport">
+          {shownTab === 'INICIO' && (
+            <HomeHubPage
+              onNavigate={handleSelectTab}
+              onOpenForseti={() => setIsCopilotOpen(true)}
+              onOpenOnboarding={handleOpenOnboarding}
+            />
+          )}
+
           {(shownTab === 'DASHBOARD' || shownTab === 'COPILOT') && (
             <DashboardPage
               onNavigateToMovements={() => setActiveTab('MOVIMENTACOES')}

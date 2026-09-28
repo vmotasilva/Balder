@@ -70,8 +70,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             type="button"
             className="navbar-brand-btn"
             onClick={() => (onNavigateToDashboard ? onNavigateToDashboard() : setIsHubOpen(true))}
-            title="Ir para o Dashboard"
-            aria-label="Ir para o Dashboard"
+            title="Ir para o início"
+            aria-label="Ir para o início"
           >
             <div className="navbar-brand-logo-icon">
               <img src="/logo-app.png" alt="Balder" className="navbar-brand-logo-img" />

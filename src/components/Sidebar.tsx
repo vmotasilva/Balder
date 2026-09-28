@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
+  Home,
   LayoutDashboard,
   ArrowLeftRight,
   CreditCard,
@@ -19,7 +20,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-export type TabId = 'DASHBOARD' | 'MOVIMENTACOES' | 'FATURAS' | 'NATUREZAS' | 'EMPRESTIMOS' | 'COPILOT' | 'METAS' | 'COMPARTILHADO' | 'PERFIL';
+export type TabId = 'INICIO' | 'DASHBOARD' | 'MOVIMENTACOES' | 'FATURAS' | 'NATUREZAS' | 'EMPRESTIMOS' | 'COPILOT' | 'METAS' | 'COMPARTILHADO' | 'PERFIL';
 
 interface SidebarProps {
   activeTab: TabId;
@@ -209,9 +210,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const desktopNavItems = [
     {
+      id: 'INICIO' as TabId,
+      label: 'Início',
+      subtitle: 'O que fazer agora',
+      icon: Home,
+      badge: 'Hub',
+    },
+    {
       id: 'DASHBOARD' as TabId,
-      label: 'Dashboard',
-      subtitle: 'Meu Dinheiro',
+      label: 'Painel',
+      subtitle: 'Indicadores & Projeção',
       icon: LayoutDashboard,
       badge: 'Visão Geral',
     },
@@ -266,7 +274,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   // No menu mobile sheet, Forseti fica em destaque ao lado do perfil no rodapé,
-  // permitindo que os 6 módulos fiquem em uma grade 2x3 equilibrada.
+  // permitindo que os 8 módulos fiquem em uma grade 2x4 equilibrada.
   const mobileNavGridItems = desktopNavItems.filter((item) => item.id !== 'COPILOT');
 
   const activeItem = desktopNavItems.find((item) => item.id === activeTab) || {

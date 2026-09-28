@@ -405,6 +405,13 @@ export interface MappingItemPriceRule {
   price: number;
 }
 
+/** Preferências de uso: cada pessoa acompanha do seu jeito. */
+export interface ViewPreferences {
+  homeScreen?: 'INICIO' | 'PAINEL';            // tela aberta ao entrar
+  experienceMode?: 'GUIADO' | 'MANUAL';        // a Forseti conduz e sugere, ou a pessoa configura tudo
+  trackingPeriod?: 'SEMANA' | 'QUINZENA' | 'MES'; // período dos resumos do Início
+}
+
 /** Situação de um item mapeado em uma competência. */
 export interface MappingItemMonthState {
   realized?: boolean;     // já realizado / pago na competência
@@ -597,6 +604,8 @@ export interface UserProfileSettings {
   archivedLoanGroups?: string[];
   /** Quantos meses à frente a projeção mês a mês mostra (padrão: 60, 5 anos). */
   projectionHorizonMonths?: number;
+  /** Como a pessoa usa o Balder: tela inicial, quem toma a iniciativa e o período de acompanhamento. */
+  viewPreferences?: ViewPreferences;
   /** Quanto do saldo inicial de cada marco estava em dinheiro em mãos (id do marco → R$). */
   checkpointCashInHand?: Record<string, number>;
   /** Situação das metas arquivadas/canceladas, por id da meta. */

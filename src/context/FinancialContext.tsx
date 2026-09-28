@@ -29,6 +29,7 @@ const survivesFormat = (id: string, formattedAtIso?: string) => {
 };
 
 import type { GoalStatusInfo,
+  ViewPreferences,
   Movement,
   MovementType,
   DataFormatCategory,
@@ -253,6 +254,9 @@ interface FinancialContextType {
   // Até onde a projeção mês a mês enxerga (meses a partir do mês atual)
   projectionHorizonMonths: number;
   setProjectionHorizonMonths: (months: number) => void;
+  // Tela inicial, modo (guiado/manual) e período de acompanhamento de quem está usando
+  viewPreferences: ViewPreferences;
+  setViewPreferences: (updates: Partial<ViewPreferences>) => void;
   deleteLoanContract: (groupId: string, movementIds: string[]) => void;
   addSharedSettlement: (item: Omit<SharedSettlementItem, 'id'>) => void;
   toggleSharedSettlementStatus: (id: string) => void;
@@ -420,6 +424,7 @@ const SHARED_READ_ONLY_SAFE = new Set([
   'getNatureMissingItems',
   'setActiveTrackingScope',
   'setProjectionHorizonMonths',
+  'setViewPreferences',
 ]);
 // Registro de pagamentos: liberado ao colaborador
 const SHARED_PAYMENT_ACTIONS = new Set([
@@ -957,6 +962,29 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (user && !user.isGuest) {
       SupabaseService.saveUserProfileSettings({ projectionHorizonMonths: months }).catch(console.error);
     }
+  };
+
+  // Preferências de uso: guardadas no perfil de quem está usando
+  const viewPrefsKey = user && !user.isGuest ? `balder_view_prefs_${user.$id}` : 'balder_view_prefs_guest';
+  const [viewPreferences, setViewPreferencesState] = useState<ViewPreferences>(() => {
+    try {
+      const saved = localStorage.getItem(viewPrefsKey);
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {};
+  });
+
+  const setViewPreferences = (updates: Partial<ViewPreferences>) => {
+    setViewPreferencesState((prev) => {
+      const next = { ...prev, ...updates };
+      try {
+        localStorage.setItem(viewPrefsKey, JSON.stringify(next));
+      } catch {}
+      if (user && !user.isGuest) {
+        SupabaseService.saveUserProfileSettings({ viewPreferences: next }).catch(console.error);
+      }
+      return next;
+    });
   };
 
   // Contratos de empréstimo arquivados (guardados no perfil, como a exibição das naturezas)
@@ -1873,6 +1901,12 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             setProjectionHorizonState(cloudProfileSettings.projectionHorizonMonths);
             if (user) {
               localStorage.setItem(`balder_projection_horizon_${user.$id}`, String(cloudProfileSettings.projectionHorizonMonths));
+            }
+          }
+          if (cloudProfileSettings?.viewPreferences) {
+            setViewPreferencesState(cloudProfileSettings.viewPreferences);
+            if (user) {
+              localStorage.setItem(`balder_view_prefs_${user.$id}`, JSON.stringify(cloudProfileSettings.viewPreferences));
             }
           }
           if (cloudProfileSettings?.archivedLoanGroups) {
@@ -4618,6 +4652,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setLoanGroupArchived,
         projectionHorizonMonths,
         setProjectionHorizonMonths,
+        viewPreferences,
+        setViewPreferences,
         deleteLoanContract,
         addSharedSettlement,
         toggleSharedSettlementStatus,
