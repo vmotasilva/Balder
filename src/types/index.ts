@@ -410,6 +410,8 @@ export interface MappingItemMonthState {
   realized?: boolean;     // já realizado / pago na competência
   paidByOthers?: boolean; // pago por outra pessoa: não entra nos valores da projeção
   paidBy?: string;        // quem pagou (opcional, quando paidByOthers)
+  skipped?: boolean;      // não vai acontecer na competência: não entra nos valores
+  skipReason?: string;    // justificativa (opcional)
 }
 
 /** Situação aplicada a partir de uma competência (inclusive) para todas as seguintes. */

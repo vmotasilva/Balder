@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { parseMoney } from '../utils/parseDecimal';
-import {
+import { Ban,
   CheckCircle2,
   Clock,
   User,
@@ -156,6 +156,9 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
   const [realized, setRealized] = useState(false);
   const [paidByOthers, setPaidByOthers] = useState(false);
   const [paidBy, setPaidBy] = useState('');
+  // Não vai acontecer nesta competência (com justificativa opcional)
+  const [skipped, setSkipped] = useState(false);
+  const [skipReason, setSkipReason] = useState('');
   const [applyToFuture, setApplyToFuture] = useState(false);
 
   // ── Aba Pagamentos ─────────────────────────────────────────────────────────
@@ -181,6 +184,8 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
     setRealized(!!state.realized);
     setPaidByOthers(!!state.paidByOthers);
     setPaidBy(state.paidBy || '');
+    setSkipped(!!state.skipped);
+    setSkipReason(state.skipReason || '');
     // Sugere "próximos meses" quando a situação atual já vem de uma regra recorrente
     setApplyToFuture(!item.monthStates?.[target.monthKey] && (item.stateRules || []).some((r) => r.fromMonth <= target.monthKey));
     setTab('PAGAMENTOS');
@@ -309,7 +314,7 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
       target.natureId,
       target.mappingId,
       target.itemId,
-      applyMappingItemState(item, target.monthKey, { realized, paidByOthers, paidBy }, applyToFuture)
+      applyMappingItemState(item, target.monthKey, { realized, paidByOthers, paidBy, skipped, skipReason }, applyToFuture)
     );
     onClose();
   };
@@ -354,6 +359,13 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
 
             {tab === 'PAGAMENTOS' ? (
               <div>
+                {summary.state.skipped && (
+                  <p style={{ fontSize: '12px', color: 'var(--accent-amber)', marginBottom: '12px' }}>
+                    Este item está marcado como "não vai acontecer" em {month}
+                    {summary.state.skipReason ? ` (${summary.state.skipReason})` : ''} e não entra nos valores. Altere na aba
+                    Situação para registrar pagamentos.
+                  </p>
+                )}
                 {summary.state.paidByOthers && (
                   <p style={{ fontSize: '12px', color: '#FBBF24', marginBottom: '12px' }}>
                     Este item está como pago por {summary.state.paidBy || 'outra pessoa'} em {month} e não entra nos valores.
@@ -424,7 +436,7 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
                 )}
 
                 {/* Registrar novo pagamento */}
-                {!summary.state.paidByOthers && openOccurrences.length > 0 && (
+                {!summary.state.paidByOthers && !summary.state.skipped && openOccurrences.length > 0 && (
                   <div>
                     <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '8px' }}>
                       Registrar pagamento — o que ele cobre?
@@ -589,7 +601,7 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
                   </div>
                 )}
 
-                {!summary.state.paidByOthers && openOccurrences.length === 0 && (
+                {!summary.state.paidByOthers && !summary.state.skipped && openOccurrences.length === 0 && (
                   <p style={{ fontSize: '12px', color: '#34D399' }}>Todas as datas de {month} já foram pagas.</p>
                 )}
 
@@ -601,25 +613,54 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
               </div>
             ) : (
               <div>
-                <Question title={`Considerar ${month} como pago por completo?`}>
+                <Question title={`Como fica ${month}?`}>
                   <Choice
-                    active={realized}
-                    onClick={() => setRealized(true)}
+                    active={realized && !skipped}
+                    onClick={() => {
+                      setRealized(true);
+                      setSkipped(false);
+                    }}
                     icon={<CheckCircle2 size={16} />}
                     label="Sim, já foi pago"
                     hint="Sem pagamentos registrados, conta o valor previsto"
                     tone="emerald"
                   />
                   <Choice
-                    active={!realized}
-                    onClick={() => setRealized(false)}
+                    active={!realized && !skipped}
+                    onClick={() => {
+                      setRealized(false);
+                      setSkipped(false);
+                    }}
                     icon={<Clock size={16} />}
                     label="Ainda não"
                     hint="Continua previsto a vencer"
                     tone="amber"
                   />
+                  <Choice
+                    active={skipped}
+                    onClick={() => {
+                      setSkipped(true);
+                      setRealized(false);
+                    }}
+                    icon={<Ban size={16} />}
+                    label="Não vai acontecer"
+                    hint="Esta compra não ocorre: sai dos valores"
+                  />
                 </Question>
 
+                {skipped && (
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={skipReason}
+                    onChange={(e) => setSkipReason(e.target.value)}
+                    placeholder="Por quê? (opcional)"
+                    aria-label="Justificativa"
+                    style={{ width: '100%', marginTop: '-6px', marginBottom: '16px' }}
+                  />
+                )}
+
+                {!skipped && (
                 <Question title="Quem paga este item?">
                   <Choice
                     active={!paidByOthers}
@@ -637,8 +678,9 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
                     tone="amber"
                   />
                 </Question>
+                )}
 
-                {paidByOthers && (
+                {!skipped && paidByOthers && (
                   <input
                     type="text"
                     className="form-input"

@@ -77,7 +77,7 @@ import {
   DEMO_BANKS,
 } from '../utils/demoData';
 import { deduplicateCards, getCardIdentityKey } from '../utils/cardUtils';
-import { mappingItemBaseValue, resolveMappingItemState } from '../utils/mappingItemState';
+import { isExcludedState, mappingItemBaseValue, resolveMappingItemState } from '../utils/mappingItemState';
 import { buildForecastWindow, FORECAST_PERIODS, type ForecastPeriod, type ForecastWindow } from '../utils/forecastWindow';
 import { movementCompetenceDate } from '../utils/projectionMath';
 
@@ -4267,7 +4267,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         (accItem, it) =>
           accItem +
           (monthKey
-            ? resolveMappingItemState(it, monthKey).paidByOthers
+            ? isExcludedState(resolveMappingItemState(it, monthKey))
               ? 0
               : mappingItemBaseValue(it, monthKey)
             : it.totalValue || 0),

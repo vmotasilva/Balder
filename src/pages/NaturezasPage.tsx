@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { parseDecimal, parseMoney } from '../utils/parseDecimal';
 import { useFinancial } from '../context/FinancialContext';
-import { resolveMappingItemMonth } from '../utils/mappingItemState';
+import { isExcludedState, resolveMappingItemMonth } from '../utils/mappingItemState';
 import { getPendingFixedBills, type PendingFixedBill } from '../utils/fixedBillsAlert';
 import type { Movement, MovementType, FixedExpenseMapping, NatureDetailMode } from '../types';
 import {
@@ -1544,7 +1544,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                               const split = (mapping.items || []).reduce(
                                 (acc, it) => {
                                   const s = resolveMappingItemMonth(it, monthKey);
-                                  if (s.state.paidByOthers) return acc;
+                                  if (isExcludedState(s.state)) return acc;
                                   return { real: acc.real + s.paid, planned: acc.planned + s.pending };
                                 },
                                 { real: 0, planned: 0 }

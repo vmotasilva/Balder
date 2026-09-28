@@ -1,5 +1,5 @@
 import type { ExpenseNature, Movement } from '../types';
-import { getItemOccurrences, resolveMappingItemMonth } from './mappingItemState';
+import { getItemOccurrences, isExcludedState, resolveMappingItemMonth } from './mappingItemState';
 import { isSalaryMovement } from './projectionMath';
 
 export type ForecastEntrySource =
@@ -149,7 +149,7 @@ export function buildForecastWindow(params: {
             return;
           }
           const summary = resolveMappingItemMonth(item, monthKey);
-          if (summary.state.paidByOthers || summary.pending <= 0.005) return;
+          if (isExcludedState(summary.state) || summary.pending <= 0.005) return;
 
           // Pendente do mês distribuído pelas datas ainda não cobertas (fecha com o total da grade)
           const uncovered = summary.state.realized

@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { DecimalInput } from './DecimalInput';
 import { createPortal } from 'react-dom';
 import { useFinancial } from '../context/FinancialContext';
-import {
+import { Ban,
   X,
   CreditCard,
   Building2,
@@ -46,6 +46,7 @@ import {
   itemUnitPrice,
   mappingItemBaseValue,
   mappingItemMonthValue,
+  isExcludedState,
   resolveMappingItemMonth,
   resolveMappingItemState,
 } from '../utils/mappingItemState';
@@ -126,8 +127,10 @@ export interface CellBreakdownSubItem {
   isInvoiceItem?: boolean;
   // Item mapeado de natureza: situação na competência (realizado / pago por terceiros)
   natureItemRef?: { natureId: string; mappingId: string; itemId: string };
-  paidByOthers?: boolean;
+  paidByOthers?: boolean; // fora dos valores: pago por outra pessoa ou não vai acontecer
   paidBy?: string;
+  skipped?: boolean;      // não vai acontecer nesta competência
+  skipReason?: string;
   baseValue?: number; // valor planejado, exibido riscado quando pago por terceiros
   occurrenceDate?: string; // data da ocorrência (YYYY-MM-DD) no agrupamento por data
   isMappingSummary?: boolean; // linha-resumo de um mapeamento (nome + valor total)
@@ -208,24 +211,26 @@ function natureItemStateFields(ni: NatureItemEntry, monthKey: string): Partial<C
   const summary = resolveMappingItemMonth(ni.item, monthKey);
   const { state } = summary;
   // Realizado quando nada ficou pendente no mês e houve pagamento (ou o mês foi marcado como realizado)
-  const isRealized = !state.paidByOthers && summary.isSettled && summary.paid > 0;
+  const isRealized = !isExcludedState(state) && summary.isSettled && summary.paid > 0;
   // Real | Previsto do mês: na linha-resumo, soma dos itens agregados
   const sources = ni.summarySourceItems ? ni.summarySourceItems.map((it) => resolveMappingItemMonth(it, monthKey)) : [summary];
   const round2 = (v: number) => Math.round(v * 100) / 100;
   return {
     ...(isRealized ? { status: 'REALIZADA' as const } : {}),
-    paidByOthers: !!state.paidByOthers,
+    paidByOthers: isExcludedState(state),
     paidBy: state.paidBy,
+    skipped: !!state.skipped,
+    skipReason: state.skipReason,
     baseValue: summary.base,
-    paidAmount: round2(sources.reduce((acc, s) => acc + (s.state.paidByOthers ? 0 : s.paid), 0)),
-    pendingAmount: round2(sources.reduce((acc, s) => acc + (s.state.paidByOthers ? 0 : s.pending), 0)),
+    paidAmount: round2(sources.reduce((acc, s) => acc + (isExcludedState(s.state) ? 0 : s.paid), 0)),
+    pendingAmount: round2(sources.reduce((acc, s) => acc + (isExcludedState(s.state) ? 0 : s.pending), 0)),
     ...(ni.summaryItemCount
       ? {
           isMappingSummary: true,
           summaryItemCount: ni.summaryItemCount,
           // Pesos por dia (valor previsto de cada ocorrência dos itens) para distribuir o resumo nas semanas
           occurrenceWeights: (ni.summarySourceItems || [])
-            .filter((it) => !resolveMappingItemState(it, monthKey).paidByOthers)
+            .filter((it) => !isExcludedState(resolveMappingItemState(it, monthKey)))
             .flatMap((it) => getItemOccurrences(it, monthKey).map((o) => ({ date: o.date, weight: o.value }))),
         }
       : {}),
@@ -279,7 +284,7 @@ function summarizeNatureEntries(
     const total = group.items.reduce((acc, it) => acc + mappingItemMonthValue(it, monthKey), 0);
     const allRealized = group.items.every((it) => {
       const summary = resolveMappingItemMonth(it, monthKey);
-      return summary.state.paidByOthers || (summary.isSettled && summary.paid > 0);
+      return isExcludedState(summary.state) || (summary.isSettled && summary.paid > 0);
     });
     const days = group.items.map((it) => it.dayOfMonth).filter((d): d is number => !!d && d > 0);
     const isMixed = (payGroupsByMapping.get(group.mappingKey)?.size || 0) > 1;
@@ -432,7 +437,7 @@ export function generateNatureDateGroups(
 
       // Data paga: mostra a parte do pagamento que coube a ela; pago por terceiros: aparece sem somar
       const payment = summary.coveredDates.get(dateStr);
-      const occValue = summary.state.paidByOthers
+      const occValue = isExcludedState(summary.state)
         ? 0
         : payment
         ? Math.round((payment.amount / payment.coveredDates.length) * 100) / 100
@@ -457,7 +462,7 @@ export function generateNatureDateGroups(
           : undefined,
         ...natureItemStateFields(ni, monthKey),
         // Situação por ocorrência: paga (ou mês marcado como realizado) x prevista
-        status: !summary.state.paidByOthers && (payment || legacyRealized) ? 'REALIZADA' : undefined,
+        status: !isExcludedState(summary.state) && (payment || legacyRealized) ? 'REALIZADA' : undefined,
         paidAmount: payment || legacyRealized ? occValue : 0,
         pendingAmount: payment || legacyRealized ? 0 : occValue,
         baseValue: unitOccBase,
@@ -1071,7 +1076,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         }
         map.items.forEach((item) => {
           if (item.paymentMethod === 'CARTAO') {
-            const paidByOthers = !!resolveMappingItemState(item, (targetMovement.dueDate || '').slice(0, 7)).paidByOthers;
+            const paidByOthers = isExcludedState(resolveMappingItemState(item, (targetMovement.dueDate || '').slice(0, 7)));
             const val = paidByOthers ? 0 : mappingItemBaseValue(item);
             if (val > 0) {
               const alreadyExists = (targetMovement.invoiceBreakdown || []).some(
@@ -2751,7 +2756,14 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
             {/* Situação do item mapeado na competência */}
             {isNatureItem &&
-              (sub.paidByOthers ? (
+              (sub.skipped ? (
+                <span
+                  className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-500/20 text-slate-300 border border-slate-500/30 flex items-center gap-1"
+                  title={sub.skipReason ? `Não vai acontecer: ${sub.skipReason}` : 'Não vai acontecer: não entra nos valores'}
+                >
+                  <Ban size={10} /> Não vai acontecer
+                </span>
+              ) : sub.paidByOthers ? (
                 <span
                   className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1"
                   title="Pago por outra pessoa: não entra nos valores"
@@ -2893,7 +2905,13 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                 ? 'text-amber-500 font-bold'
                 : ''
             }`}
-            title={sub.paidByOthers ? 'Pago por outra pessoa: não entra nos valores' : undefined}
+            title={
+              sub.skipped
+                ? 'Não vai acontecer: não entra nos valores'
+                : sub.paidByOthers
+                ? 'Pago por outra pessoa: não entra nos valores'
+                : undefined
+            }
           >
             {formatBRL(
               sub.paidByOthers

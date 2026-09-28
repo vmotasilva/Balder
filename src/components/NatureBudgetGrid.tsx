@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { isExcludedState } from '../utils/mappingItemState';
 import { useFinancial } from '../context/FinancialContext';
 import {
   Layers,
@@ -170,7 +171,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
       const payments: { date: string; description: string; amount: number }[] = [];
       natItems.forEach((ni) => {
         const summary = resolveMappingItemMonth(ni.item, selectedMonthKey);
-        if (summary.state.paidByOthers) return;
+        if (isExcludedState(summary.state)) return;
         const launched = matchingMovements.filter((m) => norm(m.title) === norm(ni.item.description));
         if (launched.length > 0) {
           launched.forEach((m) => {

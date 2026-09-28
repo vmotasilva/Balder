@@ -1,4 +1,5 @@
 import type { Movement, ExpenseNature, MonthlyGridProjectionRow, MonthlyClosing } from '../types';
+import { isExcludedState } from './mappingItemState';
 import { resolveMappingItemMonth } from './mappingItemState';
 
 export interface ProjectionGridConfig {
@@ -226,7 +227,7 @@ export function buildMonthlyProjectionGrid(
           // Pago + ainda pendente no mês (pagamentos registrados substituem o previsto das datas cobertas)
           const summary = resolveMappingItemMonth(item, comp.key);
           // Itens pagos por terceiros na competência não entram nos valores
-          if (summary.state.paidByOthers) return;
+          if (isExcludedState(summary.state)) return;
           const onCard = item.paymentMethod === 'CARTAO';
           monthlyFixedFromNatures += summary.value;
           pendingFixedFromNatures += summary.pending;

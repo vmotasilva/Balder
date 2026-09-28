@@ -27,7 +27,18 @@ export function resolveMappingItemState(item: MappingItem, monthKey: string): Ma
     .sort((a, b) => a.fromMonth.localeCompare(b.fromMonth))
     .pop();
   if (!rule) return {};
-  return { realized: rule.realized, paidByOthers: rule.paidByOthers, paidBy: rule.paidBy };
+  return {
+    realized: rule.realized,
+    paidByOthers: rule.paidByOthers,
+    paidBy: rule.paidBy,
+    skipped: rule.skipped,
+    skipReason: rule.skipReason,
+  };
+}
+
+/** Fora dos valores da competência: pago por outra pessoa ou não vai acontecer. */
+export function isExcludedState(state: MappingItemMonthState): boolean {
+  return !!(state.paidByOthers || state.skipped);
 }
 
 /** Preço por ocorrência vigente na competência (considera reajustes agendados). */
@@ -89,7 +100,7 @@ export function resolveMappingItemMonth(item: MappingItem, monthKey: string): Ma
   const coveredDates = new Map<string, MappingItemPayment>();
   payments.forEach((p) => p.coveredDates.forEach((d) => coveredDates.set(d, p)));
 
-  if (state.paidByOthers) {
+  if (isExcludedState(state)) {
     return { state, payments, coveredDates, base, paid: 0, openBalance: 0, pending: 0, value: 0, isSettled: true };
   }
 
@@ -138,11 +149,13 @@ export function applyMappingItemState(
   state: MappingItemMonthState,
   applyToFuture: boolean
 ): Pick<MappingItem, 'monthStates' | 'stateRules'> {
-  const clean: MappingItemMonthState = {
-    realized: !!state.realized,
-    paidByOthers: !!state.paidByOthers,
-    ...(state.paidByOthers && state.paidBy?.trim() ? { paidBy: state.paidBy.trim() } : {}),
-  };
+  const clean: MappingItemMonthState = state.skipped
+    ? { realized: false, paidByOthers: false, skipped: true, ...(state.skipReason?.trim() ? { skipReason: state.skipReason.trim() } : {}) }
+    : {
+        realized: !!state.realized,
+        paidByOthers: !!state.paidByOthers,
+        ...(state.paidByOthers && state.paidBy?.trim() ? { paidBy: state.paidBy.trim() } : {}),
+      };
 
   if (!applyToFuture) {
     return {
