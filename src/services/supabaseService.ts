@@ -24,6 +24,10 @@ export function getDataOwner(): string | null {
   return dataOwnerId;
 }
 
+/** Última gravação das configurações do perfil (evita que uma releitura desfaça uma mudança ainda em envio). */
+let lastProfileSaveAt = 0;
+export const msSinceProfileSave = () => Date.now() - lastProfileSaveAt;
+
 async function getAuthUserId(): Promise<string | null> {
   if (!isSupabaseConfigured) return null;
   try {
@@ -819,7 +823,22 @@ export const SupabaseService = {
       if (dataOwnerId) return this.getSharedOwnerSettings(dataOwnerId);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
-      return (user.user_metadata?.balder_settings as UserProfileSettings) || null;
+      const own = (user.user_metadata?.balder_settings as UserProfileSettings) || null;
+      // Acertos do planejamento compartilhado: a fonte é a tabela que o convidado também grava,
+      // para quem compartilhou e quem foi convidado verem sempre os mesmos registros
+      try {
+        const { data: planning } = await supabase
+          .from('shared_planning')
+          .select('settlements')
+          .eq('owner_id', user.id)
+          .maybeSingle();
+        if (planning && Array.isArray(planning.settlements)) {
+          return { ...(own || {}), sharedSettlements: planning.settlements as UserProfileSettings['sharedSettlements'] };
+        }
+      } catch {
+        // tabela de compartilhamento ainda não criada
+      }
+      return own;
     } catch (e) {
       console.error('[SupabaseService] Erro ao buscar configurações de perfil:', e);
       return null;
@@ -828,6 +847,7 @@ export const SupabaseService = {
 
   async saveUserProfileSettings(settings: Partial<UserProfileSettings>): Promise<boolean> {
     if (!isSupabaseConfigured) return false;
+    lastProfileSaveAt = Date.now();
     // Conta compartilhada: o convidado só registra acertos/despesas do planejamento compartilhado
     if (dataOwnerId) {
       if (!settings.sharedSettlements) return false;
@@ -856,7 +876,7 @@ export const SupabaseService = {
         console.error('[SupabaseService] Erro ao salvar configurações de perfil:', error.message);
         return false;
       }
-      void this.mirrorProfileSettings(user.id, updated);
+      void this.mirrorProfileSettings(user.id, updated, 'sharedSettlements' in settings);
       return true;
     } catch (e) {
       console.error('[SupabaseService] Exceção ao salvar configurações de perfil:', e);
@@ -869,14 +889,16 @@ export const SupabaseService = {
    * (account_settings: conta inteira; shared_planning: planejamento compartilhado).
    * Falhas são silenciosas: sem o script sharing.sql, as tabelas ainda não existem.
    */
-  async mirrorProfileSettings(ownerId: string, settings: UserProfileSettings): Promise<void> {
+  async mirrorProfileSettings(ownerId: string, settings: UserProfileSettings, includeSettlements: boolean): Promise<void> {
     try {
       const now = new Date().toISOString();
       await supabase.from('account_settings').upsert({ owner_id: ownerId, settings, updated_at: now });
+      // Os acertos só são regravados quando foram eles que mudaram: assim um salvamento de outra
+      // configuração não apaga o que o convidado registrou nesse meio-tempo
       await supabase.from('shared_planning').upsert({
         owner_id: ownerId,
         scenario: settings.sharedScenario ?? null,
-        settlements: settings.sharedSettlements ?? [],
+        ...(includeSettlements ? { settlements: settings.sharedSettlements ?? [] } : {}),
         updated_at: now,
       });
     } catch {
@@ -890,7 +912,10 @@ export const SupabaseService = {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      await this.mirrorProfileSettings(user.id, (user.user_metadata?.balder_settings as UserProfileSettings) || {});
+      const settings = (user.user_metadata?.balder_settings as UserProfileSettings) || {};
+      // Na primeira vez, leva os acertos do perfil; depois a tabela compartilhada é a fonte
+      const { data: planning } = await supabase.from('shared_planning').select('owner_id').eq('owner_id', user.id).maybeSingle();
+      await this.mirrorProfileSettings(user.id, settings, !planning);
     } catch {
       // sem espelho
     }

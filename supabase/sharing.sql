@@ -394,3 +394,24 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.request_primary_account(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.clear_primary_account(UUID) TO authenticated;
+
+-- ------------------------------------------------------------------------------
+-- 8. TEMPO REAL
+-- ------------------------------------------------------------------------------
+-- Quem compartilhou e quem foi convidado recebem na hora as mudanças um do outro
+-- (lançamentos, pagamentos dos itens das naturezas, saldos, configurações e acertos).
+DO $$
+DECLARE t TEXT;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    CREATE PUBLICATION supabase_realtime;
+  END IF;
+  FOREACH t IN ARRAY ARRAY['movements', 'natures', 'checkpoints', 'accounts', 'account_settings', 'shared_planning'] LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables
+      WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = t
+    ) THEN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE public.%I', t);
+    END IF;
+  END LOOP;
+END $$;

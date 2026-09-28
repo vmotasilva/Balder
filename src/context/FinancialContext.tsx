@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef } from 'react';
 import { useAccountScope, type ViewingAccount } from './AccountScopeContext';
 import { isCashInHand } from '../utils/cashInHand';
-import { SupabaseService } from '../services/supabaseService';
+import { SupabaseService, msSinceProfileSave } from '../services/supabaseService';
 import { supabase, isSupabaseConfigured, TABLES } from '../lib/supabase';
 import { useAuth } from './AuthContext';
 
@@ -2034,10 +2034,20 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     // Sincronização em tempo real & Revalidação ao retornar ao app no Mobile / APK
     let lastSilentRefetch = Date.now();
+    let trailingRefetch: number | null = null;
     const silentRefetch = async () => {
       if (!isMounted || !user || user.isGuest) return;
       const now = Date.now();
-      if (now - lastSilentRefetch < 4000) return; // Cooldown anti-spam
+      if (now - lastSilentRefetch < 4000) {
+        // Cooldown anti-spam, sem perder a última mudança: relê quando o intervalo acabar
+        if (trailingRefetch === null) {
+          trailingRefetch = window.setTimeout(() => {
+            trailingRefetch = null;
+            void silentRefetch();
+          }, 4000 - (now - lastSilentRefetch));
+        }
+        return;
+      }
       lastSilentRefetch = now;
       try {
         const [
@@ -2136,6 +2146,51 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           setMonthlyClosings(cloudProfileSettings.monthlyClosings);
           localStorage.setItem(`balder_monthly_closings_${user.$id}`, JSON.stringify(cloudProfileSettings.monthlyClosings));
         }
+
+        // Demais configurações que mudam saldos, alertas e projeções: quem compartilhou e quem foi
+        // convidado veem sempre os mesmos valores. Pula se houve gravação local há pouco (ainda em envio).
+        if (cloudProfileSettings && msSinceProfileSave() >= 6000) {
+          const s = cloudProfileSettings;
+          const keep = (key: string, value: unknown) => {
+            try {
+              localStorage.setItem(`${key}_${user.$id}`, typeof value === 'string' ? value : JSON.stringify(value));
+            } catch {}
+          };
+          const scenario = withoutDemoPartner(s.sharedScenario ?? null);
+          setSharedScenario(scenario);
+          if (scenario) keep('balder_shared_scenario', scenario);
+          const settlements = withoutDemoSettlements(s.sharedSettlements ?? []);
+          setSharedSettlements(settlements);
+          keep('balder_shared_settlements', settlements);
+          if (s.goalStatuses) {
+            setGoalStatusesState(s.goalStatuses);
+            keep('balder_goal_statuses', s.goalStatuses);
+          }
+          if (s.checkpointCashInHand) {
+            setCheckpointCashInHandState(s.checkpointCashInHand);
+            keep('balder_checkpoint_cash', s.checkpointCashInHand);
+          }
+          if (s.projectionHorizonMonths) {
+            setProjectionHorizonState(s.projectionHorizonMonths);
+            keep('balder_projection_horizon', String(s.projectionHorizonMonths));
+          }
+          if (s.viewPreferences) {
+            setViewPreferencesState(s.viewPreferences);
+            keep('balder_view_prefs', s.viewPreferences);
+          }
+          if (s.archivedLoanGroups) {
+            setArchivedLoanGroups(s.archivedLoanGroups);
+            keep('balder_archived_loans', s.archivedLoanGroups);
+          }
+          if (s.natureDetailModes) {
+            setNatureDetailModes(s.natureDetailModes);
+            keep('balder_nature_detail_modes', s.natureDetailModes);
+          }
+          if (s.defaultTrackingScope) {
+            setDefaultTrackingScopeState(s.defaultTrackingScope);
+            keep('balder_default_scope', s.defaultTrackingScope);
+          }
+        }
       } catch (e) {
         console.warn('[FinancialContext] Falha no silentRefetch:', e);
       }
@@ -2161,11 +2216,16 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.SALARY_CONTRACTS }, () => silentRefetch())
         .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.CHECKPOINTS }, () => silentRefetch())
         .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.ACCOUNTS }, () => silentRefetch())
+        // Pagamentos dos itens das naturezas e configurações/acertos da conta compartilhada
+        .on('postgres_changes', { event: '*', schema: 'public', table: TABLES.NATURES }, () => silentRefetch())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'account_settings' }, () => silentRefetch())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'shared_planning' }, () => silentRefetch())
         .subscribe();
     }
 
     return () => {
       isMounted = false;
+      if (trailingRefetch !== null) window.clearTimeout(trailingRefetch);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
       if (channel) {
