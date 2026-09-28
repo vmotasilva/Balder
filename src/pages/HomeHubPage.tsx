@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   ChevronRight,
+  ChevronLeft,
 } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
@@ -42,6 +43,35 @@ const greeting = () => {
 
 const PERIODS: TrackingPeriod[] = ['SEMANA', 'QUINZENA', 'MES'];
 
+/** Linha da lista de tarefas: um lançamento ou um grupo (natureza ou mapeamento) que abre o próximo nível. */
+type TaskRow =
+  | { type: 'ENTRY'; entry: ForecastEntry }
+  | { type: 'GROUP'; id: string; title: string; amount: number; count: number; date: string; overdue: boolean; open: () => void };
+
+const rowOrder = (r: TaskRow) => (r.type === 'ENTRY' ? r.entry : r);
+const sortRows = (rows: TaskRow[]) =>
+  rows.sort((a, b) => {
+    const x = rowOrder(a);
+    const y = rowOrder(b);
+    return Number(y.overdue) - Number(x.overdue) || x.date.localeCompare(y.date);
+  });
+
+/** Agrupa os itens de natureza por uma chave, somando valores e guardando o vencimento mais próximo. */
+const groupEntries = (entries: ForecastEntry[], keyOf: (e: ForecastEntry) => string | undefined) => {
+  const groups = new Map<string, { amount: number; count: number; date: string; overdue: boolean }>();
+  entries.forEach((e) => {
+    const key = keyOf(e);
+    if (!key) return;
+    const g = groups.get(key) || { amount: 0, count: 0, date: e.date, overdue: false };
+    g.amount += e.amount;
+    g.count += 1;
+    if (e.date < g.date) g.date = e.date;
+    g.overdue = g.overdue || e.overdue;
+    groups.set(key, g);
+  });
+  return groups;
+};
+
 /**
  * Início: o hub do Balder. Responde "o que aconteceu?" (Forseti), "como estou?" (3 números),
  * "o que faço agora?" (tarefas do período), "como vão os gastos?" (resumo do período preferido)
@@ -68,6 +98,8 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
 
   const [forsetiText, setForsetiText] = useState('');
   const [showAllTasks, setShowAllTasks] = useState(false);
+  // Níveis da lista: naturezas → mapeamentos da natureza → itens do mapeamento
+  const [drill, setDrill] = useState<{ natureId: string; mappingId?: string } | null>(null);
   const [finishedSetup, setFinishedSetup] = useState(false);
 
   const period: TrackingPeriod = viewPreferences.trackingPeriod || 'MES';
@@ -98,7 +130,55 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
       [...periodWindow.entries].sort((a, b) => Number(b.overdue) - Number(a.overdue) || a.date.localeCompare(b.date)),
     [periodWindow]
   );
-  const visibleTasks = showAllTasks ? tasks : tasks.slice(0, 4);
+
+  // Nível aberto (volta sozinho um nível quando tudo dele já foi pago)
+  const drillNature = drill ? natures.find((n) => n.id === drill.natureId) : undefined;
+  const natureTasks = drillNature ? tasks.filter((e) => e.natureId === drillNature.id) : [];
+  const openNature = natureTasks.length > 0 ? drillNature : undefined;
+  const drillMapping = openNature && drill?.mappingId ? openNature.mappings.find((m) => m.id === drill.mappingId) : undefined;
+  const mappingTasks = drillMapping ? natureTasks.filter((e) => e.mappingId === drillMapping.id) : [];
+  const openMapping = mappingTasks.length > 0 ? drillMapping : undefined;
+  const levelTasks = openMapping ? mappingTasks : natureTasks;
+
+  const taskRows = useMemo<TaskRow[]>(() => {
+    if (openNature && openMapping) {
+      return tasks
+        .filter((e) => e.natureId === openNature.id && e.mappingId === openMapping.id)
+        .map((entry) => ({ type: 'ENTRY' as const, entry }));
+    }
+    if (openNature) {
+      const byMapping = groupEntries(
+        tasks.filter((e) => e.natureId === openNature.id),
+        (e) => e.mappingId
+      );
+      return sortRows(
+        [...byMapping].map(([mappingId, g]) => ({
+          type: 'GROUP' as const,
+          id: mappingId,
+          title: openNature.mappings.find((m) => m.id === mappingId)?.name || 'Mapeamento',
+          ...g,
+          open: () => setDrill({ natureId: openNature.id, mappingId }),
+        }))
+      );
+    }
+    const byNature = groupEntries(tasks, (e) => (e.source === 'NATUREZA' ? e.natureId : undefined));
+    return sortRows([
+      ...tasks.filter((e) => e.source !== 'NATUREZA' || !e.natureId).map((entry) => ({ type: 'ENTRY' as const, entry })),
+      ...[...byNature].map(([natureId, g]) => {
+        const nat = natures.find((n) => n.id === natureId);
+        return {
+          type: 'GROUP' as const,
+          id: natureId,
+          title: nat ? `${nat.icon ? `${nat.icon} ` : ''}${nat.name}` : 'Natureza',
+          ...g,
+          open: () => setDrill({ natureId }),
+        };
+      }),
+    ]);
+  }, [tasks, natures, openNature, openMapping]);
+
+  const atRoot = !openNature;
+  const visibleRows = atRoot && !showAllTasks ? taskRows.slice(0, 4) : taskRows;
 
   const findNatureItem = (entry: ForecastEntry) => {
     const itemId = entry.id.replace(/^nat_/, '').replace(/_(overdue|upcoming)$/, '');
@@ -169,7 +249,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     );
   };
 
-  const whenLabel = (entry: ForecastEntry) => {
+  const whenLabel = (entry: Pick<ForecastEntry, 'date' | 'overdue'>) => {
     if (entry.overdue) return `venceu ${shortDate(entry.date)}`;
     if (entry.date === todayIso) return 'hoje';
     const tomorrow = new Date(today);
@@ -321,30 +401,76 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
       <section className="home-card">
         <div className="home-card-head">
           <h2>Para fazer agora</h2>
-          <span>{tasks.length > 0 ? `${tasks.length} ${labels.this}` : ''}</span>
+          <span>
+            {atRoot
+              ? tasks.length > 0
+                ? `${tasks.length} ${labels.this}`
+                : ''
+              : `${levelTasks.length} ${labels.this} · ${formatBRL(levelTasks.reduce((acc, e) => acc + e.amount, 0))}`}
+          </span>
         </div>
+        {openNature && (
+          <nav className="home-task-trail" aria-label="Nível da lista">
+            <button type="button" onClick={() => setDrill(openMapping ? { natureId: openNature.id } : null)} aria-label="Voltar um nível">
+              <ChevronLeft size={15} />
+            </button>
+            <button type="button" onClick={() => setDrill(null)}>
+              Naturezas
+            </button>
+            <ChevronRight size={12} aria-hidden="true" />
+            {openMapping ? (
+              <>
+                <button type="button" onClick={() => setDrill({ natureId: openNature.id })}>
+                  {openNature.icon} {openNature.name}
+                </button>
+                <ChevronRight size={12} aria-hidden="true" />
+                <strong>{openMapping.name}</strong>
+              </>
+            ) : (
+              <strong>
+                {openNature.icon} {openNature.name}
+              </strong>
+            )}
+          </nav>
+        )}
         {tasks.length === 0 ? (
           <p className="home-empty">
             <CheckCircle2 size={16} className="text-emerald" /> Nada vencendo {labels.this}.
           </p>
         ) : (
           <ul className="home-task-list">
-            {visibleTasks.map((entry) => (
-              <li key={entry.id} className={entry.overdue ? 'is-overdue' : ''}>
-                <div className="home-task-main">
-                  <span className="home-task-title">{entry.title}</span>
-                  <span className="home-task-meta">
-                    {whenLabel(entry)} · <span className={entry.kind === 'ENTRADA' ? 'text-emerald' : 'text-rose'}>{formatBRL(entry.amount)}</span>
-                  </span>
-                </div>
-                {renderTaskAction(entry)}
-              </li>
-            ))}
+            {visibleRows.map((row) =>
+              row.type === 'GROUP' ? (
+                <li key={`g_${row.id}`} className={`home-task-group ${row.overdue ? 'is-overdue' : ''}`}>
+                  <button type="button" className="home-task-drill" onClick={row.open}>
+                    <div className="home-task-main">
+                      <span className="home-task-title">{row.title}</span>
+                      <span className="home-task-meta">
+                        {row.overdue ? `vencidos desde ${shortDate(row.date)}` : `a partir de ${whenLabel(row)}`} · {row.count}{' '}
+                        {row.count === 1 ? 'item' : 'itens'} · <span className="text-rose">{formatBRL(row.amount)}</span>
+                      </span>
+                    </div>
+                    <ChevronRight size={16} aria-hidden="true" />
+                  </button>
+                </li>
+              ) : (
+                <li key={row.entry.id} className={row.entry.overdue ? 'is-overdue' : ''}>
+                  <div className="home-task-main">
+                    <span className="home-task-title">{row.entry.title}</span>
+                    <span className="home-task-meta">
+                      {whenLabel(row.entry)} ·{' '}
+                      <span className={row.entry.kind === 'ENTRADA' ? 'text-emerald' : 'text-rose'}>{formatBRL(row.entry.amount)}</span>
+                    </span>
+                  </div>
+                  {renderTaskAction(row.entry)}
+                </li>
+              )
+            )}
           </ul>
         )}
-        {tasks.length > 4 && (
+        {atRoot && taskRows.length > 4 && (
           <button type="button" className="link-button" onClick={() => setShowAllTasks((v) => !v)}>
-            {showAllTasks ? 'Mostrar menos' : `Ver todas (${tasks.length})`}
+            {showAllTasks ? 'Mostrar menos' : `Ver todas (${taskRows.length})`}
           </button>
         )}
       </section>

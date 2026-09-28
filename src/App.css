@@ -20132,6 +20132,61 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   color: var(--accent-rose);
 }
 
+.home-task-list li.home-task-group {
+  padding: 0;
+}
+
+.home-task-drill {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 4px 9px 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.home-task-drill:hover .home-task-title,
+.home-task-drill:focus-visible .home-task-title {
+  color: var(--accent-cyan);
+}
+
+.home-task-trail {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.home-task-trail button {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 4px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--accent-cyan);
+  font: inherit;
+  cursor: pointer;
+}
+
+.home-task-trail button:hover {
+  background: var(--accent-cyan-glow);
+}
+
+.home-task-trail strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
 .home-period-switch {
   display: inline-flex;
   border: 1px solid var(--border-default);

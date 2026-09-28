@@ -20,6 +20,10 @@ export interface ForecastEntry {
   source: ForecastEntrySource;
   amount: number;
   overdue: boolean; // vencido antes de hoje e ainda não realizado
+  /** Origem dos itens de natureza (para agrupar por natureza → mapeamento → item). */
+  natureId?: string;
+  mappingId?: string;
+  itemId?: string;
 }
 
 export type ForecastPeriod = 'SEMANA' | 'QUINZENA' | 'MES' | 'DIAS_30';
@@ -187,6 +191,9 @@ export function buildForecastWindow(params: {
             source: 'NATUREZA',
             amount: round2(b.amount),
             overdue: b.overdue,
+            natureId: nat.id,
+            mappingId: mapping.id,
+            itemId: item.id,
           });
         });
       });
