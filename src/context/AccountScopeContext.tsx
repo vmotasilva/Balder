@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { setDataOwner } from '../services/supabaseService';
-import { SharingService, type AccountShare, type ShareRole, type ShareScope } from '../services/sharingService';
+import { SharingService, type AccountShare, type SharePermissions, type ShareRole, type ShareScope } from '../services/sharingService';
 
 /** Conta compartilhada aberta no momento (null = a própria conta). */
 export interface ViewingAccount {
@@ -12,6 +12,8 @@ export interface ViewingAccount {
   scope: ShareScope;
   /** Conta compartilhada autorizada como principal: o Balder abre direto nela. */
   isPrimary?: boolean;
+  /** O que o colaborador pode fazer nesta conta. */
+  permissions?: SharePermissions;
 }
 
 interface AccountScopeContextType {
@@ -49,6 +51,7 @@ const toViewing = (share: AccountShare): ViewingAccount => ({
   role: share.role,
   scope: share.scope,
   isPrimary: share.primaryStatus === 'APROVADO',
+  permissions: share.permissions,
 });
 
 export const AccountScopeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -155,8 +158,9 @@ export const AccountScopeProvider: React.FC<{ children: React.ReactNode }> = ({ 
         return;
       }
       const isPrimary = share.primaryStatus === 'APROVADO';
-      if (share.role !== viewing.role || share.scope !== viewing.scope || isPrimary !== !!viewing.isPrimary) {
-        apply({ ...viewing, role: share.role, scope: share.scope, isPrimary });
+      const permissionsChanged = JSON.stringify(share.permissions || {}) !== JSON.stringify(viewing.permissions || {});
+      if (share.role !== viewing.role || share.scope !== viewing.scope || isPrimary !== !!viewing.isPrimary || permissionsChanged) {
+        apply({ ...viewing, role: share.role, scope: share.scope, isPrimary, permissions: share.permissions });
       }
     };
     void check();

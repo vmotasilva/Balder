@@ -4,6 +4,7 @@ import { isCashInHand } from '../utils/cashInHand';
 import { SupabaseService, msSinceProfileSave } from '../services/supabaseService';
 import { supabase, isSupabaseConfigured, TABLES } from '../lib/supabase';
 import { useAuth } from './AuthContext';
+import { PERMISSION_DEFS, hasPermission, type SharePermissionKey } from '../services/sharingService';
 
 const isUuid = (val: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
 
@@ -430,19 +431,35 @@ const SHARED_READ_ONLY_SAFE = new Set([
   'respondToCopilotOption',
   'reconcileReceiptData',
 ]);
-// Registro de pagamentos: liberado ao colaborador
-const SHARED_PAYMENT_ACTIONS = new Set([
-  'updateMovement',
-  'toggleMovementStatus',
-  'updateMappingItemState',
-  'toggleItemFulfilled',
-  'markMappingItemsFulfilled',
-  'addSharedSettlement',
-  'toggleSharedSettlementStatus',
-  'settleAllSharedDebts',
-]);
+// Ações do colaborador e a permissão que cada uma exige (o banco confere as mesmas regras)
+const COLLABORATOR_ACTIONS: Record<string, SharePermissionKey> = {
+  updateMovement: 'REGISTRAR_PAGAMENTOS',
+  toggleMovementStatus: 'REGISTRAR_PAGAMENTOS',
+  updateMappingItemState: 'REGISTRAR_PAGAMENTOS',
+  toggleItemFulfilled: 'REGISTRAR_PAGAMENTOS',
+  markMappingItemsFulfilled: 'REGISTRAR_PAGAMENTOS',
+  addSharedSettlement: 'DESPESAS_CONJUNTAS',
+  toggleSharedSettlementStatus: 'DESPESAS_CONJUNTAS',
+  settleAllSharedDebts: 'DESPESAS_CONJUNTAS',
+  addMovement: 'LANCAR_DESPESAS', // receitas: LANCAR_RECEITAS (ver abaixo)
+  addItemToMapping: 'EDITAR_NATUREZAS',
+  updateMappingItem: 'EDITAR_NATUREZAS',
+  deleteMappingItem: 'EDITAR_NATUREZAS',
+  moveMappingItem: 'EDITAR_NATUREZAS',
+  addMappingToNature: 'EDITAR_NATUREZAS',
+  updateMapping: 'EDITAR_NATUREZAS',
+  deleteMapping: 'EDITAR_NATUREZAS',
+  moveMappingOrder: 'EDITAR_NATUREZAS',
+  reorderMappings: 'EDITAR_NATUREZAS',
+};
 // Campos que o colaborador pode alterar num lançamento
 const PAYMENT_FIELDS = new Set(['status', 'paymentDate', 'actualAmount', 'amount', 'originalAmount', 'adjustmentReason', 'notes']);
+// Campos de um item de natureza que são registro de pagamento (o resto é edição do item)
+const ITEM_PAYMENT_FIELDS = new Set(['payments', 'monthStates', 'isFulfilled', 'realizedValue']);
+
+const PERMISSION_LABEL: Record<SharePermissionKey, string> = Object.fromEntries(
+  PERMISSION_DEFS.map((d) => [d.key, d.label.toLowerCase()])
+) as Record<SharePermissionKey, string>;
 
 let lastDeniedAt = 0;
 const denySharedAction = (message: string) => {
@@ -453,34 +470,75 @@ const denySharedAction = (message: string) => {
 };
 
 /**
- * Na conta de outra pessoa: visualizador só vê; colaborador só registra pagamentos.
+ * Na conta de outra pessoa: visualizador só vê; o colaborador faz o que as permissões dele liberam
+ * (definidas por quem compartilhou). Receitas próprias (em que ele é o responsável) ele sempre confirma.
  * As regras do banco (supabase/sharing.sql) garantem o mesmo do lado do servidor.
  */
-function restrictForSharedAccess<T extends Record<string, unknown>>(value: T, viewing: ViewingAccount | null): T {
+function restrictForSharedAccess<T extends Record<string, unknown>>(
+  value: T,
+  viewing: ViewingAccount | null,
+  viewerId: string | undefined
+): T {
   if (!viewing) return value;
   const isCollaborator = viewing.role === 'COLABORADOR';
+  const can = (key: SharePermissionKey) => isCollaborator && hasPermission(viewing.permissions, key);
+  const movements = (value.movements as Movement[]) || [];
+  const isOwnIncome = (id: string) => {
+    const m = movements.find((x) => x.id === id);
+    return !!m && m.type === 'RECEBER' && !!viewerId && m.responsibleId === viewerId;
+  };
+  const deny = (key?: SharePermissionKey) =>
+    denySharedAction(
+      !isCollaborator
+        ? `Você está vendo a conta de ${viewing.ownerName} como visualizador: não é possível alterar nada.`
+        : key
+        ? `Na conta de ${viewing.ownerName}, você não tem a permissão "${PERMISSION_LABEL[key]}". Peça a ${viewing.ownerName} para liberar.`
+        : `Na conta de ${viewing.ownerName}, isso só pode ser feito por quem compartilhou.`
+    );
+
   const restricted: Record<string, unknown> = { ...value };
   Object.entries(value).forEach(([key, fn]) => {
     if (typeof fn !== 'function' || SHARED_READ_ONLY_SAFE.has(key)) return;
-    if (isCollaborator && SHARED_PAYMENT_ACTIONS.has(key)) {
-      if (key === 'updateMovement') {
-        restricted[key] = (id: string, updates: Record<string, unknown>) => {
-          const allowed = Object.fromEntries(Object.entries(updates || {}).filter(([k]) => PAYMENT_FIELDS.has(k)));
-          if (Object.keys(allowed).length === 0) {
-            denySharedAction('Como colaborador, você só pode registrar pagamentos nesta conta.');
-            return;
-          }
-          (fn as (id: string, u: Record<string, unknown>) => void)(id, allowed);
-        };
-      }
+    const needed = COLLABORATOR_ACTIONS[key];
+    const call = fn as (...args: unknown[]) => unknown;
+
+    if (key === 'updateMovement') {
+      restricted[key] = (id: string, updates: Record<string, unknown>) => {
+        if (!isOwnIncome(id) && !can('REGISTRAR_PAGAMENTOS')) return deny(isCollaborator ? 'REGISTRAR_PAGAMENTOS' : undefined);
+        const allowed = Object.fromEntries(Object.entries(updates || {}).filter(([k]) => PAYMENT_FIELDS.has(k)));
+        if (Object.keys(allowed).length === 0) return deny();
+        return call(id, allowed);
+      };
       return;
     }
-    restricted[key] = () =>
-      denySharedAction(
-        isCollaborator
-          ? `Como colaborador da conta de ${viewing.ownerName}, você só pode registrar pagamentos.`
-          : `Você está vendo a conta de ${viewing.ownerName} como visualizador: não é possível alterar nada.`
-      );
+    if (key === 'toggleMovementStatus') {
+      restricted[key] = (id: string) =>
+        isOwnIncome(id) || can('REGISTRAR_PAGAMENTOS') ? call(id) : deny(isCollaborator ? 'REGISTRAR_PAGAMENTOS' : undefined);
+      return;
+    }
+    if (key === 'addMovement') {
+      restricted[key] = (item: Movement) => {
+        if (item?.type === 'RECEBER') {
+          // Receita lançada pelo colaborador é dele: só ele confirma
+          return can('LANCAR_RECEITAS') ? call({ ...item, responsibleId: viewerId }) : deny(isCollaborator ? 'LANCAR_RECEITAS' : undefined);
+        }
+        return can('LANCAR_DESPESAS') ? call(item) : deny(isCollaborator ? 'LANCAR_DESPESAS' : undefined);
+      };
+      return;
+    }
+    if (key === 'updateMappingItemState') {
+      restricted[key] = (natureId: string, mappingId: string, itemId: string, state: Record<string, unknown>) => {
+        const onlyPayment = Object.keys(state || {}).every((k) => ITEM_PAYMENT_FIELDS.has(k));
+        const perm: SharePermissionKey = onlyPayment ? 'REGISTRAR_PAGAMENTOS' : 'EDITAR_NATUREZAS';
+        return can(perm) ? call(natureId, mappingId, itemId, state) : deny(isCollaborator ? perm : undefined);
+      };
+      return;
+    }
+    if (needed) {
+      restricted[key] = (...args: unknown[]) => (can(needed) ? call(...args) : deny(isCollaborator ? needed : undefined));
+      return;
+    }
+    restricted[key] = () => deny();
   });
   return restricted as T;
 }
@@ -489,9 +547,12 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const { user: authUser } = useAuth();
   const { viewing } = useAccountScope();
   // Conta em uso: ao abrir uma conta compartilhada, os dados e os caches locais passam a ser os do dono
+  // Só a troca de conta recarrega os dados (papel, permissões e conta principal não)
+  const viewingOwnerId = viewing?.ownerId;
+  const viewingOwnerName = viewing?.ownerName;
   const user = useMemo(
-    () => (authUser && viewing ? { ...authUser, $id: viewing.ownerId, name: viewing.ownerName } : authUser),
-    [authUser, viewing]
+    () => (authUser && viewingOwnerId ? { ...authUser, $id: viewingOwnerId, name: viewingOwnerName || authUser.name } : authUser),
+    [authUser, viewingOwnerId, viewingOwnerName]
   );
 
   // Se o usuário está autenticado na nuvem via Supabase, a fonte de verdade é a sua conta real
@@ -2349,7 +2410,23 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   // Atualizar Movimentação (Ajuste de valor real, vencimento, status, observações)
+  // Receita com responsável: só quem recebe confirma (ou desfaz) o recebimento, inclusive o dono da conta
+  const incomeConfirmBlocked = (id: string, nextStatus?: MovementStatus): boolean => {
+    const m = movements.find((x) => x.id === id);
+    if (!m || m.type !== 'RECEBER' || !authUser || authUser.isGuest) return false;
+    if (nextStatus !== undefined && nextStatus === m.status) return false;
+    const confirmer = m.responsibleId || viewing?.ownerId || authUser.$id;
+    if (confirmer === authUser.$id) return false;
+    const name =
+      sharedScenario?.members?.find((p) => p.id === confirmer)?.name ||
+      (confirmer === viewing?.ownerId ? viewing?.ownerName : undefined) ||
+      'a pessoa que recebe';
+    denySharedAction(`Só ${name} pode confirmar esta receita.`);
+    return true;
+  };
+
   const updateMovement = (id: string, updates: Partial<Movement>) => {
+    if (updates.status !== undefined && incomeConfirmBlocked(id, updates.status)) return;
     setMovements((prev) => {
       const next = prev.map((m) => (m.id === id ? { ...m, ...updates } : m));
       if (user && !user.isGuest) {
@@ -2406,6 +2483,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Alternar Status Prevista / Realizada
   const toggleMovementStatus = (id: string) => {
+    if (incomeConfirmBlocked(id)) return;
     let nextStatus: MovementStatus = 'REALIZADA';
     setMovements((prev) => {
       const next = prev.map((m) => {
@@ -2931,12 +3009,16 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
    * (visualizador só consulta; colaborador só registra pagamentos do que já está previsto).
    * Devolve true quando bloqueou, já explicando na conversa.
    */
-  const forsetiBlockedInShared = (what: string, userLine?: string): boolean => {
+  const forsetiBlockedInShared = (what: string, userLine?: string, allowedBy: SharePermissionKey[] = []): boolean => {
     if (!viewing) return false;
-    const roleText =
-      viewing.role === 'COLABORADOR'
-        ? 'como colaborador(a), você só registra pagamentos do que já está previsto (use "Já paguei" nas tarefas)'
-        : 'como visualizador(a), você só consulta';
+    const isCollaborator = viewing.role === 'COLABORADOR';
+    const missing = allowedBy.filter((k) => !hasPermission(viewing.permissions, k));
+    if (isCollaborator && allowedBy.length > 0 && missing.length === 0) return false;
+    const roleText = !isCollaborator
+      ? 'como visualizador(a), você só consulta'
+      : missing.length > 0
+      ? `você não tem a permissão ${missing.map((k) => `"${PERMISSION_LABEL[k]}"`).join(' e ')}`
+      : 'como colaborador(a), isso só pode ser feito por quem compartilhou';
     const reply: CopilotMessage = {
       id: `ast_shared_${Date.now()}`,
       role: 'assistant',
@@ -3526,8 +3608,18 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return;
     }
 
-    // Confirmar cria lançamento ou altera fatura: não na conta de outra pessoa
-    if (forsetiBlockedInShared('crio lançamentos nem altero faturas', `Paguei via ${option.label}`)) return;
+    // Confirmar cria lançamento (conforme as permissões) ou altera fatura (só quem compartilhou)
+    const confirmType = option.payload.type || pending?.type;
+    if (
+      option.payload.action === 'LINK_TO_INVOICE'
+        ? forsetiBlockedInShared('altero faturas', `Vincular à fatura`)
+        : forsetiBlockedInShared(
+            confirmType === 'RECEBER' ? 'lanço receitas' : 'lanço despesas',
+            `Paguei via ${option.label}`,
+            [confirmType === 'RECEBER' ? 'LANCAR_RECEITAS' : 'LANCAR_DESPESAS']
+          )
+    )
+      return;
 
     // Caso o usuário opte por abater diretamente de uma fatura de cartão aberta
     if (option.payload.action === 'LINK_TO_INVOICE') {
@@ -3605,6 +3697,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       status: isCredit || isIncome ? 'PREVISTA' : 'REALIZADA',
       category: finalCategory,
       notes: `Confirmado via Forseti: ${option.label} (${option.badge}).`,
+      // Na conta de outra pessoa, a receita lançada é de quem lançou: só essa pessoa confirma
+      ...(viewing && finalType === 'RECEBER' ? { responsibleId: authUser?.$id } : {}),
     });
 
     setTimeout(() => {
@@ -3632,7 +3726,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Conciliar Cupom / Nota Fiscal com Mapeamento de Gastos Fixos e Aprendizado Contínuo
   const reconcileReceiptData = (messageId: string, data: ReceiptReconciliationData) => {
-    if (forsetiBlockedInShared('lanço cupons nem altero os mapeamentos')) return;
+    if (forsetiBlockedInShared('lanço cupons nem altero os mapeamentos', undefined, ['LANCAR_DESPESAS', 'EDITAR_NATUREZAS'])) return;
     // 1. Registrar a movimentação determinística no fluxo de caixa
     const isCredit = data.paymentMethod === 'CARTAO';
     const finalBank = data.paymentMethod === 'DINHEIRO' ? 'Dinheiro' : (data.paymentMethod === 'CARTAO' ? 'Nubank' : 'Inter');
@@ -4766,7 +4860,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         addSharedSettlement,
         toggleSharedSettlementStatus,
         settleAllSharedDebts,
-      }, viewing)}
+      }, viewing, authUser?.$id)}
     >
       {children}
     </FinancialContext.Provider>

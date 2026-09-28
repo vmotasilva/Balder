@@ -1,13 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Check, Copy, ExternalLink, Link2, Mail, MessageCircle, MessageSquare, Share2, Star, Trash2, UserMinus, Users, X } from 'lucide-react';
+import { Check, Copy, ExternalLink, Link2, Mail, MessageCircle, MessageSquare, Share2, ShieldCheck, Star, Trash2, UserMinus, Users, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useFinancial } from '../context/FinancialContext';
 import { useAccountScope } from '../context/AccountScopeContext';
 import { ConfirmDialog, useConfirmDialog } from './ConfirmDialog';
 import {
+  PERMISSION_DEFS,
   ROLE_LABEL,
   SCOPE_LABEL,
   SharingService,
+  hasPermission,
   inviteLink,
   type AccountShare,
   type ShareRole,
@@ -373,6 +375,41 @@ export const AccountSharingPanel: React.FC = () => {
                   <span>Revogar</span>
                 </button>
               </div>
+              {share.role === 'COLABORADOR' && (
+                <details className="sharing-permissions">
+                  <summary>
+                    <ShieldCheck size={13} />
+                    Permissões ({PERMISSION_DEFS.filter((d) => hasPermission(share.permissions, d.key)).length} de{' '}
+                    {PERMISSION_DEFS.length})
+                  </summary>
+                  <ul>
+                    {PERMISSION_DEFS.map((def) => (
+                      <li key={def.key}>
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={hasPermission(share.permissions, def.key)}
+                            onChange={(e) =>
+                              run(() =>
+                                SharingService.updateShare(share.id, {
+                                  permissions: { ...share.permissions, [def.key]: e.target.checked },
+                                })
+                              )
+                            }
+                          />
+                          <span>
+                            <strong>{def.label}</strong>
+                            <small>{def.hint}</small>
+                          </span>
+                        </label>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="sharing-permissions-note">
+                    Receitas com responsável só são confirmadas por quem recebe, inclusive por você.
+                  </p>
+                </details>
+              )}
             </li>
           ))}
         </ul>

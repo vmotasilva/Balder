@@ -5,6 +5,8 @@ export interface Movement {
   id: string;
   title: string;
   type: MovementType;
+  /** Receitas: quem recebe (id do usuário). Só essa pessoa confirma o recebimento; vazio = o dono da conta. */
+  responsibleId?: string;
   amount: number;
   dueDate: string; // YYYY-MM-DD
   bank: string;

@@ -40,6 +40,17 @@ CREATE TABLE IF NOT EXISTS public.account_shares (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Permissões do colaborador (chave → ligada/desligada). Sem a chave, vale o padrão de cada uma:
+--   REGISTRAR_PAGAMENTOS (sim)  marcar contas e itens das naturezas como pagos
+--   DESPESAS_CONJUNTAS   (sim)  registrar despesas conjuntas e acertos do planejamento
+--   LANCAR_DESPESAS      (não)  lançar novas despesas na conta
+--   LANCAR_RECEITAS      (não)  lançar as próprias receitas na conta
+--   EDITAR_NATUREZAS     (não)  ajustar itens, valores e mapeamentos das naturezas
+ALTER TABLE public.account_shares ADD COLUMN IF NOT EXISTS permissions JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+-- Quem recebe cada receita: só essa pessoa confirma o recebimento (vazio = o dono da conta)
+ALTER TABLE public.movements ADD COLUMN IF NOT EXISTS responsible_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+
 CREATE INDEX IF NOT EXISTS idx_account_shares_owner ON public.account_shares(owner_id);
 CREATE INDEX IF NOT EXISTS idx_account_shares_member ON public.account_shares(member_id);
 
@@ -76,14 +87,21 @@ RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
   );
 $$;
 
--- Registrar pagamentos na conta: colaborador ativo com alcance CONTA
-CREATE OR REPLACE FUNCTION public.can_register_payments(p_owner UUID)
+-- Permissão de um colaborador ativo na conta (alcance CONTA), com o padrão quando não definida
+CREATE OR REPLACE FUNCTION public.collaborator_can(p_owner UUID, p_key TEXT, p_default BOOLEAN)
 RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.account_shares s
     WHERE s.owner_id = p_owner AND s.member_id = auth.uid() AND s.status = 'ATIVO'
       AND s.scope = 'CONTA' AND s.role = 'COLABORADOR'
+      AND coalesce((s.permissions ->> p_key)::boolean, p_default)
   );
+$$;
+
+-- Registrar pagamentos na conta: colaborador ativo com alcance CONTA e essa permissão
+CREATE OR REPLACE FUNCTION public.can_register_payments(p_owner UUID)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT public.collaborator_can(p_owner, 'REGISTRAR_PAGAMENTOS', true);
 $$;
 
 -- Planejamento compartilhado: dono ou qualquer convidado ativo (qualquer alcance)
@@ -95,12 +113,13 @@ RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS
   );
 $$;
 
--- Registrar pagamentos no planejamento: colaborador ativo (qualquer alcance)
+-- Despesas conjuntas e acertos no planejamento: colaborador ativo (qualquer alcance) com essa permissão
 CREATE OR REPLACE FUNCTION public.can_register_planning_payments(p_owner UUID)
 RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.account_shares s
     WHERE s.owner_id = p_owner AND s.member_id = auth.uid() AND s.status = 'ATIVO' AND s.role = 'COLABORADOR'
+      AND coalesce((s.permissions ->> 'DESPESAS_CONJUNTAS')::boolean, true)
   );
 $$;
 
@@ -188,17 +207,46 @@ END $$;
 -- ------------------------------------------------------------------------------
 -- 5. COLABORADOR: SÓ REGISTRA PAGAMENTOS
 -- ------------------------------------------------------------------------------
+-- Pagamentos (com a permissão) e as próprias receitas (quem recebe sempre confirma a sua)
 DROP POLICY IF EXISTS "Collaborators can register payments" ON public.movements;
 CREATE POLICY "Collaborators can register payments"
   ON public.movements FOR UPDATE TO authenticated
-  USING (public.can_register_payments(user_id))
-  WITH CHECK (public.can_register_payments(user_id));
+  USING (
+    public.can_register_payments(user_id)
+    OR (type = 'RECEBER' AND responsible_id = auth.uid() AND public.can_read_account(user_id))
+  )
+  WITH CHECK (
+    public.can_register_payments(user_id)
+    OR (type = 'RECEBER' AND responsible_id = auth.uid() AND public.can_read_account(user_id))
+  );
 
 DROP POLICY IF EXISTS "Collaborators can register payments" ON public.natures;
 CREATE POLICY "Collaborators can register payments"
   ON public.natures FOR UPDATE TO authenticated
-  USING (public.can_register_payments(user_id))
-  WITH CHECK (public.can_register_payments(user_id));
+  USING (public.can_register_payments(user_id) OR public.collaborator_can(user_id, 'EDITAR_NATUREZAS', false))
+  WITH CHECK (public.can_register_payments(user_id) OR public.collaborator_can(user_id, 'EDITAR_NATUREZAS', false));
+
+-- Mapeamentos separados em duas partes: o que é pagamento (payments, monthStates, isFulfilled,
+-- realizedValue de cada item) e todo o resto (itens, valores, datas, regras)
+CREATE OR REPLACE FUNCTION public.mappings_part(p_mappings JSONB, p_payment_part BOOLEAN)
+RETURNS JSONB LANGUAGE sql IMMUTABLE AS $$
+  SELECT coalesce(jsonb_agg(
+    CASE WHEN p_payment_part THEN
+      jsonb_build_object('id', mp -> 'id', 'items', (
+        SELECT coalesce(jsonb_agg(jsonb_build_object(
+          'id', it -> 'id', 'payments', it -> 'payments', 'monthStates', it -> 'monthStates',
+          'isFulfilled', it -> 'isFulfilled', 'realizedValue', it -> 'realizedValue') ORDER BY i), '[]'::jsonb)
+        FROM jsonb_array_elements(CASE WHEN jsonb_typeof(mp -> 'items') = 'array' THEN mp -> 'items' ELSE '[]'::jsonb END)
+          WITH ORDINALITY AS x(it, i)))
+    ELSE
+      mp || jsonb_build_object('items', (
+        SELECT coalesce(jsonb_agg(it - 'payments' - 'monthStates' - 'isFulfilled' - 'realizedValue' ORDER BY i), '[]'::jsonb)
+        FROM jsonb_array_elements(CASE WHEN jsonb_typeof(mp -> 'items') = 'array' THEN mp -> 'items' ELSE '[]'::jsonb END)
+          WITH ORDINALITY AS x(it, i)))
+    END ORDER BY j), '[]'::jsonb)
+  FROM jsonb_array_elements(CASE WHEN jsonb_typeof(p_mappings) = 'array' THEN p_mappings ELSE '[]'::jsonb END)
+    WITH ORDINALITY AS y(mp, j);
+$$;
 
 -- Em lançamentos de outra pessoa, só mudam os campos de pagamento
 CREATE OR REPLACE FUNCTION public.guard_collaborator_movement_update()
@@ -219,6 +267,7 @@ BEGIN
       OR NEW.mapping_id IS DISTINCT FROM OLD.mapping_id
       OR NEW.mapping_item_id IS DISTINCT FROM OLD.mapping_item_id
       OR NEW.invoice_breakdown IS DISTINCT FROM OLD.invoice_breakdown
+      OR NEW.responsible_id IS DISTINCT FROM OLD.responsible_id
     THEN
       RAISE EXCEPTION 'Colaboradores só podem registrar pagamentos.';
     END IF;
@@ -246,6 +295,16 @@ BEGIN
       OR NEW.keywords IS DISTINCT FROM OLD.keywords
     THEN
       RAISE EXCEPTION 'Colaboradores só podem registrar pagamentos.';
+    END IF;
+    -- Itens, valores e mapeamentos: só com a permissão de editar naturezas
+    IF NOT public.collaborator_can(OLD.user_id, 'EDITAR_NATUREZAS', false)
+      AND public.mappings_part(NEW.mappings, false) IS DISTINCT FROM public.mappings_part(OLD.mappings, false) THEN
+      RAISE EXCEPTION 'Sem permissão para editar itens das naturezas desta conta.';
+    END IF;
+    -- Pagamentos dos itens: só com a permissão de registrar pagamentos
+    IF NOT public.collaborator_can(OLD.user_id, 'REGISTRAR_PAGAMENTOS', true)
+      AND public.mappings_part(NEW.mappings, true) IS DISTINCT FROM public.mappings_part(OLD.mappings, true) THEN
+      RAISE EXCEPTION 'Sem permissão para registrar pagamentos nesta conta.';
     END IF;
   END IF;
   RETURN NEW;
@@ -415,3 +474,46 @@ BEGIN
     END IF;
   END LOOP;
 END $$;
+
+-- ------------------------------------------------------------------------------
+-- 9. LANÇAMENTOS DO COLABORADOR E CONFIRMAÇÃO DAS RECEITAS
+-- ------------------------------------------------------------------------------
+-- Colaborador lança despesas (LANCAR_DESPESAS) e as próprias receitas (LANCAR_RECEITAS),
+-- sempre na conta de quem compartilhou. Receita lançada por ele fica com ele como responsável.
+CREATE OR REPLACE FUNCTION public.can_add_movement(p_owner UUID, p_type TEXT, p_responsible UUID)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT CASE
+    WHEN p_type = 'RECEBER' THEN
+      p_responsible = auth.uid() AND public.collaborator_can(p_owner, 'LANCAR_RECEITAS', false)
+    ELSE
+      public.collaborator_can(p_owner, 'LANCAR_DESPESAS', false)
+  END;
+$$;
+
+DROP POLICY IF EXISTS "Collaborators can add movements" ON public.movements;
+CREATE POLICY "Collaborators can add movements"
+  ON public.movements FOR INSERT TO authenticated
+  WITH CHECK (public.can_add_movement(user_id, type, responsible_id));
+
+-- Receita com responsável: só essa pessoa confirma (ou desfaz) o recebimento, inclusive o dono da conta
+CREATE OR REPLACE FUNCTION public.guard_income_confirmation()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF auth.uid() IS NOT NULL
+    AND OLD.type = 'RECEBER'
+    AND NEW.status IS DISTINCT FROM OLD.status
+    AND auth.uid() IS DISTINCT FROM coalesce(OLD.responsible_id, OLD.user_id)
+  THEN
+    RAISE EXCEPTION 'Só quem recebe pode confirmar esta receita.';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_guard_income_confirmation ON public.movements;
+CREATE TRIGGER trg_guard_income_confirmation
+  BEFORE UPDATE ON public.movements
+  FOR EACH ROW EXECUTE FUNCTION public.guard_income_confirmation();
+
+GRANT EXECUTE ON FUNCTION public.collaborator_can(UUID, TEXT, BOOLEAN) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.can_add_movement(UUID, TEXT, UUID) TO authenticated;

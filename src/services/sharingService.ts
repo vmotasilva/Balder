@@ -3,6 +3,27 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 export type ShareRole = 'COLABORADOR' | 'VISUALIZADOR';
 export type ShareScope = 'CONTA' | 'PLANEJAMENTO';
 export type ShareStatus = 'PENDENTE' | 'ATIVO' | 'REVOGADO';
+/** O que o colaborador pode fazer na conta (o banco confere as mesmas regras). */
+export type SharePermissionKey =
+  | 'REGISTRAR_PAGAMENTOS'
+  | 'DESPESAS_CONJUNTAS'
+  | 'LANCAR_DESPESAS'
+  | 'LANCAR_RECEITAS'
+  | 'EDITAR_NATUREZAS';
+export type SharePermissions = Partial<Record<SharePermissionKey, boolean>>;
+
+export const PERMISSION_DEFS: { key: SharePermissionKey; label: string; hint: string; default: boolean }[] = [
+  { key: 'REGISTRAR_PAGAMENTOS', label: 'Registrar pagamentos', hint: 'Marcar contas e itens das naturezas como pagos', default: true },
+  { key: 'DESPESAS_CONJUNTAS', label: 'Despesas conjuntas e acertos', hint: 'Registrar despesas do planejamento a dois e acertos', default: true },
+  { key: 'LANCAR_DESPESAS', label: 'Lançar despesas', hint: 'Criar novas despesas e compras na conta', default: false },
+  { key: 'LANCAR_RECEITAS', label: 'Lançar as próprias receitas', hint: 'Criar receitas que só essa pessoa confirma', default: false },
+  { key: 'EDITAR_NATUREZAS', label: 'Editar itens das naturezas', hint: 'Ajustar itens, valores e mapeamentos', default: false },
+];
+
+/** Permissão efetiva (com o padrão quando não definida). */
+export const hasPermission = (permissions: SharePermissions | undefined, key: SharePermissionKey) =>
+  permissions?.[key] ?? PERMISSION_DEFS.find((d) => d.key === key)!.default;
+
 /** Conta compartilhada como principal do convidado: pedida por ele e autorizada pelo dono. */
 export type SharePrimaryStatus = 'NENHUM' | 'SOLICITADO' | 'APROVADO';
 
@@ -20,6 +41,7 @@ export interface AccountShare {
   scope: ShareScope;
   status: ShareStatus;
   primaryStatus: SharePrimaryStatus;
+  permissions: SharePermissions;
   createdAt: string;
   acceptedAt?: string;
   revokedAt?: string;
@@ -58,6 +80,7 @@ const mapShare = (row: Record<string, unknown>): AccountShare => ({
   scope: row.scope as ShareScope,
   status: row.status as ShareStatus,
   primaryStatus: ((row.primary_status as SharePrimaryStatus) || 'NENHUM'),
+  permissions: (row.permissions as SharePermissions) || {},
   createdAt: String(row.created_at),
   acceptedAt: (row.accepted_at as string) || undefined,
   revokedAt: (row.revoked_at as string) || undefined,
@@ -123,7 +146,7 @@ export const SharingService = {
     return mapShare(data);
   },
 
-  async updateShare(id: string, updates: { role?: ShareRole; scope?: ShareScope }): Promise<void> {
+  async updateShare(id: string, updates: { role?: ShareRole; scope?: ShareScope; permissions?: SharePermissions }): Promise<void> {
     const { error } = await supabase.from('account_shares').update(updates).eq('id', id);
     if (error) throw new Error(errorMessage(error, 'Não foi possível alterar o acesso.'));
   },

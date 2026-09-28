@@ -92,6 +92,7 @@ export const SupabaseService = {
         mappingItemId: row.mapping_item_id || undefined,
         invoiceBreakdown: row.invoice_breakdown || [],
         unanalyzedAmount: row.unanalyzed_amount ? Number(row.unanalyzed_amount) : undefined,
+        responsibleId: row.responsible_id || undefined,
       })) as Movement[];
     } catch (e) {
       console.error('[SupabaseService] Exceção ao buscar movimentações:', e);
@@ -129,6 +130,8 @@ export const SupabaseService = {
         invoice_breakdown: movement.invoiceBreakdown || [],
         unanalyzed_amount: movement.unanalyzedAmount ?? null,
       };
+      // Só envia quando há responsável (a coluna vem do sharing.sql)
+      if (movement.responsibleId) payload.responsible_id = movement.responsibleId;
 
       const { data, error } = await supabase
         .from(TABLES.MOVEMENTS)
@@ -179,6 +182,7 @@ export const SupabaseService = {
       if (updates.mappingItemId !== undefined) payload.mapping_item_id = updates.mappingItemId;
       if (updates.invoiceBreakdown !== undefined) payload.invoice_breakdown = updates.invoiceBreakdown;
       if (updates.unanalyzedAmount !== undefined) payload.unanalyzed_amount = updates.unanalyzedAmount;
+      if (updates.responsibleId !== undefined) payload.responsible_id = updates.responsibleId || null;
 
       const { error } = await supabase
         .from(TABLES.MOVEMENTS)
