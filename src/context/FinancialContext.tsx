@@ -4,6 +4,7 @@ import { isCashInHand } from '../utils/cashInHand';
 import { SupabaseService, msSinceProfileSave } from '../services/supabaseService';
 import { supabase, isSupabaseConfigured, TABLES } from '../lib/supabase';
 import { useAuth } from './AuthContext';
+import { recalcPendingSettlements } from '../utils/sharedSplit';
 import { PERMISSION_DEFS, hasPermission, type SharePermissionKey } from '../services/sharingService';
 
 const isUuid = (val: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
@@ -30,6 +31,7 @@ const survivesFormat = (id: string, formattedAtIso?: string) => {
 };
 
 import type { GoalStatusInfo,
+  SharedSplitRule,
   ViewPreferences,
   Movement,
   MovementType,
@@ -243,6 +245,8 @@ interface FinancialContextType {
   setDefaultTrackingScope: (scope: TrackingScopeMode) => void;
   sharedScenario: SharedScenario | null;
   updateSharedScenario: (updates: Partial<SharedScenario>) => void;
+  /** Histórico de divisão/contribuição por competência; recalcula os pendentes a partir de fromCompetence. */
+  setSharedSplitRules: (rules: SharedSplitRule[], fromCompetence: string) => void;
   sharedSettlements: SharedSettlementItem[];
 
   // Exibição das naturezas no detalhamento da grade (itens ou só mapeamentos)
@@ -523,6 +527,16 @@ function restrictForSharedAccess<T extends Record<string, unknown>>(
           return can('LANCAR_RECEITAS') ? call({ ...item, responsibleId: viewerId }) : deny(isCollaborator ? 'LANCAR_RECEITAS' : undefined);
         }
         return can('LANCAR_DESPESAS') ? call(item) : deny(isCollaborator ? 'LANCAR_DESPESAS' : undefined);
+      };
+      return;
+    }
+    if (key === 'addMultipleMovements') {
+      restricted[key] = (items: Movement[]) => {
+        const incomes = (items || []).some((m) => m.type === 'RECEBER');
+        const expenses = (items || []).some((m) => m.type !== 'RECEBER');
+        if (incomes && !can('LANCAR_RECEITAS')) return deny(isCollaborator ? 'LANCAR_RECEITAS' : undefined);
+        if (expenses && !can('LANCAR_DESPESAS')) return deny(isCollaborator ? 'LANCAR_DESPESAS' : undefined);
+        return call((items || []).map((m) => (m.type === 'RECEBER' ? { ...m, responsibleId: viewerId } : m)));
       };
       return;
     }
@@ -1163,6 +1177,28 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         SupabaseService.saveUserProfileSettings({ sharedScenario: updated }).catch(console.error);
       }
       return updated;
+    });
+  };
+
+  /**
+   * Grava o histórico de divisão/contribuição e recalcula as despesas conjuntas ainda pendentes
+   * a partir da competência alterada (as já acertadas ficam como foram fechadas).
+   */
+  const setSharedSplitRules = (rules: SharedSplitRule[], fromCompetence: string) => {
+    if (!sharedScenario) return;
+    // O modo do cenário segue como a regra de antes da primeira mudança registrada
+    const withRules: SharedScenario = { ...sharedScenario, splitHistory: rules };
+    updateSharedScenario({ splitHistory: rules });
+    setSharedSettlements((prev) => {
+      const next = recalcPendingSettlements(prev, withRules, fromCompetence);
+      const storageKey = user && !user.isGuest ? `balder_shared_settlements_${user.$id}` : 'balder_shared_settlements';
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(next));
+      } catch {}
+      if (user && !user.isGuest) {
+        SupabaseService.saveUserProfileSettings({ sharedSettlements: next }).catch(console.error);
+      }
+      return next;
     });
   };
 
@@ -4847,6 +4883,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         setDefaultTrackingScope,
         sharedScenario,
         updateSharedScenario,
+        setSharedSplitRules,
         sharedSettlements,
         natureDetailModes,
         setNatureDetailMode,

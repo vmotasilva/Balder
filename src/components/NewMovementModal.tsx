@@ -4,6 +4,8 @@ import { CASH_IN_HAND } from '../utils/cashInHand';
 import { parseMoney } from '../utils/parseDecimal';
 import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
+import { useAuth } from '../context/AuthContext';
+import { useAccountScope } from '../context/AccountScopeContext';
 import type { MovementType, MovementStatus, Movement } from '../types';
 import { Calendar, Split, Repeat } from 'lucide-react';
 
@@ -23,7 +25,16 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   defaultType = 'PAGAR',
   initialData,
 }) => {
-  const { addMovement, addMultipleMovements, accounts, cards, banks, movements } = useFinancial();
+  const { addMovement, addMultipleMovements, accounts, cards, banks, movements, sharedScenario } = useFinancial();
+  const { user } = useAuth();
+  const { viewing } = useAccountScope();
+
+  // Receitas no planejamento a dois: quem recebe (só essa pessoa confirma o recebimento)
+  const [responsibleId, setResponsibleId] = useState('');
+  const incomePeople = (sharedScenario?.members || []).filter((m) => m.id && m.status === 'ACTIVE');
+  const hasPartner = incomePeople.some((m) => m.role === 'PARTNER');
+  // Na conta de outra pessoa, a receita lançada é sempre de quem lança (definido ao gravar)
+  const showResponsible = hasPartner && !viewing;
 
   const [type, setType] = useState<MovementType>(defaultType);
   const [title, setTitle] = useState('');
@@ -142,6 +153,12 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
       return;
     }
 
+    // Receita de outra pessoa: entra prevista e só ela confirma o recebimento
+    const incomeOwner = type === 'RECEBER' && showResponsible && responsibleId ? responsibleId : undefined;
+    const confirmableByMe = !incomeOwner || incomeOwner === user?.$id;
+    const extra: Partial<Movement> = incomeOwner ? { responsibleId: incomeOwner } : {};
+    const submitStatus: MovementStatus = confirmableByMe ? status : 'PREVISTA';
+
     if (repeating && recurringMonths >= 2) {
       const groupId = `rec_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
       const dates = getInstallmentDates(dueDate, recurringMonths);
@@ -153,10 +170,11 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
           dueDate: dateStr,
           bank,
           // Só o primeiro mês pode já ter acontecido; os seguintes ficam previstos
-          status: idx === 0 ? status : 'PREVISTA',
+          status: idx === 0 ? submitStatus : 'PREVISTA',
           category,
           notes: (notes.trim() ? `${notes.trim()} • ` : '') + `Repetição mensal ${idx + 1}/${recurringMonths}`,
           installmentGroupId: groupId,
+          ...extra,
         }))
       );
     } else if (isInstallment && count >= 2) {
@@ -168,8 +186,8 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
 
         // Se o status selecionado for REALIZADA e firstInstallmentRealized estiver ativo:
         // A 1ª é REALIZADA e as próximas 2..N são PREVISTA
-        let itemStatus: MovementStatus = status;
-        if (status === 'REALIZADA' && firstInstallmentRealized) {
+        let itemStatus: MovementStatus = submitStatus;
+        if (submitStatus === 'REALIZADA' && firstInstallmentRealized) {
           itemStatus = isFirst ? 'REALIZADA' : 'PREVISTA';
         }
 
@@ -187,6 +205,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
           installmentNumber: installmentNum,
           installmentsTotal: count,
           installmentGroupId: groupId,
+          ...extra,
         };
       });
 
@@ -198,9 +217,10 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
         amount: parsedAmount,
         dueDate,
         bank,
-        status,
+        status: submitStatus,
         category,
         notes: notes.trim() || undefined,
+        ...extra,
       });
     }
 
@@ -605,6 +625,31 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
             </select>
           </div>
         </div>
+
+        {type === 'RECEBER' && showResponsible && (
+          <div className="form-group">
+            <label htmlFor="mov-responsible">Quem recebe</label>
+            <select
+              id="mov-responsible"
+              className="form-select"
+              value={responsibleId}
+              onChange={(e) => setResponsibleId(e.target.value)}
+            >
+              <option value="">Titular da conta</option>
+              {incomePeople.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+            {responsibleId && responsibleId !== user?.$id && (
+              <small className="form-hint">
+                Só {incomePeople.find((m) => m.id === responsibleId)?.name || 'essa pessoa'} poderá confirmar o recebimento; a
+                receita entra como prevista.
+              </small>
+            )}
+          </div>
+        )}
 
         {/* Status Toggle */}
         <div className="form-group">

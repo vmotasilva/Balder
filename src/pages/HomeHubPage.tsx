@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
+import { useAccountScope } from '../context/AccountScopeContext';
 import { GuidedSetup } from '../components/GuidedSetup';
 import type { TabId } from '../components/Sidebar';
 import { buildPeriodInsights, TRACKING_PERIOD_LABELS } from '../utils/periodSpending';
@@ -94,7 +95,9 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     updateMovement,
     updateMappingItemState,
     sendMessageToCopilot,
+    sharedScenario,
   } = useFinancial();
+  const { viewing } = useAccountScope();
 
   const [forsetiText, setForsetiText] = useState('');
   const [showAllTasks, setShowAllTasks] = useState(false);
@@ -237,6 +240,16 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           Ver
         </button>
       );
+    }
+    // Receita de outra pessoa: só quem recebe confirma
+    const mov = entry.kind === 'ENTRADA' ? movements.find((m) => m.id === entry.id) : undefined;
+    const confirmer = mov?.type === 'RECEBER' ? mov.responsibleId || viewing?.ownerId || user?.$id : undefined;
+    if (confirmer && user && !user.isGuest && confirmer !== user.$id) {
+      const name =
+        sharedScenario?.members?.find((p) => p.id === confirmer)?.name ||
+        (confirmer === viewing?.ownerId ? viewing?.ownerName : undefined) ||
+        'quem recebe';
+      return <span className="home-task-owner">Só {name.split(' ')[0]} confirma</span>;
     }
     return (
       <button

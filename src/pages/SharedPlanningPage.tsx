@@ -17,8 +17,23 @@ import {
   ShieldCheck,
   CheckCircle2,
   Receipt,
+  History,
+  Trash2,
 } from 'lucide-react';
-import type { ExpenseSplitMode } from '../types';
+import type { ExpenseSplitMode, SharedSplitRule } from '../types';
+import {
+  SPLIT_MODE_LABEL,
+  competenceLabel,
+  competenceOf,
+  currentCompetence,
+  owesFor,
+  pctLabel,
+  ruleFor,
+  sortedRules,
+  splitFor,
+} from '../utils/sharedSplit';
+
+const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export const SharedPlanningPage: React.FC = () => {
   const { user } = useAuth();
@@ -29,6 +44,7 @@ export const SharedPlanningPage: React.FC = () => {
     setDefaultTrackingScope,
     sharedScenario,
     updateSharedScenario,
+    setSharedSplitRules,
     sharedSettlements,
     addSharedSettlement,
     toggleSharedSettlementStatus,
@@ -67,19 +83,25 @@ export const SharedPlanningPage: React.FC = () => {
     });
   };
 
-  // Cálculos do Rateio de Renda (sem rendas informadas, divide meio a meio)
+  // Rendas (usadas no modo proporcional à renda; sem rendas informadas, divide meio a meio)
   const userSalary = ownerMember?.monthlyIncome ?? 0;
   const partnerSalary = partner?.monthlyIncome ?? 0;
   const totalHouseholdIncome = userSalary + partnerSalary;
-
   const proportionalUserPct = totalHouseholdIncome > 0 ? Math.round((userSalary / totalHouseholdIncome) * 100) : 50;
   const proportionalPartnerPct = 100 - proportionalUserPct;
 
-  const currentSplitMode = sharedScenario?.splitMode || 'PROPORTIONAL_INCOME';
-  const effectiveUserPct = currentSplitMode === 'EQUAL_50_50' ? 50 : proportionalUserPct;
-  const effectivePartnerPct = currentSplitMode === 'EQUAL_50_50' ? 50 : proportionalPartnerPct;
+  // Divisão que vale na competência atual (histórico de contribuições por competência)
+  const nowCompetence = currentCompetence();
+  const currentSplit = splitFor(sharedScenario, nowCompetence);
+  const currentSplitMode = currentSplit.mode;
+  const currentRule = ruleFor(sharedScenario, nowCompetence);
+  const ownerContribution = currentRule?.contributions.OWNER ?? 0;
+  const partnerContribution = currentRule?.contributions.PARTNER ?? 0;
+  const contributionTotal = ownerContribution + partnerContribution;
+  const contributionUserPct = contributionTotal > 0 ? Math.round((ownerContribution / contributionTotal) * 100) : 50;
+  const rules = sortedRules(sharedScenario);
 
-  // Cálculos de Acerto do Mês
+  // Cálculos de Acerto do Mês (cada despesa já traz a cota da regra da sua competência)
   const pendingSettlements = sharedSettlements.filter((s) => s.status === 'PENDENTE');
   const totalSharedExpenses = pendingSettlements.reduce((acc, s) => acc + s.totalAmount, 0);
 
@@ -91,8 +113,46 @@ export const SharedPlanningPage: React.FC = () => {
     .filter((s) => s.paidBy === 'PARTNER')
     .reduce((acc, s) => acc + s.totalAmount, 0);
 
-  const userFairShare = (totalSharedExpenses * effectiveUserPct) / 100;
-  const partnerFairShare = (totalSharedExpenses * effectivePartnerPct) / 100;
+  const userFairShare = pendingSettlements.reduce((acc, s) => acc + s.userOwes, 0);
+  const partnerFairShare = pendingSettlements.reduce((acc, s) => acc + s.partnerOwes, 0);
+
+  // Formulário de mudança de contribuição (em branco = mantém os valores vigentes)
+  const [formCompetence, setFormCompetence] = useState(nowCompetence);
+  const [formOwner, setFormOwner] = useState<number | null>(null);
+  const [formPartner, setFormPartner] = useState<number | null>(null);
+  const formOwnerValue = formOwner ?? ownerContribution;
+  const formPartnerValue = formPartner ?? partnerContribution;
+  const formTotal = formOwnerValue + formPartnerValue;
+  const formOwnerShare = formTotal > 0 ? formOwnerValue / formTotal : 0.5;
+
+  /** Inclui ou substitui a regra de uma competência e recalcula os pendentes dali em diante. */
+  const saveRule = (rule: Omit<SharedSplitRule, 'id' | 'createdAt'>) => {
+    const others = rules.filter((r) => r.effectiveFrom !== rule.effectiveFrom);
+    const next: SharedSplitRule[] = [
+      ...others,
+      { ...rule, id: `split_${Date.now()}`, createdAt: new Date().toISOString() },
+    ].sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
+    setSharedSplitRules(next, rule.effectiveFrom);
+  };
+
+  const handleSaveContribution = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formCompetence) return;
+    saveRule({
+      effectiveFrom: formCompetence,
+      splitMode: 'CONTRIBUTION',
+      contributions: { OWNER: formOwnerValue, PARTNER: formPartnerValue },
+    });
+    setFormOwner(null);
+    setFormPartner(null);
+  };
+
+  const handleRemoveRule = (rule: SharedSplitRule) => {
+    setSharedSplitRules(
+      rules.filter((r) => r.id !== rule.id),
+      rule.effectiveFrom
+    );
+  };
 
   // Diferença: se positivo, usuário pagou mais que sua cota (parceiro deve transferir ao usuário)
   const netBalance = totalPaidByUser - userFairShare;
@@ -104,12 +164,13 @@ export const SharedPlanningPage: React.FC = () => {
     setTimeout(() => setCopiedInvite(false), 2500);
   };
 
+  // Trocar o modelo vale a partir da competência atual (entra no histórico)
   const handleToggleSplitMode = (mode: ExpenseSplitMode) => {
-    if (!sharedScenario) return;
-    updateSharedScenario({
+    if (!sharedScenario || mode === currentSplitMode) return;
+    saveRule({
+      effectiveFrom: nowCompetence,
       splitMode: mode,
-      userSharePercent: mode === 'EQUAL_50_50' ? 50 : proportionalUserPct,
-      partnerSharePercent: mode === 'EQUAL_50_50' ? 50 : proportionalPartnerPct,
+      contributions: { OWNER: ownerContribution, PARTNER: partnerContribution },
     });
   };
 
@@ -118,18 +179,17 @@ export const SharedPlanningPage: React.FC = () => {
     const amountNum = parseMoney(newExpenseAmount);
     if (!newExpenseTitle.trim() || amountNum <= 0) return;
 
-    const userOwes = (amountNum * effectiveUserPct) / 100;
-    const partnerOwes = (amountNum * effectivePartnerPct) / 100;
+    const date = new Date().toISOString().split('T')[0];
+    const competence = competenceOf(date);
 
     addSharedSettlement({
       title: newExpenseTitle.trim(),
       category: newExpenseCategory,
       totalAmount: amountNum,
       paidBy: newExpensePaidBy,
-      splitMode: currentSplitMode,
-      userOwes,
-      partnerOwes,
-      date: new Date().toISOString().split('T')[0],
+      ...owesFor(sharedScenario, amountNum, competence),
+      date,
+      competence,
       status: 'PENDENTE',
     });
 
@@ -326,8 +386,10 @@ export const SharedPlanningPage: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center justify-between text-xs bg-white/5 rounded-lg p-2.5">
-            <span className="text-muted">Cota de Rateio Calculada:</span>
-            <span className="font-bold text-cyan-400">{effectiveUserPct}% das despesas</span>
+            <span className="text-muted">
+              {currentSplitMode === 'CONTRIBUTION' ? `Contribui ${formatBRL(ownerContribution)}/mês · cota:` : 'Cota de Rateio Calculada:'}
+            </span>
+            <span className="font-bold text-cyan-400">{pctLabel(currentSplit.ownerShare)} das despesas</span>
           </div>
         </div>
 
@@ -364,11 +426,111 @@ export const SharedPlanningPage: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center justify-between text-xs bg-white/5 rounded-lg p-2.5">
-            <span className="text-muted">Cota de Rateio Calculada:</span>
-            <span className="font-bold text-pink-400">{effectivePartnerPct}% das despesas</span>
+            <span className="text-muted">
+              {currentSplitMode === 'CONTRIBUTION' ? `Contribui ${formatBRL(partnerContribution)}/mês · cota:` : 'Cota de Rateio Calculada:'}
+            </span>
+            <span className="font-bold text-pink-400">{pctLabel(currentSplit.partnerShare)} das despesas</span>
           </div>
         </div>
       </div>
+
+      {/* ============================================================== */}
+      {/* CONTRIBUIÇÃO DE CADA UM, COM VIGÊNCIA POR COMPETÊNCIA           */}
+      {/* ============================================================== */}
+      <section className="glass-card p-5 mb-6 shared-contribution">
+        <div className="shared-contribution-head">
+          <div>
+            <div className="flex items-center gap-2">
+              <History size={18} className="text-cyan-400" />
+              <h3 className="font-bold text-base text-white">Contribuição de cada um</h3>
+            </div>
+            <p className="text-xs text-muted mt-0.5">
+              Informe quanto cada pessoa contribui por mês: a divisão das despesas sai da proporção entre os valores
+              (pode ser 100% de um lado). Cada mudança vale a partir da competência escolhida.
+            </p>
+          </div>
+          <span className="shared-contribution-now">
+            Vigente em {competenceLabel(nowCompetence)}: <strong>{SPLIT_MODE_LABEL[currentSplitMode]}</strong> ·{' '}
+            {firstName(ownerName)} {pctLabel(currentSplit.ownerShare)} · {firstName(partnerName)}{' '}
+            {pctLabel(currentSplit.partnerShare)}
+          </span>
+        </div>
+
+        {!viewing && (
+          <form className="shared-contribution-form" onSubmit={handleSaveContribution}>
+            <label>
+              <span>A partir de</span>
+              <input
+                type="month"
+                className="form-input form-input-sm"
+                value={formCompetence}
+                onChange={(e) => setFormCompetence(e.target.value)}
+                required
+              />
+            </label>
+            <label>
+              <span>{firstName(ownerName)} contribui (R$/mês)</span>
+              <DecimalInput className="form-input form-input-sm" value={formOwnerValue} onValueChange={(v) => setFormOwner(v)} />
+            </label>
+            <label>
+              <span>{firstName(partnerName)} contribui (R$/mês)</span>
+              <DecimalInput className="form-input form-input-sm" value={formPartnerValue} onValueChange={(v) => setFormPartner(v)} />
+            </label>
+            <div className="shared-contribution-preview">
+              <span>Divisão calculada</span>
+              <strong>
+                {pctLabel(formOwnerShare)} / {pctLabel(1 - formOwnerShare)}
+              </strong>
+            </div>
+            <button type="submit" className="btn btn-primary btn-sm">
+              Registrar a partir de {formCompetence ? competenceLabel(formCompetence) : '—'}
+            </button>
+          </form>
+        )}
+
+        {rules.length === 0 ? (
+          <p className="text-xs text-muted mt-3">
+            Nenhuma mudança registrada ainda: vale {SPLIT_MODE_LABEL[currentSplitMode].toLowerCase()} para todas as
+            competências.
+          </p>
+        ) : (
+          <ul className="shared-contribution-history">
+            {[...rules].reverse().map((rule) => {
+              const split = splitFor(sharedScenario ? { ...sharedScenario, splitHistory: [rule] } : null, rule.effectiveFrom);
+              const status =
+                rule.effectiveFrom > nowCompetence ? 'Agendada' : rule.id === currentRule?.id ? 'Vigente' : 'Anterior';
+              return (
+                <li key={rule.id} className={`is-${status.toLowerCase()}`}>
+                  <div>
+                    <strong>A partir de {competenceLabel(rule.effectiveFrom)}</strong>
+                    <span className="shared-contribution-status">{status}</span>
+                    <small>
+                      {SPLIT_MODE_LABEL[rule.splitMode]}
+                      {rule.splitMode === 'CONTRIBUTION' &&
+                        ` · ${firstName(ownerName)} ${formatBRL(rule.contributions.OWNER)} · ${firstName(partnerName)} ${formatBRL(
+                          rule.contributions.PARTNER
+                        )}`}
+                      {' → '}
+                      {pctLabel(split.ownerShare)} / {pctLabel(split.partnerShare)}
+                    </small>
+                  </div>
+                  {!viewing && (
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-xs"
+                      onClick={() => handleRemoveRule(rule)}
+                      title="Remover esta mudança (as despesas pendentes são recalculadas)"
+                      aria-label={`Remover a mudança de ${competenceLabel(rule.effectiveFrom)}`}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
       {/* ============================================================== */}
       {/* SEÇÃO 3: ACERTO MÚTUO ("QUEM DEVE QUANTO A QUEM") & RATEIO     */}
@@ -386,9 +548,18 @@ export const SharedPlanningPage: React.FC = () => {
           </div>
 
           {/* Toggle de Modelo de Divisão */}
-          <div className="flex items-center gap-1.5 bg-black/30 p-1 rounded-xl border border-white/10">
+          <div className="flex items-center gap-1.5 bg-black/30 p-1 rounded-xl border border-white/10 flex-wrap">
             <button
               type="button"
+              disabled={!!viewing}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${currentSplitMode === 'CONTRIBUTION' ? 'bg-indigo-600 text-white shadow' : 'text-muted hover:text-white'}`}
+              onClick={() => handleToggleSplitMode('CONTRIBUTION')}
+            >
+              Por contribuição ({contributionUserPct}/{100 - contributionUserPct})
+            </button>
+            <button
+              type="button"
+              disabled={!!viewing}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${currentSplitMode === 'PROPORTIONAL_INCOME' ? 'bg-indigo-600 text-white shadow' : 'text-muted hover:text-white'}`}
               onClick={() => handleToggleSplitMode('PROPORTIONAL_INCOME')}
             >
@@ -396,6 +567,7 @@ export const SharedPlanningPage: React.FC = () => {
             </button>
             <button
               type="button"
+              disabled={!!viewing}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${currentSplitMode === 'EQUAL_50_50' ? 'bg-indigo-600 text-white shadow' : 'text-muted hover:text-white'}`}
               onClick={() => handleToggleSplitMode('EQUAL_50_50')}
             >

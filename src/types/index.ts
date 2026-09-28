@@ -536,7 +536,21 @@ export type TrackingScopeMode = 'INDIVIDUAL' | 'COMPARTILHADO';
  * - PROPORTIONAL_INCOME: divisão proporcional à renda líquida de cada participante
  * - CUSTOM: percentual personalizado fixo
  */
-export type ExpenseSplitMode = 'EQUAL_50_50' | 'PROPORTIONAL_INCOME' | 'CUSTOM';
+export type ExpenseSplitMode = 'EQUAL_50_50' | 'PROPORTIONAL_INCOME' | 'CUSTOM' | 'CONTRIBUTION';
+
+/**
+ * Regra de divisão que vale a partir de uma competência. O histórico registra cada mudança de
+ * contribuição; a regra de uma competência é a mais recente com início até ela.
+ */
+export interface SharedSplitRule {
+  id: string;
+  effectiveFrom: string; // YYYY-MM
+  splitMode: ExpenseSplitMode;
+  /** Quanto cada um contribui por mês (R$), usado no modo CONTRIBUTION. */
+  contributions: { OWNER: number; PARTNER: number };
+  createdAt: string;
+  note?: string;
+}
 
 export interface SharedMember {
   id: string;
@@ -561,6 +575,8 @@ export interface SharedScenario {
   userSharePercent: number; // ex: 50% ou 60%
   partnerSharePercent: number; // ex: 50% ou 40%
   notes?: string;
+  /** Mudanças na divisão/contribuição e a competência a partir da qual cada uma vale. */
+  splitHistory?: SharedSplitRule[];
 }
 
 export interface SharedSettlementItem {
@@ -573,6 +589,8 @@ export interface SharedSettlementItem {
   userOwes: number;
   partnerOwes: number;
   date: string;
+  /** Competência (YYYY-MM) da despesa: define a regra de divisão aplicada. */
+  competence?: string;
   status: 'PENDENTE' | 'ACERTADO';
 }
 
