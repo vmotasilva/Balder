@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Check, Copy, ExternalLink, Link2, Mail, MessageCircle, MessageSquare, Share2, Trash2, UserMinus, Users } from 'lucide-react';
+import { Check, Copy, ExternalLink, Link2, Mail, MessageCircle, MessageSquare, Share2, Star, Trash2, UserMinus, Users, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useFinancial } from '../context/FinancialContext';
 import { useAccountScope } from '../context/AccountScopeContext';
@@ -47,7 +47,7 @@ const canNativeShare = typeof navigator !== 'undefined' && typeof navigator.shar
 export const AccountSharingPanel: React.FC = () => {
   const { user } = useAuth();
   const { sharedScenario, updateSharedScenario } = useFinancial();
-  const { openSharedAccount } = useAccountScope();
+  const { viewing, openSharedAccount } = useAccountScope();
   const { confirm, dialogProps } = useConfirmDialog();
 
   const [myShares, setMyShares] = useState<AccountShare[]>([]);
@@ -277,8 +277,40 @@ export const AccountSharingPanel: React.FC = () => {
                 <small>
                   <span className={`sharing-status is-${share.status.toLowerCase()}`}>{STATUS_LABEL[share.status]}</span>
                   {share.memberEmail && share.memberName ? ` · ${share.memberEmail}` : ''}
+                  {share.primaryStatus === 'APROVADO' && (
+                    <span className="sharing-primary-tag">
+                      <Star size={11} /> Usa como conta principal
+                    </span>
+                  )}
                 </small>
               </div>
+              {share.primaryStatus === 'SOLICITADO' && (
+                <div className="sharing-primary-request">
+                  <Star size={14} />
+                  <span>
+                    <strong>{share.memberName || share.memberEmail}</strong> pediu para usar a sua conta como conta
+                    principal. Se autorizar, o Balder dessa pessoa passa a abrir direto na sua conta.
+                  </span>
+                  <div className="sharing-item-actions">
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-xs"
+                      onClick={() => run(() => SharingService.answerPrimary(share.id, true))}
+                    >
+                      <Check size={13} />
+                      <span>Autorizar</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-xs"
+                      onClick={() => run(() => SharingService.answerPrimary(share.id, false))}
+                    >
+                      <X size={13} />
+                      <span>Recusar</span>
+                    </button>
+                  </div>
+                </div>
+              )}
               <select
                 className="form-select select-sm"
                 value={share.scope}
@@ -299,6 +331,23 @@ export const AccountSharingPanel: React.FC = () => {
               </select>
               <div className="sharing-item-actions">
                 {share.status === 'PENDENTE' && sendActions(share, true)}
+                {share.primaryStatus === 'APROVADO' && (
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-xs"
+                    onClick={() =>
+                      confirm({
+                        title: 'Retirar autorização',
+                        message: `${share.memberName || share.memberEmail} continua com acesso, mas o Balder volta a abrir na conta individual.`,
+                        confirmLabel: 'Retirar',
+                        onConfirm: () => void run(() => SharingService.answerPrimary(share.id, false)),
+                      })
+                    }
+                  >
+                    <X size={13} />
+                    <span>Retirar conta principal</span>
+                  </button>
+                )}
                 {share.status === 'ATIVO' && !partnerInScenario && (
                   <button type="button" className="btn btn-outline btn-xs" onClick={() => addToPlanning(share)}>
                     <Users size={13} />
@@ -367,15 +416,61 @@ export const AccountSharingPanel: React.FC = () => {
                   <strong>{share.ownerName || share.ownerEmail || 'Conta compartilhada'}</strong>
                   <small>
                     {SCOPE_LABEL[share.scope]} · {ROLE_LABEL[share.role]}
+                    {share.status === 'ATIVO' && share.primaryStatus === 'APROVADO' && (
+                      <span className="sharing-primary-tag">
+                        <Star size={11} /> Conta principal
+                      </span>
+                    )}
+                    {share.status === 'ATIVO' && share.primaryStatus === 'SOLICITADO' && (
+                      <span className="sharing-primary-tag is-waiting">
+                        Aguardando {share.ownerName || share.ownerEmail} autorizar como principal
+                      </span>
+                    )}
                   </small>
                 </div>
                 <div className="sharing-item-actions">
                   {share.status === 'ATIVO' ? (
                     <>
-                      <button type="button" className="btn btn-primary btn-xs" onClick={() => openSharedAccount(share)}>
-                        <ExternalLink size={13} />
-                        <span>Abrir conta</span>
-                      </button>
+                      {viewing?.shareId !== share.id && (
+                        <button type="button" className="btn btn-primary btn-xs" onClick={() => openSharedAccount(share)}>
+                          <ExternalLink size={13} />
+                          <span>Abrir conta</span>
+                        </button>
+                      )}
+                      {share.primaryStatus === 'NENHUM' && (
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-xs"
+                          title="Pede a quem compartilhou para o Balder abrir direto nesta conta"
+                          onClick={() => run(() => SharingService.requestPrimary(share.id))}
+                        >
+                          <Star size={13} />
+                          <span>Tornar principal</span>
+                        </button>
+                      )}
+                      {share.primaryStatus === 'SOLICITADO' && (
+                        <button type="button" className="btn btn-outline btn-xs" onClick={() => run(() => SharingService.clearPrimary(share.id))}>
+                          <X size={13} />
+                          <span>Cancelar pedido</span>
+                        </button>
+                      )}
+                      {share.primaryStatus === 'APROVADO' && (
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-xs"
+                          onClick={() =>
+                            confirm({
+                              title: 'Voltar para a conta individual',
+                              message: `Você continua com acesso à conta de ${share.ownerName || share.ownerEmail}, mas o Balder volta a abrir na sua conta individual.`,
+                              confirmLabel: 'Voltar',
+                              onConfirm: () => void run(() => SharingService.clearPrimary(share.id)),
+                            })
+                          }
+                        >
+                          <Star size={13} />
+                          <span>Usar minha conta como principal</span>
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="btn btn-outline btn-xs sharing-revoke"

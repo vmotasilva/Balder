@@ -323,3 +323,74 @@ DROP TRIGGER IF EXISTS trg_guard_collaborator_planning ON public.shared_planning
 CREATE TRIGGER trg_guard_collaborator_planning
   BEFORE UPDATE ON public.shared_planning
   FOR EACH ROW EXECUTE FUNCTION public.guard_collaborator_planning_update();
+
+-- ------------------------------------------------------------------------------
+-- 7. CONTA COMPARTILHADA COMO PRINCIPAL
+-- ------------------------------------------------------------------------------
+-- O convidado pede para abrir o Balder direto na conta compartilhada; o dono autoriza
+-- ou recusa. Cada pessoa tem no máximo uma conta principal (pedida ou autorizada).
+-- Ao encerrar o compartilhamento, o pedido some e a pessoa volta à conta individual.
+ALTER TABLE public.account_shares
+  ADD COLUMN IF NOT EXISTS primary_status TEXT NOT NULL DEFAULT 'NENHUM';
+
+ALTER TABLE public.account_shares DROP CONSTRAINT IF EXISTS account_shares_primary_status_check;
+ALTER TABLE public.account_shares
+  ADD CONSTRAINT account_shares_primary_status_check CHECK (primary_status IN ('NENHUM', 'SOLICITADO', 'APROVADO'));
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_account_shares_one_primary
+  ON public.account_shares(member_id) WHERE primary_status <> 'NENHUM';
+
+-- Só o convidado pede; só o dono autoriza (e só o que foi pedido); qualquer um dos dois desfaz
+CREATE OR REPLACE FUNCTION public.guard_share_primary_status()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.status <> 'ATIVO' THEN
+    NEW.primary_status := 'NENHUM';
+    RETURN NEW;
+  END IF;
+  IF NEW.primary_status IS DISTINCT FROM OLD.primary_status THEN
+    IF NEW.primary_status = 'SOLICITADO' AND auth.uid() IS DISTINCT FROM NEW.member_id THEN
+      RAISE EXCEPTION 'Só quem recebeu o compartilhamento pode pedir para usá-lo como conta principal.';
+    END IF;
+    IF NEW.primary_status = 'APROVADO'
+      AND (auth.uid() IS DISTINCT FROM NEW.owner_id OR OLD.primary_status <> 'SOLICITADO') THEN
+      RAISE EXCEPTION 'Só quem compartilhou pode autorizar, e apenas um pedido feito.';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_guard_share_primary ON public.account_shares;
+CREATE TRIGGER trg_guard_share_primary
+  BEFORE UPDATE ON public.account_shares
+  FOR EACH ROW EXECUTE FUNCTION public.guard_share_primary_status();
+
+-- Convidado pede (e desfaz qualquer outra conta principal que tivesse)
+CREATE OR REPLACE FUNCTION public.request_primary_account(p_share_id UUID)
+RETURNS VOID LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.account_shares
+    WHERE id = p_share_id AND member_id = auth.uid() AND status = 'ATIVO'
+  ) THEN
+    RAISE EXCEPTION 'Compartilhamento não encontrado ou encerrado.';
+  END IF;
+
+  UPDATE public.account_shares SET primary_status = 'NENHUM'
+  WHERE member_id = auth.uid() AND id <> p_share_id AND primary_status <> 'NENHUM';
+
+  UPDATE public.account_shares SET primary_status = 'SOLICITADO'
+  WHERE id = p_share_id AND primary_status = 'NENHUM';
+END;
+$$;
+
+-- Convidado cancela o pedido ou deixa de usar como principal
+CREATE OR REPLACE FUNCTION public.clear_primary_account(p_share_id UUID)
+RETURNS VOID LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = public AS $$
+  UPDATE public.account_shares SET primary_status = 'NENHUM'
+  WHERE id = p_share_id AND member_id = auth.uid();
+$$;
+
+GRANT EXECUTE ON FUNCTION public.request_primary_account(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.clear_primary_account(UUID) TO authenticated;

@@ -10,6 +10,8 @@ export interface ViewingAccount {
   ownerName: string;
   role: ShareRole;
   scope: ShareScope;
+  /** Conta compartilhada autorizada como principal: o Balder abre direto nela. */
+  isPrimary?: boolean;
 }
 
 interface AccountScopeContextType {
@@ -26,35 +28,50 @@ const AccountScopeContext = createContext<AccountScopeContextType | undefined>(u
 const STORAGE_KEY = 'balder_viewing_account';
 const POLL_MS = 30000;
 
-const readStored = (userId?: string): ViewingAccount | null => {
+/** Escolha já feita nesta sessão: uma conta compartilhada, a própria conta ('OWN') ou nada (null). */
+const readStored = (userId?: string): ViewingAccount | 'OWN' | null => {
   if (!userId) return null;
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as ViewingAccount & { viewerId?: string };
-    return parsed.viewerId === userId ? parsed : null;
+    const parsed = JSON.parse(raw) as (ViewingAccount & { viewerId?: string }) | { own: true; viewerId?: string };
+    if (parsed.viewerId !== userId) return null;
+    return 'own' in parsed ? 'OWN' : parsed;
   } catch {
     return null;
   }
 };
 
+const toViewing = (share: AccountShare): ViewingAccount => ({
+  shareId: share.id,
+  ownerId: share.ownerId,
+  ownerName: share.ownerName || share.ownerEmail || 'Conta compartilhada',
+  role: share.role,
+  scope: share.scope,
+  isPrimary: share.primaryStatus === 'APROVADO',
+});
+
 export const AccountScopeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const isRealUser = !!user && !user.isGuest;
 
+  const [initialChoice] = useState(() => (isRealUser ? readStored(user?.$id) : null));
   const [viewing, setViewing] = useState<ViewingAccount | null>(() => {
-    const stored = isRealUser ? readStored(user?.$id) : null;
+    const stored = initialChoice === 'OWN' ? null : initialChoice;
     // O dono dos dados precisa estar definido antes do carregamento da conta
     setDataOwner(stored?.ownerId ?? null);
     return stored;
   });
+  // Sem escolha nesta sessão, confere se há conta compartilhada principal antes de carregar os dados
+  const [resolving, setResolving] = useState(isRealUser && initialChoice === null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const apply = useCallback(
     (next: ViewingAccount | null) => {
       setDataOwner(next?.ownerId ?? null);
       try {
-        if (next && user) sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ ...next, viewerId: user.$id }));
+        // Guarda também a volta para a própria conta, para não reabrir a principal ao recarregar
+        if (user) sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next ? { ...next, viewerId: user.$id } : { own: true, viewerId: user.$id }));
         else sessionStorage.removeItem(STORAGE_KEY);
       } catch {
         // armazenamento indisponível
@@ -66,13 +83,7 @@ export const AccountScopeProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const openSharedAccount = useCallback(
     (share: AccountShare) => {
-      apply({
-        shareId: share.id,
-        ownerId: share.ownerId,
-        ownerName: share.ownerName || share.ownerEmail || 'Conta compartilhada',
-        role: share.role,
-        scope: share.scope,
-      });
+      apply(toViewing(share));
       window.scrollTo({ top: 0 });
     },
     [apply]
@@ -85,6 +96,47 @@ export const AccountScopeProvider: React.FC<{ children: React.ReactNode }> = ({ 
     },
     [apply]
   );
+
+  // Abre direto na conta compartilhada autorizada como principal; sem ela, segue na conta individual
+  useEffect(() => {
+    if (!resolving) return;
+    // Se o banco demorar, abre a conta individual e ignora a resposta atrasada (não troca de conta no meio do uso)
+    let cancelled = false;
+    const fallback = window.setTimeout(() => {
+      cancelled = true;
+      setResolving(false);
+    }, 5000);
+    void SharingService.getApprovedPrimary()
+      .then((share) => {
+        if (!cancelled && share) apply(toViewing(share));
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        window.clearTimeout(fallback);
+        if (!cancelled) setResolving(false);
+      });
+    return () => {
+      cancelled = true;
+      window.clearTimeout(fallback);
+    };
+  }, [resolving, apply]);
+
+  // Avisa quem compartilhou que há pedido para usar a conta como principal
+  useEffect(() => {
+    if (!isRealUser || resolving) return;
+    let cancelled = false;
+    void SharingService.listMyShares()
+      .then((shares) => {
+        const asking = shares.filter((s) => s.status === 'ATIVO' && s.primaryStatus === 'SOLICITADO');
+        if (cancelled || asking.length === 0) return;
+        const names = asking.map((s) => s.memberName || s.memberEmail).join(', ');
+        setNotice(`${names} pediu para usar a sua conta como principal. Responda em Planejamento Compartilhado.`);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [isRealUser, resolving]);
 
   // Saiu da conta ou trocou de usuário: volta para a própria conta
   useEffect(() => {
@@ -102,8 +154,9 @@ export const AccountScopeProvider: React.FC<{ children: React.ReactNode }> = ({ 
         backToOwnAccount(`O acesso à conta de ${viewing.ownerName} foi encerrado.`);
         return;
       }
-      if (share.role !== viewing.role || share.scope !== viewing.scope) {
-        apply({ ...viewing, role: share.role, scope: share.scope });
+      const isPrimary = share.primaryStatus === 'APROVADO';
+      if (share.role !== viewing.role || share.scope !== viewing.scope || isPrimary !== !!viewing.isPrimary) {
+        apply({ ...viewing, role: share.role, scope: share.scope, isPrimary });
       }
     };
     void check();
@@ -116,6 +169,10 @@ export const AccountScopeProvider: React.FC<{ children: React.ReactNode }> = ({ 
       window.removeEventListener('focus', onFocus);
     };
   }, [viewing, apply, backToOwnAccount]);
+
+  if (resolving) {
+    return <div className="loading-screen">Carregando Balder...</div>;
+  }
 
   return (
     <AccountScopeContext.Provider

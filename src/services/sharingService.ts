@@ -3,6 +3,8 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 export type ShareRole = 'COLABORADOR' | 'VISUALIZADOR';
 export type ShareScope = 'CONTA' | 'PLANEJAMENTO';
 export type ShareStatus = 'PENDENTE' | 'ATIVO' | 'REVOGADO';
+/** Conta compartilhada como principal do convidado: pedida por ele e autorizada pelo dono. */
+export type SharePrimaryStatus = 'NENHUM' | 'SOLICITADO' | 'APROVADO';
 
 export interface AccountShare {
   id: string;
@@ -17,6 +19,7 @@ export interface AccountShare {
   role: ShareRole;
   scope: ShareScope;
   status: ShareStatus;
+  primaryStatus: SharePrimaryStatus;
   createdAt: string;
   acceptedAt?: string;
   revokedAt?: string;
@@ -54,6 +57,7 @@ const mapShare = (row: Record<string, unknown>): AccountShare => ({
   role: row.role as ShareRole,
   scope: row.scope as ShareScope,
   status: row.status as ShareStatus,
+  primaryStatus: ((row.primary_status as SharePrimaryStatus) || 'NENHUM'),
   createdAt: String(row.created_at),
   acceptedAt: (row.accepted_at as string) || undefined,
   revokedAt: (row.revoked_at as string) || undefined,
@@ -62,8 +66,8 @@ const mapShare = (row: Record<string, unknown>): AccountShare => ({
 /** Mensagem legível dos erros do Supabase (inclusive das exceções das funções SQL). */
 const errorMessage = (error: { message?: string } | null, fallback: string) => {
   const msg = error?.message || '';
-  if (/relation .*account_shares|function .*does not exist|schema cache/i.test(msg)) {
-    return 'O compartilhamento ainda não foi ativado no banco. Rode o script supabase/sharing.sql no Supabase.';
+  if (/relation .*account_shares|function .*does not exist|column .*does not exist|schema cache/i.test(msg)) {
+    return 'O compartilhamento não está ativado ou está desatualizado no banco. Rode o script supabase/sharing.sql no Supabase.';
   }
   return msg || fallback;
 };
@@ -164,6 +168,44 @@ export const SharingService = {
   async leave(id: string): Promise<void> {
     const { error } = await supabase.rpc('leave_account_share', { p_share_id: id });
     if (error) throw new Error(errorMessage(error, 'Não foi possível sair da conta compartilhada.'));
+  },
+
+  /** Convidado pede para abrir o Balder direto nesta conta compartilhada (o dono precisa autorizar). */
+  async requestPrimary(id: string): Promise<void> {
+    const { error } = await supabase.rpc('request_primary_account', { p_share_id: id });
+    if (error) throw new Error(errorMessage(error, 'Não foi possível pedir para usar como conta principal.'));
+  },
+
+  /** Convidado cancela o pedido ou volta a usar a própria conta como principal. */
+  async clearPrimary(id: string): Promise<void> {
+    const { error } = await supabase.rpc('clear_primary_account', { p_share_id: id });
+    if (error) throw new Error(errorMessage(error, 'Não foi possível alterar a conta principal.'));
+  },
+
+  /** Dono autoriza (APROVADO) ou recusa/retira a autorização (NENHUM). */
+  async answerPrimary(id: string, approve: boolean): Promise<void> {
+    const { error } = await supabase
+      .from('account_shares')
+      .update({ primary_status: approve ? 'APROVADO' : 'NENHUM' })
+      .eq('id', id);
+    if (error) throw new Error(errorMessage(error, 'Não foi possível responder ao pedido.'));
+  },
+
+  /** Conta compartilhada autorizada como principal do usuário logado, se houver. */
+  async getApprovedPrimary(): Promise<AccountShare | null> {
+    if (!isSupabaseConfigured) return null;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+    const { data, error } = await supabase
+      .from('account_shares')
+      .select('*')
+      .eq('member_id', user.id)
+      .eq('status', 'ATIVO')
+      .eq('primary_status', 'APROVADO')
+      .maybeSingle();
+    // Sem o script atualizado a coluna não existe: segue na conta individual
+    if (error || !data) return null;
+    return mapShare(data);
   },
 
   /** Situação atual de um acesso (para cortar a visualização assim que for revogado). */
