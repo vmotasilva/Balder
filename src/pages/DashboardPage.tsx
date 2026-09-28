@@ -313,7 +313,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             onClick={() => setActiveSection('PROJECAO_MES')}
           >
             <Calendar size={18} />
-            <span>Projeção do Mês</span>
+            <span className="tab-label-full">Projeção do Mês</span>
+            <span className="tab-label-short">Mês</span>
           </button>
 
           <button
@@ -324,7 +325,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             onClick={() => setActiveSection('PROJECAO_TOTAL')}
           >
             <TrendingUp size={18} />
-            <span>Projeção Total</span>
+            <span className="tab-label-full">Projeção Total</span>
+            <span className="tab-label-short">Total</span>
           </button>
 
           <button
@@ -366,7 +368,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                 <ForecastPeriodPills value={forecastPeriod} onChange={setForecastPeriod} />
               </div>
               <button className="link-button" onClick={onNavigateToMovements}>
-                Ver todas as movimentações e filtros →
+                Ver movimentações →
               </button>
             </div>
 
