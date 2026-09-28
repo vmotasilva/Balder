@@ -425,6 +425,10 @@ const SHARED_READ_ONLY_SAFE = new Set([
   'setActiveTrackingScope',
   'setProjectionHorizonMonths',
   'setViewPreferences',
+  // Forseti: conversa liberada; ela mesma confere o papel antes de gravar (forsetiBlockedInShared)
+  'sendMessageToCopilot',
+  'respondToCopilotOption',
+  'reconcileReceiptData',
 ]);
 // Registro de pagamentos: liberado ao colaborador
 const SHARED_PAYMENT_ACTIONS = new Set([
@@ -1496,7 +1500,11 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     {
       id: 'msg_welcome',
       role: 'assistant',
-      content: 'Olá! Sou o Forseti do BALDER. Na mitologia nórdica, Forseti é o patrono da conciliação e da justiça — e aqui, atuo como seu assistente operacional e auditor financeiro inteligente em tempo real.\n\nVocê pode registrar entradas e saídas em linguagem natural, **anexar imagens de comprovantes e notas para leitura OCR automática**, auditar números ou simular decisões.',
+      content: (viewing
+        ? `📍 **Estou atuando no planejamento de ${viewing.ownerName}**, onde você entrou como **${
+            viewing.role === 'COLABORADOR' ? 'colaborador(a)' : 'visualizador(a)'
+          }**. Tudo o que eu consultar ou registrar aqui é desse planejamento, não do seu.\n\n`
+        : '') + 'Olá! Sou o Forseti do BALDER. Na mitologia nórdica, Forseti é o patrono da conciliação e da justiça — e aqui, atuo como seu assistente operacional e auditor financeiro inteligente em tempo real.\n\nVocê pode registrar entradas e saídas em linguagem natural, **anexar imagens de comprovantes e notas para leitura OCR automática**, auditar números ou simular decisões.',
       timestamp: 'Agora',
       suggestedFollowUps: [
         '📸 Anexar comprovante / cupom fiscal',
@@ -2174,7 +2182,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             setProjectionHorizonState(s.projectionHorizonMonths);
             keep('balder_projection_horizon', String(s.projectionHorizonMonths));
           }
-          if (s.viewPreferences) {
+          // Preferências de exibição (ex.: semana/mês) são só a lente de quem olha: o convidado mantém a dele
+          if (s.viewPreferences && !viewing) {
             setViewPreferencesState(s.viewPreferences);
             keep('balder_view_prefs', s.viewPreferences);
           }
@@ -2917,6 +2926,35 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Motor Conversacional Inteligente do Forseti (IA) com Retenção Efêmera / Temporária
   // Motor Conversacional Inteligente do Forseti (IA) com Retenção Efêmera / Temporária & Multi-Fotos
+  /**
+   * Forseti numa conta compartilhada: diz em qual planejamento está e não grava o que o papel não permite
+   * (visualizador só consulta; colaborador só registra pagamentos do que já está previsto).
+   * Devolve true quando bloqueou, já explicando na conversa.
+   */
+  const forsetiBlockedInShared = (what: string, userLine?: string): boolean => {
+    if (!viewing) return false;
+    const roleText =
+      viewing.role === 'COLABORADOR'
+        ? 'como colaborador(a), você só registra pagamentos do que já está previsto (use "Já paguei" nas tarefas)'
+        : 'como visualizador(a), você só consulta';
+    const reply: CopilotMessage = {
+      id: `ast_shared_${Date.now()}`,
+      role: 'assistant',
+      content: `📍 Estou atuando no planejamento de **${viewing.ownerName}**, e ${roleText}. Por isso não ${what} aqui.\n\nPeça a ${viewing.ownerName} para lançar, ou troque para o seu planejamento no seletor do topo e fale comigo por lá.`,
+      timestamp: 'Agora',
+      actionBadge: 'PLANEJAMENTO COMPARTILHADO',
+    };
+    const userMsg: CopilotMessage[] = userLine
+      ? [{ id: `usr_${Date.now()}`, role: 'user', content: userLine, timestamp: 'Agora' }]
+      : [];
+    setChatHistory((prev) => [
+      ...prev.map((m) => (m.pendingConfirmation ? { ...m, pendingConfirmation: undefined } : m)),
+      ...userMsg,
+      reply,
+    ]);
+    return true;
+  };
+
   const sendMessageToCopilot = (
     query: string,
     attachment?:
@@ -2951,6 +2989,12 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       attachments: attachmentsList,
       isEphemeralPurged: false,
     };
+
+    // Comprovantes viram lançamentos e vínculos em faturas: não na conta de outra pessoa
+    if (attachmentsList.length > 0 && forsetiBlockedInShared('leio comprovantes para lançar', userMessage.content)) {
+      attachmentsList.forEach((att) => (att.revoke ? att.revoke() : att.url.startsWith('blob:') && URL.revokeObjectURL(att.url)));
+      return;
+    }
 
     // 0. Processamento de Imagens Anexadas (Visão Computacional / OCR com Forseti em Espaço Temporário)
     if (attachmentsList.length > 0) {
@@ -3482,6 +3526,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return;
     }
 
+    // Confirmar cria lançamento ou altera fatura: não na conta de outra pessoa
+    if (forsetiBlockedInShared('crio lançamentos nem altero faturas', `Paguei via ${option.label}`)) return;
+
     // Caso o usuário opte por abater diretamente de uma fatura de cartão aberta
     if (option.payload.action === 'LINK_TO_INVOICE') {
       const cardInvoices = movements.filter((m) => m.type === 'CARTAO');
@@ -3585,6 +3632,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Conciliar Cupom / Nota Fiscal com Mapeamento de Gastos Fixos e Aprendizado Contínuo
   const reconcileReceiptData = (messageId: string, data: ReceiptReconciliationData) => {
+    if (forsetiBlockedInShared('lanço cupons nem altero os mapeamentos')) return;
     // 1. Registrar a movimentação determinística no fluxo de caixa
     const isCredit = data.paymentMethod === 'CARTAO';
     const finalBank = data.paymentMethod === 'DINHEIRO' ? 'Dinheiro' : (data.paymentMethod === 'CARTAO' ? 'Nubank' : 'Inter');

@@ -2091,6 +2091,11 @@
   text-overflow: ellipsis;
 }
 
+.copilot-topbar-sub.copilot-planning-shared {
+  color: var(--accent-amber);
+  font-weight: 700;
+}
+
 .copilot-info-icon-btn {
   display: inline-flex;
   align-items: center;
@@ -20869,5 +20874,123 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 
   .forecast-title-row .forecast-period-pills {
     max-width: 100%;
+  }
+}
+
+/* Seletor de planejamento (barra superior) */
+.planning-switch {
+  position: relative;
+}
+
+.planning-switch-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  max-width: 220px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.planning-switch-btn:hover {
+  border-color: var(--accent-cyan);
+}
+
+.planning-switch-btn.is-shared {
+  border-color: color-mix(in srgb, var(--accent-amber) 60%, transparent);
+  background: color-mix(in srgb, var(--accent-amber) 12%, transparent);
+}
+
+.planning-switch-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.planning-switch-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  width: 280px;
+  max-width: calc(100vw - 32px);
+  padding: 6px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: var(--bg-card-elevated, var(--bg-card));
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+}
+
+.planning-switch-caption {
+  display: block;
+  padding: 6px 8px 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.planning-switch-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-secondary);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.planning-switch-item:hover,
+.planning-switch-item:focus-visible {
+  background: var(--accent-cyan-glow);
+}
+
+.planning-switch-item-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.planning-switch-item-text strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.planning-switch-item-text small {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.planning-switch-star {
+  color: var(--accent-amber);
+}
+
+.planning-switch-divider {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border-default);
+}
+
+@media (max-width: 768px) {
+  .planning-switch-btn {
+    height: 32px;
+    max-width: 130px;
+    padding: 0 9px;
   }
 }

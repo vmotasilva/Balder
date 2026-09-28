@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useFinancial } from '../context/FinancialContext';
+import { useAccountScope } from '../context/AccountScopeContext';
 import { ReceiptReconciliationCard } from '../components/ReceiptReconciliationCard';
 import { Send, Sparkles, User, Image as ImageIcon, X, Paperclip, UploadCloud, Info, Plus, ArrowLeft, ArrowRight, ShieldCheck } from 'lucide-react';
 import type { TabId } from '../components/Sidebar';
@@ -32,6 +33,7 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
   onOpenOnboarding,
 }) => {
   const { chatHistory, sendMessageToCopilot, respondToCopilotOption, reconcileReceiptData, natures, activeCheckpoint, movements } = useFinancial();
+  const { viewing } = useAccountScope();
   const [inputQuery, setInputQuery] = useState('');
   const [attachedImages, setAttachedImages] = useState<CopilotAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -234,7 +236,11 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
                   </span>
                 )}
               </div>
-              <span className="copilot-topbar-sub">Patrono da conciliação e auditoria financeira</span>
+              <span className={`copilot-topbar-sub ${viewing ? 'copilot-planning-shared' : ''}`}>
+                📍 {viewing
+                  ? `Atuando no planejamento de ${viewing.ownerName} · ${viewing.role === 'COLABORADOR' ? 'colaborador(a)' : 'visualizador(a)'}`
+                  : 'Atuando no seu planejamento'}
+              </span>
             </div>
           </div>
 

@@ -4,6 +4,7 @@ import { FinancialProvider, useFinancial } from './context/FinancialContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AccountScopeProvider, useAccountScope } from './context/AccountScopeContext';
 import { SharedAccountBanner } from './components/SharedAccountBanner';
+import { PENDING_TAB_KEY } from './components/PlanningSwitcher';
 import { InviteAcceptDialog, captureInviteFromUrl } from './components/InviteAcceptDialog';
 import { Sidebar } from './components/Sidebar';
 import type { TabId } from './components/Sidebar';
@@ -62,7 +63,16 @@ function ScopedFinancialApp() {
 export function AppContent() {
   // Sem tela escolhida (null), abre a tela inicial da preferência: Início ou Painel.
   // Quem já usava o Balder antes do Início continua abrindo no Painel até escolher outra.
-  const [chosenTab, setActiveTab] = useState<TabId | null>(null);
+  const [chosenTab, setActiveTab] = useState<TabId | null>(() => {
+    // Aba pedida antes de uma troca de planejamento (ex.: "Planejar com outras pessoas")
+    try {
+      const pending = sessionStorage.getItem(PENDING_TAB_KEY) as TabId | null;
+      if (pending) sessionStorage.removeItem(PENDING_TAB_KEY);
+      return pending;
+    } catch {
+      return null;
+    }
+  });
   const { viewPreferences, activeCheckpoint } = useFinancial();
   const homeTab: TabId =
     viewPreferences.homeScreen === 'PAINEL'
@@ -152,6 +162,10 @@ export function AppContent() {
           onNavigateToInvoices={() => setActiveTab('FATURAS')}
           onNavigateToGoals={() => setActiveTab('METAS')}
           onNavigateToCopilot={() => setIsCopilotOpen(true)}
+          onPlanWithOthers={() => {
+            setActiveTab('COMPARTILHADO');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
           onNavigateToDashboard={() => {
             setActiveTab('INICIO');
             window.scrollTo({ top: 0, behavior: 'smooth' });

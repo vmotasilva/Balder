@@ -3,6 +3,7 @@ import { useFinancial } from '../context/FinancialContext';
 import { useTheme } from '../context/ThemeContext';
 import { Plus, Sparkles, Sun, Moon, LayoutGrid, Bell } from 'lucide-react';
 import { BalderHubModal } from './BalderHubModal';
+import { PlanningSwitcher } from './PlanningSwitcher';
 import { auditOnboardingProgress } from '../utils/onboardingProgress';
 
 interface NavbarProps {
@@ -15,6 +16,7 @@ interface NavbarProps {
   onNavigateToGoals?: () => void;
   onNavigateToCopilot?: () => void;
   onNavigateToDashboard?: () => void;
+  onPlanWithOthers?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -27,6 +29,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onNavigateToInvoices,
   onNavigateToGoals,
   onNavigateToCopilot,
+  onPlanWithOthers,
 }) => {
   const {
     availableBalance,
@@ -92,6 +95,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="navbar-menu-btn-text">Módulos</span>
             </button>
           )}
+
+          <PlanningSwitcher onPlanWithOthers={onPlanWithOthers} />
 
         {nextCriticalEvent && (
           <div className="critical-notice-banner">
