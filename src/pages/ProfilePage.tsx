@@ -3236,7 +3236,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                 <div className="pref-row">
                   <div>
                     <strong>Tela inicial</strong>
-                    <p>O que abre quando você entra no Balder. O logo no topo também leva para ela.</p>
+                    <p>O que abre quando você entra no Balder. O símbolo do Balder no topo sempre leva ao Início.</p>
                   </div>
                   <div className="flex items-center gap-2">
                     {(

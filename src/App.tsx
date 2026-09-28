@@ -153,7 +153,7 @@ export function AppContent() {
           onNavigateToGoals={() => setActiveTab('METAS')}
           onNavigateToCopilot={() => setIsCopilotOpen(true)}
           onNavigateToDashboard={() => {
-            setActiveTab(homeTab);
+            setActiveTab('INICIO');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
         />
