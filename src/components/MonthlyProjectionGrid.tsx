@@ -774,8 +774,10 @@ export const MonthlyProjectionGrid: React.FC = () => {
                 </div>
               </div>
 
-              {/* Linha 2: Entrada · Saída (Real | Previsto): o card inteiro abre as naturezas do mês */}
-              <div className="proj-card-row">
+              {/* Entrada · Saída (Real | Previsto), só com o mês aberto: o card inteiro abre as naturezas do mês.
+                  Recolhido, o mês fica em 2 linhas: competência/situação/saldo inicial e saldo/acumulado */}
+              {isExpanded && (
+              <div className="proj-card-row animate-fade-in">
                 <button
                   type="button"
                   className="proj-card-cell is-clickable proj-card-open"
@@ -803,8 +805,9 @@ export const MonthlyProjectionGrid: React.FC = () => {
                   <ChevronRight size={14} className="proj-card-open-icon" aria-hidden="true" />
                 </button>
               </div>
+              )}
 
-              {/* Linha 3: Saldo do mês (Entrada − Saída) · Saldo acumulado */}
+              {/* Saldo do mês (Entrada − Saída) · Saldo acumulado */}
               <div className="proj-card-row">
                 <div
                   className={`proj-card-cell ${isExpanded ? 'is-clickable' : ''}`}

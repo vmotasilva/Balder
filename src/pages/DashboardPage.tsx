@@ -198,8 +198,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       </div>
 
       {/* ============================================================== */}
-      {/* SEÇÃO 1: COMO ESTOU                                            */}
+      {/* SEÇÃO 1: COMO ESTOU (fora da Projeção, que já traz os totais)   */}
       {/* ============================================================== */}
+      {activeSection !== 'PROJECAO_TOTAL' && (
       <section className="dashboard-section">
 
 
@@ -299,6 +300,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
         </div>
       </section>
+      )}
 
       {/* ============================================================== */}
       {/* SELETOR PRINCIPAL DE SEÇÕES (TABS INTERATIVAS)                 */}
