@@ -19,6 +19,7 @@ import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { useAccountScope } from '../context/AccountScopeContext';
 import { GuidedSetup } from '../components/GuidedSetup';
+import { PlanningSwitcher } from '../components/PlanningSwitcher';
 import type { TabId } from '../components/Sidebar';
 import { buildPeriodInsights, TRACKING_PERIOD_LABELS } from '../utils/periodSpending';
 import type { TrackingPeriod } from '../utils/periodSpending';
@@ -30,6 +31,7 @@ interface HomeHubPageProps {
   onNavigate: (tab: TabId) => void;
   onOpenForseti: () => void;
   onOpenOnboarding: (step?: number) => void;
+  onPlanWithOthers: () => void;
 }
 
 const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -78,7 +80,7 @@ const groupEntries = (entries: ForecastEntry[], keyOf: (e: ForecastEntry) => str
  * "o que faço agora?" (tarefas do período), "como vão os gastos?" (resumo do período preferido)
  * e "para onde vou?" (módulos com status). Para quem ainda não configurou, mostra a conversa guiada.
  */
-export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenForseti }) => {
+export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenForseti, onPlanWithOthers }) => {
   const { user } = useAuth();
   const {
     isDataReady,
@@ -368,12 +370,15 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
 
   return (
     <div className="home-hub">
-      <header className="home-hub-header">
-        <h1>
-          {greeting()}
-          {firstName ? `, ${firstName}` : ''}
-        </h1>
-        <p>{today.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+      <header className="home-hub-header has-switch">
+        <div>
+          <h1>
+            {greeting()}
+            {firstName ? `, ${firstName}` : ''}
+          </h1>
+          <p>{today.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+        </div>
+        <PlanningSwitcher onPlanWithOthers={onPlanWithOthers} />
       </header>
 
       {/* O que aconteceu? */}

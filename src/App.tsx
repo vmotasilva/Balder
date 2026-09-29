@@ -160,7 +160,6 @@ export function AppContent() {
         <Navbar
           onOpenNewMovementModal={() => handleOpenNewMovement('PAGAR')}
           onOpenSimulationModal={() => handleOpenSimulation('CARRO')}
-          onOpenNavMenu={() => setIsNavMenuOpen(true)}
           onOpenOnboarding={handleOpenOnboarding}
           onNavigateToMovements={() => setActiveTab('MOVIMENTACOES')}
           onNavigateToInvoices={() => setActiveTab('FATURAS')}
@@ -183,6 +182,10 @@ export function AppContent() {
               onNavigate={handleSelectTab}
               onOpenForseti={() => setIsCopilotOpen(true)}
               onOpenOnboarding={handleOpenOnboarding}
+              onPlanWithOthers={() => {
+                setActiveTab('COMPARTILHADO');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
             />
           )}
 

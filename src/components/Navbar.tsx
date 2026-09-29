@@ -1,15 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { useTheme } from '../context/ThemeContext';
-import { Plus, Sparkles, Sun, Moon, LayoutGrid, Bell } from 'lucide-react';
+import { Plus, Sparkles, Sun, Moon, Bell } from 'lucide-react';
 import { BalderHubModal } from './BalderHubModal';
 import { PlanningSwitcher } from './PlanningSwitcher';
 import { auditOnboardingProgress } from '../utils/onboardingProgress';
+import { useAccountScope } from '../context/AccountScopeContext';
 
 interface NavbarProps {
   onOpenNewMovementModal: () => void;
   onOpenSimulationModal: () => void;
-  onOpenNavMenu?: () => void;
   onOpenOnboarding?: (stepIndex?: number) => void;
   onNavigateToMovements?: () => void;
   onNavigateToInvoices?: () => void;
@@ -22,7 +22,6 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   onOpenNewMovementModal,
   onOpenSimulationModal,
-  onOpenNavMenu,
   onNavigateToDashboard,
   onOpenOnboarding,
   onNavigateToMovements,
@@ -31,6 +30,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onNavigateToCopilot,
   onPlanWithOthers,
 }) => {
+  const { viewing } = useAccountScope();
+  const planningOnly = viewing?.scope === 'PLANEJAMENTO';
   const {
     availableBalance,
     accountBalance,
@@ -83,20 +84,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="navbar-brand-title">BALDER</span>
           </button>
 
-          {onOpenNavMenu && (
-            <button
-              type="button"
-              className="navbar-menu-btn"
-              onClick={onOpenNavMenu}
-              title="Menu de Navegação (Módulos & Telas)"
-              aria-label="Abrir Menu de Navegação"
-            >
-              <LayoutGrid size={16} className="text-cyan" />
-              <span className="navbar-menu-btn-text">Módulos</span>
-            </button>
-          )}
-
-          <PlanningSwitcher onPlanWithOthers={onPlanWithOthers} />
+          {/* O seletor de planejamento fica no Início; aqui só quando a conta aberta mostra apenas o
+              planejamento compartilhado (não há Início para voltar ao próprio planejamento) */}
+          {planningOnly && <PlanningSwitcher onPlanWithOthers={onPlanWithOthers} />}
 
         {nextCriticalEvent && (
           <div className="critical-notice-banner">
