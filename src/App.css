@@ -22229,3 +22229,34 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     line-height: 16px;
   }
 }
+
+/* Competência recolhida (celular): card fino, rótulo e valor na mesma linha */
+.projection-mobile-card.is-collapsed {
+  padding: 8px 12px;
+  gap: 6px;
+}
+
+.projection-mobile-card.is-collapsed .proj-card-cell {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 8px;
+}
+
+.projection-mobile-card.is-collapsed .proj-card-label-main {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.projection-mobile-card.is-collapsed .proj-card-month {
+  font-size: 14px;
+}
+
+.projection-mobile-card.is-collapsed .proj-card-cell .font-mono {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

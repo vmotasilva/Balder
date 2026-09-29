@@ -759,7 +759,8 @@ export const MonthlyProjectionGrid: React.FC = () => {
               </div>
 
               {/* Entrada · Saída (Real | Previsto), só com o mês aberto: o card inteiro abre as naturezas do mês.
-                  Recolhido, o mês fica em 2 linhas: competência/situação/saldo inicial e saldo/acumulado */}
+                  Recolhido, o mês fica em 2 linhas finas: competência/situação/saldo inicial e saldo/acumulado
+                  (rótulo e valor na mesma linha, sem legendas) */}
               {isExpanded && (
               <div className="proj-card-row animate-fade-in">
                 <button
@@ -801,7 +802,7 @@ export const MonthlyProjectionGrid: React.FC = () => {
                     handleOpenCell(row, 'monthNet', 'Resultado Líquido do Mês (Entradas - Saídas)', row.monthNet);
                   }}
                 >
-                  <CardLabel title="Saldo" hint="Entrada − Saída" />
+                  <CardLabel title="Saldo" hint={isExpanded ? 'Entrada − Saída' : undefined} />
                   <div className="flex items-center gap-2">
                     <GlanceableCurrency
                       value={row.monthNet}
@@ -826,7 +827,7 @@ export const MonthlyProjectionGrid: React.FC = () => {
                     handleOpenCell(row, 'accumulated', 'Saldo Acumulado Projetado', row.accumulatedBalance);
                   }}
                 >
-                  <CardLabel title="Saldo acumulado" />
+                  <CardLabel title={isExpanded ? 'Saldo acumulado' : 'Acumulado'} />
                   <GlanceableCurrency
                     value={row.accumulatedBalance}
                     className={`font-bold text-xs ${row.accumulatedBalance < 0 ? 'text-rose' : 'val-surplus-gold'}`}
