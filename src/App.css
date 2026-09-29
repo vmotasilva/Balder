@@ -18967,25 +18967,6 @@ html:not([data-theme="light"]) .dark\:hover\:bg-slate-800:hover { background-col
   background: rgba(255, 255, 255, 0.96);
 }
 
-/* Atalho da Forseti na barra superior */
-.navbar-forseti-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-color: color-mix(in srgb, var(--accent-purple) 40%, var(--border-default));
-}
-
-.navbar-forseti-btn:hover {
-  border-color: var(--accent-purple);
-}
-
-.navbar-forseti-avatar {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
 /* Simulador: taxa ⇄ parcela */
 .loan-calc-tag {
   margin-left: 6px;
@@ -19802,36 +19783,10 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   color: var(--text-muted);
 }
 
-/* Barra superior no celular: sem a divisão do saldo (fica no Dashboard) e Forseti só com o ícone */
+/* Barra superior no celular: sem a divisão do saldo (fica no Dashboard) */
 @media (max-width: 768px) {
   .navbar-stat-item .stat-split {
     display: none;
-  }
-
-  .navbar-forseti-btn span {
-    display: none;
-  }
-
-  /* No celular o botão é o próprio símbolo circular da Forseti, preenchendo o círculo */
-  .navbar-forseti-btn {
-    width: 38px;
-    height: 38px;
-    padding: 0 !important;
-    border-radius: 50% !important;
-    border: 2px solid #c9a45c !important;
-    overflow: hidden;
-    background: transparent !important;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-
-  .navbar-forseti-btn:hover {
-    border-color: var(--accent-purple) !important;
-  }
-
-  .navbar-forseti-btn .navbar-forseti-avatar {
-    width: 100%;
-    height: 100%;
   }
 }
 
@@ -22302,29 +22257,4 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   font-size: 10px;
   font-weight: 500;
   color: var(--text-muted);
-}
-
-/* Atalho do Perfil na barra superior: iniciais no mesmo estilo do avatar da barra lateral */
-.navbar-profile-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  border: 0;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
-}
-
-.navbar-profile-btn:hover,
-.navbar-profile-btn:focus-visible {
-  transform: scale(1.06);
-  box-shadow: 0 0 0 3px var(--accent-cyan-glow);
-  outline: none;
 }

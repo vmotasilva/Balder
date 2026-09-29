@@ -165,10 +165,6 @@ export function AppContent() {
           onNavigateToInvoices={() => setActiveTab('FATURAS')}
           onNavigateToGoals={() => setActiveTab('METAS')}
           onNavigateToCopilot={() => setIsCopilotOpen(true)}
-          onNavigateToProfile={() => {
-            handleSelectTab('PERFIL');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
           onPlanWithOthers={() => {
             setActiveTab('COMPARTILHADO');
             window.scrollTo({ top: 0, behavior: 'smooth' });
