@@ -383,14 +383,6 @@ export const MappingModal: React.FC<MappingModalProps> = ({
             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Atalhos:</span>
             <button
               type="button"
-              className={`btn btn-xs ${applicableMonths.length === 12 ? 'btn-primary' : 'btn-outline'}`}
-              style={{ fontSize: '0.7rem', padding: '2px 8px' }}
-              onClick={() => setPresetMonths('ALL')}
-            >
-              Ano Todo (12m)
-            </button>
-            <button
-              type="button"
               className="btn btn-outline btn-xs"
               style={{ fontSize: '0.7rem', padding: '2px 8px' }}
               onClick={() => setPresetMonths('SEM1')}
