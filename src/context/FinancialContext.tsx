@@ -83,7 +83,32 @@ import {
 import { deduplicateCards, getCardIdentityKey } from '../utils/cardUtils';
 import { isExcludedState, mappingItemBaseValue, resolveMappingItemState } from '../utils/mappingItemState';
 import { buildForecastWindow, FORECAST_PERIODS, type ForecastPeriod, type ForecastWindow } from '../utils/forecastWindow';
-import { movementCompetenceDate } from '../utils/projectionMath';
+import { buildMonthlyProjectionGrid, movementCompetenceDate } from '../utils/projectionMath';
+import {
+  CHIP_PAGAR,
+  CHIP_RECEBER,
+  CHIP_DUVIDA,
+  EXPENSE_CATEGORY_CHIPS,
+  FALLBACK_REPLY,
+  MAIN_CHIPS,
+  RECEIVE_DATE_CHIPS,
+  answerDoubt,
+  brl,
+  categoryFromChip,
+  detectAmbiguity,
+  detectDoubt,
+  inferExpenseCategory,
+  isPastReceive,
+  registrationKind,
+  titleFrom,
+  parseAmount,
+  parseDate,
+  paymentOptions,
+  receiveAccountOptions,
+  type ForsetiData,
+  type ForsetiFlow,
+  type ForsetiReply,
+} from '../utils/forsetiAssistant';
 
 interface FinancialContextType {
   // Estado
@@ -1601,17 +1626,13 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ? `📍 **Estou atuando no planejamento de ${viewing.ownerName}**, onde você entrou como **${
             viewing.role === 'COLABORADOR' ? 'colaborador(a)' : 'visualizador(a)'
           }**. Tudo o que eu consultar ou registrar aqui é desse planejamento, não do seu.\n\n`
-        : '') + 'Olá! Sou o Forseti do BALDER. Na mitologia nórdica, Forseti é o patrono da conciliação e da justiça — e aqui, atuo como seu assistente operacional e auditor financeiro inteligente em tempo real.\n\nVocê pode registrar entradas e saídas em linguagem natural, **anexar imagens de comprovantes e notas para leitura OCR automática**, auditar números ou simular decisões.',
+        : '') + 'Olá! Eu sou a Forseti, sua auxiliar de IA no Balder. ⚖️\n\nMe conte o que entrou ou saiu do seu jeito (ex.: *"paguei 50 na farmácia"*), mande a **foto de um comprovante ou cupom** para eu ler, ou tire uma dúvida — respondo com os números do seu planejamento.',
       timestamp: 'Agora',
-      suggestedFollowUps: [
-        '📸 Anexar comprovante / cupom fiscal',
-        'Receberei R$ 8.500 dia 5.',
-        'Paguei R$ 320 no mercado.',
-        'Por que meu saldo projetado caiu?',
-        'Posso comprar um carro?',
-      ],
+      suggestedFollowUps: MAIN_CHIPS,
     },
   ]);
+  // Registro guiado em andamento (valor → data/categoria → conta)
+  const forsetiFlowRef = useRef<ForsetiFlow | null>(null);
 
   // Sincronização inicial com Supabase
   useEffect(() => {
@@ -3404,178 +3425,212 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       let suggestedFollowUps: string[] = [];
       const lower = trimmed.toLowerCase();
 
-      // 1. Cadastros em Linguagem Natural
-      if (lower.includes('receberei') || lower.includes('vou receber') || lower.includes('ganhei') || lower.includes('recebi')) {
-        const matchAmount = trimmed.match(/(?:R\$\s*)?([\d.,]+)/i);
-        const amountFound = matchAmount ? parseFloat(matchAmount[1].replace('.', '').replace(',', '.')) : 5000;
-        const validAmount = isNaN(amountFound) ? 5000 : amountFound;
-
-        const pendingConfirmation: CopilotPendingConfirmation = {
-          step: 'ACCOUNT',
-          pendingData: {
-            rawTitle: trimmed.replace(/(?:R\$\s*)?[\d.,]+/i, '').trim() || 'Recebimento Programado',
-            amount: validAmount,
-            dueDate: '2026-10-05',
-            type: 'RECEBER',
-            category: 'Receita Operacional',
+      const reply = (r: ForsetiReply, extra?: Partial<CopilotMessage>) => {
+        setChatHistory((prev) => [
+          ...prev,
+          {
+            id: `ast_${Date.now()}`,
+            role: 'assistant',
+            content: r.text,
+            timestamp: 'Agora',
+            actionBadge: r.badge,
+            suggestedFollowUps: r.chips,
+            ...extra,
           },
-          question: 'Em qual conta bancária você deseja receber esse valor?',
-          options: [
-            {
-              id: 'opt_rec_inter',
-              label: 'Banco Inter',
-              icon: '🟠',
-              badge: 'Conta Corrente',
-              description: 'Destinar para o fluxo operacional do Inter',
-              payload: { bank: 'Inter', type: 'RECEBER' },
-            },
-            {
-              id: 'opt_rec_nubank',
-              label: 'Nubank',
-              icon: '🟣',
-              badge: 'Conta Corrente',
-              description: 'Destinar para saldo disponível Nubank',
-              payload: { bank: 'Nubank', type: 'RECEBER' },
-            },
-            {
-              id: 'opt_rec_xp',
-              label: 'XP Investimentos',
-              icon: '⚪',
-              badge: 'Investimentos',
-              description: 'Aporte direto para carteira de ativos',
-              payload: { bank: 'XP', type: 'RECEBER' },
-            },
-            {
-              id: 'opt_rec_reserva',
-              label: 'Tesouro Selic',
-              icon: '🟢',
-              badge: 'Reserva de Emergência',
-              description: 'Fortalecer o runway de liquidez',
-              payload: { bank: 'Tesouro Selic', type: 'RECEBER' },
-            },
-          ],
-        };
+        ]);
+      };
 
-        responseText = `Identifiquei uma receita de **${validAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}**.\n\nPara agendar no seu fluxo de caixa na conta correta, **onde esse valor será depositado?**`;
-        actionBadge = 'SELEÇÃO DE CONTA';
-        
-        const assistantMessage: CopilotMessage = {
-          id: `ast_${Date.now()}`,
-          role: 'assistant',
-          content: responseText,
-          timestamp: 'Agora',
-          actionBadge,
-          suggestedFollowUps: [],
-          pendingConfirmation,
-        };
+      const todayIso = parseDate('hoje') as string;
+      const dateLabel = (iso: string) =>
+        iso === todayIso ? 'hoje' : iso === parseDate('amanhã') ? 'amanhã' : `em ${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
-        setChatHistory((prev) => [...prev, assistantMessage]);
+      // ── Registro guiado: cada passo pergunta só o que falta ──
+      const askReceiveAccount = (title: string, amount: number, date: string, status: 'PREVISTA' | 'REALIZADA') => {
+        forsetiFlowRef.current = null;
+        const done = status === 'REALIZADA';
+        reply(
+          {
+            text: `Certo: **${brl(amount)}**${title ? ` (${title})` : ''} ${done ? 'recebido' : 'entrando'} **${dateLabel(date)}**.\n\n**Em qual conta esse dinheiro ${done ? 'entrou' : 'vai entrar'}?**`,
+            badge: 'SELEÇÃO DE CONTA',
+            chips: [],
+          },
+          {
+            pendingConfirmation: {
+              step: 'ACCOUNT',
+              pendingData: { rawTitle: title || 'Recebimento', amount, dueDate: date, type: 'RECEBER', category: 'Receita Operacional', status },
+              question: 'Em qual conta?',
+              options: receiveAccountOptions(accounts),
+            },
+          }
+        );
+      };
+      const askPaymentMethod = (title: string, amount: number, category: string) => {
+        forsetiFlowRef.current = null;
+        reply(
+          { text: `Anotado: **${brl(amount)}** em **${title}**.\n\n**Como você pagou?**`, badge: 'FORMA DE PAGAMENTO', chips: [] },
+          {
+            pendingConfirmation: {
+              step: 'PAYMENT_METHOD',
+              pendingData: { rawTitle: title, amount, dueDate: todayIso, type: 'PAGAR', category },
+              question: 'Como você pagou?',
+              options: paymentOptions(accounts, cards, category),
+            },
+          }
+        );
+      };
+      const continueReceive = (title: string, amount: number, date: string | null, status: 'PREVISTA' | 'REALIZADA') => {
+        if (date) return askReceiveAccount(title, amount, date, status);
+        forsetiFlowRef.current = { kind: 'RECEBER', step: 'DATA', title, amount, status };
+        reply({
+          text: `**${brl(amount)}**${title ? ` (${title})` : ''}. **E quando esse valor entra?**\n\nEscolha uma opção ou escreva a data (ex.: *dia 12* ou *15/10*).`,
+          badge: 'DATA DO RECEBIMENTO',
+          chips: RECEIVE_DATE_CHIPS,
+        });
+      };
+      const continuePay = (title: string, amount: number, cat: { title: string; category: string } | null) => {
+        if (cat) return askPaymentMethod(title || cat.title, amount, cat.category);
+        if (title) return askPaymentMethod(title, amount, 'Outros');
+        forsetiFlowRef.current = { kind: 'PAGAR', step: 'CATEGORIA', amount };
+        reply({ text: `**${brl(amount)}**. **Com o que foi esse gasto?**`, badge: 'CATEGORIA DO GASTO', chips: EXPENSE_CATEGORY_CHIPS });
+      };
+      const startRegistration = (kind: 'RECEBER' | 'PAGAR', text: string) => {
+        const amount = parseAmount(text);
+        const title = titleFrom(text);
+        if (kind === 'RECEBER') {
+          const past = isPastReceive(text);
+          const status = past ? 'REALIZADA' : 'PREVISTA';
+          const date = parseDate(text) || (past ? todayIso : null);
+          if (amount === null) {
+            forsetiFlowRef.current = { kind, step: 'VALOR', title, date: date || undefined, status };
+            reply({
+              text: `${past ? 'Que bom! ' : 'Vamos registrar. '}**Qual é o valor ${past ? 'que você recebeu' : 'que você vai receber'}?**\n\nPode escrever só o número (ex.: *1.500*) ou com a origem (ex.: *1.500 do freela*).`,
+              badge: 'VALOR DO RECEBIMENTO',
+              chips: [],
+            });
+            return;
+          }
+          continueReceive(title, amount, date, status);
+          return;
+        }
+        const cat = inferExpenseCategory(text);
+        if (amount === null) {
+          forsetiFlowRef.current = { kind, step: 'VALOR', title, category: cat || undefined };
+          reply({
+            text: `Vamos registrar. **Qual foi o valor pago?**\n\nPode escrever só o número (ex.: *85,90*) ou com o que foi (ex.: *85,90 na farmácia*).`,
+            badge: 'VALOR DO PAGAMENTO',
+            chips: [],
+          });
+          return;
+        }
+        continuePay(title, amount, cat);
+      };
+
+      // Resposta a uma pergunta do registro em andamento (sair dele é só mudar de assunto)
+      const flow = forsetiFlowRef.current;
+      if (/^(cancela|cancelar|esquece|deixa|nao quero|não quero)/i.test(trimmed)) {
+        forsetiFlowRef.current = null;
+        reply({
+          text: flow ? 'Tudo bem, cancelei. Se precisar, é só chamar.' : 'Tudo bem! Não há nada em andamento. Se precisar, é só chamar.',
+          badge: 'CANCELADO',
+          chips: MAIN_CHIPS,
+        });
         return;
-      } else if (lower.includes('paguei') || lower.includes('gastei') || lower.includes('comprei') || lower.includes('pago')) {
-        const matchAmount = trimmed.match(/(?:R\$\s*)?([\d.,]+)/i);
-        const amountFound = matchAmount ? parseFloat(matchAmount[1].replace('.', '').replace(',', '.')) : 320;
-        const validAmount = isNaN(amountFound) ? 320 : amountFound;
+      }
+      if (flow) {
+        const changedSubject =
+          MAIN_CHIPS.includes(trimmed) || !!registrationKind(trimmed) || (!!detectDoubt(trimmed) && parseAmount(trimmed) === null);
+        if (changedSubject) {
+          forsetiFlowRef.current = null;
+        } else if (flow.step === 'VALOR') {
+          const amount = parseAmount(trimmed);
+          if (amount === null) {
+            reply({
+              text: 'Não consegui entender o valor 🤔. Digite só o número, por exemplo **150** ou **1.250,90** (ou *cancelar* para desistir).',
+              badge: 'VALOR',
+              chips: [],
+            });
+            return;
+          }
+          const title = titleFrom(trimmed) || flow.title || '';
+          if (flow.kind === 'RECEBER') continueReceive(title, amount, parseDate(trimmed) || flow.date || null, flow.status || 'PREVISTA');
+          else continuePay(title, amount, inferExpenseCategory(trimmed) || flow.category || null);
+          return;
+        } else if (flow.step === 'DATA') {
+          const date = parseDate(trimmed, true);
+          if (!date) {
+            reply({
+              text: 'Não entendi a data. Escolha uma opção ou escreva, por exemplo, **dia 12** ou **15/10**.',
+              badge: 'DATA',
+              chips: RECEIVE_DATE_CHIPS,
+            });
+            return;
+          }
+          askReceiveAccount(flow.title || '', flow.amount || 0, date, flow.status || 'PREVISTA');
+          return;
+        } else if (flow.step === 'CATEGORIA') {
+          if (trimmed === 'Outro') {
+            forsetiFlowRef.current = { ...flow, step: 'DESCRICAO' };
+            reply({ text: 'O que foi? Escreva uma descrição curta (ex.: *presente*, *barbeiro*).', badge: 'DESCRIÇÃO', chips: [] });
+            return;
+          }
+          const cat = categoryFromChip(trimmed) || inferExpenseCategory(trimmed);
+          askPaymentMethod(cat ? cat.title : trimmed, flow.amount || 0, cat ? cat.category : 'Outros');
+          return;
+        } else {
+          askPaymentMethod(trimmed, flow.amount || 0, inferExpenseCategory(trimmed)?.category || 'Outros');
+          return;
+        }
+      }
 
-        let cleanTitle = trimmed
-          .replace(/^(?:eu\s+)?(?:paguei|gastei|comprei)\s+/i, '')
-          .replace(/(?:de\s+)?(?:R\$\s*)?[\d.,]+/i, '')
-          .trim();
-        if (!cleanTitle || cleanTitle.length < 2) cleanTitle = 'Despesa Avulsa';
+      if (trimmed === CHIP_RECEBER || trimmed === CHIP_PAGAR) {
+        startRegistration(trimmed === CHIP_RECEBER ? 'RECEBER' : 'PAGAR', '');
+        return;
+      }
 
-        let inferredCategory = 'Alimentação / Mercado';
-        if (lower.includes('feira') || lower.includes('hortifruti') || lower.includes('quitanda') || lower.includes('sacolao') || lower.includes('pastel') || lower.includes('legume') || lower.includes('verdura')) {
-          inferredCategory = 'Alimentação & Mercado (Feira Livre & Hortifrúti)';
-        } else if (lower.includes('uber') || lower.includes('combustivel') || lower.includes('gasolina') || lower.includes('transporte')) {
-          inferredCategory = 'Transporte';
-        } else if (lower.includes('farmacia') || lower.includes('remedio') || lower.includes('saude')) {
-          inferredCategory = 'Saúde';
-        } else if (lower.includes('energia') || lower.includes('luz') || lower.includes('agua') || lower.includes('aluguel') || lower.includes('internet')) {
-          inferredCategory = 'Utilidades / Moradia';
+      const isNewLoan = /novo empr[eé]stimo|pegar empr[eé]stimo|tomar empr[eé]stimo/i.test(trimmed);
+      const isScreenAnalysis = /analis|auditar|diagn[oó]stico|esta tela|tela de/i.test(trimmed);
+      if (!isNewLoan && !isScreenAnalysis) {
+        // 1. Registro em linguagem natural ("paguei 50 no mercado", "vou receber 1.200 dia 10")
+        const kind = registrationKind(trimmed);
+        if (kind) {
+          startRegistration(kind, trimmed);
+          return;
         }
 
-        const pendingConfirmation: CopilotPendingConfirmation = {
-          step: 'PAYMENT_METHOD',
-          pendingData: {
-            rawTitle: cleanTitle,
-            amount: validAmount,
-            dueDate: new Date().toISOString().split('T')[0],
-            type: 'PAGAR',
-            category: inferredCategory,
-          },
-          question: 'De que forma esse pagamento ocorreu?',
-          options: [
-            {
-              id: 'opt_pay_nubank_debito',
-              label: 'Nubank (Conta / Pix)',
-              icon: '🟣',
-              badge: 'Débito Imediato',
-              description: 'Debitar agora do saldo em conta corrente',
-              payload: { bank: 'Nubank', type: 'PAGAR', category: inferredCategory },
-            },
-            {
-              id: 'opt_pay_inter_debito',
-              label: 'Inter (Conta / Pix)',
-              icon: '🟠',
-              badge: 'Débito Imediato',
-              description: 'Debitar agora do saldo em conta corrente',
-              payload: { bank: 'Inter', type: 'PAGAR', category: inferredCategory },
-            },
-            {
-              id: 'opt_pay_nubank_credito',
-              label: 'Cartão Nubank Mastercard Black',
-              icon: '💳',
-              badge: 'Cartão de Crédito',
-              description: 'Lançar na fatura aberta (a pagar)',
-              payload: { bank: 'Nubank', type: 'CARTAO', category: inferredCategory },
-            },
-            {
-              id: 'opt_pay_xp_credito',
-              label: 'Cartão XP Visa Infinite',
-              icon: '💳',
-              badge: 'Cartão de Crédito',
-              description: 'Lançar na fatura aberta (a pagar)',
-              payload: { bank: 'XP', type: 'CARTAO', category: inferredCategory },
-            },
-            {
-              id: 'opt_pay_dinheiro',
-              label: 'Dinheiro em Espécie',
-              icon: '💵',
-              badge: 'Carteira Física',
-              description: 'Não debita contas bancárias cadastradas',
-              payload: { bank: 'Dinheiro', type: 'PAGAR', category: inferredCategory },
-            },
-          ],
-        };
+        // 2. Dúvidas respondidas com os números do planejamento
+        const doubt = detectDoubt(trimmed);
+        if (doubt) {
+          const withMonth = doubt === 'GASTEI';
+          const key = todayIso.slice(0, 7);
+          const opts = { startDate: activeCheckpoint?.startDate, horizonMonths: projectionHorizonMonths };
+          const init = activeCheckpoint ? activeCheckpoint.initialBalance : 0;
+          const monthRow = (mode: 'PROJETADO' | 'REALIZADO') =>
+            buildMonthlyProjectionGrid(movements, natures, init, monthlyClosings, mode, opts).find((r) => r.monthKey === key);
+          const data: ForsetiData = {
+            availableBalance,
+            forecasts,
+            monthProjected: withMonth ? monthRow('PROJETADO') : undefined,
+            monthRealized: withMonth ? monthRow('REALIZADO') : undefined,
+            goals,
+            movements,
+            emergencyReserveAmount,
+            emergencyReserveMonths,
+            monthlyFreeCashflow,
+          };
+          reply(answerDoubt(doubt, trimmed, data));
+          return;
+        }
 
-        responseText = `Identifiquei uma despesa de **${validAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}** (${cleanTitle}).\n\nPara garantir a exatidão das suas contas e faturas, **de que forma esse pagamento ocorreu?**`;
-        actionBadge = 'CONFIRMAR FORMA DE PAGAMENTO';
-        
-        const assistantMessage: CopilotMessage = {
-          id: `ast_${Date.now()}`,
-          role: 'assistant',
-          content: responseText,
-          timestamp: 'Agora',
-          actionBadge,
-          suggestedFollowUps: [],
-          pendingConfirmation,
-        };
-
-        setChatHistory((prev) => [...prev, assistantMessage]);
+        // 3. Palavra solta que pode querer dizer mais de uma coisa: pergunta qual (A, B ou C)
+        reply(detectAmbiguity(trimmed) || FALLBACK_REPLY);
         return;
-      } else if (lower.includes('por que') && (lower.includes('caiu') || lower.includes('saldo') || lower.includes('diminuiu'))) {
-        responseText = `Auditoria Concluída: Seu saldo projetado teve redução devido a 2 compromissos de alto impacto concentrados nos próximos 8 dias:\n\n1. Fatura Nubank Black: R$ 3.850,00 (Vencimento em 4 dias)\n2. Parcela de Empréstimo Consignado: R$ 1.458,51 (Vencimento em 8 dias)\n\nJuntos, esses dois eventos somam R$ 5.308,51. Nenhum erro contábil ou cobrança indevida foi detectada.`;
-        actionBadge = 'AUDITORIA FINANCEIRA';
-        suggestedFollowUps = ['Como posso otimizar essas despesas?', 'Simular quitação do empréstimo'];
-      } else if (lower.includes('carro') || lower.includes('posso comprar')) {
-        const sim = runSimulation('CARRO');
-        responseText = `Análise de Viabilidade: ${sim.verdict === 'COM_RESTRICAO' ? '⚠️ Viável com Restrições' : 'Simulação Executada'}.\n\n${sim.explanation}\n\nRecomendações:\n• ${sim.actionRecommendations.join('\n• ')}`;
-        actionBadge = 'DECISÃO FINANCEIRA';
-        suggestedFollowUps = ['Simular quitar o empréstimo', 'Ver impacto nas minhas metas'];
-      } else if (lower.includes('novo empréstimo') || lower.includes('novo emprestimo') || lower.includes('pegar empréstimo') || lower.includes('pegar emprestimo') || lower.includes('tomar emprestimo')) {
+      }
+
+      if (isNewLoan) {
         const sim = runSimulation('NOVO_EMPRESTIMO');
         responseText = `Simulação de Novo Empréstimo: ${sim.verdict === 'COM_RESTRICAO' ? '⚠️ Viável com Restrições' : 'Simulação Concluída'}.\n\n${sim.explanation}\n\nRecomendações:\n• ${sim.actionRecommendations.join('\n• ')}`;
         actionBadge = 'SIMULAÇÃO DE CRÉDITO';
-      } else if (lower.includes('analis') || lower.includes('auditar') || lower.includes('diagnostico') || lower.includes('diagnóstico') || lower.includes('esta tela') || lower.includes('tela de')) {
+      } else {
         let screenAnalysis = '';
         if (lower.includes('fatura') || lower.includes('cartao') || lower.includes('cartão')) {
           screenAnalysis = `💳 **Auditoria da Tela de Faturas & Cartões:**\n\n• **Cartão Nubank Mastercard Black:** Fatura aberta de R$ 3.850,00 com vencimento em 06/10.\n• **Uso de Limite:** 32% utilizado (nível seguro < 40%).\n• **Recomendação:** Seu fluxo previsto no dia 05 cobrirá integralmente a fatura sem necessidade de crédito rotativo.`;
@@ -3593,11 +3648,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
         responseText = screenAnalysis;
         actionBadge = 'AUDITORIA DE TELA EM TEMPO REAL';
-        suggestedFollowUps = ['Por que meu saldo projetado caiu?', 'Simular quitação do empréstimo', 'Anexar Comprovante / Cupom'];
-      } else {
-        responseText = `Entendido perfeitamente. Seus dados financeiros indicam que você tem R$ ${availableBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em saldo disponível e um fluxo líquido mensal positivo de R$ ${monthlyFreeCashflow.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}. Posso agendar uma movimentação, simular uma decisão ou auditar qualquer valor para você.`;
-        actionBadge = 'ASSISTENTE OPERACIONAL';
-        suggestedFollowUps = ['Receberei R$ 8.500 dia 5.', 'Simular novo empréstimo', 'Por que meu saldo projetado caiu?'];
+        suggestedFollowUps = ['Por que meu saldo previsto caiu?', 'O que vence nos próximos dias?', CHIP_DUVIDA];
       }
 
       const assistantMessage: CopilotMessage = {
@@ -3710,7 +3761,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const userConfirmMsg: CopilotMessage = {
       id: `usr_${Date.now()}`,
       role: 'user',
-      content: `Paguei via ${option.label} (${option.badge})`,
+      content: option.payload.type === 'RECEBER' ? `Na conta ${option.label}` : `Paguei com ${option.label}`,
       timestamp: 'Agora',
     };
 
@@ -3724,13 +3775,18 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const finalType = option.payload.type || pending.type;
     const finalCategory = option.payload.category || pending.category || 'Geral';
 
+    // Compra no cartão vence com a fatura do cartão escolhido; recebimento "recebi" já entra como realizado
+    const finalDueDate = isCredit ? option.payload.dueDate || pending.dueDate : pending.dueDate;
+    const finalStatus = isCredit ? 'PREVISTA' : isIncome ? pending.status || 'PREVISTA' : 'REALIZADA';
+    const whenLabel = `${finalDueDate.slice(8, 10)}/${finalDueDate.slice(5, 7)}`;
+
     addMovement({
-      title: `${isIncome ? 'Recebimento' : 'Despesa'}: ${pending.rawTitle}`,
+      title: isIncome && pending.rawTitle === 'Recebimento' ? 'Recebimento' : `${isIncome ? 'Recebimento' : 'Despesa'}: ${pending.rawTitle}`,
       type: finalType,
       amount: pending.amount,
-      dueDate: isCredit ? '2026-10-06' : pending.dueDate,
+      dueDate: finalDueDate,
       bank: finalBank,
-      status: isCredit || isIncome ? 'PREVISTA' : 'REALIZADA',
+      status: finalStatus,
       category: finalCategory,
       notes: `Confirmado via Forseti: ${option.label} (${option.badge}).`,
       // Na conta de outra pessoa, a receita lançada é de quem lançou: só essa pessoa confirma
@@ -3740,11 +3796,14 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setTimeout(() => {
       let confirmationText = '';
       if (isCredit) {
-        confirmationText = `✓ **Lançamento Registrado no Cartão com Sucesso!**\n\nAdicionei a despesa de **${pending.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}** na fatura do **${option.label}**.\n\n• **Categoria:** ${finalCategory}\n• **Status:** Prevista para a próxima fatura\n• **Impacto:** O valor não afetou seu saldo líquido imediato em conta.`;
+        confirmationText = `✓ **Compra lançada no cartão!**\n\n**${brl(pending.amount)}** (${pending.rawTitle}) entrou na fatura do **${option.label}** que vence em **${whenLabel}**.\n\n• **Categoria:** ${finalCategory}\n• O saldo da conta só muda quando a fatura for paga.`;
       } else if (isIncome) {
-        confirmationText = `✓ **Receita Programada com Sucesso!**\n\nAgendei o recebimento de **${pending.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}** na conta **${option.label}** para o dia 05.\n\n• **Categoria:** ${finalCategory}\n• **Impacto:** Saldo projetado para 30 dias foi recalculado.`;
+        confirmationText =
+          finalStatus === 'REALIZADA'
+            ? `✓ **Recebimento registrado!**\n\n**${brl(pending.amount)}** entrou em **${option.label}** em ${whenLabel} e já está no seu saldo de hoje.`
+            : `✓ **Recebimento agendado!**\n\n**${brl(pending.amount)}** vai entrar em **${option.label}** em **${whenLabel}**. Já considerei no saldo previsto; quando cair na conta, é só confirmar.`;
       } else {
-        confirmationText = `✓ **Pagamento Confirmado e Concluído!**\n\nRegistrei a saída de **${pending.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}** como realizada via **${option.label}**.\n\n• **Categoria:** ${finalCategory}\n• **Impacto:** Saldo disponível da conta ajustado instantaneamente.`;
+        confirmationText = `✓ **Pagamento registrado!**\n\n**${brl(pending.amount)}** (${pending.rawTitle}) pago com **${option.label}**.\n\n• **Categoria:** ${finalCategory}\n• O saldo de hoje já foi atualizado.`;
       }
 
       const botConfirmMsg: CopilotMessage = {
@@ -3752,8 +3811,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         role: 'assistant',
         content: confirmationText,
         timestamp: 'Agora',
-        actionBadge: 'LANÇAMENTO DETERMINÍSTICO',
-        suggestedFollowUps: ['Quanto sobrou para gastar no mês?', 'Ver minhas movimentações', 'Registrar outro pagamento'],
+        actionBadge: 'LANÇAMENTO REGISTRADO',
+        suggestedFollowUps: ['Quanto ainda posso gastar este mês?', isIncome ? CHIP_RECEBER : CHIP_PAGAR, CHIP_DUVIDA],
       };
 
       setChatHistory((prev) => [...prev, botConfirmMsg]);

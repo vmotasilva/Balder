@@ -245,6 +245,8 @@ export interface CopilotPendingConfirmation {
     category?: string;
     bank?: string;
     notes?: string;
+    /** Recebimento já ocorrido ("recebi") ou a receber ("vou receber"). */
+    status?: 'PREVISTA' | 'REALIZADA';
   };
   question: string;
   options: CopilotInteractiveOption[];

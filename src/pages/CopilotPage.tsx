@@ -5,6 +5,7 @@ import { ReceiptReconciliationCard } from '../components/ReceiptReconciliationCa
 import { Send, Sparkles, User, Image as ImageIcon, X, Paperclip, UploadCloud, Info, Plus, ArrowLeft, ArrowRight, ShieldCheck } from 'lucide-react';
 import type { TabId } from '../components/Sidebar';
 import type { CopilotAttachment } from '../types';
+import { MAIN_CHIPS } from '../utils/forsetiAssistant';
 
 export interface CopilotPageProps {
   onBack?: () => void;
@@ -176,18 +177,11 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
   const screenTitle = SCREEN_NAMES[activeScreen] || 'Meu Dinheiro';
   const screenShortTitle = screenTitle.split(' ')[0];
 
-  const quickChips = [
-    `🔍 Analisar esta tela (${screenShortTitle})`,
-    '📸 Anexar Comprovante / Cupom',
-    'Receberei R$ 8.500 dia 5.',
-    'Paguei R$ 320 no mercado.',
-    'Por que meu saldo projetado caiu?',
-    'Posso comprar um carro?',
-    'Simular quitação do empréstimo',
-  ];
+  const quickChips = [`🔍 Analisar esta tela (${screenShortTitle})`, ...MAIN_CHIPS];
 
   const handleChipClick = (chip: string) => {
-    if (chip.includes('Anexar Comprovante')) {
+    // Qualquer sugestão de anexar (comprovante, cupom, mais fotos) abre a escolha de arquivos
+    if (/anexar/i.test(chip)) {
       fileInputRef.current?.click();
     } else if (chip.startsWith('🔍 Analisar esta tela')) {
       handleSend(undefined, `Forseti, analise a tela de ${screenTitle} aberta no Balder agora e me dê um diagnóstico.`);
@@ -388,13 +382,16 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
 
                   <div className="message-text">
                     {msg.content.split('\n').map((line, i) => {
-                      // Renderizar negrito básico com segurança
-                      const parts = line.split(/(\*\*.*?\*\*)/g);
+                      // Renderizar negrito (**texto**) e itálico (*exemplo*) básicos com segurança
+                      const parts = line.split(/(\*\*.*?\*\*|\*[^*\s][^*]*?\*)/g);
                       return (
                         <p key={i}>
                           {parts.map((part, pIdx) => {
-                            if (part.startsWith('**') && part.endsWith('**')) {
+                            if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
                               return <strong key={pIdx} className="text-white">{part.slice(2, -2)}</strong>;
+                            }
+                            if (part.length > 2 && part.startsWith('*') && part.endsWith('*')) {
+                              return <em key={pIdx}>{part.slice(1, -1)}</em>;
                             }
                             return part;
                           })}
