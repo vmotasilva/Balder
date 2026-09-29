@@ -1,14 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Sparkles, ArrowLeft, Plus, Trash2, Check } from 'lucide-react';
+import { ArrowLeft, Plus, Trash2, Check } from 'lucide-react';
 import { DecimalInput } from './DecimalInput';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { SupabaseService } from '../services/supabaseService';
 import { POPULAR_BANKS, getBankBranding } from '../utils/bankBranding';
+import { BILL_GROUPS, COMMON_BILLS, clampDay, formatBRL, isoOf, nextDateForDay } from '../utils/setupCatalog';
+import { Bubble, ForsetiTopicSetup } from './ForsetiTopicSetup';
 import type { TrackingPeriod } from '../utils/periodSpending';
 import type { ExpenseNature, FixedExpenseMapping, MappingItem, Movement } from '../types';
 
-type Step = 'NAME' | 'MODE' | 'BANKS' | 'BALANCE' | 'INCOME' | 'BILLS' | 'CARD' | 'PERIOD' | 'DONE';
+type Step = 'NAME' | 'MODE' | 'MANUAL' | 'BANKS' | 'BALANCE' | 'INCOME' | 'BILLS' | 'CARD' | 'PERIOD' | 'DONE';
 
 interface IncomeRow {
   name: string;
@@ -29,31 +31,6 @@ interface CardRow {
   amount: number;
 }
 
-/** Contas comuns do mês e a natureza em que cada uma entra. */
-const COMMON_BILLS: { key: string; name: string; group: keyof typeof BILL_GROUPS }[] = [
-  { key: 'aluguel', name: 'Aluguel', group: 'CASA' },
-  { key: 'condominio', name: 'Condomínio', group: 'CASA' },
-  { key: 'luz', name: 'Luz', group: 'CASA' },
-  { key: 'agua', name: 'Água', group: 'CASA' },
-  { key: 'gas', name: 'Gás', group: 'CASA' },
-  { key: 'internet', name: 'Internet', group: 'CASA' },
-  { key: 'celular', name: 'Celular', group: 'CASA' },
-  { key: 'plano_saude', name: 'Plano de saúde', group: 'SAUDE' },
-  { key: 'escola', name: 'Escola ou faculdade', group: 'EDUCACAO' },
-  { key: 'streaming', name: 'Streaming', group: 'LAZER' },
-  { key: 'academia', name: 'Academia', group: 'LAZER' },
-  { key: 'transporte', name: 'Transporte ou combustível', group: 'TRANSPORTE' },
-];
-
-const BILL_GROUPS = {
-  CASA: { name: 'Moradia & Contas da Casa', icon: '🏠', color: '#06b6d4', type: 'FIXA' as const, keywords: ['aluguel', 'condominio', 'luz', 'energia', 'agua', 'gas', 'internet', 'celular'] },
-  SAUDE: { name: 'Saúde & Cuidados', icon: '💊', color: '#8b5cf6', type: 'ESSENCIAL' as const, keywords: ['farmacia', 'drogaria', 'consulta', 'exame', 'plano de saude'] },
-  EDUCACAO: { name: 'Educação', icon: '🎓', color: '#3b82f6', type: 'FIXA' as const, keywords: ['escola', 'faculdade', 'curso', 'mensalidade', 'livro'] },
-  LAZER: { name: 'Lazer & Assinaturas', icon: '🎬', color: '#ec4899', type: 'VARIAVEL' as const, keywords: ['netflix', 'spotify', 'streaming', 'academia', 'cinema', 'restaurante', 'bar'] },
-  TRANSPORTE: { name: 'Transporte', icon: '🚗', color: '#f59e0b', type: 'VARIAVEL' as const, keywords: ['posto', 'gasolina', 'combustivel', 'uber', '99', 'onibus', 'metro', 'pedagio'] },
-  OUTRAS: { name: 'Outras Contas', icon: '📄', color: '#64748b', type: 'FIXA' as const, keywords: [] as string[] },
-};
-
 /** Criadas sempre: onde a Forseti classifica os gastos do dia a dia. */
 const EVERYDAY_NATURES = [
   { name: 'Alimentação & Mercado', icon: '🛒', color: '#10b981', type: 'ESSENCIAL' as const, keywords: ['mercado', 'supermercado', 'feira', 'padaria', 'acougue', 'hortifruti'] },
@@ -63,41 +40,17 @@ const EVERYDAY_NATURES = [
 const PERIOD_CADENCE: Record<TrackingPeriod, string> = { SEMANA: 'toda semana', QUINZENA: 'a cada quinzena', MES: 'todo mês' };
 const PERIOD_ANSWER: Record<TrackingPeriod, string> = { SEMANA: 'Toda semana', QUINZENA: 'A cada quinzena', MES: 'Todo mês' };
 
-const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-const isoOf = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-const clampDay = (n: number) => Math.min(31, Math.max(1, Math.round(n) || 1));
-
-/** Próxima data com o dia informado a partir de hoje (este mês, se ainda não passou). */
-function nextDateForDay(day: number, today: Date, monthOffset = 0): string {
-  const base = today.getDate() > day ? 1 : 0;
-  const month = today.getMonth() + base + monthOffset;
-  const lastDay = new Date(today.getFullYear(), month + 1, 0).getDate();
-  return isoOf(new Date(today.getFullYear(), month, Math.min(day, lastDay)));
-}
-
-const Bubble: React.FC<{ from: 'forseti' | 'user'; children: React.ReactNode }> = ({ from, children }) => (
-  <div className={`guided-bubble is-${from}`}>
-    {from === 'forseti' && (
-      <span className="guided-avatar" aria-hidden="true">
-        <Sparkles size={14} />
-      </span>
-    )}
-    <div className="guided-bubble-body">{children}</div>
-  </div>
-);
-
 interface GuidedSetupProps {
-  onChooseManual: () => void;
   onFinished: () => void;
 }
 
 /**
  * Configuração inicial conduzida pela Forseti, em conversa roteirizada: modo de uso, onde está o
  * dinheiro, renda, contas do mês, cartão e período de acompanhamento. Monta marco, contas,
- * recebimentos recorrentes, naturezas com as contas do mês e faturas.
+ * recebimentos recorrentes, naturezas com as contas do mês e faturas. Quem prefere configurar tudo
+ * segue na mesma conversa escolhendo os assuntos (ForsetiTopicSetup).
  */
-export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onChooseManual, onFinished }) => {
+export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onFinished }) => {
   const { user } = useAuth();
   const {
     addCheckpoint,
@@ -143,6 +96,7 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onChooseManual, onFini
     BILLS: 'Quais contas você paga todo mês?',
     CARD: 'Você usa cartão de crédito?',
     PERIOD: 'Como você prefere acompanhar os gastos?',
+    MANUAL: '',
     DONE: '',
   };
 
@@ -381,12 +335,14 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onChooseManual, onFini
               type="button"
               className="guided-choice"
               onClick={() => {
-                setViewPreferences({ experienceMode: 'MANUAL' });
-                onChooseManual();
+                // Fica no Início enquanto a conversa segue (com o marco criado, o padrão seria o Painel)
+                setViewPreferences({ experienceMode: 'MANUAL', homeScreen: 'INICIO' });
+                setHistory((prev) => [...prev, { step, question: QUESTIONS[step], answer: 'Eu configuro tudo' }]);
+                setStep('MANUAL');
               }}
             >
               <strong>Eu configuro tudo</strong>
-              <span>Configuração detalhada: contas, faturas, naturezas e rotinas.</span>
+              <span>Você escolhe por onde começar e eu te conduzo com perguntas.</span>
             </button>
           </div>
         );
@@ -670,6 +626,7 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onChooseManual, onFini
           </>
         );
 
+      case 'MANUAL':
       case 'DONE':
         return null;
     }
@@ -684,7 +641,9 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onChooseManual, onFini
         </React.Fragment>
       ))}
 
-      {step !== 'DONE' ? (
+      {step === 'MANUAL' ? (
+        <ForsetiTopicSetup onFinished={onFinished} holdHomeScreen />
+      ) : step !== 'DONE' ? (
         <>
           <Bubble from="forseti">{QUESTIONS[step]}</Bubble>
           <div className="guided-panel" ref={panelRef}>

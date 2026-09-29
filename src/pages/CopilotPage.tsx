@@ -293,7 +293,7 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
                 <button
                   type="button"
                   className="btn btn-primary btn-xs mt-2.5 flex items-center gap-1.5 cursor-pointer"
-                  onClick={() => onOpenOnboarding(!activeCheckpoint ? 1 : movements.filter(m => m.type === 'CARTAO').length === 0 ? 2 : 3)}
+                  onClick={() => onOpenOnboarding(!activeCheckpoint ? 1 : movements.filter(m => m.type === 'CARTAO').length === 0 ? 3 : 4)}
                 >
                   <span>Iniciar Calibração com a Forseti</span>
                   <ArrowRight size={13} />

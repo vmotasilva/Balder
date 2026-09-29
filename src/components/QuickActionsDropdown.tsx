@@ -277,7 +277,7 @@ export const QuickActionsDropdown: React.FC<QuickActionsDropdownProps> = ({
                           className="quick-action-card quick-action-card-featured cursor-pointer text-left w-full"
                           onClick={() => {
                             setIsOpen(false);
-                            onOpenOnboarding(1);
+                            onOpenOnboarding();
                           }}
                         >
                           <div className="quick-action-icon-box bg-cyan-500/15 border border-cyan-500/30">
@@ -286,14 +286,14 @@ export const QuickActionsDropdown: React.FC<QuickActionsDropdownProps> = ({
                           <div className="quick-action-text flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="quick-action-title font-bold text-xs md:text-sm text-cyan-200">
-                                Refazer Assistente Inicial (Get Started)
+                                Configurar com a Forseti
                               </span>
                               <span className="badge badge-cyan text-[9px] px-1.5 py-0.5">
                                 Onboarding
                               </span>
                             </div>
                             <span className="quick-action-subtitle text-[11px] text-muted block mt-0.5">
-                              Reconfigure ponto de partida, salário, faturas e naturezas recomendadas
+                              Escolha o assunto e responda às perguntas: ponto de partida, entradas, cartões, naturezas e mapeamentos
                             </span>
                           </div>
                           <ArrowRight size={15} className="quick-action-arrow text-cyan-400 flex-shrink-0" />
@@ -311,20 +311,9 @@ export const QuickActionsDropdown: React.FC<QuickActionsDropdownProps> = ({
                               onOpenOnboarding(1);
                             }}
                             className="quick-action-step-pill"
-                            title="Ir para Ponto de Partida e Salário"
+                            title="Conversar sobre o ponto de partida"
                           >
-                            1. Ponto de Partida & Salário
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsOpen(false);
-                              onOpenOnboarding(2);
-                            }}
-                            className="quick-action-step-pill"
-                            title="Ir para Faturas de Cartão"
-                          >
-                            2. Faturas de Cartão
+                            Ponto de partida
                           </button>
                           <button
                             type="button"
@@ -333,9 +322,31 @@ export const QuickActionsDropdown: React.FC<QuickActionsDropdownProps> = ({
                               onOpenOnboarding(3);
                             }}
                             className="quick-action-step-pill"
-                            title="Ir para Naturezas & Tetos"
+                            title="Conversar sobre cartões e faturas"
                           >
-                            3. Naturezas & Tetos
+                            Cartões
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsOpen(false);
+                              onOpenOnboarding(4);
+                            }}
+                            className="quick-action-step-pill"
+                            title="Conversar sobre naturezas"
+                          >
+                            Naturezas
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsOpen(false);
+                              onOpenOnboarding(5);
+                            }}
+                            className="quick-action-step-pill"
+                            title="Conversar sobre mapeamentos das naturezas"
+                          >
+                            Mapeamentos
                           </button>
                         </div>
                       </div>

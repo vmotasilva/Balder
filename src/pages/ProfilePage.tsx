@@ -304,7 +304,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                 className="profile-getstarted-btn"
                 onClick={() => {
                   if (onOpenOnboarding) {
-                    onOpenOnboarding(onboardingAudit.nextSuggestedStep?.stepIndex || 1);
+                    onOpenOnboarding(onboardingAudit.nextSuggestedStep?.stepIndex);
                   }
                 }}
                 title="Acessar o Onboarding Get Started e Calibrar o Balder"

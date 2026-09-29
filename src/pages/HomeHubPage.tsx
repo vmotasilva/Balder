@@ -78,7 +78,7 @@ const groupEntries = (entries: ForecastEntry[], keyOf: (e: ForecastEntry) => str
  * "o que faço agora?" (tarefas do período), "como vão os gastos?" (resumo do período preferido)
  * e "para onde vou?" (módulos com status). Para quem ainda não configurou, mostra a conversa guiada.
  */
-export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenForseti, onOpenOnboarding }) => {
+export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenForseti }) => {
   const { user } = useAuth();
   const {
     isDataReady,
@@ -361,7 +361,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           <h1>{firstName ? `Bem-vindo, ${firstName}` : 'Bem-vindo ao Balder'}</h1>
           <p>Leva uns 3 minutos. Você pode mudar tudo depois.</p>
         </header>
-        <GuidedSetup onChooseManual={() => onOpenOnboarding(1)} onFinished={() => setFinishedSetup(true)} />
+        <GuidedSetup onFinished={() => setFinishedSetup(true)} />
       </div>
     );
   }

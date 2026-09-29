@@ -20606,6 +20606,8 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   padding: 14px;
   border-radius: var(--radius-md);
   border: 1px dashed var(--border-default);
+  /* ao rolar até a pergunta, deixa espaço para o botão flutuante do celular não cobrir as ações */
+  scroll-margin-bottom: 88px;
 }
 
 .guided-hint {
@@ -20643,6 +20645,39 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .guided-choice.is-active {
   border-color: var(--accent-cyan);
   background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
+}
+
+.guided-choices.is-compact {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.guided-choice-badge {
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  font-size: 10px;
+  font-weight: 600;
+  vertical-align: middle;
+  color: var(--accent-cyan);
+  background: color-mix(in srgb, var(--accent-cyan) 14%, transparent);
+}
+
+.guided-suggestion {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.guided-qty {
+  flex: 0 0 64px !important;
+}
+
+.guided-date {
+  max-width: 200px;
+}
+
+.guided-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .guided-chips {

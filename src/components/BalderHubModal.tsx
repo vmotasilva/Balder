@@ -147,7 +147,7 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
         actionLabel: 'Revisar Calibração',
         action: () => {
           onClose();
-          onOpenOnboarding(1);
+          onOpenOnboarding();
         },
         icon: <CheckCircle2 size={16} className="text-emerald" />,
       });

@@ -23,7 +23,8 @@ import { SharedPlanningPage } from './pages/SharedPlanningPage';
 import { NewMovementModal } from './components/NewMovementModal';
 import { SimulationModal } from './components/SimulationModal';
 import { LoanPrepaymentModal } from './components/LoanPrepaymentModal';
-import { GetStartedOnboarding } from './components/GetStartedOnboarding';
+import { ForsetiSetupModal } from './components/ForsetiSetupModal';
+import { topicFromStepIndex, type SetupTopic } from './utils/setupCatalog';
 import type { Movement, MovementType, SimulationPresetId } from './types';
 import './App.css';
 
@@ -93,7 +94,8 @@ export function AppContent() {
 
   // Onboarding Get Started State
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
-  const [onboardingInitialStep, setOnboardingInitialStep] = useState(1);
+  const [onboardingTopic, setOnboardingTopic] = useState<SetupTopic | undefined>(undefined);
+  const [onboardingRun, setOnboardingRun] = useState(0);
 
   // Global Modals State
   const [newMovementModalOpen, setNewMovementModalOpen] = useState(false);
@@ -106,8 +108,10 @@ export function AppContent() {
 
   const [prepaymentModalOpen, setPrepaymentModalOpen] = useState(false);
 
-  const handleOpenOnboarding = (step = 1) => {
-    setOnboardingInitialStep(step);
+  // Sem etapa, a Forseti pergunta por onde começar; com etapa, a conversa abre no assunto dela
+  const handleOpenOnboarding = (step?: number) => {
+    setOnboardingTopic(topicFromStepIndex(step));
+    setOnboardingRun((n) => n + 1);
     setIsOnboardingOpen(true);
   };
 
@@ -241,14 +245,14 @@ export function AppContent() {
       )}
 
       {/* Global Modals */}
-      <GetStartedOnboarding
+      <ForsetiSetupModal
+        key={onboardingRun}
         isOpen={isOnboardingOpen}
-        initialStep={onboardingInitialStep}
+        topic={onboardingTopic}
         onClose={() => {
           setIsOnboardingOpen(false);
           sessionStorage.setItem('balder_onboarding_dismissed', 'true');
         }}
-        onComplete={() => setIsOnboardingOpen(false)}
       />
 
       <NewMovementModal
