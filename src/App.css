@@ -19812,8 +19812,26 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     display: none;
   }
 
+  /* No celular o botão é o próprio símbolo circular da Forseti, preenchendo o círculo */
   .navbar-forseti-btn {
-    padding: 6px;
+    width: 38px;
+    height: 38px;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    border: 2px solid #c9a45c !important;
+    overflow: hidden;
+    background: transparent !important;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .navbar-forseti-btn:hover {
+    border-color: var(--accent-purple) !important;
+  }
+
+  .navbar-forseti-btn .navbar-forseti-avatar {
+    width: 100%;
+    height: 100%;
   }
 }
 

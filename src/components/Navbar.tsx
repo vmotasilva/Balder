@@ -158,7 +158,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             title="Conversar com a Forseti"
             aria-label="Abrir Forseti"
           >
-            <img src="/forseti-avatar.png" alt="" className="navbar-forseti-avatar" />
+            <img src="/forseti-icon.png" alt="" className="navbar-forseti-avatar" />
             <span>Forseti</span>
           </button>
         )}
