@@ -1007,19 +1007,16 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
   const columnKey = selection?.columnKey;
   const baseRow = selection?.row;
 
-  // Grade da projeção recalculada dinamicamente caso o usuário adicione ou edite lançamentos
+  // Grade da projeção recalculada a cada lançamento ou edição. Sempre o mês inteiro (realizado + previsto):
+  // abrir por "Real" ou "Previsto" só escolhe o filtro inicial, e o que é pago ou recebido passa de
+  // Previsto para Realizado na hora, sem sumir do detalhamento
   const projectionGrid = useMemo(() => {
     if (!baseRow) return [];
     const initialBalance = activeCheckpoint ? activeCheckpoint.initialBalance : (baseRow.initialBalance ?? 0);
-    return buildMonthlyProjectionGrid(
-      movements,
-      natures,
-      initialBalance,
-      monthlyClosings,
-      selection?.viewMode || 'PROJETADO',
-      { startDate: activeCheckpoint?.startDate }
-    );
-  }, [movements, natures, activeCheckpoint, monthlyClosings, baseRow, selection?.viewMode]);
+    return buildMonthlyProjectionGrid(movements, natures, initialBalance, monthlyClosings, 'PROJETADO', {
+      startDate: activeCheckpoint?.startDate,
+    });
+  }, [movements, natures, activeCheckpoint, monthlyClosings, baseRow]);
 
   // Navegação entre competências dentro do detalhamento (mesma coluna e mesma natureza/mapeamento)
   const [navMonthKey, setNavMonthKey] = useState<string | null>(null);
@@ -1036,6 +1033,17 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
   );
   const currentRow = row;
 
+  // Celular: cabeçalho enxuto, resumo Real | Previsto | Total e a lista de naturezas logo abaixo
+  const [isCompact, setIsCompact] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 640px)');
+    const onChange = () => setIsCompact(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
   // Rótulos e valor da célula acompanham a competência navegada
   const competenceLabel = isNavigated && row ? row.competenceLabel : selection?.competenceLabel || '';
   const formattedCompetence = isNavigated && row ? row.formattedCompetence : selection?.formattedCompetence || '';
@@ -1044,7 +1052,8 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
       ? (selection.columnTitle || '').replace(selection.competenceLabel, row.competenceLabel)
       : selection?.columnTitle || '';
   const totalValue = useMemo(() => {
-    if (!isNavigated || !row || !selection) return selection?.totalValue || 0;
+    // Sempre da linha recalculada (não do valor capturado ao abrir), para acompanhar os lançamentos
+    if (!row || !selection) return selection?.totalValue || 0;
     switch (selection.columnKey) {
       case 'accumulated':
         return selection.columnTitle === 'Saldo Inicial do Ciclo' ? row.initialBalance || 0 : row.accumulatedBalance;
@@ -1756,7 +1765,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
       }
     } else if (columnKey === 'loanPayment') {
       items.push(
-        loanInstallmentsBreakdownItem(movements, monthPrefix, selection?.viewMode, activeCheckpoint?.startDate, totalValue)
+        loanInstallmentsBreakdownItem(movements, monthPrefix, 'PROJETADO', activeCheckpoint?.startDate, totalValue)
       );
     } else if (columnKey === 'fixedCost') {
       const monthNum = parseInt(row.monthKey.split('-')[1], 10);
@@ -2177,9 +2186,47 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         });
       }
 
-      // 3. Custos Avulsos & Variáveis
+      // 3. Custos Avulsos & Variáveis: cada lançamento com a sua situação (pago ou a pagar), para o
+      // Pago | A pagar do resumo acompanhar na hora (mesmo filtro da projeção consolidada)
       if (row.variableCost > 0) {
+        const varSubItems: CellBreakdownSubItem[] = movements
+          .filter(
+            (m) =>
+              m.type === 'PAGAR' &&
+              m.category !== 'Cartões' &&
+              m.category !== 'Empréstimos' &&
+              movementCompetenceDate(m, activeCheckpoint?.startDate).startsWith(monthPrefix)
+          )
+          .map((m) => ({
+            id: m.id,
+            description: m.title,
+            quantity: 1,
+            price: m.amount,
+            multiplierWeeks: 1,
+            totalValue: m.amount,
+            mappingName: m.category,
+            status: m.status,
+            dueDate: movementCompetenceDate(m, activeCheckpoint?.startDate),
+            paymentDate: m.paymentDate,
+            bank: m.bank,
+            movementId: m.id,
+          }));
+        const listed = varSubItems.reduce((acc, s) => acc + s.totalValue, 0);
+        const rest = Math.round((row.variableCost - listed) * 100) / 100;
+        if (rest > 0) {
+          varSubItems.push({
+            id: `var_provision_${monthPrefix}`,
+            description: 'Provisão para imprevistos',
+            quantity: 1,
+            price: rest,
+            multiplierWeeks: 1,
+            totalValue: rest,
+            mappingName: 'Gastos Variáveis',
+            status: 'PREVISTA',
+          });
+        }
         items.push({
+          subItems: varSubItems.length > 0 ? varSubItems : undefined,
           id: `expense_var_${monthPrefix}`,
           category: 'Gastos Variáveis',
           bankOrOrigin: 'Conta Corrente',
@@ -2196,7 +2243,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
       // 4. Parcelas de Empréstimo / Financiamento
       if (row.loanPayment > 0) {
         items.push(
-          loanInstallmentsBreakdownItem(movements, monthPrefix, selection?.viewMode, activeCheckpoint?.startDate, row.loanPayment)
+          loanInstallmentsBreakdownItem(movements, monthPrefix, 'PROJETADO', activeCheckpoint?.startDate, row.loanPayment)
         );
       }
     } else if (columnTitle === 'Saldo Inicial do Ciclo') {
@@ -3097,9 +3144,11 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[11px] font-semibold text-cyan-400 uppercase tracking-wider">
-                  Detalhamento de Competência
-                </span>
+                {!isCompact && (
+                  <span className="text-[11px] font-semibold text-cyan-400 uppercase tracking-wider">
+                    Detalhamento de Competência
+                  </span>
+                )}
                 {/* Navegação entre competências: mantém a coluna e a natureza/mapeamento abertos */}
                 <span
                   className="badge badge-cyan text-[10px]"
@@ -3180,7 +3229,10 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
           </div>
 
           <div className="cell-detail-header-actions flex items-center gap-3 flex-shrink-0 ml-auto flex-wrap justify-end">
-            {/* Seletor Segmentado: Realizado vs Previsto vs Todos (cores por tema em .detail-filter-segment) */}
+            {/* Seletor Segmentado: Realizado vs Previsto vs Todos (cores por tema em .detail-filter-segment);
+                no celular vira o resumo em blocos no topo do corpo */}
+            {!isCompact && (
+            <>
             <div
               className="detail-filter-segment"
               style={{
@@ -3268,9 +3320,12 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                 {formatBRL(detailFilter === 'REALIZADO' ? cellRealizedTotal : detailFilter === 'PREVISTO' ? cellPrevistoTotal : dynamicTotalValue)}
               </span>
             </div>
+            </>
+            )}
 
-            <div className="flex items-center gap-1.5 pl-2.5 border-l border-border/40">
+            <div className={`flex items-center gap-1.5 ${isCompact ? '' : 'pl-2.5 border-l border-border/40'}`}>
               {/* Botão Tela Inteira */}
+              {!isCompact && (
               <button
                 type="button"
                 className="modal-action-btn p-1.5 transition rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 cursor-pointer"
@@ -3280,6 +3335,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
               >
                 {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
               </button>
+              )}
 
               {/* Botão Fechar */}
               <button
@@ -3297,8 +3353,45 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
         {/* Corpo do Detalhamento: Master-Detail Grid */}
         <div className="modal-body cell-detail-modal-body flex-1 min-h-0 w-full box-border">
+          {/* Celular: resumo do mês em blocos (tocar filtra) e barra do que já foi pago/recebido */}
+          {isCompact && (() => {
+            const [realLabel, plannedLabel] =
+              newMovementType === 'RECEBER' ? ['Recebido', 'A receber'] : newMovementType === 'PAGAR' ? ['Pago', 'A pagar'] : ['Realizado', 'Previsto'];
+            const base = cellRealizedTotal + cellPrevistoTotal;
+            const pct = base > 0 ? Math.round((cellRealizedTotal / base) * 100) : 0;
+            const tiles: { id: 'REALIZADO' | 'PREVISTO' | 'ALL'; label: string; value: number; tone: string }[] = [
+              { id: 'REALIZADO', label: realLabel, value: cellRealizedTotal, tone: 'is-real' },
+              { id: 'PREVISTO', label: plannedLabel, value: cellPrevistoTotal, tone: 'is-planned' },
+              { id: 'ALL', label: 'Total do mês', value: dynamicTotalValue, tone: 'is-total' },
+            ];
+            return (
+              <div className="cell-compact-summary">
+                <div className="cell-compact-tiles">
+                  {tiles.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      className={`cell-compact-tile ${t.tone} ${detailFilter === t.id ? 'is-active' : ''}`}
+                      onClick={() => setDetailFilter(t.id)}
+                      aria-pressed={detailFilter === t.id}
+                    >
+                      <span>{t.label}</span>
+                      <strong>{formatBRL(t.value)}</strong>
+                    </button>
+                  ))}
+                </div>
+                <div className="cell-compact-progress" title={`${pct}% ${realLabel.toLowerCase()}`}>
+                  <span style={{ width: `${pct}%` }} />
+                </div>
+                <span className="cell-compact-progress-label">
+                  {pct}% {realLabel.toLowerCase()}
+                </span>
+              </div>
+            );
+          })()}
+
           {/* Banner Inteligente Compacto Anti-Duplicidade se aplicável */}
-          {columnKey === 'totalIncome' && (
+          {!isCompact && columnKey === 'totalIncome' && (
             <div className="compact-info-banner mb-2">
               <ArrowUpRight size={15} className="text-emerald-400 flex-shrink-0" />
               <div className="text-xs min-w-0 flex-1 truncate" style={{ color: 'var(--text-secondary)' }}>
@@ -3308,7 +3401,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             </div>
           )}
 
-          {columnKey === 'totalExpense' && currentRow && (
+          {!isCompact && columnKey === 'totalExpense' && currentRow && (
             <div className="compact-info-banner mb-2">
               <Receipt size={15} className="text-rose-400 flex-shrink-0" />
               <div className="text-xs min-w-0 flex-1 truncate" style={{ color: 'var(--text-secondary)' }}>
@@ -3318,7 +3411,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             </div>
           )}
 
-          {columnKey === 'fixedCost' && currentRow && (
+          {!isCompact && columnKey === 'fixedCost' && currentRow && (
             <div className="compact-info-banner mb-2">
               <ShieldCheck size={15} className="text-emerald-400 flex-shrink-0" />
               <div className="text-xs min-w-0 flex-1 truncate" style={{ color: 'var(--text-secondary)' }}>
@@ -3328,7 +3421,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             </div>
           )}
 
-          {columnKey === 'creditCard' && currentRow && (
+          {!isCompact && columnKey === 'creditCard' && currentRow && (
             <div className="compact-info-banner mb-2">
               <Info size={15} className="text-cyan-400 flex-shrink-0" />
               <div className="text-xs min-w-0 flex-1 truncate" style={{ color: 'var(--text-secondary)' }}>
@@ -3338,7 +3431,8 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             </div>
           )}
 
-          {/* SELETOR DE ABAS HORIZONTAIS DE NATUREZAS COM CAMPO DE BUSCA */}
+          {/* SELETOR DE ABAS HORIZONTAIS DE NATUREZAS COM CAMPO DE BUSCA (no celular, a lista de naturezas já navega) */}
+          {!isCompact && (
           <div className="nature-tabs-bar-container">
             {/* Campo de Busca para Delimitar a Natureza sob Análise */}
             <div className="nature-search-wrap">
@@ -3430,8 +3524,10 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
               )}
             </div>
           </div>
+          )}
 
-          {/* BARRA DE MÉTRICAS E STATUS EM LINHA ÚNICA */}
+          {/* BARRA DE MÉTRICAS E STATUS EM LINHA ÚNICA (no celular, o resumo do topo e as linhas já mostram) */}
+          {!isCompact && (
           <div className="compact-metrics-strip">
             {/* Lado Esquerdo: Identificação e Badge de Status */}
             <div className="metrics-strip-title-area">
@@ -3486,6 +3582,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
               </div>
             </div>
           </div>
+          )}
 
           {/* LISTAGEM VERTICAL AGRUPADA COM STICKY HEADERS (DATA & SUBTOTAL DO DIA) */}
           <div className="detail-items-scroll-area">
@@ -3496,6 +3593,8 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                 (isAll && (columnKey === 'creditCard' || (columnKey === 'totalExpense' && (currentRow?.creditCardTotal || 0) > 0)));
 
               if (!isInvoiceContext) return null;
+              // Celular: gestão da fatura só ao abrir a fatura, não na lista de todas as naturezas
+              if (isCompact && isAll) return null;
 
               const invMov = activeItem?.movement || movements.find(
                 (m) =>

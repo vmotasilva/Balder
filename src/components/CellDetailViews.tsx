@@ -122,12 +122,15 @@ const DrillRow: React.FC<{ symbol?: string; title: string; count: number; items:
   formatBRL,
 }) => {
   const { real, planned } = splitItems(items);
+  // Quanto do total do grupo já foi pago/recebido: a situação lida de relance
+  const total = real + planned;
+  const pct = total > 0 ? Math.round((real / total) * 100) : 0;
   return (
   <button type="button" className="detail-item-row drill-row" onClick={onClick} title={`Abrir ${title}`}>
     <div className="detail-item-main min-w-0 flex-1" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
       {symbol && <span className="drill-row-symbol">{symbol}</span>}
       <div className="min-w-0">
-        <div className="detail-item-primary truncate">{title}</div>
+        <div className="detail-item-primary drill-row-title">{title}</div>
         <div className="detail-item-secondary">
           {count} {count === 1 ? 'item' : 'itens'}
         </div>
@@ -137,6 +140,11 @@ const DrillRow: React.FC<{ symbol?: string; title: string; count: number; items:
       <RealPlanned real={real} planned={planned} formatBRL={formatBRL} />
       <ChevronRight size={16} className="text-muted" />
     </div>
+    {total > 0 && (
+      <span className="drill-row-progress" aria-hidden="true">
+        <span style={{ width: `${pct}%` }} />
+      </span>
+    )}
   </button>
   );
 };

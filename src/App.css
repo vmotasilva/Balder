@@ -17143,6 +17143,34 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   font: inherit;
 }
 
+.drill-row {
+  position: relative;
+  overflow: hidden;
+}
+
+.drill-row-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Barra fina na base da linha: parte já paga/recebida do total do grupo */
+.drill-row-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: color-mix(in srgb, var(--accent-amber) 22%, transparent);
+}
+
+.drill-row-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--accent-emerald, #10b981);
+  transition: width 0.3s ease;
+}
+
 .drill-row-symbol {
   font-size: 18px;
   line-height: 1;
@@ -20075,6 +20103,137 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   background: rgba(255, 255, 255, 0.06);
 }
 
+/* Entrada / Saída: o card inteiro é o botão que abre as naturezas do mês */
+.proj-card-open {
+  position: relative;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.15s ease;
+}
+
+.proj-card-open:hover,
+.proj-card-open:focus-visible {
+  border-color: var(--accent-cyan);
+}
+
+.proj-card-open-icon {
+  position: absolute;
+  top: 7px;
+  right: 6px;
+  color: var(--text-muted);
+}
+
+/* Detalhamento no celular: resumo Real | Previsto | Total em blocos tocáveis */
+.cell-compact-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.cell-compact-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.cell-compact-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 9px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background: var(--bg-card);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.cell-compact-tile span {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.cell-compact-tile strong {
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cell-compact-tile.is-real strong {
+  color: var(--accent-emerald, #10b981);
+}
+
+.cell-compact-tile.is-planned strong {
+  color: var(--accent-amber, #f59e0b);
+}
+
+.cell-compact-tile.is-total strong {
+  color: var(--text-primary);
+}
+
+.cell-compact-tile.is-active {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 1px var(--accent-cyan) inset;
+}
+
+.cell-compact-progress {
+  height: 5px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--accent-amber) 22%, transparent);
+}
+
+.cell-compact-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent-emerald, #10b981);
+  transition: width 0.3s ease;
+}
+
+.cell-compact-progress-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+@media (max-width: 640px) {
+  /* Estilos de visualização e "+" na mesma linha */
+  .detail-view-toolbar {
+    flex-wrap: nowrap;
+  }
+
+  .detail-view-toolbar .detail-view-style-bar {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .detail-view-toolbar > .btn {
+    flex-shrink: 0;
+  }
+
+  /* Nome da natureza em até duas linhas em vez de cortado */
+  .drill-row-title {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-height: 1.25;
+  }
+
+  .drill-row {
+    padding-top: 9px !important;
+    padding-bottom: 11px !important;
+  }
+}
+
 .proj-card-label {
   display: flex;
   flex-direction: column;
@@ -20158,6 +20317,27 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   flex-direction: column;
   gap: 16px;
   padding-bottom: 32px;
+}
+
+.home-hub-header.has-switch {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.home-hub-header.has-switch > div:first-child {
+  min-width: 0;
+}
+
+/* Seletor no canto direito do Início: o menu abre para a esquerda */
+.home-hub-header .planning-switch {
+  flex-shrink: 0;
+}
+
+.home-hub-header .planning-switch-menu {
+  left: auto;
+  right: 0;
 }
 
 .home-hub-header h1 {

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useFinancial } from '../context/FinancialContext';
-import { Download, Info, Lock, CheckCircle2, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { Download, Info, Lock, CheckCircle2, ArrowRight, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react';
 import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
 import type { ProjectionViewMode } from '../utils/projectionMath';
 import type { MonthlyGridProjectionRow } from '../types';
@@ -262,6 +262,13 @@ export const MonthlyProjectionGrid: React.FC = () => {
       rowExpense(source),
       mode
     );
+  };
+
+  // Card de Entrada/Saída (celular): abre o mês inteiro (real + previsto) na lista de naturezas
+  const openMonthFlow = (row: MonthlyGridProjectionRow, kind: 'in' | 'out') => {
+    // Sem o mês no título: o seletor de competência logo acima já mostra (e navega entre) os meses
+    if (kind === 'in') handleOpenCell(row, 'totalIncome', 'Entradas do mês', rowIncome(row));
+    else handleOpenCell(row, 'totalExpense', 'Saídas do mês', rowExpense(row));
   };
 
   // Filtragem estrita por ano (máximo 12 linhas)
@@ -767,28 +774,34 @@ export const MonthlyProjectionGrid: React.FC = () => {
                 </div>
               </div>
 
-              {/* Linha 2: Entrada · Saída (Real | Previsto) */}
+              {/* Linha 2: Entrada · Saída (Real | Previsto): o card inteiro abre as naturezas do mês */}
               <div className="proj-card-row">
-                <div className="proj-card-cell" onClick={(e) => isExpanded && e.stopPropagation()}>
+                <button
+                  type="button"
+                  className="proj-card-cell is-clickable proj-card-open"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openMonthFlow(row, 'in');
+                  }}
+                  title={`Ver as entradas de ${shortCompetence(row.monthKey)} por natureza`}
+                >
                   <CardLabel title="Entrada" hint="Real | Previsto" className="text-emerald" />
-                  <RealPlannedCell
-                    kind="in"
-                    real={s.realIn}
-                    planned={s.plannedIn}
-                    onReal={isExpanded ? () => openIncome(row, 'REALIZADO') : undefined}
-                    onPlanned={isExpanded ? () => openIncome(row, 'PREVISTO') : undefined}
-                  />
-                </div>
-                <div className="proj-card-cell" onClick={(e) => isExpanded && e.stopPropagation()}>
+                  <RealPlannedCell kind="in" real={s.realIn} planned={s.plannedIn} />
+                  <ChevronRight size={14} className="proj-card-open-icon" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  className="proj-card-cell is-clickable proj-card-open"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openMonthFlow(row, 'out');
+                  }}
+                  title={`Ver as saídas de ${shortCompetence(row.monthKey)} por natureza`}
+                >
                   <CardLabel title="Saída" hint="Real | Previsto" className="text-rose" />
-                  <RealPlannedCell
-                    kind="out"
-                    real={s.realOut}
-                    planned={s.plannedOut}
-                    onReal={isExpanded ? () => openExpense(row, 'REALIZADO') : undefined}
-                    onPlanned={isExpanded ? () => openExpense(row, 'PREVISTO') : undefined}
-                  />
-                </div>
+                  <RealPlannedCell kind="out" real={s.realOut} planned={s.plannedOut} />
+                  <ChevronRight size={14} className="proj-card-open-icon" aria-hidden="true" />
+                </button>
               </div>
 
               {/* Linha 3: Saldo do mês (Entrada − Saída) · Saldo acumulado */}
@@ -837,7 +850,7 @@ export const MonthlyProjectionGrid: React.FC = () => {
               {/* Expandido: toques abrem os lançamentos; DRE do mês */}
               {isExpanded && (
                 <div className="proj-card-footer animate-fade-in">
-                  <span className="text-[11px] text-muted">Toque nos valores para detalhar</span>
+                  <span className="text-[11px] text-muted">Toque em Entrada ou Saída para ver as naturezas</span>
                   <button
                     type="button"
                     className="proj-card-dre-btn"
