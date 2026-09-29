@@ -224,7 +224,8 @@ export async function fetchProduct(rawUrl: string): Promise<PriceCheckResult> {
     });
     const finalUrl = new URL(res.url || checked.toString());
     if (isBlockedHost(finalUrl.hostname)) return { ok: false, error: 'Esse endereço não pode ser consultado.' };
-    if (res.status === 403 || res.status === 429 || res.status === 503) {
+    // Lojas com proteção contra robôs respondem 403/429 ou erro 5xx em vez da página
+    if (res.status === 403 || res.status === 429 || res.status >= 500) {
       return { ok: false, error: `A loja ${finalUrl.hostname.replace(/^www\./, '')} bloqueou a consulta automática. Tente o link do mesmo produto em outra loja.` };
     }
     if (!res.ok) return { ok: false, error: `A página respondeu com erro (${res.status}). Confira se o link ainda funciona.` };
