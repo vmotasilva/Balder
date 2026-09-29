@@ -22255,8 +22255,20 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   font-size: 14px;
 }
 
-.projection-mobile-card.is-collapsed .proj-card-cell .font-mono {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* Saldo ocupa só o necessário e o Acumulado fica com o resto; se ainda faltar espaço,
+   o valor desce para baixo do rótulo em vez de ser cortado */
+.projection-mobile-card.is-collapsed .proj-card-row {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px;
+}
+
+.projection-mobile-card.is-collapsed .proj-card-cell {
+  flex-wrap: wrap;
+  column-gap: 4px;
+  row-gap: 0;
+  padding: 5px 6px;
+}
+
+.projection-mobile-card.is-collapsed .proj-card-cell .proj-card-label-main {
+  font-size: 10.5px;
 }
