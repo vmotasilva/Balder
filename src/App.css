@@ -20204,6 +20204,106 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   color: var(--text-muted);
 }
 
+/* Empréstimos: parcelas do contrato em cards no celular (tabela no computador) */
+.loan-installment-cards {
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.loan-installment-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: var(--bg-card);
+}
+
+.loan-installment-card.is-paid {
+  opacity: 0.8;
+}
+
+.loan-installment-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.loan-installment-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.loan-installment-head strong {
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.loan-installment-head span {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.loan-installment-head .installment-paid-status {
+  align-items: flex-end;
+}
+
+.loan-installment-values {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.loan-installment-values > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.loan-installment-values span {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.loan-installment-values strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.loan-installment-values strong small {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.loan-installment-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.loan-installment-actions .btn {
+  flex: 1;
+  justify-content: center;
+}
+
+@media (max-width: 640px) {
+  .loan-installments-table {
+    display: none !important;
+  }
+
+  .loan-installment-cards {
+    display: flex;
+  }
+}
+
 /* Projeção: resumo do período em um card (Entrada | Saída | Saldo final) */
 .grid-summary-one {
   display: grid;

@@ -1730,160 +1730,181 @@ export const LoansPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="spreadsheet-table-wrapper">
-                    <table className="spreadsheet-table">
-                      <thead>
-                        <tr>
-                          <th>Parcela</th>
-                          <th>Vencimento</th>
-                          <th className="th-right">Valor Nominal</th>
-                          <th className="th-right">Se Pago Hoje</th>
-                          <th className="th-right">Economia ao Antecipar</th>
-                          <th className="th-center">Status</th>
-                          <th className="th-center">Ação</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {displayedInstallments.length === 0 ? (
-                          <tr>
-                            <td colSpan={7} className="text-center py-6 text-muted" style={{ padding: '2rem 1rem' }}>
-                              Nenhuma parcela encontrada para o filtro selecionado (
-                              {contractInstallmentFilter === 'PAID'
-                                ? 'Pagas'
-                                : contractInstallmentFilter === 'OPEN'
-                                ? 'Em Aberto'
-                                : 'Todas'}
-                              ).
-                            </td>
-                          </tr>
-                        ) : (
-                          displayedInstallments.map((inst) => {
-                            const isPaid = inst.status === 'REALIZADA';
-                            const pvCalc = calculatePresentValue(
-                              inst.amount,
-                              inst.dueDate,
-                              new Date().toISOString().split('T')[0],
-                              selectedGroup.interestRatePercent
-                            );
+                  {(() => {
+                    const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                    const todayIso = new Date().toISOString().split('T')[0];
+                    // Situação, cálculo de antecipação e ações de cada parcela: a mesma coisa na tabela e nos cards
+                    const partsOf = (inst: Movement) => {
+                      const isPaid = inst.status === 'REALIZADA';
+                      const pvCalc = calculatePresentValue(inst.amount, inst.dueDate, todayIso, selectedGroup.interestRatePercent);
+                      const label = `${inst.installmentNumber || 1}/${inst.installmentsTotal || selectedGroup.totalInstallmentsCount}`;
+                      const paidInfo =
+                        isPaid && inst.paymentDate
+                          ? `em ${inst.paymentDate.split('-').reverse().join('/')}${
+                              inst.originalAmount !== undefined && Math.abs(inst.originalAmount - inst.amount) > 0.005 ? ` · ${brl(inst.amount)}` : ''
+                            }`
+                          : '';
+                      const status = isPaid ? (
+                        <span className="installment-paid-status">
+                          <span className="badge badge-emerald flex items-center gap-1 justify-center">
+                            <CheckCircle2 size={12} />
+                            <span>Paga</span>
+                          </span>
+                          {paidInfo && <small>{paidInfo}</small>}
+                        </span>
+                      ) : (
+                        <span className="badge badge-cyan flex items-center gap-1 justify-center">
+                          <Clock size={12} />
+                          <span>Em Aberto</span>
+                        </span>
+                      );
+                      const actions = isPaid ? (
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-xs text-muted hover:text-white"
+                          title="Marcar parcela novamente como em aberto"
+                          onClick={() => {
+                            if (window.confirm(`Deseja reabrir a parcela ${inst.installmentNumber || ''} e marcá-la como em aberto?`)) {
+                              // Volta ao valor previsto e ao mês do vencimento
+                              updateMovement(inst.id, {
+                                status: 'PREVISTA',
+                                amount: inst.originalAmount ?? inst.amount,
+                                paymentDate: '',
+                              });
+                            }
+                          }}
+                        >
+                          <RotateCcw size={12} />
+                          <span>Reabrir</span>
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            className="btn btn-outline btn-xs text-emerald border-emerald-500/30 hover:bg-emerald-500/10"
+                            title="Informar a data e o valor do pagamento"
+                            onClick={() => setPayingInstallment(inst)}
+                          >
+                            <Check size={12} />
+                            <span>Marcar Paga</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-outline btn-xs"
+                            onClick={() => {
+                              const confirmPay = window.confirm(
+                                `Deseja liquidar esta parcela antecipada por R$ ${pvCalc.discountedAmount.toLocaleString(
+                                  'pt-BR'
+                                )} (Economia de R$ ${pvCalc.discountAmount.toLocaleString('pt-BR')})?`
+                              );
+                              if (confirmPay) {
+                                prepayInstallments([inst.id], { [inst.id]: pvCalc.discountedAmount }, todayIso);
+                              }
+                            }}
+                          >
+                            Antecipar
+                          </button>
+                        </>
+                      );
+                      return { isPaid, pvCalc, label, status, actions };
+                    };
 
-                            return (
-                              <tr key={inst.id} className={isPaid ? 'row-paid' : ''}>
-                                <td className="font-mono font-bold">
-                                  {inst.installmentNumber || 1}/{inst.installmentsTotal || selectedGroup.totalInstallmentsCount}
-                                </td>
-                                <td className="font-mono text-muted">{inst.dueDate}</td>
-                                <td className="th-right font-mono font-semibold text-white">
-                                  {inst.amount.toLocaleString('pt-BR', {
-                                    style: 'currency',
-                                    currency: 'BRL',
-                                  })}
-                                </td>
-                                <td className="th-right font-mono text-emerald">
-                                  {isPaid
-                                    ? '-'
-                                    : pvCalc.discountedAmount.toLocaleString('pt-BR', {
-                                        style: 'currency',
-                                        currency: 'BRL',
-                                      })}
-                                </td>
-                                <td className="th-right font-mono text-amber">
-                                  {isPaid
-                                    ? '-'
-                                    : `-${pvCalc.discountAmount.toLocaleString('pt-BR', {
-                                        style: 'currency',
-                                        currency: 'BRL',
-                                      })} (${pvCalc.discountPercent.toFixed(1)}%)`}
-                                </td>
-                                <td className="th-center">
-                                  {isPaid ? (
-                                    <span className="installment-paid-status">
-                                      <span className="badge badge-emerald flex items-center gap-1 justify-center">
-                                        <CheckCircle2 size={12} />
-                                        <span>Paga</span>
-                                      </span>
-                                      {inst.paymentDate && (
-                                        <small>
-                                          em {inst.paymentDate.split('-').reverse().join('/')}
-                                          {inst.originalAmount !== undefined && Math.abs(inst.originalAmount - inst.amount) > 0.005
-                                            ? ` · ${inst.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
-                                            : ''}
-                                        </small>
-                                      )}
-                                    </span>
-                                  ) : (
-                                    <span className="badge badge-cyan flex items-center gap-1 justify-center">
-                                      <Clock size={12} />
-                                      <span>Em Aberto</span>
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="th-center">
-                                  <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                                    {isPaid ? (
-                                      <button
-                                        type="button"
-                                        className="btn btn-outline btn-xs text-muted hover:text-white"
-                                        title="Marcar parcela novamente como em aberto"
-                                        onClick={() => {
-                                          if (
-                                            window.confirm(
-                                              `Deseja reabrir a parcela ${inst.installmentNumber || ''} e marcá-la como em aberto?`
-                                            )
-                                          ) {
-                                            // Volta ao valor previsto e ao mês do vencimento
-                                            updateMovement(inst.id, {
-                                              status: 'PREVISTA',
-                                              amount: inst.originalAmount ?? inst.amount,
-                                              paymentDate: '',
-                                            });
-                                          }
-                                        }}
-                                      >
-                                        <RotateCcw size={12} />
-                                        <span>Reabrir</span>
-                                      </button>
-                                    ) : (
+                    const emptyMessage = `Nenhuma parcela encontrada para o filtro selecionado (${
+                      contractInstallmentFilter === 'PAID' ? 'Pagas' : contractInstallmentFilter === 'OPEN' ? 'Em Aberto' : 'Todas'
+                    }).`;
+
+                    return (
+                      <>
+                        {/* Computador: tabela */}
+                        <div className="spreadsheet-table-wrapper loan-installments-table">
+                          <table className="spreadsheet-table">
+                            <thead>
+                              <tr>
+                                <th>Parcela</th>
+                                <th>Vencimento</th>
+                                <th className="th-right">Valor Nominal</th>
+                                <th className="th-right">Se Pago Hoje</th>
+                                <th className="th-right">Economia ao Antecipar</th>
+                                <th className="th-center">Status</th>
+                                <th className="th-center">Ação</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {displayedInstallments.length === 0 ? (
+                                <tr>
+                                  <td colSpan={7} className="text-center py-6 text-muted" style={{ padding: '2rem 1rem' }}>
+                                    {emptyMessage}
+                                  </td>
+                                </tr>
+                              ) : (
+                                displayedInstallments.map((inst) => {
+                                  const { isPaid, pvCalc, label, status, actions } = partsOf(inst);
+                                  return (
+                                    <tr key={inst.id} className={isPaid ? 'row-paid' : ''}>
+                                      <td className="font-mono font-bold">{label}</td>
+                                      <td className="font-mono text-muted">{inst.dueDate}</td>
+                                      <td className="th-right font-mono font-semibold text-white">{brl(inst.amount)}</td>
+                                      <td className="th-right font-mono text-emerald">{isPaid ? '-' : brl(pvCalc.discountedAmount)}</td>
+                                      <td className="th-right font-mono text-amber">
+                                        {isPaid ? '-' : `-${brl(pvCalc.discountAmount)} (${pvCalc.discountPercent.toFixed(1)}%)`}
+                                      </td>
+                                      <td className="th-center">{status}</td>
+                                      <td className="th-center">
+                                        <div className="flex items-center justify-center gap-1.5 flex-wrap">{actions}</div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+
+                        {/* Celular: um card por parcela */}
+                        <div className="loan-installment-cards">
+                          {displayedInstallments.length === 0 ? (
+                            <p className="text-center text-muted text-xs py-6">{emptyMessage}</p>
+                          ) : (
+                            displayedInstallments.map((inst) => {
+                              const { isPaid, pvCalc, label, status, actions } = partsOf(inst);
+                              return (
+                                <div key={inst.id} className={`loan-installment-card ${isPaid ? 'is-paid' : ''}`}>
+                                  <div className="loan-installment-head">
+                                    <div>
+                                      <strong>Parcela {label}</strong>
+                                      <span>Vence {inst.dueDate.split('-').reverse().join('/')}</span>
+                                    </div>
+                                    {status}
+                                  </div>
+                                  <div className="loan-installment-values">
+                                    <div>
+                                      <span>{isPaid ? 'Valor' : 'Valor nominal'}</span>
+                                      <strong>{brl(inst.amount)}</strong>
+                                    </div>
+                                    {!isPaid && (
                                       <>
-                                        <button
-                                          type="button"
-                                          className="btn btn-outline btn-xs text-emerald border-emerald-500/30 hover:bg-emerald-500/10"
-                                          title="Informar a data e o valor do pagamento"
-                                          onClick={() => setPayingInstallment(inst)}
-                                        >
-                                          <Check size={12} />
-                                          <span>Marcar Paga</span>
-                                        </button>
-                                        <button
-                                          type="button"
-                                          className="btn btn-outline btn-xs"
-                                          onClick={() => {
-                                            const confirmPay = window.confirm(
-                                              `Deseja liquidar esta parcela antecipada por R$ ${pvCalc.discountedAmount.toLocaleString(
-                                                'pt-BR'
-                                              )} (Economia de R$ ${pvCalc.discountAmount.toLocaleString('pt-BR')})?`
-                                            );
-                                            if (confirmPay) {
-                                              prepayInstallments(
-                                                [inst.id],
-                                                { [inst.id]: pvCalc.discountedAmount },
-                                                new Date().toISOString().split('T')[0]
-                                              );
-                                            }
-                                          }}
-                                        >
-                                          Antecipar
-                                        </button>
+                                        <div>
+                                          <span>Se pago hoje</span>
+                                          <strong className="text-emerald">{brl(pvCalc.discountedAmount)}</strong>
+                                        </div>
+                                        <div>
+                                          <span>Economia</span>
+                                          <strong className="text-amber">
+                                            {brl(pvCalc.discountAmount)} <small>({pvCalc.discountPercent.toFixed(1)}%)</small>
+                                          </strong>
+                                        </div>
                                       </>
                                     )}
                                   </div>
-                                </td>
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                                  <div className="loan-installment-actions">{actions}</div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </div>
