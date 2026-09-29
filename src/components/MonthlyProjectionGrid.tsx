@@ -201,8 +201,8 @@ export const MonthlyProjectionGrid: React.FC = () => {
   // Estado para o modal de fechamento financeiro da competência
   const [closingModalRow, setClosingModalRow] = useState<MonthlyGridProjectionRow | null>(null);
 
-  // Estado para controlar quais competências estão expandidas na visão mobile em cards (recolhidas por padrão)
-  const [expandedMonthKeys, setExpandedMonthKeys] = useState<Set<string>>(() => new Set());
+  // Competências expandidas na visão mobile em cards: o mês atual já abre expandido
+  const [expandedMonthKeys, setExpandedMonthKeys] = useState<Set<string>>(() => new Set([currentMonthKey]));
 
   const toggleMonthExpanded = (monthKey: string) => {
     setExpandedMonthKeys((prev) => {
@@ -419,62 +419,52 @@ export const MonthlyProjectionGrid: React.FC = () => {
         </div>
       </div>
 
-      {/* 4 Mini Cards de Indicadores do Grid */}
-      <div className="grid-summary-kpis-row mt-3 mb-3">
-        <div className="grid-kpi-card">
-          <span className="grid-kpi-title">Entradas ({periodLabel})</span>
-          <div className="kpi-rp">
-            <div>
-              <span className="kpi-rp-label">Real</span>
-              <strong className="grid-kpi-num text-emerald">
-                <GlanceableCurrency value={totals.realIn} />
+      {/* Resumo do período em um card: Entrada | Saída | Saldo final. Cada valor é o consolidado
+          (real + previsto): à medida que o real é lançado, ele toma o lugar do previsto, e a barra
+          mostra quanto do total já é real */}
+      <div className="grid-summary-one mt-3 mb-3">
+        <span className="grid-summary-caption">
+          {selectedYear === 'ALL' ? 'Todo o horizonte' : `Ano ${selectedYear}`} · real + previsto
+        </span>
+        {(
+          [
+            { key: 'in', title: 'Entrada', real: totals.realIn, total: totals.realIn + totals.plannedIn, tone: 'text-emerald' },
+            { key: 'out', title: 'Saída', real: totals.realOut, total: totals.realOut + totals.plannedOut, tone: 'text-rose' },
+          ] as const
+        ).map((c) => {
+          const pct = c.total > 0 ? Math.round((c.real / c.total) * 100) : 0;
+          return (
+            <div key={c.key} className="grid-summary-col">
+              <span className="grid-summary-title">{c.title}</span>
+              <strong className={`grid-summary-value ${c.tone}`}>
+                <GlanceableCurrency
+                  value={c.total}
+                  prefix={c.key === 'out' && c.total > 0 ? '-' : ''}
+                  isPositivePrefix={c.key === 'in'}
+                />
               </strong>
+              <span className={`grid-summary-bar is-${c.key}`} title={`${pct}% já realizado`}>
+                <span style={{ width: `${pct}%` }} />
+              </span>
+              <span className="grid-summary-sub">
+                <GlanceableCurrency value={c.real} /> real
+              </span>
             </div>
-            <div className="rp-planned">
-              <span className="kpi-rp-label">Previsto</span>
-              <strong className="grid-kpi-num text-emerald">
-                <GlanceableCurrency value={totals.plannedIn} />
-              </strong>
-            </div>
-          </div>
-          <span className="grid-kpi-sub">Recebido | a receber</span>
-        </div>
-
-        <div className="grid-kpi-card">
-          <span className="grid-kpi-title">Saídas ({periodLabel})</span>
-          <div className="kpi-rp">
-            <div>
-              <span className="kpi-rp-label">Real</span>
-              <strong className="grid-kpi-num text-rose">
-                <GlanceableCurrency value={totals.realOut} prefix={totals.realOut > 0 ? '-' : ''} />
-              </strong>
-            </div>
-            <div className="rp-planned">
-              <span className="kpi-rp-label">Previsto</span>
-              <strong className="grid-kpi-num text-rose">
-                <GlanceableCurrency value={totals.plannedOut} prefix={totals.plannedOut > 0 ? '-' : ''} />
-              </strong>
-            </div>
-          </div>
-          <span className="grid-kpi-sub">Pago | a pagar</span>
-        </div>
-
-        <div className="grid-kpi-card">
-          <span className="grid-kpi-title">Resultado ({periodLabel})</span>
-          <strong className={`grid-kpi-num ${totals.monthNet >= 0 ? 'text-emerald' : 'text-rose'}`}>
-            <GlanceableCurrency value={totals.monthNet} isPositivePrefix={true} />
-          </strong>
-          <span className="grid-kpi-sub">
-            {totals.monthNet >= 0 ? 'Superávit' : 'Déficit'} considerando real + previsto
-          </span>
-        </div>
-
-        <div className="grid-kpi-card highlight">
-          <span className="grid-kpi-title">Saldo Final ({periodLabel})</span>
-          <strong className={`grid-kpi-num ${lastAccumulatedBalance >= 0 ? 'text-emerald font-bold' : 'text-rose'}`}>
+          );
+        })}
+        <div className="grid-summary-col">
+          <span className="grid-summary-title">Saldo final</span>
+          <strong className={`grid-summary-value ${lastAccumulatedBalance >= 0 ? 'val-surplus-gold' : 'text-rose'}`}>
             <GlanceableCurrency value={lastAccumulatedBalance} />
           </strong>
-          <span className="grid-kpi-sub">Posição de caixa ao fim do período</span>
+          <span className="grid-summary-sub">
+            Resultado{' '}
+            <GlanceableCurrency
+              value={totals.monthNet}
+              isPositivePrefix={true}
+              className={totals.monthNet >= 0 ? 'text-emerald' : 'text-rose'}
+            />
+          </span>
         </div>
       </div>
 
@@ -872,51 +862,6 @@ export const MonthlyProjectionGrid: React.FC = () => {
           );
         })}
 
-        {/* Card de Totais no Mobile */}
-        <div className="proj-mobile-totals-card">
-          <div className="flex items-center justify-between pb-2 border-b border-border/40">
-            <span className="text-xs font-bold uppercase tracking-wider text-primary">Totais</span>
-            <span className="badge badge-cyan text-[10px]">{displayedRows.length} meses</span>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 mt-2">
-            <div>
-              <CardLabel title="Entradas" hint="Real | Previsto" />
-              <div className="rp-cell">
-                <GlanceableCurrency value={totals.realIn} className="text-emerald font-bold text-xs" />
-                <span className="rp-sep" aria-hidden="true">|</span>
-                <span className="rp-planned">
-                  <GlanceableCurrency value={totals.plannedIn} className="text-emerald font-bold text-xs" />
-                </span>
-              </div>
-            </div>
-            <div>
-              <CardLabel title="Saídas" hint="Real | Previsto" />
-              <div className="rp-cell">
-                <GlanceableCurrency value={totals.realOut} prefix={totals.realOut > 0 ? '-' : ''} className="text-rose font-bold text-xs" />
-                <span className="rp-sep" aria-hidden="true">|</span>
-                <span className="rp-planned">
-                  <GlanceableCurrency value={totals.plannedOut} prefix={totals.plannedOut > 0 ? '-' : ''} className="text-rose font-bold text-xs" />
-                </span>
-              </div>
-            </div>
-            <div>
-              <CardLabel title="Resultado" />
-              <GlanceableCurrency
-                value={totals.monthNet}
-                isPositivePrefix={true}
-                className={`font-bold text-xs ${totals.monthNet >= 0 ? 'text-emerald' : 'text-rose'}`}
-              />
-            </div>
-            <div>
-              <CardLabel title="Saldo Final" />
-              <GlanceableCurrency
-                value={lastAccumulatedBalance}
-                className={`font-bold text-xs ${lastAccumulatedBalance >= 0 ? 'text-amber' : 'text-rose'}`}
-              />
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Pop-up Modal de Detalhamento da Célula Clicada */}

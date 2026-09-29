@@ -20204,6 +20204,97 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   color: var(--text-muted);
 }
 
+/* Projeção: resumo do período em um card (Entrada | Saída | Saldo final) */
+.grid-summary-one {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: var(--bg-card);
+  overflow: hidden;
+}
+
+.grid-summary-caption {
+  grid-column: 1 / -1;
+  padding: 8px 12px 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.grid-summary-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 6px 12px 10px;
+}
+
+.grid-summary-col + .grid-summary-col {
+  border-left: 1px solid var(--border-default);
+}
+
+.grid-summary-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.grid-summary-value {
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.grid-summary-bar {
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--text-muted) 22%, transparent);
+}
+
+.grid-summary-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.grid-summary-bar.is-in > span {
+  background: var(--accent-emerald, #10b981);
+}
+
+.grid-summary-bar.is-out > span {
+  background: var(--accent-rose, #f43f5e);
+}
+
+.grid-summary-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 640px) {
+  .grid-summary-col {
+    padding: 6px 7px 10px;
+  }
+
+  /* Três valores lado a lado sem cortar: fonte acompanha a largura da tela */
+  .grid-summary-value {
+    font-size: clamp(11px, 3.2vw, 13px);
+    overflow: visible;
+    text-overflow: clip;
+    letter-spacing: -0.01em;
+  }
+}
+
 /* Movimentações: card de filtro em 3 linhas (tipo · mês e situação · busca e filtros) */
 .movements-filter-panel.mv-filter {
   gap: 10px;
