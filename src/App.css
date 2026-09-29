@@ -20204,6 +20204,229 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   color: var(--text-muted);
 }
 
+/* Movimentações: card de filtro em 3 linhas (tipo · mês e situação · busca e filtros) */
+.movements-filter-panel.mv-filter {
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.mv-type-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.mv-type-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.mv-type-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mv-type-chip.is-active {
+  border-color: var(--accent-cyan);
+  background: color-mix(in srgb, var(--accent-cyan) 14%, transparent);
+  color: var(--text-primary);
+}
+
+.mv-type-count {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.mv-type-chip.is-active .mv-type-count {
+  color: var(--accent-cyan);
+}
+
+.mv-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mv-month-step {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 32px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: var(--bg-input);
+}
+
+.mv-month-step button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.mv-month-step select {
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0 2px;
+  /* largura do mês escolhido, não da opção mais longa ("Todos os meses") */
+  field-sizing: content;
+  max-width: 116px;
+}
+
+.mv-filter .mv-status {
+  flex: 1;
+  min-width: 0;
+}
+
+.mv-filter .mv-status .pill-btn {
+  flex: 1;
+  padding: 6px 4px;
+  white-space: nowrap;
+}
+
+.mv-filter .search-input-box {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+
+.mv-filters-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mv-filters-btn.is-active {
+  border-color: var(--accent-cyan);
+}
+
+.mv-filters-badge {
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--accent-cyan);
+  color: #030712;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* Filtros avançados: folha de baixo no celular, janela centralizada no computador */
+.mv-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  background: rgba(2, 6, 23, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.mv-sheet {
+  width: 100%;
+  max-width: 420px;
+  max-height: 85vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-card-elevated, var(--bg-card));
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.35);
+}
+
+.mv-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+
+.mv-sheet-close {
+  display: inline-flex;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.mv-sheet-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.mv-sheet-field .pill-selector {
+  align-self: flex-start;
+  flex-wrap: wrap;
+}
+
+.mv-sheet-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.mv-sheet-actions .btn {
+  flex: 1;
+  justify-content: center;
+}
+
+@media (max-width: 640px) {
+  .mv-sheet-backdrop {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .mv-sheet {
+    max-width: none;
+    border-radius: 16px 16px 0 0;
+    padding-bottom: 24px;
+  }
+}
+
 @media (max-width: 640px) {
   /* Estilos de visualização e "+" na mesma linha */
   .detail-view-toolbar {

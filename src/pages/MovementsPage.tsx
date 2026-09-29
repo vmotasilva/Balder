@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { isCashInHand } from '../utils/cashInHand';
 import { movementCompetenceDate } from '../utils/projectionMath';
 import { useFinancial } from '../context/FinancialContext';
@@ -10,14 +11,11 @@ import {
   Clock,
   Trash2,
   Zap,
-  Flag,
-  History,
   X,
   Calendar,
-  ArrowUpDown,
   ChevronDown,
   ChevronRight,
-  CalendarDays,
+  ChevronLeft,
   SlidersHorizontal,
   Layers,
   TrendingUp,
@@ -40,6 +38,22 @@ interface MovementsPageProps {
 type TabFilter = 'TODOS' | 'RECEBER' | 'PAGAR' | 'EMPRESTIMO' | 'CARTAO';
 type StatusFilter = 'TODOS' | 'PREVISTA' | 'REALIZADA';
 type OriginFilter = 'TODOS' | 'CONTA' | 'DINHEIRO';
+
+const SHORT_MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+/** "2026-10" → "Out/2026" */
+const shortCompetenceLabel = (key: string) => `${SHORT_MONTHS[Number(key.slice(5, 7)) - 1]}/${key.slice(0, 4)}`;
+
+const monthKeyOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+// Tipos de movimentação exibidos como chips no filtro
+const TYPE_TABS: { id: TabFilter; label: string; Icon: typeof Layers; tone: string }[] = [
+  { id: 'TODOS', label: 'Tudo', Icon: Layers, tone: 'text-cyan' },
+  { id: 'RECEBER', label: 'Receber', Icon: TrendingUp, tone: 'text-emerald' },
+  { id: 'PAGAR', label: 'Pagar', Icon: TrendingDown, tone: 'text-rose' },
+  { id: 'EMPRESTIMO', label: 'Empréstimos', Icon: Building2, tone: 'text-amber' },
+  { id: 'CARTAO', label: 'Cartões', Icon: CreditCard, tone: 'text-purple' },
+];
 
 const getCompetenceLabel = (yearMonthStr: string): string => {
   if (!yearMonthStr || yearMonthStr.length < 7) return yearMonthStr || 'Sem Data';
@@ -141,7 +155,16 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
   // Ordenação e agrupamento por competência
   const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('ASC');
   const [groupByCompetence, setGroupByCompetence] = useState<boolean>(true);
-  const [selectedCompetence, setSelectedCompetence] = useState<string>('TODAS');
+  // Abre no mês atual; "Todos os meses" continua na lista
+  const currentMonthKey = monthKeyOf(new Date());
+  const [selectedCompetence, setSelectedCompetence] = useState<string>(currentMonthKey);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  useEffect(() => {
+    if (!filtersOpen) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setFiltersOpen(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [filtersOpen]);
   const [collapsedCompetences, setCollapsedCompetences] = useState<Record<string, boolean>>({});
 
   const preCheckpointCount = useMemo(() => {
@@ -149,11 +172,13 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
     return allMovements.filter((m) => m.dueDate < activeCheckpoint.startDate).length;
   }, [allMovements, activeCheckpoint]);
 
-  // Contagem específica para cada botão de aba
+  // Contagem de cada tipo no mês escolhido
   const tabCounts = useMemo(() => {
-    const base = activeCheckpoint && !includePreCheckpoint
-      ? allMovements.filter((m) => m.dueDate >= activeCheckpoint.startDate)
-      : allMovements;
+    const base = allMovements.filter(
+      (m) =>
+        (!activeCheckpoint || includePreCheckpoint || m.dueDate >= activeCheckpoint.startDate) &&
+        (selectedCompetence === 'TODAS' || (!!m.dueDate && movementCompetenceDate(m).startsWith(selectedCompetence)))
+    );
     return {
       TODOS: base.length,
       RECEBER: base.filter((m) => m.type === 'RECEBER').length,
@@ -161,7 +186,45 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
       EMPRESTIMO: base.filter((m) => m.type === 'EMPRESTIMO').length,
       CARTAO: base.filter((m) => m.type === 'CARTAO').length,
     };
-  }, [allMovements, activeCheckpoint, includePreCheckpoint]);
+  }, [allMovements, activeCheckpoint, includePreCheckpoint, selectedCompetence]);
+
+  // Setas do mês: sem mês escolhido, partem do mês atual
+  const shiftCompetence = (delta: number) => {
+    const [y, m] = (selectedCompetence === 'TODAS' ? currentMonthKey : selectedCompetence).split('-').map(Number);
+    setSelectedCompetence(monthKeyOf(new Date(y, m - 1 + delta, 1)));
+  };
+
+  // Rótulos da situação conforme o tipo aberto
+  const statusLabels =
+    activeTab === 'RECEBER'
+      ? { open: 'A receber', done: 'Recebidas' }
+      : activeTab === 'TODOS'
+      ? { open: 'Abertas', done: 'Quitadas' }
+      : { open: 'A pagar', done: 'Pagas' };
+
+  // Bancos que aparecem nos lançamentos (dinheiro em mãos tem filtro próprio em Origem)
+  const bankOptions = useMemo(
+    () =>
+      Array.from(new Set(allMovements.map((m) => (m.bank || '').trim()).filter((b) => b && !isCashInHand(b)))).sort((a, b) =>
+        a.localeCompare(b, 'pt-BR')
+      ),
+    [allMovements]
+  );
+
+  const advancedCount =
+    (originFilter !== 'TODOS' ? 1 : 0) +
+    (bankFilter !== 'TODOS' ? 1 : 0) +
+    (sortOrder !== 'ASC' ? 1 : 0) +
+    (!groupByCompetence ? 1 : 0) +
+    (includePreCheckpoint ? 1 : 0);
+
+  const clearAdvancedFilters = () => {
+    setOriginFilter('TODOS');
+    setBankFilter('TODOS');
+    setSortOrder('ASC');
+    setGroupByCompetence(true);
+    setIncludePreCheckpoint(false);
+  };
 
   // Modal de Simulação e Antecipação de Empréstimos
   const [prepaymentModalOpen, setPrepaymentModalOpen] = useState(false);
@@ -263,6 +326,13 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
     const sorted = Array.from(set).sort();
     return sortOrder === 'ASC' ? sorted : sorted.reverse();
   }, [filteredMovements, sortOrder]);
+
+  // Meses da lista: os que têm lançamentos, o atual e o escolhido
+  const competenceOptions = useMemo(
+    () =>
+      Array.from(new Set([...availableCompetences, currentMonthKey, ...(selectedCompetence !== 'TODAS' ? [selectedCompetence] : [])])).sort(),
+    [availableCompetences, currentMonthKey, selectedCompetence]
+  );
 
   // Movimentações finais a exibir após filtro específico de competência
   const displayedMovements = useMemo(() => {
@@ -700,101 +770,71 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
         </div>
       </div>
 
-      {/* Card de Abas e Filtros de Movimentações */}
-      <div className="movements-filter-panel glass-card">
-        {/* 1. Botões das Abas de Visão */}
-        <div className="movements-tab-buttons-grid">
-          <button
-            type="button"
-            className={`movements-tab-btn tab-btn-todos ${activeTab === 'TODOS' ? 'active' : ''}`}
-            onClick={() => setActiveTab('TODOS')}
-            title="Ver todas as movimentações consolidadas"
-          >
-            <Layers size={14} className="tab-btn-icon" />
-            <span className="tab-btn-text">Visão Geral</span>
-            {tabCounts.TODOS > 0 && <span className="tab-btn-badge">{tabCounts.TODOS}</span>}
-          </button>
+      {/* Card de filtros: tipo, mês e situação, busca; o restante fica em "Filtros" */}
+      <div className="movements-filter-panel glass-card mv-filter">
+        {/* 1. Tipo (rola para o lado), com a quantidade do mês */}
+        <div className="mv-type-chips" role="tablist" aria-label="Tipo de movimentação">
+          {TYPE_TABS.map(({ id, label, Icon, tone }) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === id}
+              className={`mv-type-chip ${activeTab === id ? 'is-active' : ''}`}
+              onClick={() => setActiveTab(id)}
+            >
+              <Icon size={13} className={tone} />
+              <span>{label}</span>
+              <span className="mv-type-count">{tabCounts[id]}</span>
+            </button>
+          ))}
+        </div>
 
-          <button
-            type="button"
-            className={`movements-tab-btn tab-btn-receber ${activeTab === 'RECEBER' ? 'active' : ''}`}
-            onClick={() => setActiveTab('RECEBER')}
-            title="Ver entradas e valores a receber"
-          >
-            <TrendingUp size={14} className="tab-btn-icon text-emerald" />
-            <span className="tab-btn-text">Receber</span>
-            {tabCounts.RECEBER > 0 && <span className="tab-btn-badge badge-emerald">{tabCounts.RECEBER}</span>}
-          </button>
+        {/* 2. Mês (setas ou lista) e situação */}
+        <div className="mv-filter-row">
+          <div className="mv-month-step">
+            <button type="button" onClick={() => shiftCompetence(-1)} aria-label="Mês anterior">
+              <ChevronLeft size={15} />
+            </button>
+            <select
+              value={selectedCompetence}
+              onChange={(e) => setSelectedCompetence(e.target.value)}
+              aria-label="Mês de competência"
+            >
+              <option value="TODAS">Todos os meses</option>
+              {competenceOptions.map((comp) => (
+                <option key={comp} value={comp}>
+                  {shortCompetenceLabel(comp)}
+                </option>
+              ))}
+            </select>
+            <button type="button" onClick={() => shiftCompetence(1)} aria-label="Próximo mês">
+              <ChevronRight size={15} />
+            </button>
+          </div>
+          <div className="pill-selector mv-status">
+            {(['TODOS', 'PREVISTA', 'REALIZADA'] as StatusFilter[]).map((s) => (
+              <button key={s} type="button" className={`pill-btn ${statusFilter === s ? 'active' : ''}`} onClick={() => setStatusFilter(s)}>
+                {s === 'TODOS' ? 'Todas' : s === 'PREVISTA' ? statusLabels.open : statusLabels.done}
+              </button>
+            ))}
+          </div>
+        </div>
 
-          <button
-            type="button"
-            className={`movements-tab-btn tab-btn-pagar ${activeTab === 'PAGAR' ? 'active' : ''}`}
-            onClick={() => setActiveTab('PAGAR')}
-            title="Ver saídas, custos e valores a pagar"
-          >
-            <TrendingDown size={14} className="tab-btn-icon text-rose" />
-            <span className="tab-btn-text">Pagar</span>
-            {tabCounts.PAGAR > 0 && <span className="tab-btn-badge badge-rose">{tabCounts.PAGAR}</span>}
-          </button>
-
-          <button
-            type="button"
-            className={`movements-tab-btn tab-btn-emprestimo ${activeTab === 'EMPRESTIMO' ? 'active' : ''}`}
-            onClick={() => setActiveTab('EMPRESTIMO')}
-            title="Ver contratos de dívidas e parcelas de empréstimo"
-          >
-            <Building2 size={14} className="tab-btn-icon text-amber" />
-            <span className="tab-btn-text">Empréstimos</span>
-            {tabCounts.EMPRESTIMO > 0 && <span className="tab-btn-badge badge-amber">{tabCounts.EMPRESTIMO}</span>}
-          </button>
-
-          <button
-            type="button"
-            className={`movements-tab-btn tab-btn-cartao ${activeTab === 'CARTAO' ? 'active' : ''}`}
-            onClick={() => setActiveTab('CARTAO')}
-            title="Ver faturas e compras parceladas de cartão"
-          >
-            <CreditCard size={14} className="tab-btn-icon text-purple" />
-            <span className="tab-btn-text">Cartões</span>
-            {tabCounts.CARTAO > 0 && <span className="tab-btn-badge badge-purple">{tabCounts.CARTAO}</span>}
+        {/* 3. Busca e filtros avançados */}
+        <div className="mv-filter-row">
+          <div className="search-input-box">
+            <Search size={16} className="search-icon" />
+            <input type="text" placeholder="Buscar" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+          </div>
+          <button type="button" className={`mv-filters-btn ${advancedCount > 0 ? 'is-active' : ''}`} onClick={() => setFiltersOpen(true)}>
+            <SlidersHorizontal size={14} />
+            <span>Filtros</span>
+            {advancedCount > 0 && <span className="mv-filters-badge">{advancedCount}</span>}
           </button>
         </div>
 
-        {/* 2. Informação Específica da Aba Selecionada */}
-        <div className="movements-tab-specific-info">
-          {activeTab === 'TODOS' && (
-            <div className="tab-info-chip">
-              <Layers size={13} className="text-cyan flex-shrink-0" />
-              <span>Visão Geral: <strong>{filteredMovements.length}</strong> movimentações listadas</span>
-            </div>
-          )}
-          {activeTab === 'RECEBER' && (
-            <div className="tab-info-chip">
-              <TrendingUp size={13} className="text-emerald flex-shrink-0" />
-              <span>Receitas filtradas: <strong>+{totalReceber.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong> ({tabCounts.RECEBER} lançamentos)</span>
-            </div>
-          )}
-          {activeTab === 'PAGAR' && (
-            <div className="tab-info-chip">
-              <TrendingDown size={13} className="text-rose flex-shrink-0" />
-              <span>Despesas filtradas: <strong>-{totalPagar.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong> ({tabCounts.PAGAR} lançamentos)</span>
-            </div>
-          )}
-          {activeTab === 'EMPRESTIMO' && (
-            <div className="tab-info-chip">
-              <Building2 size={13} className="text-amber flex-shrink-0" />
-              <span>Créditos & Empréstimos: <strong>{loanGroups.length} contratos</strong> ({tabCounts.EMPRESTIMO} parcelas ativas)</span>
-            </div>
-          )}
-          {activeTab === 'CARTAO' && (
-            <div className="tab-info-chip">
-              <CreditCard size={13} className="text-purple flex-shrink-0" />
-              <span>Faturas & Cartões: <strong>{tabCounts.CARTAO}</strong> compras e parcelas mapeadas</span>
-            </div>
-          )}
-        </div>
-
-        {/* 3. Informação Específica de Empréstimos (quando ativa) */}
+        {/* Empréstimos: resumo da carteira e antecipação */}
         {activeTab === 'EMPRESTIMO' && loanGroups.length > 0 && (
           <div className="loan-portfolio-banner glass-card animate-fade-in mt-1 mb-1">
             <div className="loan-portfolio-info">
@@ -842,172 +882,93 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
             </div>
           </div>
         )}
+      </div>
 
-        {/* Secondary Filter Controls Row */}
-        <div className="filter-controls-row">
-          {/* Status Filter */}
-          <div className="control-group">
-            <span className="control-label">Status:</span>
-            <div className="pill-selector">
-              <button
-                className={`pill-btn ${statusFilter === 'TODOS' ? 'active' : ''}`}
-                onClick={() => setStatusFilter('TODOS')}
-              >
-                Todos
-              </button>
-              <button
-                className={`pill-btn ${statusFilter === 'PREVISTA' ? 'active' : ''}`}
-                onClick={() => setStatusFilter('PREVISTA')}
-              >
-                Previstas
-              </button>
-              <button
-                className={`pill-btn ${statusFilter === 'REALIZADA' ? 'active' : ''}`}
-                onClick={() => setStatusFilter('REALIZADA')}
-              >
-                Realizadas
+      {/* Filtros avançados: folha que sobe no celular, janela no computador */}
+      {/* No body: um ancestral com transform prenderia o position: fixed dentro da página */}
+      {filtersOpen && createPortal(
+        <div className="mv-sheet-backdrop" onClick={() => setFiltersOpen(false)}>
+          <div className="mv-sheet" role="dialog" aria-modal="true" aria-label="Filtros" onClick={(e) => e.stopPropagation()}>
+            <div className="mv-sheet-head">
+              <strong>Filtros</strong>
+              <button type="button" className="mv-sheet-close" onClick={() => setFiltersOpen(false)} aria-label="Fechar">
+                <X size={16} />
               </button>
             </div>
-          </div>
 
-          {/* Origem: em conta × dinheiro em mãos */}
-          <div className="control-group">
-            <span className="control-label">Origem:</span>
-            <div className="pill-selector">
-              <button className={`pill-btn ${originFilter === 'TODOS' ? 'active' : ''}`} onClick={() => setOriginFilter('TODOS')}>
-                Todas
-              </button>
-              <button className={`pill-btn ${originFilter === 'CONTA' ? 'active' : ''}`} onClick={() => setOriginFilter('CONTA')}>
-                Em conta
-              </button>
-              <button
-                className={`pill-btn ${originFilter === 'DINHEIRO' ? 'active' : ''}`}
-                onClick={() => setOriginFilter('DINHEIRO')}
-              >
-                💵 Dinheiro em mãos
-              </button>
+            <div className="mv-sheet-field">
+              <span>Origem</span>
+              <div className="pill-selector">
+                {(['TODOS', 'CONTA', 'DINHEIRO'] as OriginFilter[]).map((o) => (
+                  <button key={o} type="button" className={`pill-btn ${originFilter === o ? 'active' : ''}`} onClick={() => setOriginFilter(o)}>
+                    {o === 'TODOS' ? 'Todas' : o === 'CONTA' ? 'Em conta' : 'Dinheiro em mãos'}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* Bank Filter */}
-          <div className="control-group">
-            <span className="control-label">Banco:</span>
-            <select className="form-select select-sm" value={bankFilter} onChange={(e) => setBankFilter(e.target.value)}>
-              <option value="TODOS">Todos os Bancos</option>
-              <option value="Nubank">Nubank</option>
-              <option value="Inter">Inter</option>
-              <option value="XP">XP Investimentos</option>
-              <option value="Caixa">Caixa</option>
-            </select>
-          </div>
-
-          {/* Competência Filter */}
-          {availableCompetences.length > 1 && (
-            <div className="control-group">
-              <span className="control-label">Competência:</span>
-              <select
-                className="form-select select-sm"
-                value={selectedCompetence}
-                onChange={(e) => setSelectedCompetence(e.target.value)}
-              >
-                <option value="TODAS">Todas as Competências ({availableCompetences.length})</option>
-                {availableCompetences.map((comp) => (
-                  <option key={comp} value={comp}>
-                    {getCompetenceLabel(comp)}
+            <div className="mv-sheet-field">
+              <span>Banco</span>
+              <select className="form-select select-sm" value={bankFilter} onChange={(e) => setBankFilter(e.target.value)}>
+                <option value="TODOS">Todos os bancos</option>
+                {bankOptions.map((b) => (
+                  <option key={b} value={b}>
+                    {b}
                   </option>
                 ))}
               </select>
             </div>
-          )}
 
-          {/* Sort Order & Group View Controls */}
-          <div className="control-group" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <button
-              type="button"
-              className={`pill-btn ${sortOrder === 'ASC' ? 'active' : ''}`}
-              onClick={() => setSortOrder(sortOrder === 'ASC' ? 'DESC' : 'ASC')}
-              title={sortOrder === 'ASC' ? 'Ordenado: Mais Próximos / Recentes Primeiro (Clique para inverter)' : 'Ordenado: Mais Distantes no Futuro Primeiro (Clique para inverter)'}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 12px',
-                borderRadius: '8px',
-                background: sortOrder === 'ASC' ? 'rgba(6, 182, 212, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                border: sortOrder === 'ASC' ? '1px solid rgba(6, 182, 212, 0.35)' : '1px solid rgba(255, 255, 255, 0.1)',
-                color: sortOrder === 'ASC' ? '#38bdf8' : 'var(--text-secondary)',
-                cursor: 'pointer',
-              }}
-            >
-              <ArrowUpDown size={13} />
-              <span>{sortOrder === 'ASC' ? 'Mais Próximos 1º' : 'Mais Futuros 1º'}</span>
-            </button>
-
-            <button
-              type="button"
-              className={`pill-btn ${groupByCompetence ? 'active' : ''}`}
-              onClick={() => setGroupByCompetence(!groupByCompetence)}
-              title="Alternar agrupamento visual por mês de competência"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 12px',
-                borderRadius: '8px',
-                background: groupByCompetence ? 'rgba(99, 102, 241, 0.15)' : 'rgba(255, 255, 255, 0.05)',
-                border: groupByCompetence ? '1px solid rgba(99, 102, 241, 0.35)' : '1px solid rgba(255, 255, 255, 0.1)',
-                color: groupByCompetence ? '#a5b4fc' : 'var(--text-secondary)',
-                cursor: 'pointer',
-              }}
-            >
-              <CalendarDays size={13} />
-              <span>{groupByCompetence ? 'Agrupado por Mês' : 'Lista Direta'}</span>
-            </button>
-          </div>
-
-          {/* Search Box */}
-          <div className="search-input-box">
-            <Search size={16} className="search-icon" />
-            <input
-              type="text"
-              placeholder="Buscar por descrição, categoria..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-        </div>
-
-        {/* Linha de Contexto do Marco Financeiro */}
-        {activeCheckpoint && (
-          <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 mt-2 rounded-xl bg-slate-900/60 border border-slate-800 text-xs flex-wrap">
-            <div className="flex items-center gap-2 text-slate-300">
-              <Flag size={14} className="text-indigo-400" />
-              <span>
-                Monitorando a partir de <strong>{activeCheckpoint.startDate.split('-').reverse().join('/')}</strong>
-                {activeCheckpoint.label && <span className="text-slate-400"> ({activeCheckpoint.label})</span>}
-              </span>
+            <div className="mv-sheet-field">
+              <span>Ordem</span>
+              <div className="pill-selector">
+                <button type="button" className={`pill-btn ${sortOrder === 'ASC' ? 'active' : ''}`} onClick={() => setSortOrder('ASC')}>
+                  Mais próximos primeiro
+                </button>
+                <button type="button" className={`pill-btn ${sortOrder === 'DESC' ? 'active' : ''}`} onClick={() => setSortOrder('DESC')}>
+                  Mais distantes primeiro
+                </button>
+              </div>
             </div>
-            {preCheckpointCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setIncludePreCheckpoint(!includePreCheckpoint)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                  includePreCheckpoint
-                    ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40 shadow-sm'
-                    : 'bg-slate-800/90 text-slate-300 border-slate-700 hover:border-slate-600 hover:text-white'
-                }`}
-              >
-                <History size={13} />
-                <span>
-                  {includePreCheckpoint
-                    ? 'Ocultar histórico anterior'
-                    : `Exibir transações anteriores ao marco (${preCheckpointCount})`}
-                </span>
-              </button>
+
+            <div className="mv-sheet-field">
+              <span>Agrupar por mês</span>
+              <div className="pill-selector">
+                <button type="button" className={`pill-btn ${groupByCompetence ? 'active' : ''}`} onClick={() => setGroupByCompetence(true)}>
+                  Sim
+                </button>
+                <button type="button" className={`pill-btn ${!groupByCompetence ? 'active' : ''}`} onClick={() => setGroupByCompetence(false)}>
+                  Não
+                </button>
+              </div>
+            </div>
+
+            {activeCheckpoint && preCheckpointCount > 0 && (
+              <div className="mv-sheet-field">
+                <span>Antes do marco ({activeCheckpoint.startDate.split('-').reverse().join('/')})</span>
+                <div className="pill-selector">
+                  <button type="button" className={`pill-btn ${!includePreCheckpoint ? 'active' : ''}`} onClick={() => setIncludePreCheckpoint(false)}>
+                    Ocultar
+                  </button>
+                  <button type="button" className={`pill-btn ${includePreCheckpoint ? 'active' : ''}`} onClick={() => setIncludePreCheckpoint(true)}>
+                    Mostrar ({preCheckpointCount})
+                  </button>
+                </div>
+              </div>
             )}
+
+            <div className="mv-sheet-actions">
+              <button type="button" className="btn btn-outline btn-sm" onClick={clearAdvancedFilters}>
+                Limpar
+              </button>
+              <button type="button" className="btn btn-primary btn-sm" onClick={() => setFiltersOpen(false)}>
+                Ver {displayedMovements.length} {displayedMovements.length === 1 ? 'resultado' : 'resultados'}
+              </button>
+            </div>
           </div>
-        )}
-      </div>
+        </div>,
+        document.body
+      )}
 
       {/* Movements Table */}
       {/* Em conta × dinheiro em mãos, para o que está filtrado na tela */}
