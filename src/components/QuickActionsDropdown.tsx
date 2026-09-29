@@ -267,7 +267,7 @@ export const QuickActionsDropdown: React.FC<QuickActionsDropdownProps> = ({
                 {(onOpenOnboarding || onOpenCheckpoint) && (
                   <>
                     <span className="quick-actions-section-title mt-2">
-                      CALIBRAÇÃO & ASSISTENTE INICIAL (GET STARTED)
+                      CONFIGURAÇÃO COM A FORSETI
                     </span>
 
                     {onOpenOnboarding && (

@@ -312,12 +312,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                     onOpenOnboarding(onboardingAudit.nextSuggestedStep?.stepIndex);
                   }
                 }}
-                title="Acessar o Onboarding Get Started e Calibrar o Balder"
+                title="Configurar o Balder com a Forseti"
               >
                 <div className="profile-gs-top">
                   <div className="profile-gs-badge-tag">
                     <Sparkles size={13} className="text-amber-400" />
-                    <span className="profile-gs-title">Get Started</span>
+                    <span className="profile-gs-title">Configuração com a Forseti</span>
                   </div>
                   <span className={`profile-gs-pct-badge ${completionPercentage === 100 ? 'done' : 'pending'}`}>
                     {completionPercentage}%

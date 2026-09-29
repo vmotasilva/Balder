@@ -1,10 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { useTheme } from '../context/ThemeContext';
 import { Plus, Sparkles, Sun, Moon, Bell } from 'lucide-react';
 import { BalderHubModal } from './BalderHubModal';
 import { PlanningSwitcher } from './PlanningSwitcher';
-import { auditOnboardingProgress } from '../utils/onboardingProgress';
+import { useHubNotifications } from '../hooks/useHubNotifications';
 import { useAccountScope } from '../context/AccountScopeContext';
 
 interface NavbarProps {
@@ -24,9 +24,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenSimulationModal,
   onNavigateToDashboard,
   onOpenOnboarding,
-  onNavigateToMovements,
-  onNavigateToInvoices,
-  onNavigateToGoals,
   onNavigateToCopilot,
   onPlanWithOthers,
 }) => {
@@ -38,31 +35,18 @@ export const Navbar: React.FC<NavbarProps> = ({
     cashInHandBalance,
     emergencyReserveMonths,
     nextCriticalEvent,
-    activeCheckpoint,
-    movements,
-    cards,
-    accounts,
-    banks,
-    natures,
   } = useFinancial();
   const { theme, toggleTheme } = useTheme();
   const [isHubOpen, setIsHubOpen] = useState(false);
 
-  // Auditoria dos pilares do Get Started
-  const onboardingAudit = useMemo(
-    () =>
-      auditOnboardingProgress({
-        activeCheckpoint,
-        movements,
-        cards,
-        accounts,
-        banks,
-        natures,
-      }),
-    [activeCheckpoint, movements, cards, accounts, banks, natures]
-  );
-
-  const pendingCount = onboardingAudit.missingStepsCount + (nextCriticalEvent ? 1 : 0);
+  // Notificações da Central: o sino mostra só as não lidas (abrir a Central marca como lidas)
+  const [isForecastOpen, setIsForecastOpen] = useState(false);
+  const hub = useHubNotifications({
+    onOpenSetup: (step) => onOpenOnboarding?.(step),
+    onGoToHome: () => onNavigateToDashboard?.(),
+    onOpenForecast: () => setIsForecastOpen(true),
+  });
+  const pendingCount = hub.unreadCount;
   const hasHubAlerts = pendingCount > 0;
 
   return (
@@ -200,14 +184,13 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
     </header>
 
-    {/* Modal da Central Balder (Notificações & Acesso Rápido ao Get Started) */}
+    {/* Central Balder: notificações do que precisa de atenção */}
     <BalderHubModal
       isOpen={isHubOpen}
       onClose={() => setIsHubOpen(false)}
-      onOpenOnboarding={onOpenOnboarding || (() => {})}
-      onNavigateToMovements={onNavigateToMovements}
-      onNavigateToInvoices={onNavigateToInvoices}
-      onNavigateToGoals={onNavigateToGoals}
+      hub={hub}
+      isForecastOpen={isForecastOpen}
+      onForecastOpenChange={setIsForecastOpen}
       onNavigateToCopilot={onNavigateToCopilot}
     />
   </>
