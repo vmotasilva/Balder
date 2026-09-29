@@ -60,6 +60,7 @@ import {
 import type { FixedExpenseMapping, FinancialCheckpoint, CheckpointBankDebt } from '../types';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
 import { DataFormatPanel } from '../components/DataFormatPanel';
+import { InfoButton } from '../components/InfoButton';
 
 interface ProfilePageProps {
   onOpenOnboarding?: (stepIndex?: number) => void;
@@ -268,8 +269,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
           <div className="kicker-badge">
             <span>CONFIGURAÇÕES & SEGURANÇA</span>
           </div>
-          <h1 className="page-title">Meu Perfil</h1>
-          <p className="page-subtitle">Gerencie suas contas, conexões bancárias, preferências e exportações analíticas</p>
+          <h1 className="page-title label-with-info">
+            Meu Perfil
+            <InfoButton title="Meu Perfil">
+              <p>Gerencie suas contas, conexões bancárias, preferências e exportações analíticas</p>
+            </InfoButton>
+          </h1>
         </div>
       </div>
 
@@ -445,8 +450,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
         <div className="profile-content-card glass-card">
           {activeSubTab === 'PERFIL' && (
             <div className="subtab-content">
-              <h3>Perfil do Usuário</h3>
-              <p className="subtab-desc">Suas informações cadastrais e identificação do sistema</p>
+              <h3 className="label-with-info">
+                Perfil do Usuário
+                <InfoButton title="Perfil do Usuário">
+                  <p>Suas informações cadastrais e identificação do sistema</p>
+                </InfoButton>
+              </h3>
 
               <div className="form-grid-2">
                 <div className="form-group">
@@ -523,10 +532,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                   <div className="kicker-badge" style={{ marginBottom: '0.25rem' }}>
                     <span>PLANO & FATURAMENTO</span>
                   </div>
-                  <h3>Assinatura & Recursos Premium</h3>
-                  <p className="subtab-desc">
-                    Gerencie seu plano Balder, ciclo de cobrança, faturas e métodos de pagamento.
-                  </p>
+                  <h3 className="label-with-info">
+                    Assinatura & Recursos Premium
+                    <InfoButton title="Assinatura & Recursos Premium">
+                      <p>Gerencie seu plano Balder, ciclo de cobrança, faturas e métodos de pagamento.</p>
+                    </InfoButton>
+                  </h3>
                 </div>
 
                 <div className="subscription-billing-toggle">
@@ -1009,13 +1020,17 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                     >
                       <Compass size={20} />
                     </div>
-                    <h3 style={{ fontSize: '18px', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
+                    <h3 className="label-with-info" style={{ fontSize: '18px', fontWeight: 800, margin: 0, color: 'var(--text-primary)' }}>
                       Marcos de Planejamento & Cenários Financeiros
+                      <InfoButton title="Marcos e cenários">
+                        <p>
+                          O <strong>marco ativo</strong> é o planejamento em vigor: ele ancora o saldo em caixa, o acompanhamento e o
+                          cálculo das metas.
+                        </p>
+                        <p>Você pode criar novos cenários, fazer simulações alternativas e arquivar marcos antigos.</p>
+                      </InfoButton>
                     </h3>
                   </div>
-                  <p className="subtab-desc" style={{ maxWidth: '680px', margin: '4px 0 0 0', fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
-                    O <strong>Marco Ativo</strong> é o planejamento vigente que ancora o saldo real em caixa, a régua de acompanhamento e o cálculo das metas. Você pode criar novos cenários, simulações alternativas e arquivar marcos antigos.
-                  </p>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -1816,10 +1831,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
               {/* Header com Ações Rápidas */}
               <div className="naturezas-header-row mb-4">
                 <div>
-                  <h3>Contas, Carteiras, Cartões & Meios de Pagamento</h3>
-                  <p className="subtab-desc">
-                    Gerencie seus saldos conciliados, limites de cartões e métodos de liquidação financeira.
-                  </p>
+                  <h3 className="label-with-info">
+                    Contas, Carteiras, Cartões & Meios de Pagamento
+                    <InfoButton title="Contas, Carteiras, Cartões & Meios de Pagamento">
+                      <p>Gerencie seus saldos conciliados, limites de cartões e métodos de liquidação financeira.</p>
+                    </InfoButton>
+                  </h3>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
@@ -2184,10 +2201,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
             <div className="subtab-content animate-fade-in">
               <div className="naturezas-header-row mb-4">
                 <div>
-                  <h3>Bancos & Instituições Financeiras</h3>
-                  <p className="subtab-desc">
-                    Instituições cadastradas e conexões protegidas via Open Finance Brasil
-                  </p>
+                  <h3 className="label-with-info">
+                    Bancos & Instituições Financeiras
+                    <InfoButton title="Bancos & Instituições Financeiras">
+                      <p>Instituições cadastradas e conexões protegidas via Open Finance Brasil</p>
+                    </InfoButton>
+                  </h3>
                 </div>
                 <button
                   className="btn btn-primary btn-sm"
@@ -2278,10 +2297,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
             <div className="subtab-content naturezas-subtab animate-fade-in">
               <div className="naturezas-header-row">
                 <div>
-                  <h3>Naturezas & Mapeamento de Gastos Fixos</h3>
-                  <p className="subtab-desc">
-                    Cadastre suas naturezas orçamentárias e estruture mapeamentos matemáticos de gastos fixos para justificar cada Teto.
-                  </p>
+                  <h3 className="label-with-info">
+                    Naturezas & Mapeamento de Gastos Fixos
+                    <InfoButton title="Naturezas & Mapeamento de Gastos Fixos">
+                      <p>Cadastre suas naturezas orçamentárias e estruture mapeamentos matemáticos de gastos fixos para justificar cada Teto.</p>
+                    </InfoButton>
+                  </h3>
                 </div>
                 <button className="btn btn-primary btn-sm" onClick={handleOpenCreateNature}>
                   <Plus size={16} />
@@ -2714,10 +2735,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                   <div className="natureza-mappings-section mt-4">
                     <div className="mappings-section-header">
                       <div>
-                        <h4>Mapeamentos de Gastos Fixos ({selectedNature.mappings.length})</h4>
-                        <p className="subtab-desc">
-                          Cadastre mais de um mapeamento para esta natureza para cobrir rotinas, compras semanais ou meses específicos. A soma de todos os itens define o Teto.
-                        </p>
+                        <h4 className="label-with-info">
+                          Mapeamentos de Gastos Fixos ({selectedNature.mappings.length})
+                          <InfoButton title="Mapeamentos de gastos fixos">
+                            <p>Cadastre mais de um mapeamento para esta natureza para cobrir rotinas, compras semanais ou meses específicos. A soma de todos os itens define o Teto.</p>
+                          </InfoButton>
+                        </h4>
                       </div>
                       <button
                         className="btn btn-outline btn-sm"
@@ -3200,8 +3223,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
 
           {activeSubTab === 'PREFERENCIAS' && (
             <div className="subtab-content">
-              <h3>Preferências de Exibição</h3>
-              <p className="subtab-desc">Personalize a sua interface do BALDER</p>
+              <h3 className="label-with-info">
+                Preferências de Exibição
+                <InfoButton title="Preferências de Exibição">
+                  <p>Personalize a sua interface do BALDER</p>
+                </InfoButton>
+              </h3>
 
               <div className="preference-toggles">
                 <div className="pref-row">
@@ -3344,8 +3371,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
 
           {activeSubTab === 'EXPORTACOES' && (
             <div className="subtab-content">
-              <h3>Exportações de Dados</h3>
-              <p className="subtab-desc">Exporte suas movimentações e projeções para análise em Excel (.xlsx) ou CSV</p>
+              <h3 className="label-with-info">
+                Exportações de Dados
+                <InfoButton title="Exportações de Dados">
+                  <p>Exporte suas movimentações e projeções para análise em Excel (.xlsx) ou CSV</p>
+                </InfoButton>
+              </h3>
 
               <div className="export-options-grid">
                 <div className="export-card glass-card">
@@ -3363,8 +3394,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
 
           {activeSubTab === 'SEGURANCA' && (
             <div className="subtab-content">
-              <h3>Segurança & Privacidade</h3>
-              <p className="subtab-desc">Seus dados financeiros permanecem sob custódia criptografada</p>
+              <h3 className="label-with-info">
+                Segurança & Privacidade
+                <InfoButton title="Segurança & Privacidade">
+                  <p>Seus dados financeiros permanecem sob custódia criptografada</p>
+                </InfoButton>
+              </h3>
 
               <div className="security-info-box">
                 <div className="sec-item">

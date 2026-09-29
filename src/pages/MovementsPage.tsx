@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { InfoButton } from '../components/InfoButton';
 import { isCashInHand } from '../utils/cashInHand';
 import { movementCompetenceDate } from '../utils/projectionMath';
 import { useFinancial } from '../context/FinancialContext';
@@ -838,15 +839,19 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
         {activeTab === 'EMPRESTIMO' && loanGroups.length > 0 && (
           <div className="loan-portfolio-banner glass-card animate-fade-in mt-1 mb-1">
             <div className="loan-portfolio-info">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="badge badge-amber text-xs">RESUMO DE CRÉDITOS ATIVOS</span>
-                <span className="text-xs text-muted">Resolução BACEN nº 3.516 (Deságio a Valor Presente)</span>
-              </div>
-              <h3 className="text-lg font-bold text-white">Carteira de Empréstimos & Oportunidade de Quitação</h3>
-              <p className="text-xs text-secondary mt-1">
-                Você possui <strong>{loanGroups.reduce((acc, g) => acc + g.openInstallments.length, 0)} parcelas futuras</strong> ativas.
-                Ao antecipar parcelas, todos os juros futuros não decorridos são deduzidos por lei.
-              </p>
+              <h3 className="text-lg font-bold text-white label-with-info">
+                Carteira de Empréstimos
+                <InfoButton title="Carteira de empréstimos">
+                  <p>
+                    Você tem <strong>{loanGroups.reduce((acc, g) => acc + g.openInstallments.length, 0)} parcelas futuras</strong> em
+                    aberto.
+                  </p>
+                  <p>
+                    Ao antecipar parcelas, os juros futuros que ainda não correram são descontados por lei (Resolução BACEN nº 3.516,
+                    valor presente). "Se quitado hoje" mostra quanto você pagaria antecipando tudo.
+                  </p>
+                </InfoButton>
+              </h3>
             </div>
 
             <div className="loan-portfolio-kpis">

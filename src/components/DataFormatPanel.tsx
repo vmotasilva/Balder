@@ -3,6 +3,7 @@ import { Eraser, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import { useConfirmDialog, ConfirmDialog } from './ConfirmDialog';
 import type { DataFormatCategory } from '../types';
+import { InfoButton } from './InfoButton';
 
 interface FormatOption {
   id: DataFormatCategory;
@@ -111,10 +112,12 @@ export const DataFormatPanel: React.FC = () => {
 
   return (
     <div className="subtab-content">
-      <h3>Formatar Dados</h3>
-      <p className="subtab-desc">
-        Escolha o que apagar definitivamente da projeção. O que não for marcado permanece intacto.
-      </p>
+      <h3 className="label-with-info">
+        Formatar Dados
+        <InfoButton title="Formatar Dados">
+          <p>Escolha o que apagar definitivamente da projeção. O que não for marcado permanece intacto.</p>
+        </InfoButton>
+      </h3>
 
       <div
         style={{

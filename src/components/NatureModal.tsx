@@ -3,6 +3,7 @@ import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
 import type { ExpenseNature, NatureDetailMode } from '../types';
 import { Check, Plus, Sparkles, Search, X } from 'lucide-react';
+import { InfoButton } from './InfoButton';
 
 interface NatureModalProps {
   isOpen: boolean;
@@ -565,18 +566,18 @@ export const NatureModal: React.FC<NatureModalProps> = ({
         {/* Linha: Palavras-chave para Reconhecimento da IA (Forseti) */}
         <div className="form-group mb-4">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-            <label style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Sparkles size={15} className="text-cyan" />
-              <span>Palavras-chave para a IA (Forseti)</span>
+            <label className="label-with-info" style={{ margin: 0 }}>
+              <span>Palavras-chave para a Forseti</span>
+              <InfoButton title="Palavras-chave">
+                <p>Ajudam a Forseti a reconhecer de qual natureza um item faz parte.</p>
+                <p>Quando você manda a foto de uma nota ou importa uma fatura, os itens com essas palavras são classificados aqui automaticamente.</p>
+              </InfoButton>
             </label>
             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
               {keywords.length} cadastrada(s)
             </span>
           </div>
 
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0 0 8px', lineHeight: 1.4 }}>
-            Ajude a IA a reconhecer de qual natureza um item faz parte. Quando você enviar fotos de notas ou importar faturas, o Forseti usará estas palavras para classificar os itens de forma 100% automática.
-          </p>
 
           {/* Input para adicionar nova palavra-chave */}
           <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
@@ -836,9 +837,6 @@ export const NatureModal: React.FC<NatureModalProps> = ({
               );
             })}
           </div>
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
-            Dica: você também pode digitar ou colar qualquer outro emoji que desejar no campo acima.
-          </span>
         </div>
 
         {/* Rodapé de Ações */}

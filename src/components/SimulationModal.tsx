@@ -15,9 +15,6 @@ import {
   TrendingUp,
   Shield,
   Plus,
-  HelpCircle,
-  ChevronDown,
-  ChevronUp,
   Calendar,
   DollarSign,
   Percent,
@@ -30,6 +27,7 @@ import type {
   CustomScenarioInput,
 } from '../types';
 import { NumberInput } from './NumberInput';
+import { InfoButton } from './InfoButton';
 
 interface SimulationModalProps {
   isOpen: boolean;
@@ -199,7 +197,6 @@ export const SimulationModal: React.FC<SimulationModalProps> = ({
   const [contractDate, setContractDate] = useState<string>(todayStr);
   const [firstDueDate, setFirstDueDate] = useState<string>(nextMonthStr);
   const [bankPayment, setBankPayment] = useState<number>(currentDefaults.defaultBankPayment);
-  const [showFieldDetails, setShowFieldDetails] = useState<boolean>(false);
 
   // Atualizar valores padrão ao mudar de preset
   const handlePresetSelect = (preset: SimulationPresetId) => {
@@ -438,58 +435,22 @@ export const SimulationModal: React.FC<SimulationModalProps> = ({
             <div className="loan-audit-form-card glass-card mt-3">
               <div className="loan-audit-header">
                 <div>
-                  <h4 className="text-white font-bold">{currentDefaults.title}</h4>
+                  <h4 className="text-white font-bold label-with-info">
+                    {currentDefaults.title}
+                    <InfoButton title="O que é cada campo">
+                      <p><strong>Valor emprestado:</strong> o valor líquido que cai na sua conta.</p>
+                      <p><strong>Taxa:</strong> juros mensais informados pelo banco na proposta.</p>
+                      <p><strong>Quantidade de parcelas:</strong> o prazo em prestações mensais.</p>
+                      <p><strong>Data da contratação:</strong> dia em que o dinheiro foi liberado ou o contrato assinado.</p>
+                      <p><strong>Vencimento inicial:</strong> data da 1ª parcela (define a carência).</p>
+                      <p><strong>Parcela e total calculados:</strong> o que a Tabela Price pura daria (parcela × prazo).</p>
+                      <p><strong>Parcela e total no banco:</strong> o que o banco realmente cobra no boleto ou na fatura.</p>
+                      <p><strong>Taxa pelo cálculo:</strong> a taxa efetiva real (CET) a partir da parcela cobrada.</p>
+                    </InfoButton>
+                  </h4>
                   <p className="text-xs text-secondary">{currentDefaults.description}</p>
                 </div>
-                <button
-                  type="button"
-                  className="btn btn-outline btn-xs"
-                  onClick={() => setShowFieldDetails(!showFieldDetails)}
-                >
-                  <HelpCircle size={14} className="text-cyan" />
-                  <span>{showFieldDetails ? 'Ocultar Detalhamento' : 'Detalhamento dos Campos'}</span>
-                  {showFieldDetails ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                </button>
               </div>
-
-              {/* DETALHAMENTO DIDÁTICO DOS CAMPOS (EXPANSÍVEL) */}
-              {showFieldDetails && (
-                <div className="loan-fields-glossary glass-card animate-fade-in mt-3 p-3">
-                  <h5 className="text-xs font-bold text-cyan mb-2">Detalhamento dos Campos & Fórmulas Contábeis:</h5>
-                  <div className="glossary-grid">
-                    <div className="glossary-item">
-                      <strong>1. Valor Emprestado:</strong> Montante principal captado líquido liberado na sua conta.
-                    </div>
-                    <div className="glossary-item">
-                      <strong>2. Taxa:</strong> Taxa de juros mensal nominal declarada pelo banco ou financeira na proposta.
-                    </div>
-                    <div className="glossary-item">
-                      <strong>3. Quantidade de Parcelas:</strong> Prazo de pagamento em prestações mensais consecutivas.
-                    </div>
-                    <div className="glossary-item">
-                      <strong>4. Data da Contratação:</strong> Dia do desembolso / assinatura do contrato de crédito.
-                    </div>
-                    <div className="glossary-item">
-                      <strong>5. Data de Vencimento Inicial:</strong> Vencimento da 1ª parcela (define dias de carência).
-                    </div>
-                    <div className="glossary-item">
-                      <strong>6. Valor da Parcela (Calculada):</strong> Prestação teórica calculada matematicamente pela Tabela Price pura.
-                    </div>
-                    <div className="glossary-item">
-                      <strong>7. Valor Total c/ Juros (Calculada):</strong> Total rigoroso sem cobranças adicionais (Parcela Calc. × N).
-                    </div>
-                    <div className="glossary-item">
-                      <strong>8. Valor da Parcela (No Banco):</strong> Valor real exigido pela instituição bancária no boleto/fatura.
-                    </div>
-                    <div className="glossary-item">
-                      <strong>9. Valor Total c/ Juros (No Banco):</strong> Custo total efetivo a ser pago ao banco (Parcela Banco × N).
-                    </div>
-                    <div className="glossary-item">
-                      <strong>10. Taxa (de acordo com o cálculo):</strong> Taxa efetiva real (TIR/CET) apurada pelo valor da parcela cobrada.
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* LINHA 1: VALOR EMPRESTADO, TAXA, PARCELAS */}
               <div className="form-grid-3 mt-3">

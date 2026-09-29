@@ -415,10 +415,12 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
               <Layers size={13} className="mr-1" />
               <span>PLANEJAMENTO ORÇAMENTÁRIO & TETOS</span>
             </div>
-            <h1 className="page-title">Controle de Naturezas</h1>
-            <p className="page-subtitle">
-              Ajuste os tetos orçamentários, estruture mapeamentos matemáticos e componha os itens de gastos fixos
-            </p>
+            <h1 className="page-title label-with-info">
+              Controle de Naturezas
+              <InfoButton title="Controle de Naturezas">
+                <p>Ajuste os tetos orçamentários, estruture mapeamentos matemáticos e componha os itens de gastos fixos</p>
+              </InfoButton>
+            </h1>
           </div>
           <div className="page-header-actions">
             <button
@@ -610,10 +612,12 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
         {embedded && (
           <div className="naturezas-header-row">
             <div>
-              <h3>Naturezas & Mapeamento de Gastos Fixos</h3>
-              <p className="subtab-desc">
-                Cadastre suas naturezas orçamentárias e estruture mapeamentos matemáticos de gastos fixos para justificar cada Teto.
-              </p>
+              <h3 className="label-with-info">
+                Naturezas & Mapeamento de Gastos Fixos
+                <InfoButton title="Naturezas & Mapeamento de Gastos Fixos">
+                  <p>Cadastre suas naturezas orçamentárias e estruture mapeamentos matemáticos de gastos fixos para justificar cada Teto.</p>
+                </InfoButton>
+              </h3>
             </div>
             <button className="btn btn-primary btn-sm" onClick={handleOpenCreateNature}>
               <Plus size={16} />
@@ -1294,11 +1298,21 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                   >
                     <Sparkles size={24} />
                   </div>
-                  <h4 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 6px' }}>
+                  <h4
+                    className="label-with-info"
+                    style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 6px', justifyContent: 'center' }}
+                  >
                     Como compor o teto de {selectedNature.name}?
+                    <InfoButton title="Como o teto é composto">
+                      <p>
+                        O teto de uma natureza é a soma dos seus mapeamentos: rotinas reais como feira semanal, mercado do mês,
+                        açougue ou contas fixas.
+                      </p>
+                      <p>Cadastre os itens com os preços e o Balder calcula a soma mensal sozinho.</p>
+                    </InfoButton>
                   </h4>
                   <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', maxWidth: '480px', margin: '0 auto 16px', lineHeight: 1.5 }}>
-                    No Balder, o teto de uma Natureza nasce da decomposição em <strong>Mapeamentos de Rotinas Reais</strong> (ex: feira semanal, compras de mercado, açougue ou contas fixas). Cadastre os itens com seus preços e o sistema calcula a soma mensal automaticamente.
+                    Crie o primeiro mapeamento para esta natureza.
                   </p>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', flexWrap: 'wrap' }}>
                     <button

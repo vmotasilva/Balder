@@ -9,7 +9,6 @@ import {
   PlusCircle,
   CheckCircle2,
   Clock,
-  Info,
   Sliders,
   Sparkles,
   RotateCcw,
@@ -30,6 +29,7 @@ import { groupLoanMovements, calculatePresentValue } from '../utils/loanMath';
 import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
 import { Modal } from '../components/Modal';
 import { NumberInput } from '../components/NumberInput';
+import { InfoButton } from '../components/InfoButton';
 
 export type RowSimMode = 'NORMAL' | 'ANTECIPAR' | 'PAUSAR' | 'CUSTOM';
 
@@ -716,6 +716,12 @@ export const LoansPage: React.FC = () => {
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-bold text-cyan flex items-center gap-1.5 uppercase tracking-wider">
                     <Clock size={14} /> Empréstimo já em andamento?
+                    <InfoButton title="Empréstimo já em andamento">
+                      <p>
+                        Se você contratou este empréstimo no passado, informe quantas parcelas já foram pagas. O Balder registra
+                        esse histórico e deixa em aberto só as parcelas que faltam.
+                      </p>
+                    </InfoButton>
                   </span>
                   {alreadyPaidCount > 0 && (
                     <span className="badge badge-emerald text-xs">
@@ -723,9 +729,6 @@ export const LoansPage: React.FC = () => {
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-muted mb-3">
-                  Se você contratou este empréstimo no passado, defina quantas parcelas já foram pagas para que o Balder registre o histórico contábil e mantenha em aberto apenas as parcelas restantes.
-                </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                   <div className="form-group" style={{ margin: 0 }}>
@@ -880,14 +883,18 @@ export const LoansPage: React.FC = () => {
               )}
 
               {/* Nota Oficial da Planilha */}
-              <div className="spreadsheet-note-box mt-3">
-                <Info size={14} className="text-cyan flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-muted">
-                  <strong>Regra de Cálculo (Planilha):</strong> O 1º período usa juros pró-rata por dias
-                  corridos (mês-base de 30 dias). As demais parcelas seguem a Tabela Price mensal. 'Valor
-                  p/ Quitar Hoje' é trazido à data da contratação com descapitalização integral de juros
-                  conforme Art. 52 do CDC.
-                </p>
+              <div className="info-inline mt-3">
+                <span>Como o cálculo é feito</span>
+                <InfoButton title="Regra de cálculo">
+                  <p>
+                    O 1º período usa juros proporcionais aos dias corridos (mês-base de 30 dias). As demais parcelas seguem a
+                    Tabela Price mensal.
+                  </p>
+                  <p>
+                    "Valor p/ quitar hoje" é trazido à data da contratação com o desconto integral dos juros, conforme o Art. 52
+                    do CDC.
+                  </p>
+                </InfoButton>
               </div>
 
               {/* Botões de Ação */}
@@ -927,10 +934,10 @@ export const LoansPage: React.FC = () => {
                 <h3 className="text-md font-bold text-white flex items-center gap-2">
                   <Sliders size={18} className="text-cyan" />
                   <span>Simulador Livre Linha a Linha & Impacto no Caixa</span>
+                  <InfoButton title="Simulador linha a linha">
+                    <p>Simule a antecipação ou o ajuste de cada parcela e veja na hora o impacto no saldo e no saldo acumulado.</p>
+                  </InfoButton>
                 </h3>
-                <p className="text-xs text-secondary">
-                  Simule livremente a antecipação ou ajuste de cada parcela e acompanhe o impacto imediato no Saldo e no Saldo Acumulado.
-                </p>
               </div>
 
               <div className="flex items-center gap-2">
@@ -1472,10 +1479,12 @@ export const LoansPage: React.FC = () => {
             <Landmark size={14} className="text-cyan" />
             <span>ENGENHARIA FINANCEIRA & CRÉDITO</span>
           </div>
-          <h1 className="page-title">Sessão de Empréstimos & Financiamentos</h1>
-          <p className="page-subtitle">
-            Simulações determinísticas e auditoria de contratos com a Tabela Price oficial, pró-rata e deságio a valor presente.
-          </p>
+          <h1 className="page-title label-with-info">
+            Sessão de Empréstimos & Financiamentos
+            <InfoButton title="Sessão de Empréstimos & Financiamentos">
+              <p>Simulações determinísticas e auditoria de contratos com a Tabela Price oficial, pró-rata e deságio a valor presente.</p>
+            </InfoButton>
+          </h1>
         </div>
 
         {/* Alternância de Abas: Contratos vs Simulador */}
@@ -1631,12 +1640,15 @@ export const LoansPage: React.FC = () => {
                 <div className="glass-card loan-spreadsheet-grid-card">
                   <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
                     <div>
-                      <h3 className="text-md font-bold text-white">
+                      <h3 className="text-md font-bold text-white label-with-info">
                         Evolução das Parcelas: {selectedGroup.title}
+                        <InfoButton title="Evolução das parcelas">
+                          <p>
+                            Mostra o que já foi pago, o que está em aberto e quanto custaria antecipar cada parcela hoje (valor
+                            presente, com o desconto dos juros).
+                          </p>
+                        </InfoButton>
                       </h3>
-                      <p className="text-xs text-secondary">
-                        Acompanhe o que já foi quitado, o que está em aberto e o valor presente para antecipar qualquer prestação futura.
-                      </p>
                     </div>
 
                     <div className="flex items-center gap-3 flex-wrap">
@@ -1934,12 +1946,12 @@ export const LoansPage: React.FC = () => {
                     Mês {prepayModalMonth} ({simAnalysis.simulatedRows[prepayModalMonth]?.dueDate})
                   </span>
                 </div>
-                <h3 className="text-lg font-bold text-white mt-1">
+                <h3 className="text-lg font-bold text-white mt-1 label-with-info">
                   Planejar Antecipações com Desconto no Mês {prepayModalMonth}
+                  <InfoButton title="Antecipação com desconto">
+                    <p>Quanto mais meses você antecipa, menor o valor pago, porque os juros futuros são descontados (valor presente).</p>
+                  </InfoButton>
                 </h3>
-                <p className="text-xs text-secondary mt-0.5">
-                  Quanto maior a quantidade de meses antecipada, menor é o valor pago graças ao deságio de juros a valor presente.
-                </p>
               </div>
               <button
                 type="button"

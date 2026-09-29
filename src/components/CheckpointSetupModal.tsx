@@ -7,7 +7,6 @@ import {
   Calendar,
   DollarSign,
   Tag,
-  Info,
   AlertTriangle,
   CheckCircle,
   CreditCard,
@@ -21,6 +20,7 @@ import {
 } from 'lucide-react';
 import type { CreditCardItem, CheckpointBankDebt, InvoiceNatureItemBreakdown, FinancialCheckpoint } from '../types';
 import { NumberInput } from './NumberInput';
+import { InfoButton } from './InfoButton';
 
 interface CheckpointSetupModalProps {
   isOpen: boolean;
@@ -914,29 +914,6 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
           }}
           style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}
         >
-          {/* Banner Informativo */}
-          <div
-            style={{
-              padding: '0.65rem 0.85rem',
-              borderRadius: '10px',
-              background: 'rgba(6, 182, 212, 0.08)',
-              border: '1px solid rgba(6, 182, 212, 0.2)',
-              fontSize: '0.78rem',
-              color: 'var(--text-primary)',
-              display: 'flex',
-              gap: '0.65rem',
-              alignItems: 'flex-start',
-            }}
-          >
-            <Info size={16} className="text-cyan" style={{ flexShrink: 0, marginTop: '2px' }} />
-            <div>
-              <strong style={{ color: 'var(--accent-cyan)' }}>Como funciona o Marco Financeiro?</strong>
-              <p style={{ margin: '0.15rem 0 0', color: 'var(--text-secondary)', lineHeight: '1.35', fontSize: '0.75rem' }}>
-                O sistema utiliza a <strong>data de início</strong>, o <strong>saldo em caixa</strong> e as <strong>faturas de cartão</strong> para calibrar seu saldo disponível, fluxo de caixa e patrimônio líquido inicial.
-              </p>
-            </div>
-          </div>
-
           {checkpoints.length > 0 && !isInitialSetup && (
             <div
               style={{
@@ -964,6 +941,13 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
               <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, fontSize: '0.82rem' }}>
                 <Calendar size={14} className="text-cyan" />
                 Data de Início do Acompanhamento
+                <InfoButton title="Como funciona o ponto de partida">
+                  <p>
+                    O Balder usa a <strong>data de início</strong>, o <strong>saldo em caixa</strong> e as{' '}
+                    <strong>faturas de cartão</strong> para calcular seu saldo disponível, o fluxo de caixa e o patrimônio
+                    inicial.
+                  </p>
+                </InfoButton>
               </span>
               <div style={{ display: 'flex', gap: '0.35rem' }}>
                 <button

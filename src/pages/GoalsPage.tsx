@@ -7,6 +7,7 @@ import { NewGoalModal } from '../components/NewGoalModal';
 import { Modal } from '../components/Modal';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
 import type { Goal } from '../types';
+import { InfoButton } from '../components/InfoButton';
 
 type GoalFilter = 'ATIVAS' | 'PAUSADA' | 'ARQUIVADA' | 'CANCELADA';
 
@@ -57,8 +58,12 @@ export const GoalsPage: React.FC = () => {
           <div className="kicker-badge">
             <span>METAS & INDEPENDÊNCIA</span>
           </div>
-          <h1 className="page-title">Minhas Metas</h1>
-          <p className="page-subtitle">Acompanhamento de objetivos, prazos, aportes necessários e planos de aceleração</p>
+          <h1 className="page-title label-with-info">
+            Minhas Metas
+            <InfoButton title="Minhas Metas">
+              <p>Acompanhamento de objetivos, prazos, aportes necessários e planos de aceleração</p>
+            </InfoButton>
+          </h1>
         </div>
 
         <div className="page-header-actions">

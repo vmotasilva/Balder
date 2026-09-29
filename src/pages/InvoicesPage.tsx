@@ -9,7 +9,6 @@ import {
   Search,
   SlidersHorizontal,
   ArrowUpRight,
-  Sparkles,
   ChevronDown,
   ChevronUp,
   Tag,
@@ -26,6 +25,7 @@ import { NewInvoiceModal } from '../components/NewInvoiceModal';
 import { InvoiceImportModal } from '../components/InvoiceImportModal';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
 import { getBankBranding } from '../utils/bankBranding';
+import { InfoButton } from '../components/InfoButton';
 
 export const InvoicesPage: React.FC = () => {
   const {
@@ -585,10 +585,12 @@ export const InvoicesPage: React.FC = () => {
             <CreditCard size={13} className="mr-1" />
             <span>MÓDULO DE FATURAS & CARTÕES</span>
           </div>
-          <h1 className="page-title">Gestão & Detalhamento de Faturas</h1>
-          <p className="page-subtitle">
-            Monitore o valor real de cada fatura, destrinche seus itens entre as naturezas orçamentárias e acompanhe o que resta pendente de análise.
-          </p>
+          <h1 className="page-title label-with-info">
+            Gestão & Detalhamento de Faturas
+            <InfoButton title="Gestão & Detalhamento de Faturas">
+              <p>Monitore o valor real de cada fatura, destrinche seus itens entre as naturezas orçamentárias e acompanhe o que resta pendente de análise.</p>
+            </InfoButton>
+          </h1>
         </div>
         <div className="page-header-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           {totalDuplicatesCount > 0 && (
@@ -702,41 +704,18 @@ export const InvoicesPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Notice box about Credit Card Logic */}
-      <div
-        className="glass-card"
-        style={{
-          padding: '16px 20px',
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: '14px',
-          border: '1px solid rgba(99, 102, 241, 0.3)',
-          background: 'rgba(99, 102, 241, 0.08)',
-          borderRadius: '14px',
-        }}
-      >
-        <div
-          style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '10px',
-            background: 'rgba(99, 102, 241, 0.2)',
-            color: '#A5B4FC',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            marginTop: '2px',
-          }}
-        >
-          <Sparkles size={16} />
-        </div>
-        <div style={{ fontSize: '13px', lineHeight: '1.5', color: 'var(--text-secondary)', flex: 1 }}>
-          <strong style={{ color: '#C7D2FE', display: 'block', marginBottom: '2px' }}>
-            Regra de Competência e Vencimento de Cartão de Crédito
-          </strong>
-          Os gastos efetuados no mês atual (ex: Setembro) têm sua fatura fechada com vencimento no mês seguinte (ex: Outubro). Ao destrinchar os itens nas Naturezas, os valores abatem diretamente as metas e tetos orçamentários do Balder. O saldo não distribuído é mantido como <strong>Não Analisada</strong> até que você decida alocá-lo ou transferi-lo para <strong>Outros</strong>.
-        </div>
+      {/* Regra de competência do cartão: explicação no "i" */}
+      <div className="info-inline">
+        <span>Como a fatura entra no mês</span>
+        <InfoButton title="Competência e vencimento do cartão">
+          <p>
+            O que você gasta no mês (ex.: setembro) fecha na fatura que vence no mês seguinte (ex.: outubro).
+          </p>
+          <p>
+            Ao distribuir os itens da fatura entre as naturezas, os valores abatem direto dos tetos. O que não for distribuído
+            fica como <strong>Não analisada</strong> até você alocar ou mandar para <strong>Outros</strong>.
+          </p>
+        </InfoButton>
       </div>
 
       {/* Banner de Alerta e Limpeza Inteligente de Duplicadas */}

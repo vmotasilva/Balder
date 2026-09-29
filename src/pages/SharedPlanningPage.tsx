@@ -32,6 +32,7 @@ import {
   sortedRules,
   splitFor,
 } from '../utils/sharedSplit';
+import { InfoButton } from '../components/InfoButton';
 
 const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -210,10 +211,12 @@ export const SharedPlanningPage: React.FC = () => {
             </span>
             <span className="text-xs text-muted">Planejamento a Dois & Familiar</span>
           </div>
-          <h1 className="page-title">Planejamento Compartilhado</h1>
-          <p className="page-subtitle">
-            Acompanhe o orçamento conjunto, divisão inteligente de despesas e metas em comum
-          </p>
+          <h1 className="page-title label-with-info">
+            Planejamento Compartilhado
+            <InfoButton title="Planejamento Compartilhado">
+              <p>Acompanhe o orçamento conjunto, divisão inteligente de despesas e metas em comum</p>
+            </InfoButton>
+          </h1>
         </div>
 
         {hasPartner && (

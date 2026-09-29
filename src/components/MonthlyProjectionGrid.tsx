@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
 import { useFinancial } from '../context/FinancialContext';
-import { Download, Info, Lock, CheckCircle2, ArrowRight, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react';
+import { Download, Lock, CheckCircle2, ArrowRight, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react';
 import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
 import type { ProjectionViewMode } from '../utils/projectionMath';
 import type { MonthlyGridProjectionRow } from '../types';
 import { GridCellDetailModal } from './GridCellDetailModal';
+import { InfoButton } from './InfoButton';
 import type { GridCellSelection } from './GridCellDetailModal';
 import { MonthClosingModal } from './MonthClosingModal';
 
@@ -365,11 +366,14 @@ export const MonthlyProjectionGrid: React.FC = () => {
           </div>
           <h2 className="text-lg font-bold flex items-center gap-2 monthly-projection-heading hide-on-mobile" style={{ color: 'var(--text-primary)' }}>
             <span>Projeção Orçamentária Mês a Mês</span>
+            <InfoButton title="Como ler a projeção">
+              <p>
+                Em <strong>Entradas</strong> e <strong>Saídas</strong>, o valor da esquerda é o <strong>real</strong> (já
+                recebido ou pago) e o da direita é o <strong>previsto</strong> (o que ainda vai acontecer).
+              </p>
+              <p>Resultado e saldo consideram os dois. Clique em qualquer valor para ver os lançamentos e as naturezas.</p>
+            </InfoButton>
           </h2>
-          <p className="text-xs text-secondary mt-1 monthly-projection-subtext hide-on-mobile">
-            Entradas e saídas mostram o que já foi <strong>realizado</strong> (esquerda) e o que ainda está{' '}
-            <strong>previsto</strong> (direita). Resultado e saldo consideram os dois.
-          </p>
         </div>
 
         <div className="grid-header-actions">
@@ -466,16 +470,6 @@ export const MonthlyProjectionGrid: React.FC = () => {
             />
           </span>
         </div>
-      </div>
-
-      {/* Legenda Real | Previsto (Oculta na Versão Mobile) */}
-      <div className="grid-interactive-tip hide-on-mobile flex items-center gap-2 mb-2 text-xs px-3 py-2 rounded-lg">
-        <Info size={14} className="flex-shrink-0 text-cyan" />
-        <span>
-          Em <strong>Entradas</strong> e <strong>Saídas</strong>: <strong>Real</strong> (esquerda) é o que já foi recebido ou
-          pago; <strong>Previsto</strong> (direita) é o que ainda vai acontecer. Clique em qualquer valor para ver os
-          lançamentos e naturezas.
-        </span>
       </div>
 
       {/* Tabela Glanceable em 100% de Largura (Desktop) */}
