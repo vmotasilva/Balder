@@ -6,6 +6,7 @@ import { BalderHubModal } from './BalderHubModal';
 import { PlanningSwitcher } from './PlanningSwitcher';
 import { useHubNotifications } from '../hooks/useHubNotifications';
 import { useAccountScope } from '../context/AccountScopeContext';
+import { useAuth } from '../context/AuthContext';
 
 interface NavbarProps {
   onOpenNewMovementModal: () => void;
@@ -17,6 +18,7 @@ interface NavbarProps {
   onNavigateToCopilot?: () => void;
   onNavigateToDashboard?: () => void;
   onPlanWithOthers?: () => void;
+  onNavigateToProfile?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -26,7 +28,15 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenOnboarding,
   onNavigateToCopilot,
   onPlanWithOthers,
+  onNavigateToProfile,
 }) => {
+  const { user } = useAuth();
+  const userInitials = (user?.name || 'VM')
+    .split(' ')
+    .map((n) => n[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
   const { viewing } = useAccountScope();
   const planningOnly = viewing?.scope === 'PLANEJAMENTO';
   const {
@@ -181,6 +191,19 @@ export const Navbar: React.FC<NavbarProps> = ({
           <Plus size={16} />
           <span>Nova Movimentação</span>
         </button>
+
+        {/* Atalho do Perfil (iniciais, como na barra lateral) */}
+        {onNavigateToProfile && !planningOnly && (
+          <button
+            type="button"
+            className="navbar-profile-btn"
+            onClick={onNavigateToProfile}
+            title="Meu perfil e configurações"
+            aria-label="Abrir perfil"
+          >
+            <span>{userInitials}</span>
+          </button>
+        )}
       </div>
     </header>
 

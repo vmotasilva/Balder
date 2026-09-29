@@ -22303,3 +22303,28 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   font-weight: 500;
   color: var(--text-muted);
 }
+
+/* Atalho do Perfil na barra superior: iniciais no mesmo estilo do avatar da barra lateral */
+.navbar-profile-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 0;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.navbar-profile-btn:hover,
+.navbar-profile-btn:focus-visible {
+  transform: scale(1.06);
+  box-shadow: 0 0 0 3px var(--accent-cyan-glow);
+  outline: none;
+}
