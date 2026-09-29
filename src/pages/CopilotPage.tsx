@@ -317,7 +317,14 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
 
                 <div className="message-bubble">
                   <div className="message-meta-row">
-                    <span className="message-author">{isUser ? 'Você' : 'BALDER Forseti'}</span>
+                    {isUser ? (
+                      <span className="message-author">Você</span>
+                    ) : (
+                      <span className="message-author-block">
+                        <span className="message-author">Forseti</span>
+                        <span className="message-author-role">Auxiliar de IA</span>
+                      </span>
+                    )}
                     <span className="message-time">{msg.timestamp}</span>
                     {msg.actionBadge && (
                       <span className="badge badge-cyan message-action-badge">{msg.actionBadge}</span>

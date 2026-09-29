@@ -22290,3 +22290,16 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .projection-mobile-card.is-collapsed .proj-card-cell .proj-card-label-main {
   font-size: 10.5px;
 }
+
+/* Autor das mensagens da Forseti: nome e, abaixo, a função */
+.message-author-block {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.message-author-role {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
