@@ -20204,6 +20204,73 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   color: var(--text-muted);
 }
 
+/* Nova movimentação: repetição mensal com quantidade livre e previsão de término */
+.repeat-months-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.repeat-months-input {
+  width: 84px !important;
+  text-align: center;
+  font-weight: 700;
+}
+
+.repeat-months-chips {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.repeat-months-chips .pill-btn {
+  border: 1px solid var(--border-default);
+  padding: 5px 10px;
+}
+
+.repeat-forecast {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent-cyan) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 30%, transparent);
+}
+
+.repeat-forecast > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.repeat-forecast span {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.repeat-forecast strong {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.repeat-forecast small {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.repeat-forecast p {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 /* Empréstimos: parcelas do contrato em cards no celular (tabela no computador) */
 .loan-installment-cards {
   display: none;

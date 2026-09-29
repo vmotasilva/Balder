@@ -12,6 +12,9 @@ import { Calendar, Split, Repeat } from 'lucide-react';
 // Valores digitados aceitam vírgula ou ponto como decimal ("7.073,70", "7073,70", "7073.70")
 const parseBRLAmount = (val: string): number => parseMoney(val);
 
+// Limite da repetição mensal (20 anos)
+const MAX_REPEAT_MONTHS = 240;
+
 interface NewMovementModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -512,28 +515,63 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
 
             {isRecurring && (
               <div className="installment-expanded-controls animate-fade-in mt-3">
+                {/* Quantidade livre de meses (atalhos para as mais comuns) e a previsão de término e total */}
                 <div className="form-group">
-                  <label>Repetir por</label>
-                  <select
-                    className="form-select"
-                    value={recurringMonths}
-                    onChange={(e) => setRecurringMonths(parseInt(e.target.value, 10))}
-                  >
-                    {[2, 3, 4, 6, 12, 18, 24, 36, 48, 60].map((n) => (
-                      <option key={n} value={n}>
-                        {n} meses {n === 12 ? '(1 ano)' : n === 24 ? '(2 anos)' : n === 36 ? '(3 anos)' : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <label htmlFor="mov-repeat-months">Repetir por quantos meses?</label>
+                  <div className="repeat-months-row">
+                    <input
+                      id="mov-repeat-months"
+                      type="number"
+                      inputMode="numeric"
+                      min={2}
+                      max={MAX_REPEAT_MONTHS}
+                      className="form-input repeat-months-input"
+                      value={recurringMonths || ''}
+                      onChange={(e) => setRecurringMonths(Math.min(MAX_REPEAT_MONTHS, Math.max(0, parseInt(e.target.value, 10) || 0)))}
+                      onBlur={() => setRecurringMonths((n) => Math.min(MAX_REPEAT_MONTHS, Math.max(2, n)))}
+                    />
+                    <span className="text-xs text-muted">meses</span>
+                    <div className="repeat-months-chips">
+                      {[6, 12, 24].map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          className={`pill-btn ${recurringMonths === n ? 'active' : ''}`}
+                          onClick={() => setRecurringMonths(n)}
+                        >
+                          {n === 12 ? '1 ano' : n === 24 ? '2 anos' : `${n} meses`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-                {parsedAmount > 0 && (
-                  <p className="text-xs text-muted mt-2">
-                    {recurringMonths}× {parsedAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}, de{' '}
-                    {getInstallmentDates(dueDate, recurringMonths)[0]?.split('-').reverse().join('/')} até{' '}
-                    {getInstallmentDates(dueDate, recurringMonths)[recurringMonths - 1]?.split('-').reverse().join('/')}.
-                    {status === 'REALIZADA' ? ' O primeiro mês fica como realizado; os demais, previstos.' : ''}
-                  </p>
-                )}
+                {recurringMonths >= 2 && (() => {
+                  const dates = getInstallmentDates(dueDate, recurringMonths);
+                  const last = dates[dates.length - 1];
+                  const lastLabel = last
+                    ? new Date(`${last}T12:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+                    : '';
+                  const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                  return (
+                    <div className="repeat-forecast">
+                      <div>
+                        <span>Termina em</span>
+                        <strong>{lastLabel}</strong>
+                        <small>último em {last?.split('-').reverse().join('/')}</small>
+                      </div>
+                      <div>
+                        <span>{type === 'RECEBER' ? 'Total recebido' : 'Total pago'} ao final</span>
+                        <strong>{parsedAmount > 0 ? brl(parsedAmount * recurringMonths) : '—'}</strong>
+                        <small>
+                          {recurringMonths}× {parsedAmount > 0 ? brl(parsedAmount) : 'o valor informado'}
+                        </small>
+                      </div>
+                      {status === 'REALIZADA' && (
+                        <p>O primeiro mês fica como realizado; os demais, previstos.</p>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>
