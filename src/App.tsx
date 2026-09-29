@@ -20,6 +20,7 @@ import { ProfilePage } from './pages/ProfilePage';
 import { NaturezasPage } from './pages/NaturezasPage';
 import { LoansPage } from './pages/LoansPage';
 import { SharedPlanningPage } from './pages/SharedPlanningPage';
+import { OpportunitiesPage } from './pages/OpportunitiesPage';
 import { NewMovementModal } from './components/NewMovementModal';
 import { SimulationModal } from './components/SimulationModal';
 import { LoanPrepaymentModal } from './components/LoanPrepaymentModal';
@@ -165,6 +166,10 @@ export function AppContent() {
           onNavigateToInvoices={() => setActiveTab('FATURAS')}
           onNavigateToGoals={() => setActiveTab('METAS')}
           onNavigateToCopilot={() => setIsCopilotOpen(true)}
+          onNavigateToOpportunities={() => {
+            handleSelectTab('OPORTUNIDADES');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
           onPlanWithOthers={() => {
             setActiveTab('COMPARTILHADO');
             window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -216,6 +221,8 @@ export function AppContent() {
           {shownTab === 'EMPRESTIMOS' && <LoansPage />}
 
           {shownTab === 'METAS' && <GoalsPage />}
+
+          {shownTab === 'OPORTUNIDADES' && <OpportunitiesPage onRegisterPurchase={handleOpenNewMovement} />}
 
           {shownTab === 'COMPARTILHADO' && <SharedPlanningPage />}
 

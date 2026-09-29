@@ -1,7 +1,9 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { AlertTriangle, CalendarClock, Flag, HandCoins, TrendingDown } from 'lucide-react';
+import { AlertTriangle, BadgePercent, CalendarClock, Flag, HandCoins, TrendingDown } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
+import { useOpportunities } from './useOpportunities';
+import { OPPORTUNITY_LABEL, watchStats } from '../utils/opportunity';
 
 export interface HubNotification {
   /** Muda quando a situação muda (ex.: outra conta vence): assim volta a contar como não lida. */
@@ -19,6 +21,7 @@ export interface HubNotificationActions {
   onOpenSetup: (stepIndex?: number) => void;
   onGoToHome: () => void;
   onOpenForecast: () => void;
+  onOpenOpportunities?: () => void;
 }
 
 interface StoredState {
@@ -48,6 +51,7 @@ const signature = (parts: string[]) => {
 export function useHubNotifications(actions: HubNotificationActions) {
   const { user } = useAuth();
   const { activeCheckpoint, forecasts, isDataReady } = useFinancial();
+  const { watches } = useOpportunities();
   const storageKey = `balder_notifications_${user && !user.isGuest ? user.$id : 'guest'}`;
 
   const [stored, setStored] = useState<StoredState>(() => {
@@ -148,10 +152,26 @@ export function useHubNotifications(actions: HubNotificationActions) {
       });
     }
 
+    // Produtos acompanhados que viraram oportunidade (o id muda com o preço: nova queda volta a avisar)
+    watches.forEach((w) => {
+      const s = watchStats(w);
+      if (!s.opportunity || w.currentPrice == null) return;
+      list.push({
+        id: `opportunity_${w.id}_${w.currentPrice}`,
+        type: 'INFO',
+        title: `${OPPORTUNITY_LABEL[s.opportunity]}: ${w.title.length > 60 ? `${w.title.slice(0, 57)}…` : w.title}`,
+        description: `Agora por ${formatBRL(w.currentPrice)}${w.store ? ` na ${w.store}` : ''}. ${s.reason || ''}`.trim(),
+        timestamp: 'Oportunidade',
+        actionLabel: 'Ver oportunidade',
+        action: actions.onOpenOpportunities,
+        icon: <BadgePercent size={16} className="text-emerald" />,
+      });
+    });
+
     return list;
     // As ações vêm de callbacks estáveis o bastante; recalcula só quando os dados mudam
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDataReady, activeCheckpoint, forecasts]);
+  }, [isDataReady, activeCheckpoint, forecasts, watches]);
 
   const currentIds = useMemo(() => notifications.map((n) => n.id), [notifications]);
 

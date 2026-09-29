@@ -17,12 +17,13 @@ import {
   Check,
   Settings,
   Users,
+  BadgePercent,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useFinancial } from '../context/FinancialContext';
 import { displayName } from '../utils/displayName';
 
-export type TabId = 'INICIO' | 'DASHBOARD' | 'MOVIMENTACOES' | 'FATURAS' | 'NATUREZAS' | 'EMPRESTIMOS' | 'COPILOT' | 'METAS' | 'COMPARTILHADO' | 'PERFIL';
+export type TabId = 'INICIO' | 'DASHBOARD' | 'MOVIMENTACOES' | 'FATURAS' | 'NATUREZAS' | 'EMPRESTIMOS' | 'COPILOT' | 'METAS' | 'OPORTUNIDADES' | 'COMPARTILHADO' | 'PERFIL';
 
 interface SidebarProps {
   activeTab: TabId;
@@ -267,6 +268,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       subtitle: 'Objetivos & Sonhos',
       icon: Target,
       badge: 'Price',
+    },
+    {
+      id: 'OPORTUNIDADES' as TabId,
+      label: 'Oportunidades',
+      subtitle: 'Preços em queda',
+      icon: BadgePercent,
+      badge: 'Novo',
     },
     {
       id: 'COMPARTILHADO' as TabId,

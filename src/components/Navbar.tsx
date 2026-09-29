@@ -17,6 +17,7 @@ interface NavbarProps {
   onNavigateToCopilot?: () => void;
   onNavigateToDashboard?: () => void;
   onPlanWithOthers?: () => void;
+  onNavigateToOpportunities?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -26,6 +27,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenOnboarding,
   onNavigateToCopilot,
   onPlanWithOthers,
+  onNavigateToOpportunities,
 }) => {
   const { viewing } = useAccountScope();
   const planningOnly = viewing?.scope === 'PLANEJAMENTO';
@@ -45,6 +47,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     onOpenSetup: (step) => onOpenOnboarding?.(step),
     onGoToHome: () => onNavigateToDashboard?.(),
     onOpenForecast: () => setIsForecastOpen(true),
+    onOpenOpportunities: () => onNavigateToOpportunities?.(),
   });
   const pendingCount = hub.unreadCount;
   const hasHubAlerts = pendingCount > 0;
