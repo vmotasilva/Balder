@@ -3,7 +3,8 @@ import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
 import { EMOJI_CATEGORIES } from './NatureModal';
 import type { FixedExpenseMapping } from '../types';
-import { Check, Plus, Sparkles, Search, Calendar, X } from 'lucide-react';
+import { Check, Plus, Search, X, ChevronDown } from 'lucide-react';
+import { InfoButton } from './InfoButton';
 
 interface MappingModalProps {
   isOpen: boolean;
@@ -35,7 +36,6 @@ export const MappingModal: React.FC<MappingModalProps> = ({
   onClose,
   natureId,
   natureName,
-  natureColor = '#06B6D4',
   mappingToEdit,
   onSuccess,
 }) => {
@@ -49,6 +49,11 @@ export const MappingModal: React.FC<MappingModalProps> = ({
   const [applicableMonths, setApplicableMonths] = useState<number[]>([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   const [keywords, setKeywords] = useState<string[]>([]);
   const [keywordInput, setKeywordInput] = useState('');
+
+  // Meses: "Ano todo" é o padrão; a grade só aparece para quem escolhe meses específicos
+  const [pickMonths, setPickMonths] = useState(false);
+  // Palavras-chave e ícone ficam recolhidos em "Mais opções"
+  const [moreOpen, setMoreOpen] = useState(false);
 
   const [activeCategory, setActiveCategory] = useState<string>('populares');
   const [searchFilter, setSearchFilter] = useState('');
@@ -73,6 +78,9 @@ export const MappingModal: React.FC<MappingModalProps> = ({
         setKeywords([]);
         setApplicableMonths([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
       }
+      const months = mappingToEdit?.applicableMonths || [];
+      setPickMonths(months.length > 0 && months.length < 12);
+      setMoreOpen(false);
       setKeywordInput('');
       setSearchFilter('');
     }
@@ -270,118 +278,25 @@ export const MappingModal: React.FC<MappingModalProps> = ({
       maxWidth="600px"
     >
       <form onSubmit={handleSubmit} className="mapping-modal-form">
-        {/* Card de Pré-visualização Dinâmica */}
-        <div
-          className="mapping-preview-card mb-4"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '14px',
-            padding: '12px 16px',
-            borderRadius: '12px',
-            background: 'var(--bg-card)',
-            border: `1px solid ${natureColor}40`,
-            borderLeft: `5px solid ${natureColor}`,
-            transition: 'all 0.2s ease',
-          }}
-        >
-          <div
-            style={{
-              width: '44px',
-              height: '44px',
-              borderRadius: '12px',
-              background: 'rgba(255, 255, 255, 0.06)',
-              border: `1px solid ${natureColor}66`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '1.6rem',
-              boxShadow: `0 0 14px ${natureColor}22`,
-              flexShrink: 0,
-            }}
-          >
-            {icon || '📋'}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span
-                style={{
-                  fontSize: '1.02rem',
-                  fontWeight: 700,
-                  color: 'var(--text-primary)',
-                }}
-              >
-                {name.trim() || 'Nome do Mapeamento'}
-              </span>
-              {dayOfMonth ? (
-                <span className="badge badge-amber text-xs" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  <Calendar size={11} />
-                  <span>Vence Dia {dayOfMonth}</span>
-                </span>
-              ) : (
-                <span className="badge badge-cyan text-xs">Sem Vencimento Fixo</span>
-              )}
-              {applicableMonths.length === 12 ? (
-                <span className="badge badge-emerald text-xs" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  <Calendar size={11} />
-                  <span>Ano Todo (12m)</span>
-                </span>
-              ) : applicableMonths.length > 0 ? (
-                <span className="badge badge-purple text-xs" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  <Calendar size={11} />
-                  <span>
-                    {applicableMonths.length} {applicableMonths.length === 1 ? 'mês' : 'meses'} ({applicableMonths.map((m) => MONTH_LABELS.find((ml) => ml.num === m)?.short).filter(Boolean).join(', ')})
-                  </span>
-                </span>
-              ) : (
-                <span className="badge badge-rose text-xs">Sem meses ativos</span>
-              )}
-            </div>
-            <p
-              style={{
-                fontSize: '0.76rem',
-                color: 'var(--text-muted)',
-                margin: '2px 0 0',
-              }}
-            >
-              Rotina vinculada à natureza {natureName}
-            </p>
-          </div>
-        </div>
-        {/* Guia Didático da Forseti sobre Mapeamento & Composição do Teto */}
-        <div
-          style={{
-            padding: '10px 14px',
-            marginBottom: '16px',
-            borderRadius: '12px',
-            background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.08), rgba(15, 23, 42, 0.6))',
-            border: '1px solid rgba(6, 182, 212, 0.25)',
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: '10px',
-          }}
-        >
-          <Sparkles size={16} className="text-cyan" style={{ flexShrink: 0, marginTop: '2px' }} />
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-            <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '2px' }}>
-              Como o Mapeamento compõe o Teto desta Natureza:
-            </strong>
-            Um mapeamento representa uma rotina concreta (ex: Feira Semanal, Mercado Mensal, Açougue). Após criar o grupo, adicione os itens com valores e frequência. O Balder multiplica itens semanais por 4 e quinzenais por 2, calculando o teto sem chutes.
-          </div>
-        </div>
-
         {/* Linha 1: Nome do Mapeamento */}
         <div className="form-group mb-3">
-          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span>Nome do Mapeamento *</span>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-              Ex: Feira Semanal, Supermercado Mensal, Açougue
-            </span>
+          <label className="label-with-info">
+            <span>Nome do mapeamento *</span>
+            <InfoButton title="O que é um mapeamento">
+              <p>
+                Um mapeamento é uma rotina concreta de gasto dentro da natureza <strong>{natureName}</strong>, como Feira
+                semanal, Mercado do mês ou Açougue.
+              </p>
+              <p>
+                Depois de criar, você adiciona os itens com valor e frequência. O Balder multiplica os semanais por 4 e os
+                quinzenais por 2, e a soma dos mapeamentos vira o teto da natureza, sem chute.
+              </p>
+            </InfoButton>
           </label>
           <input
             type="text"
             className="form-input"
-            placeholder="Ex: Açougue & Carnes, Feira Livre, Energia Elétrica..."
+            placeholder="Ex.: Feira semanal, Mercado do mês, Açougue"
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
@@ -391,9 +306,12 @@ export const MappingModal: React.FC<MappingModalProps> = ({
 
         {/* Linha 2: Dia Fixo de Vencimento no Mês */}
         <div className="form-group mb-4">
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-            <Calendar size={14} className="text-amber-400" />
-            <span>Dia Fixo de Vencimento no Mês (Opcional)</span>
+          <label className="label-with-info">
+            <span>Dia do vencimento (opcional)</span>
+            <InfoButton title="Dia do vencimento">
+              <p>Use para contas com data certa, como aluguel ou energia.</p>
+              <p>O Balder avisa com antecedência quando a data estiver perto, para você registrar o pagamento.</p>
+            </InfoButton>
           </label>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <input
@@ -428,29 +346,38 @@ export const MappingModal: React.FC<MappingModalProps> = ({
               </button>
             )}
           </div>
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
-            O BALDER alertará com antecedência quando esta data estiver próxima para registrar a realização do pagamento.
-          </span>
         </div>
 
         {/* Linha 3: Meses de Manifestação na Projeção */}
         <div className="form-group mb-4">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-            <label style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Calendar size={14} className="text-cyan" />
-              <span>Meses de Manifestação na Projeção</span>
-            </label>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-              {applicableMonths.length === 12
-                ? 'Ano todo (12 meses)'
-                : `${applicableMonths.length} de 12 meses selecionados`}
-            </span>
+          <label className="label-with-info">
+            <span>Em quais meses acontece?</span>
+            <InfoButton title="Meses do mapeamento">
+              <p>Por padrão o mapeamento entra em todos os meses da projeção.</p>
+              <p>
+                Escolha meses específicos para gastos sazonais ou pontuais, como IPVA, IPTU, rematrícula, seguro ou compras de
+                datas comemorativas.
+              </p>
+            </InfoButton>
+          </label>
+          <div className="pill-selector mapping-months-toggle">
+            <button
+              type="button"
+              className={`pill-btn ${!pickMonths ? 'active' : ''}`}
+              onClick={() => {
+                setPickMonths(false);
+                setPresetMonths('ALL');
+              }}
+            >
+              Ano todo
+            </button>
+            <button type="button" className={`pill-btn ${pickMonths ? 'active' : ''}`} onClick={() => setPickMonths(true)}>
+              Só alguns meses
+            </button>
           </div>
 
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0 0 8px', lineHeight: 1.4 }}>
-            Defina em quais meses este mapeamento deve se manifestar na projeção orçamentária. Útil para despesas sazonais ou pontuais (ex: IPVA, IPTU, rematrículas, seguros ou compras de datas comemorativas).
-          </p>
-
+          {pickMonths && (
+          <div className="mapping-months-picker">
           {/* Atalhos Rápidos */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Atalhos:</span>
@@ -514,7 +441,7 @@ export const MappingModal: React.FC<MappingModalProps> = ({
               gap: '6px',
               padding: '10px',
               borderRadius: '10px',
-              background: 'rgba(0, 0, 0, 0.25)',
+              background: 'var(--bg-input)',
               border: '1px solid var(--border-default)',
             }}
           >
@@ -537,11 +464,11 @@ export const MappingModal: React.FC<MappingModalProps> = ({
                     gap: '2px',
                     border: isSelected
                       ? '1px solid rgba(6, 182, 212, 0.8)'
-                      : '1px solid rgba(255, 255, 255, 0.08)',
+                      : '1px solid var(--border-default)',
                     background: isSelected
                       ? 'rgba(6, 182, 212, 0.2)'
-                      : 'rgba(255, 255, 255, 0.02)',
-                    color: isSelected ? '#38BDF8' : 'var(--text-secondary)',
+                      : 'var(--bg-card)',
+                    color: isSelected ? 'var(--accent-cyan)' : 'var(--text-secondary)',
                     boxShadow: isSelected ? '0 0 10px rgba(6, 182, 212, 0.25)' : 'none',
                     cursor: 'pointer',
                     transition: 'all 0.15s ease',
@@ -555,50 +482,45 @@ export const MappingModal: React.FC<MappingModalProps> = ({
             })}
           </div>
 
-          {/* Feedback Reativo */}
-          <div style={{ marginTop: '6px' }}>
-            {applicableMonths.length === 12 ? (
-              <span className="text-xs text-muted" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10B981' }}></span>
-                <span>Projetado continuamente nos 12 meses do ano.</span>
-              </span>
-            ) : applicableMonths.length > 0 ? (
-              <span className="text-xs text-cyan" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#06B6D4' }}></span>
-                <span>
-                  Projetado apenas em {applicableMonths.length} meses:{' '}
-                  <strong>
-                    {MONTH_LABELS.filter((m) => applicableMonths.includes(m.num))
-                      .map((m) => m.short)
-                      .join(', ')}
-                  </strong>
-                  .
-                </span>
-              </span>
-            ) : (
-              <span className="text-xs text-rose" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#F43F5E' }}></span>
-                <span>Atenção: nenhum mês selecionado. O mapeamento não entrará na projeção de nenhum mês.</span>
-              </span>
-            )}
           </div>
+          )}
+
+          {applicableMonths.length === 0 && (
+            <span className="text-xs text-rose" style={{ display: 'block', marginTop: '6px' }}>
+              Nenhum mês escolhido: o mapeamento não entra na projeção.
+            </span>
+          )}
         </div>
 
+        {/* Mais opções: palavras-chave para a Forseti e ícone */}
+        <button type="button" className="mapping-more-toggle" onClick={() => setMoreOpen((v) => !v)} aria-expanded={moreOpen}>
+          <span>Mais opções</span>
+          <small>
+            {keywords.length > 0 ? `${keywords.length} palavra${keywords.length > 1 ? 's' : ''}-chave` : 'palavras-chave'} · ícone {icon}
+          </small>
+          <ChevronDown size={16} className={moreOpen ? 'is-open' : ''} />
+        </button>
+
+        {moreOpen && (
+        <>
         {/* Linha: Palavras-chave para Reconhecimento da IA (Forseti) */}
         <div className="form-group mb-4">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-            <label style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Sparkles size={15} className="text-cyan" />
-              <span>Palavras-chave para a IA (Forseti)</span>
+            <label className="label-with-info" style={{ margin: 0 }}>
+              <span>Palavras-chave para a Forseti</span>
+              <InfoButton title="Palavras-chave">
+                <p>Ajudam a Forseti a reconhecer as compras desta rotina.</p>
+                <p>
+                  Quando você manda a foto de uma nota ou importa uma fatura, os itens com essas palavras vão direto para este
+                  mapeamento.
+                </p>
+              </InfoButton>
             </label>
             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
               {keywords.length} cadastrada(s)
             </span>
           </div>
 
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0 0 8px', lineHeight: 1.4 }}>
-            Ajude a IA a reconhecer compras desta rotina. Ao enviar fotos de notas ou importar faturas, o Forseti usará estas palavras para associar os itens diretamente a este mapeamento.
-          </p>
 
           {/* Input para adicionar nova palavra-chave */}
           <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
@@ -636,7 +558,7 @@ export const MappingModal: React.FC<MappingModalProps> = ({
                     borderRadius: '6px',
                     background: 'rgba(6, 182, 212, 0.15)',
                     border: '1px solid rgba(6, 182, 212, 0.3)',
-                    color: '#67E8F9',
+                    color: 'var(--accent-cyan)',
                     fontSize: '0.75rem',
                     fontWeight: 600,
                   }}
@@ -662,9 +584,7 @@ export const MappingModal: React.FC<MappingModalProps> = ({
               ))}
             </div>
           ) : (
-            <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '8px' }}>
-              Nenhuma palavra-chave cadastrada para este mapeamento ainda.
-            </div>
+            null
           )}
 
           {/* Sugestões inteligentes rápidas com um clique */}
@@ -679,8 +599,8 @@ export const MappingModal: React.FC<MappingModalProps> = ({
                   style={{
                     padding: '2px 7px',
                     borderRadius: '4px',
-                    background: 'rgba(255, 255, 255, 0.05)',
-                    border: '1px dashed rgba(255, 255, 255, 0.2)',
+                    background: 'var(--bg-card)',
+                    border: '1px dashed var(--border-default)',
                     color: 'var(--text-secondary)',
                     fontSize: '0.7rem',
                     cursor: 'pointer',
@@ -705,10 +625,7 @@ export const MappingModal: React.FC<MappingModalProps> = ({
               gap: '8px',
             }}
           >
-            <label style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Sparkles size={15} className="text-cyan" />
-              <span>Ícone / Emoji do Mapeamento</span>
-            </label>
+            <label style={{ margin: 0 }}>Ícone</label>
 
             {/* Input manual de emoji */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -730,48 +647,24 @@ export const MappingModal: React.FC<MappingModalProps> = ({
             </div>
           </div>
 
-          {/* Abas de Categorias de Emoji */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              overflowX: 'auto',
-              paddingBottom: '6px',
-              marginBottom: '8px',
+          {/* Categorias de emoji em uma lista (as abas roladas eram difíceis de mover no celular) */}
+          <select
+            className="form-select"
+            style={{ marginBottom: '8px' }}
+            value={searchFilter ? '' : activeCategory}
+            onChange={(e) => {
+              setActiveCategory(e.target.value);
+              setSearchFilter('');
             }}
+            aria-label="Categoria de emoji"
           >
-            {EMOJI_CATEGORIES.map((cat) => {
-              const isActive = activeCategory === cat.id && !searchFilter;
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => {
-                    setActiveCategory(cat.id);
-                    setSearchFilter('');
-                  }}
-                  style={{
-                    padding: '4px 8px',
-                    borderRadius: '7px',
-                    fontSize: '0.74rem',
-                    whiteSpace: 'nowrap',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    border: isActive ? '1px solid rgba(6, 182, 212, 0.6)' : '1px solid rgba(255, 255, 255, 0.08)',
-                    background: isActive ? 'rgba(6, 182, 212, 0.2)' : 'rgba(255, 255, 255, 0.03)',
-                    color: isActive ? '#38BDF8' : 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <span>{cat.icon}</span>
-                  <span>{cat.name}</span>
-                </button>
-              );
-            })}
-          </div>
+            {searchFilter && <option value="">Resultado da busca</option>}
+            {EMOJI_CATEGORIES.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.icon} {cat.name}
+              </option>
+            ))}
+          </select>
 
           {/* Campo de Busca de Emojis */}
           <div
@@ -808,7 +701,7 @@ export const MappingModal: React.FC<MappingModalProps> = ({
               gap: '6px',
               maxHeight: '160px',
               overflowY: 'auto',
-              background: 'rgba(0, 0, 0, 0.25)',
+              background: 'var(--bg-input)',
               padding: '10px',
               borderRadius: '10px',
               border: '1px solid var(--border-default)',
@@ -831,10 +724,10 @@ export const MappingModal: React.FC<MappingModalProps> = ({
                     borderRadius: '8px',
                     border: isSelected
                       ? '2px solid #06B6D4'
-                      : '1px solid rgba(255, 255, 255, 0.06)',
+                      : '1px solid var(--border-default)',
                     background: isSelected
                       ? 'rgba(6, 182, 212, 0.25)'
-                      : 'rgba(255, 255, 255, 0.03)',
+                      : 'var(--bg-card)',
                     boxShadow: isSelected ? '0 0 10px rgba(6, 182, 212, 0.5)' : 'none',
                     cursor: 'pointer',
                     transition: 'all 0.12s ease',
@@ -842,13 +735,13 @@ export const MappingModal: React.FC<MappingModalProps> = ({
                   onMouseEnter={(e) => {
                     if (!isSelected) {
                       e.currentTarget.style.transform = 'scale(1.18)';
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.12)';
+                      e.currentTarget.style.background = 'var(--bg-card-hover)';
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (!isSelected) {
                       e.currentTarget.style.transform = 'scale(1)';
-                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+                      e.currentTarget.style.background = 'var(--bg-card)';
                     }
                   }}
                   title={`Selecionar ${emojiChar}`}
@@ -858,10 +751,10 @@ export const MappingModal: React.FC<MappingModalProps> = ({
               );
             })}
           </div>
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>
-            Escolha um emoji representativo para esta rotina (ex: 🥩 Açougue, 🥦 Feira, 🛒 Mercado, 💡 Luz, ⛽ Combustível).
-          </span>
         </div>
+
+        </>
+        )}
 
         {/* Rodapé de Ações */}
         <div

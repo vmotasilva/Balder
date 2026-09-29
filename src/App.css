@@ -20204,6 +20204,151 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   color: var(--text-muted);
 }
 
+/* Ícone "i" com pop-up de explicação (tira os textos didáticos do meio dos formulários) */
+.label-with-info {
+  display: flex !important;
+  align-items: center;
+  gap: 6px;
+}
+
+.info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--accent-cyan);
+  cursor: pointer;
+  padding: 0;
+}
+
+.info-btn:hover,
+.info-btn:focus-visible {
+  border-color: var(--accent-cyan);
+  background: color-mix(in srgb, var(--accent-cyan) 12%, transparent);
+}
+
+.info-pop-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(2, 6, 23, 0.5);
+}
+
+.info-pop {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-card-elevated, var(--bg-card));
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.3);
+}
+
+.info-pop-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.info-pop-head strong {
+  flex: 1;
+}
+
+.info-pop-close {
+  display: inline-flex;
+  padding: 2px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.info-pop-body {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.info-pop-body p {
+  margin: 0 0 8px;
+}
+
+.info-pop-body p:last-child {
+  margin-bottom: 0;
+}
+
+.info-pop-body strong {
+  color: var(--text-primary);
+}
+
+.info-pop-ok {
+  align-self: flex-end;
+}
+
+/* Mapeamento: meses (ano todo × alguns meses) e "Mais opções" recolhido */
+.mapping-months-toggle {
+  align-self: flex-start;
+  width: fit-content;
+  margin-bottom: 8px;
+}
+
+.mapping-months-toggle .pill-btn {
+  padding: 6px 14px;
+  font-size: 12px;
+}
+
+.mapping-months-picker {
+  margin-top: 4px;
+}
+
+.mapping-more-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 4px 0 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border-default);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.mapping-more-toggle small {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.mapping-more-toggle svg {
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+}
+
+.mapping-more-toggle svg.is-open {
+  transform: rotate(180deg);
+}
+
 /* Nova movimentação: repetição mensal com quantidade livre e previsão de término */
 .repeat-months-row {
   display: flex;
