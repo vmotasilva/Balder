@@ -1,13 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import {
-  Wallet,
   TrendingUp,
   ShieldAlert,
   Sparkles,
-  ArrowUpRight,
-  ArrowDownRight,
-  Clock,
   CheckCircle2,
   MapPin,
   Calendar,
@@ -56,13 +52,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 }) => {
   const {
     isDataReady,
-    totalNetWorth,
-    availableBalance,
-    accountBalance,
-    cashInHandBalance,
-    monthlyFreeCashflow,
-    emergencyReserveMonths,
-    emergencyReserveAmount,
     forecasts,
     nextCriticalEvent,
     goals,
@@ -78,26 +67,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   const [isForecastDetailOpen, setIsForecastDetailOpen] = useState(false);
   const forecast = forecasts[forecastPeriod];
   const forecastOverdue = forecast.entries.filter((e) => e.overdue).length;
-
-  // Cálculo real do crescimento patrimonial relativo ao marco inicial (evita exibir dados estáticos/falsos)
-  const netWorthGrowth = useMemo(() => {
-    if (
-      !activeCheckpoint ||
-      activeCheckpoint.initialNetWorth === undefined ||
-      activeCheckpoint.initialNetWorth <= 0 ||
-      totalNetWorth === 0
-    ) {
-      return null;
-    }
-    const diff = totalNetWorth - activeCheckpoint.initialNetWorth;
-    if (Math.abs(diff) < 0.01) return null;
-    const pct = (diff / activeCheckpoint.initialNetWorth) * 100;
-    return {
-      diff,
-      pct,
-      isPositive: diff >= 0,
-    };
-  }, [activeCheckpoint, totalNetWorth]);
 
   // Aguarda os dados do Supabase antes de renderizar para evitar flash de dados demo
   if (!isDataReady) {
@@ -198,111 +167,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       </div>
 
       {/* ============================================================== */}
-      {/* SEÇÃO 1: COMO ESTOU (fora da Projeção, que já traz os totais)   */}
-      {/* ============================================================== */}
-      {activeSection !== 'PROJECAO_TOTAL' && (
-      <section className="dashboard-section">
-
-
-        <div className="metrics-grid-4">
-          {/* Card 1: Patrimônio Líquido */}
-          <div className="glass-card stat-card">
-            <div className="stat-card-header">
-              <span className="stat-card-label">Patrimônio Líquido</span>
-              <div className="stat-icon-wrapper cyan">
-                <Wallet size={18} />
-              </div>
-            </div>
-            <div className="stat-card-body">
-              <span className="stat-card-value text-glow-cyan">
-                {totalNetWorth.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-              </span>
-              <div className="stat-card-footer">
-                {netWorthGrowth && (
-                  <span className={`trend-pill ${netWorthGrowth.isPositive ? 'trend-up' : 'trend-down'}`}>
-                    {netWorthGrowth.isPositive ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
-                    {netWorthGrowth.isPositive ? '+' : ''}{netWorthGrowth.pct.toFixed(1)}% este mês
-                  </span>
-                )}
-                <span className="stat-subtext">
-                  {activeCheckpoint && activeCheckpoint.initialNetWorth !== undefined
-                    ? 'Ancorado no Marco'
-                    : 'Consolidado B3 + Bancos'}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 2: Saldo Disponível */}
-          <div className="glass-card stat-card">
-            <div className="stat-card-header">
-              <span className="stat-card-label">Saldo Disponível (Caixa)</span>
-              <div className="stat-icon-wrapper emerald">
-                <CheckCircle2 size={18} />
-              </div>
-            </div>
-            <div className="stat-card-body">
-              <span className="stat-card-value text-glow-emerald">
-                {availableBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-              </span>
-              <div className="stat-card-footer">
-                <span className="stat-subtext balance-split">
-                  <span>🏦 Em conta: <strong>{accountBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></span>
-                  <span>💵 Em mãos: <strong>{cashInHandBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></span>
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 3: Fluxo Livre Mensal */}
-          <div className="glass-card stat-card">
-            <div className="stat-card-header">
-              <span className="stat-card-label">Fluxo Livre Mensal</span>
-              <div className="stat-icon-wrapper purple">
-                <TrendingUp size={18} />
-              </div>
-            </div>
-            <div className="stat-card-body">
-              <span className={`stat-card-value ${monthlyFreeCashflow >= 0 ? 'text-cyan' : 'text-rose'}`}>
-                {monthlyFreeCashflow >= 0 ? '+' : ''}
-                {monthlyFreeCashflow.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                <span className="stat-unit">/mês</span>
-              </span>
-              <div className="stat-card-footer">
-                <span className="stat-subtext">Capacidade de aporte poupança</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 4: Reserva de Emergência */}
-          <div className="glass-card stat-card">
-            <div className="stat-card-header">
-              <span className="stat-card-label">Reserva de Emergência</span>
-              <div className="stat-icon-wrapper amber">
-                <Clock size={18} />
-              </div>
-            </div>
-            <div className="stat-card-body">
-              <span className="stat-card-value text-amber">
-                {emergencyReserveMonths} meses
-                <span className="stat-unit">({emergencyReserveAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})</span>
-              </span>
-              <div className="stat-card-footer">
-                {emergencyReserveMonths >= 6 ? (
-                  <span className="trend-pill trend-safe">✓ Nível Seguro &gt; 6m</span>
-                ) : emergencyReserveMonths > 0 ? (
-                  <span className="trend-pill trend-warning">⚠️ {emergencyReserveMonths}m de cobertura</span>
-                ) : (
-                  <span className="stat-subtext">Sem reserva configurada</span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-      )}
-
-      {/* ============================================================== */}
       {/* SELETOR PRINCIPAL DE SEÇÕES (TABS INTERATIVAS)                 */}
       {/* ============================================================== */}
       <div className="dashboard-tabs-container">
@@ -327,8 +191,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
             onClick={() => setActiveSection('PROJECAO_TOTAL')}
           >
             <TrendingUp size={18} />
-            <span className="tab-label-full">Projeção Total</span>
-            <span className="tab-label-short">Total</span>
+            <span className="tab-label-full">Projeção</span>
+            <span className="tab-label-short">Projeção</span>
           </button>
 
           <button
