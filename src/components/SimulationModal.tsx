@@ -29,6 +29,7 @@ import type {
   FundsDestination,
   CustomScenarioInput,
 } from '../types';
+import { NumberInput } from './NumberInput';
 
 interface SimulationModalProps {
   isOpen: boolean;
@@ -521,13 +522,12 @@ export const SimulationModal: React.FC<SimulationModalProps> = ({
 
                 <div className="form-group">
                   <label>Quantidade de Parcelas</label>
-                  <input
-                    type="number"
-                    min="2"
-                    max="420"
+                  <NumberInput
+                    min={2}
+                    max={420}
                     className="form-input text-base font-bold text-cyan"
-                    value={installments || ''}
-                    onChange={(e) => setInstallments(parseInt(e.target.value, 10) || 1)}
+                    value={installments}
+                    onValueChange={setInstallments}
                   />
                 </div>
               </div>

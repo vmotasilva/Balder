@@ -29,6 +29,7 @@ import type { LoanSpreadsheetInput } from '../utils/loanSpreadsheetMath';
 import { groupLoanMovements, calculatePresentValue } from '../utils/loanMath';
 import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
 import { Modal } from '../components/Modal';
+import { NumberInput } from '../components/NumberInput';
 
 export type RowSimMode = 'NORMAL' | 'ANTECIPAR' | 'PAUSAR' | 'CUSTOM';
 
@@ -662,15 +663,12 @@ export const LoansPage: React.FC = () => {
 
                 <div className="form-group">
                   <label>Prazo (Meses)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="120"
+                  <NumberInput
+                    min={1}
+                    max={120}
                     className="form-input"
                     value={params.termMonths}
-                    onChange={(e) =>
-                      setParams({ ...params, termMonths: parseInt(e.target.value, 10) || 1 })
-                    }
+                    onValueChange={(termMonths) => setParams({ ...params, termMonths })}
                   />
                 </div>
 
@@ -732,17 +730,12 @@ export const LoansPage: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                   <div className="form-group" style={{ margin: 0 }}>
                     <label style={{ fontSize: '0.78rem' }}>Parcelas Já Quitadas no Passado</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max={params.termMonths - 1}
+                    <NumberInput
+                      min={0}
+                      max={Math.max(0, params.termMonths - 1)}
                       className="form-input"
                       value={alreadyPaidCount}
-                      onChange={(e) => {
-                        const val = Math.max(
-                          0,
-                          Math.min(params.termMonths - 1, parseInt(e.target.value, 10) || 0)
-                        );
+                      onValueChange={(val) => {
                         setAlreadyPaidCount(val);
                         if (val > 0) {
                           setIncludeDisbursement(false);

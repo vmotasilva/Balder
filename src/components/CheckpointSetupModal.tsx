@@ -20,6 +20,7 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import type { CreditCardItem, CheckpointBankDebt, InvoiceNatureItemBreakdown, FinancialCheckpoint } from '../types';
+import { NumberInput } from './NumberInput';
 
 interface CheckpointSetupModalProps {
   isOpen: boolean;
@@ -1154,12 +1155,12 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                               Dia Venc.:
                             </span>
-                            <input
-                              type="number"
-                              min="1"
-                              max="31"
+                            <NumberInput
+                              min={1}
+                              max={31}
+                              fallback={10}
                               value={b.dueDay}
-                              onChange={(e) => handleDueDayChange(b.id, parseInt(e.target.value, 10))}
+                              onValueChange={(day) => handleDueDayChange(b.id, day)}
                               className="form-input"
                               style={{ width: '50px', padding: '3px 6px', fontSize: '0.8rem', fontWeight: 700, textAlign: 'center' }}
                               title="Dia do vencimento fixo no mês"

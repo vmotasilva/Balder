@@ -9,6 +9,7 @@ import { BILL_GROUPS, COMMON_BILLS, clampDay, formatBRL, isoOf, nextDateForDay }
 import { Bubble, ForsetiTopicSetup } from './ForsetiTopicSetup';
 import type { TrackingPeriod } from '../utils/periodSpending';
 import type { ExpenseNature, FixedExpenseMapping, MappingItem, Movement } from '../types';
+import { NumberInput } from './NumberInput';
 
 type Step = 'NAME' | 'MODE' | 'MANUAL' | 'BANKS' | 'BALANCE' | 'INCOME' | 'BILLS' | 'CARD' | 'PERIOD' | 'DONE';
 
@@ -442,13 +443,12 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onFinished }) => {
                 />
                 <label className="guided-day">
                   <span>dia</span>
-                  <input
-                    type="number"
+                  <NumberInput
                     min={1}
                     max={31}
                     className="form-input form-input-sm"
                     value={income.day}
-                    onChange={(e) => setIncomes((prev) => prev.map((r, i) => (i === idx ? { ...r, day: clampDay(Number(e.target.value)) } : r)))}
+                    onValueChange={(day) => setIncomes((prev) => prev.map((r, i) => (i === idx ? { ...r, day } : r)))}
                   />
                 </label>
                 {idx > 0 && (
@@ -489,7 +489,7 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onFinished }) => {
                 <DecimalInput className="form-input form-input-sm" money value={b.amount} emptyWhenZero onValueChange={(v) => updateBill(b.key, { amount: v })} placeholder="Valor" aria-label={`Valor de ${b.name}`} />
                 <label className="guided-day">
                   <span>dia</span>
-                  <input type="number" min={1} max={31} className="form-input form-input-sm" value={b.day} onChange={(e) => updateBill(b.key, { day: clampDay(Number(e.target.value)) })} />
+                  <NumberInput min={1} max={31} className="form-input form-input-sm" value={b.day} onValueChange={(day) => updateBill(b.key, { day })} />
                 </label>
                 <button type="button" className="guided-icon-btn" aria-label="Remover" onClick={() => toggleBill(b.key, b.name)}>
                   <Trash2 size={14} />
@@ -558,13 +558,12 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onFinished }) => {
                     />
                     <label className="guided-day">
                       <span>vence dia</span>
-                      <input
-                        type="number"
+                      <NumberInput
                         min={1}
                         max={31}
                         className="form-input form-input-sm"
                         value={card.dueDay}
-                        onChange={(e) => setCardsInfo((prev) => prev.map((c, i) => (i === idx ? { ...c, dueDay: clampDay(Number(e.target.value)) } : c)))}
+                        onValueChange={(dueDay) => setCardsInfo((prev) => prev.map((c, i) => (i === idx ? { ...c, dueDay } : c)))}
                       />
                     </label>
                     {idx > 0 && (

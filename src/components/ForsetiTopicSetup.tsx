@@ -21,6 +21,7 @@ import {
 } from '../utils/setupCatalog';
 import type { TrackingPeriod } from '../utils/periodSpending';
 import type { ExpenseNature, FixedExpenseMapping, MappingItem, Movement } from '../types';
+import { NumberInput } from './NumberInput';
 
 
 const TOPICS: { id: SetupTopic; label: string; hint: string; why: string }[] = [
@@ -130,7 +131,7 @@ const AddOther: React.FC<{ placeholder: string; onAdd: (value: string) => void }
 const DayInput: React.FC<{ label?: string; value: number; max?: number; onChange: (day: number) => void }> = ({ label = 'dia', value, max = 31, onChange }) => (
   <label className="guided-day">
     <span>{label}</span>
-    <input type="number" min={1} max={max} className="form-input form-input-sm" value={value} onChange={(e) => onChange(clampDay(Number(e.target.value), max))} />
+    <NumberInput min={1} max={max} className="form-input form-input-sm" value={value} onValueChange={onChange} />
   </label>
 );
 
@@ -1005,12 +1006,11 @@ const MapeamentosTopic: React.FC<TopicProps> = (p) => {
           {rows.map((r, idx) => (
             <div key={idx} className="guided-row">
               <input className="form-input form-input-sm" value={r.description} onChange={(e) => updateRow(idx, { description: e.target.value })} aria-label="Item" placeholder="Item" />
-              <input
-                type="number"
+              <NumberInput
                 min={1}
                 className="form-input form-input-sm guided-qty"
                 value={r.quantity}
-                onChange={(e) => updateRow(idx, { quantity: Math.max(1, Number(e.target.value) || 1) })}
+                onValueChange={(quantity) => updateRow(idx, { quantity })}
                 aria-label="Quantidade"
               />
               <DecimalInput className="form-input form-input-sm" money value={r.price} emptyWhenZero onValueChange={(v) => updateRow(idx, { price: v })} placeholder="Preço" aria-label="Preço" />

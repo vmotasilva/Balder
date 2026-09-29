@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { parseDecimal, parseMoney } from '../utils/parseDecimal';
 import type { ExpenseNature, ReceiptItemLine } from '../types';
 import { X, Plus, Check, ShoppingBag, Layers, Tag, Sparkles } from 'lucide-react';
+import { NumberInput } from './NumberInput';
 
 interface Props {
   isOpen: boolean;
@@ -330,14 +331,12 @@ const QuickCreateMappingItemModalContent: React.FC<
               <label className="qm-label">
                 <span>Multiplicador de Semanas</span>
               </label>
-              <input
-                type="number"
-                step="1"
-                min="1"
-                max="5"
+              <NumberInput
+                min={1}
+                max={5}
                 className="qm-input"
                 value={multiplierWeeks}
-                onChange={(e) => setMultiplierWeeks(Number(e.target.value))}
+                onValueChange={setMultiplierWeeks}
               />
               <span className="qm-field-hint">1 = compra semanal / avulsa no mês</span>
             </div>
