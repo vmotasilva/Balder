@@ -589,14 +589,38 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
           <p className="page-subtitle movements-page-subtitle">Acompanhe entradas, saídas, parcelas de empréstimos e faturas de cartão</p>
         </div>
 
-        <div className="page-header-actions">
-          <button className="btn btn-outline" onClick={exportToCSV} title="Exportar tabela para planilha CSV">
-            <Download size={16} />
-            <span>Exportar CSV</span>
+        {/* No celular os três ficam lado a lado só com o ícone (o nome vai no title/aria-label) */}
+        <div className="page-header-actions mv-header-actions">
+          <button
+            type="button"
+            className="btn btn-outline mv-header-btn"
+            onClick={() => setIsImmediateActionsOpen(true)}
+            title="Ações Imediatas"
+            aria-label="Ações Imediatas (7 ações)"
+          >
+            <Zap size={16} className="text-amber-400 fill-amber-400" />
+            <span className="mv-header-btn-label">Ações Imediatas</span>
+            <span className="mv-header-btn-count" aria-hidden="true">7</span>
           </button>
-          <button className="btn btn-primary" onClick={() => onOpenNewMovementModal('PAGAR')}>
+          <button
+            type="button"
+            className="btn btn-outline mv-header-btn"
+            onClick={exportToCSV}
+            title="Exportar tabela para planilha CSV"
+            aria-label="Exportar CSV"
+          >
+            <Download size={16} />
+            <span className="mv-header-btn-label">Exportar CSV</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary mv-header-btn"
+            onClick={() => onOpenNewMovementModal('PAGAR')}
+            title="Nova Movimentação"
+            aria-label="Nova Movimentação"
+          >
             <Plus size={16} />
-            <span>Nova Movimentação</span>
+            <span className="mv-header-btn-label">Nova Movimentação</span>
           </button>
         </div>
       </div>
@@ -724,20 +748,6 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
           })}
         </div>
       )}
-
-      {/* Botão de Ações Imediatas (Abre Pop-up Modal com as ações) */}
-      <div className="movements-immediate-actions-bar mb-4">
-        <button
-          type="button"
-          className="immediate-actions-trigger-btn"
-          onClick={() => setIsImmediateActionsOpen(true)}
-          title="Abrir menu de ações imediatas"
-        >
-          <Zap size={16} className="text-amber-400 fill-amber-400 animate-pulse" />
-          <span>Ações Imediatas</span>
-          <span className="badge badge-amber text-xs">7 Ações</span>
-        </button>
-      </div>
 
       <ImmediateActionsModal
         isOpen={isImmediateActionsOpen}

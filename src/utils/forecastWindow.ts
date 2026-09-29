@@ -35,6 +35,9 @@ export const FORECAST_PERIODS: { id: ForecastPeriod; label: string }[] = [
   { id: 'DIAS_30', label: 'Próximos 30 dias' },
 ];
 
+/** Períodos oferecidos na tela: os 30 dias corridos seguem calculados só para os avisos e a reserva. */
+export const FORECAST_PERIOD_OPTIONS = FORECAST_PERIODS.filter((p) => p.id !== 'DIAS_30');
+
 /**
  * Fim (inclusive) de cada período a partir de hoje:
  * semana de segunda a domingo; quinzena até o dia 15 ou até o fim do mês; mês até o último dia; 30 dias corridos.

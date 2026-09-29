@@ -4,6 +4,7 @@ import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
 import {
   FORECAST_PERIODS,
+  FORECAST_PERIOD_OPTIONS,
   type ForecastEntry,
   type ForecastEntrySource,
   type ForecastPeriod,
@@ -26,18 +27,24 @@ export const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'curr
 export const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 export const forecastPeriodLabel = (period: ForecastPeriod) => FORECAST_PERIODS.find((p) => p.id === period)?.label || '';
 
-/** Período escolhido (lembrado neste navegador; o Dashboard e a Central compartilham a escolha). */
-export function useForecastPeriod(fallback: ForecastPeriod = 'MES') {
-  const [period, setPeriodState] = useState<ForecastPeriod>(() => {
+/**
+ * Período escolhido (lembrado neste navegador; o Dashboard e a Central compartilham a escolha).
+ * `allowed` diz quais valores guardados valem nesta tela; um período que saiu da lista volta ao padrão.
+ */
+export function useForecastPeriod<T extends string = ForecastPeriod>(
+  fallback: NoInfer<T> = 'MES' as T,
+  allowed: readonly T[] = FORECAST_PERIOD_OPTIONS.map((p) => p.id) as T[]
+) {
+  const [period, setPeriodState] = useState<T>(() => {
     try {
-      const saved = localStorage.getItem(PERIOD_STORAGE_KEY) as ForecastPeriod | null;
-      if (saved && FORECAST_PERIODS.some((p) => p.id === saved)) return saved;
+      const saved = localStorage.getItem(PERIOD_STORAGE_KEY) as T | null;
+      if (saved && allowed.includes(saved)) return saved;
     } catch {
       // armazenamento indisponível
     }
     return fallback;
   });
-  const setPeriod = (next: ForecastPeriod) => {
+  const setPeriod = (next: T) => {
     setPeriodState(next);
     try {
       localStorage.setItem(PERIOD_STORAGE_KEY, next);
@@ -48,9 +55,17 @@ export function useForecastPeriod(fallback: ForecastPeriod = 'MES') {
   return [period, setPeriod] as const;
 }
 
-export const ForecastPeriodPills: React.FC<{ value: ForecastPeriod; onChange: (p: ForecastPeriod) => void }> = ({ value, onChange }) => (
+export const ForecastPeriodPills = <T extends string = ForecastPeriod>({
+  value,
+  onChange,
+  options = FORECAST_PERIOD_OPTIONS as { id: T; label: string }[],
+}: {
+  value: T;
+  onChange: (p: T) => void;
+  options?: { id: T; label: string }[];
+}) => (
   <div className="pill-selector forecast-period-pills" role="tablist" aria-label="Período">
-    {FORECAST_PERIODS.map((p) => (
+    {options.map((p) => (
       <button
         key={p.id}
         type="button"
