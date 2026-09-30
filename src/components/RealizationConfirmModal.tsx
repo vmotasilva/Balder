@@ -38,6 +38,28 @@ export const realizedMovementUpdates = (m: Movement, amount: number, date: strin
   };
 };
 
+/** Desfazer a confirmação: volta a ficar em aberto e, se o valor foi corrigido ao confirmar, volta ao previsto. */
+export const reopenedMovementUpdates = (m: Movement): Partial<Movement> => ({
+  status: 'PREVISTA',
+  ...(m.originalAmount !== undefined && Math.abs(m.originalAmount - m.amount) >= 0.005 ? { amount: m.originalAmount } : {}),
+});
+
+/** Pedido de confirmação para desfazer (vai no ConfirmDialog antes de reabrir a movimentação). */
+export const reopenConfirmOptions = (m: Movement, onConfirm: () => void) => {
+  const isIncome = m.type === 'RECEBER';
+  const restores = m.originalAmount !== undefined && Math.abs(m.originalAmount - m.amount) >= 0.005;
+  const done = `${formatBRL(m.actualAmount ?? m.amount)}${m.paymentDate ? ` em ${formatDate(m.paymentDate)}` : ''}`;
+  return {
+    title: isIncome ? 'Desfazer recebimento' : 'Desfazer pagamento',
+    message: `${m.title}: o ${isIncome ? 'recebimento' : 'pagamento'} de ${done} será desfeito e volta a ficar em aberto${
+      restores ? `, com o valor previsto de ${formatBRL(m.originalAmount!)}` : ''
+    }.`,
+    confirmLabel: 'Desfazer',
+    variant: 'warning' as const,
+    onConfirm,
+  };
+};
+
 /**
  * Confirmação de um pagamento ou recebimento: antes de dar baixa, a pessoa confere (e corrige, se preciso)
  * o valor e a data em que o dinheiro de fato saiu ou entrou.

@@ -58,7 +58,8 @@ import {
 } from '../utils/mappingItemState';
 import { MappingItemStateModal, type MappingItemStateTarget } from './MappingItemStateModal';
 import { MappingPaymentModal, type MappingPaymentTarget } from './MappingPaymentModal';
-import { RealizationConfirmModal, realizedMovementUpdates, type RealizationTarget } from './RealizationConfirmModal';
+import { RealizationConfirmModal, realizedMovementUpdates, reopenConfirmOptions, reopenedMovementUpdates, type RealizationTarget } from './RealizationConfirmModal';
+import { ConfirmDialog, useConfirmDialog } from './ConfirmDialog';
 import {
   DetailViewStyleBar,
   NatureDrillView,
@@ -1016,7 +1017,6 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     deleteMovement,
     banks,
     cards,
-    toggleMovementStatus,
     natureDetailModes,
   } = useFinancial();
 
@@ -1120,10 +1120,11 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
   const [editingReceipt, setEditingReceipt] = useState<EditingReceiptData | null>(null);
   // Pop-up que confere valor e data antes de marcar uma fatura como paga
   const [realization, setRealization] = useState<RealizationTarget | null>(null);
-  // Fatura aberta: pede a confirmação do pagamento; fatura paga: reabre direto
+  const { confirm: confirmReopen, dialogProps: reopenDialogProps } = useConfirmDialog();
+  // Fatura aberta: confere valor e data do pagamento; fatura paga: confirma antes de reabrir
   const toggleInvoicePaid = (m: Movement) => {
     if (m.status === 'REALIZADA') {
-      toggleMovementStatus(m.id);
+      confirmReopen(reopenConfirmOptions(m, () => updateMovement(m.id, reopenedMovementUpdates(m))));
       return;
     }
     setRealization({
@@ -4296,6 +4297,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
       <MappingItemStateModal target={itemStateTarget} onClose={() => setItemStateTarget(null)} />
       <MappingPaymentModal target={mappingPaymentTarget} onClose={() => setMappingPaymentTarget(null)} />
       <RealizationConfirmModal target={realization} onClose={() => setRealization(null)} />
+      <ConfirmDialog {...reopenDialogProps} />
 
       {/* POP-UP DA PARCELA DE EMPRÉSTIMO (PAGAR / ANTECIPAR / REABRIR) */}
       {loanInstallmentTarget && (

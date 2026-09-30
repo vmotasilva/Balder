@@ -30,7 +30,7 @@ import { LoanPrepaymentModal } from '../components/LoanPrepaymentModal';
 import { MovementDetailModal } from '../components/MovementDetailModal';
 import { ImmediateActionsModal } from '../components/ImmediateActionsModal';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
-import { RealizationConfirmModal, realizedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
+import { RealizationConfirmModal, realizedMovementUpdates, reopenConfirmOptions, reopenedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
 import { getPendingFixedBills, type PendingFixedBill } from '../utils/fixedBillsAlert';
 
 interface MovementsPageProps {
@@ -78,7 +78,6 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
     addMovement,
     deleteMovement,
     updateMovement,
-    toggleMovementStatus,
     toggleItemFulfilled,
     exportToCSV,
     activeCheckpoint,
@@ -465,7 +464,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
             onClick={(e) => {
               e.stopPropagation();
               if (isRealized) {
-                toggleMovementStatus(item.id);
+                confirmAction(reopenConfirmOptions(item, () => updateMovement(item.id, reopenedMovementUpdates(item))));
                 return;
               }
               setRealization({

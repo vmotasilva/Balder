@@ -24,7 +24,7 @@ import { MovementDetailModal } from '../components/MovementDetailModal';
 import { NewInvoiceModal } from '../components/NewInvoiceModal';
 import { InvoiceImportModal } from '../components/InvoiceImportModal';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
-import { RealizationConfirmModal, realizedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
+import { RealizationConfirmModal, realizedMovementUpdates, reopenConfirmOptions, reopenedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
 import { getBankBranding } from '../utils/bankBranding';
 import { InfoButton } from '../components/InfoButton';
 
@@ -495,7 +495,7 @@ export const InvoicesPage: React.FC = () => {
   // Marcar fatura como paga (valor e data conferidos no pop-up) ou reabrir
   const handleToggleInvoiceStatus = (m: Movement) => {
     if (m.status === 'REALIZADA') {
-      updateMovement(m.id, { status: 'PREVISTA', paymentDate: undefined });
+      confirmAction(reopenConfirmOptions(m, () => updateMovement(m.id, { ...reopenedMovementUpdates(m), paymentDate: undefined })));
       return;
     }
     setRealization({
