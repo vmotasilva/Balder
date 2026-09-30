@@ -57,6 +57,7 @@ import {
   resolveMappingItemState,
 } from '../utils/mappingItemState';
 import { MappingItemStateModal, type MappingItemStateTarget } from './MappingItemStateModal';
+import { MappingPaymentModal, type MappingPaymentTarget } from './MappingPaymentModal';
 import {
   DetailViewStyleBar,
   NatureDrillView,
@@ -142,6 +143,8 @@ export interface CellBreakdownSubItem {
   occurrenceDate?: string; // data da ocorrência (YYYY-MM-DD) no agrupamento por data
   isMappingSummary?: boolean; // linha-resumo de um mapeamento (nome + valor total)
   summaryItemCount?: number;  // quantos itens o resumo agrega
+  /** Linha-resumo: mapeamento e itens que o clique permite pagar de uma vez. */
+  mappingPaymentRef?: { natureId: string; mappingId: string; itemIds: string[]; title: string };
   occurrenceWeights?: { date: string; weight: number }[]; // dias reais dos itens agregados (distribuição semanal)
   paidAmount?: number;    // Real: já pago/recebido na competência (itens mapeados)
   pendingAmount?: number; // Previsto: ainda a pagar/receber na competência (itens mapeados)
@@ -208,6 +211,7 @@ export interface NatureItemEntry {
   mappingDetailMode?: NatureDetailMode; // escolha do mapeamento; sem valor, segue a natureza
   summaryItemCount?: number; // preenchido nas linhas-resumo de mapeamento
   summarySourceItems?: MappingItem[]; // itens agregados pela linha-resumo
+  summaryRef?: { natureId: string; mappingId: string }; // mapeamento da linha-resumo (para lançar o pagamento)
   natureName: string;
   natureColor: string;
   mappingName: string;
@@ -285,6 +289,15 @@ function natureItemStateFields(ni: NatureItemEntry, monthKey: string): Partial<C
           occurrenceWeights: (ni.summarySourceItems || [])
             .filter((it) => !isExcludedState(resolveMappingItemState(it, monthKey)))
             .flatMap((it) => getItemOccurrences(it, monthKey).map((o) => ({ date: o.date, weight: o.value }))),
+          ...(ni.summaryRef
+            ? {
+                mappingPaymentRef: {
+                  ...ni.summaryRef,
+                  itemIds: (ni.summarySourceItems || []).map((it) => it.id),
+                  title: ni.item.description,
+                },
+              }
+            : {}),
         }
       : {}),
     natureItemRef:
@@ -319,7 +332,13 @@ function summarizeNatureEntries(
     let group = groups.get(key);
     if (!group) {
       group = {
-        entry: { natureName: ni.natureName, natureColor: ni.natureColor, mappingName: ni.mappingName, item: ni.item },
+        entry: {
+          natureName: ni.natureName,
+          natureColor: ni.natureColor,
+          mappingName: ni.mappingName,
+          item: ni.item,
+          ...(ni.natureId && ni.mappingId ? { summaryRef: { natureId: ni.natureId, mappingId: ni.mappingId } } : {}),
+        },
         items: [],
         mappingKey,
       };
@@ -1101,6 +1120,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
   // Item mapeado cuja situação na competência está sendo definida
   const [itemStateTarget, setItemStateTarget] = useState<MappingItemStateTarget | null>(null);
+  const [mappingPaymentTarget, setMappingPaymentTarget] = useState<MappingPaymentTarget | null>(null);
   const [loanInstallmentTarget, setLoanInstallmentTarget] = useState<string | null>(null);
 
   // Rascunho de nova conta a receber/pagar; estável enquanto o formulário estiver aberto
@@ -2736,6 +2756,8 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     // Item mapeado de natureza: clique define a situação na competência (realizado / quem pagou)
     const isNatureItem = !isReceipt && !!sub.natureItemRef;
     const isLoanInstallment = !isReceipt && !!sub.loanMovementId;
+    // Linha-resumo de mapeamento: clique abre o lançamento do pagamento do mapeamento inteiro
+    const isMappingPayable = !isReceipt && !!sub.mappingPaymentRef && !!currentRow;
     const openItemState = () => {
       if (sub.natureItemRef && currentRow) {
         setItemStateTarget({
@@ -2756,10 +2778,12 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             openItemState();
           } else if (isLoanInstallment) {
             setLoanInstallmentTarget(sub.loanMovementId!);
+          } else if (isMappingPayable) {
+            setMappingPaymentTarget({ ...sub.mappingPaymentRef!, monthKey: currentRow!.monthKey });
           }
         }}
         className={`detail-item-row group/receipt transition-all ${
-          isReceipt || isNatureItem || isLoanInstallment
+          isReceipt || isNatureItem || isLoanInstallment || isMappingPayable
             ? 'cursor-pointer hover:bg-cyan-500/[0.08] dark:hover:bg-cyan-500/[0.12] hover:border-cyan-500/30'
             : ''
         } ${
@@ -2778,6 +2802,8 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             ? 'Clique para definir se já foi realizado e quem pagou'
             : isLoanInstallment
             ? 'Clique para pagar ou antecipar esta parcela'
+            : isMappingPayable
+            ? 'Clique para lançar o pagamento deste mapeamento'
             : undefined
         }
       >
@@ -4251,6 +4277,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
       {/* POP-UP DE SITUAÇÃO DO ITEM MAPEADO (REALIZADO / QUEM PAGOU / PRÓXIMAS COMPETÊNCIAS) */}
       <MappingItemStateModal target={itemStateTarget} onClose={() => setItemStateTarget(null)} />
+      <MappingPaymentModal target={mappingPaymentTarget} onClose={() => setMappingPaymentTarget(null)} />
 
       {/* POP-UP DA PARCELA DE EMPRÉSTIMO (PAGAR / ANTECIPAR / REABRIR) */}
       {loanInstallmentTarget && (

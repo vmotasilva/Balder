@@ -285,7 +285,8 @@ export const NatureDrillView: React.FC<{
       {breadcrumb}
       {isSummary && (
         <p className="text-[11px] text-muted mb-2">
-          Este mapeamento está em modo Resumo. Para ver cada item, altere para Detalhado na tela de Naturezas.
+          Este mapeamento está em modo Resumo: toque na linha para lançar o pagamento. Para ver cada item, altere para
+          Detalhado na tela de Naturezas.
         </p>
       )}
       <div className="sticky-date-items-list">{mapping.items.map(renderItem)}</div>
