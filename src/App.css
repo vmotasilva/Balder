@@ -22544,3 +22544,68 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   border-color: var(--accent-cyan);
   color: var(--accent-cyan);
 }
+
+/* Últimas solicitações à Forseti (Início) */
+.forseti-activity-list li {
+  align-items: flex-start;
+}
+
+.forseti-activity-list li.is-undone .home-task-main {
+  opacity: 0.55;
+}
+
+.forseti-activity-icon {
+  font-size: 16px;
+  line-height: 20px;
+}
+
+.forseti-activity-result {
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.forseti-activity-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.forseti-rate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.forseti-rate.is-up {
+  color: var(--accent-emerald, #10b981);
+  border-color: currentColor;
+}
+
+.forseti-rate.is-down {
+  color: var(--accent-rose);
+  border-color: currentColor;
+}
+
+.forseti-activity-feedback {
+  font-size: 12px;
+  margin: 6px 0 0;
+}
+
+@media (max-width: 600px) {
+  .forseti-activity-list li {
+    flex-wrap: wrap;
+  }
+
+  .forseti-activity-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

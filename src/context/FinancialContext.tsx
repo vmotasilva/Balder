@@ -31,6 +31,7 @@ const survivesFormat = (id: string, formattedAtIso?: string) => {
 };
 
 import type { GoalStatusInfo,
+  ForsetiActivity,
   SharedSplitRule,
   ViewPreferences,
   Movement,
@@ -82,6 +83,7 @@ import {
 } from '../utils/demoData';
 import { deduplicateCards, getCardIdentityKey } from '../utils/cardUtils';
 import { getBankBranding } from '../utils/bankBranding';
+import { ForsetiActivityService } from '../services/forsetiActivityService';
 import { defaultClosingDay } from '../utils/setupCatalog';
 import { isExcludedState, mappingItemBaseValue, resolveMappingItemState } from '../utils/mappingItemState';
 import { buildForecastWindow, FORECAST_PERIODS, type ForecastPeriod, type ForecastWindow } from '../utils/forecastWindow';
@@ -110,6 +112,9 @@ import {
   paymentOptions,
   pickPaymentOptions,
   mentionedCard,
+  createdMovementsOf,
+  canUndoActivity,
+  plainSummary,
   NEW_CARD_DUE_CHIPS,
   OPTION_OTHER_PAYMENT,
   OPTION_REGISTER_CARD,
@@ -235,6 +240,10 @@ interface FinancialContextType {
     invoiceTitle: string;
   };
   respondToCopilotOption: (messageId: string, option: CopilotInteractiveOption) => void;
+  /** Últimas solicitações à Forseti (30 dias), com avaliação e desfazer. */
+  forsetiActivity: ForsetiActivity[];
+  rateForsetiActivity: (id: string, rating: ForsetiActivity['rating']) => void;
+  undoForsetiActivity: (id: string) => { ok: boolean; message: string };
   reconcileReceiptData: (messageId: string, data: ReceiptReconciliationData) => void;
   exportToCSV: () => void;
 
@@ -1642,6 +1651,80 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   ]);
   // Registro guiado em andamento (valor → data/categoria → conta)
   const forsetiFlowRef = useRef<ForsetiFlow | null>(null);
+  // Mensagens da pessoa desde o início do registro em andamento (o pedido, no histórico)
+  const requestTrailRef = useRef<string[]>([]);
+
+  // Histórico das solicitações à Forseti: é de quem usa (não do dono do planejamento aberto)
+  const activityUserId = authUser?.$id;
+  const activityGuest = !authUser || !!authUser.isGuest;
+  const [forsetiActivity, setForsetiActivity] = useState<ForsetiActivity[]>([]);
+  useEffect(() => {
+    if (!activityUserId) {
+      setForsetiActivity([]);
+      return;
+    }
+    let alive = true;
+    ForsetiActivityService.list(activityUserId, activityGuest).then((list) => {
+      if (alive) setForsetiActivity(list);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [activityUserId, activityGuest]);
+
+  const saveActivity = (activity: ForsetiActivity) => {
+    if (activityUserId) ForsetiActivityService.save(activityUserId, activityGuest, activity).catch(console.error);
+  };
+
+  const logForsetiActivity = (entry: Omit<ForsetiActivity, 'id' | 'at' | 'planOwnerId' | 'planOwnerName'>) => {
+    const activity: ForsetiActivity = {
+      ...entry,
+      id: crypto.randomUUID(),
+      at: new Date().toISOString(),
+      request: entry.request.slice(0, 280),
+      result: entry.result.slice(0, 280),
+      ...(viewing ? { planOwnerId: viewing.ownerId, planOwnerName: viewing.ownerName } : {}),
+    };
+    setForsetiActivity((prev) => [activity, ...prev]);
+    saveActivity(activity);
+  };
+
+  const updateForsetiActivity = (id: string, updates: Partial<ForsetiActivity>) => {
+    const current = forsetiActivity.find((a) => a.id === id);
+    if (!current) return;
+    const next = { ...current, ...updates };
+    setForsetiActivity((prev) => prev.map((a) => (a.id === id ? next : a)));
+    saveActivity(next);
+  };
+
+  const rateForsetiActivity = (id: string, rating: ForsetiActivity['rating']) => updateForsetiActivity(id, { rating });
+
+  /** Desfaz o que a solicitação criou (lançamentos e/ou cartão). Devolve o que aconteceu, para mostrar. */
+  const undoForsetiActivity = (id: string): { ok: boolean; message: string } => {
+    const activity = forsetiActivity.find((a) => a.id === id);
+    if (!activity || !canUndoActivity(activity)) return { ok: false, message: 'Esta solicitação não pode ser desfeita.' };
+    if ((activity.planOwnerId || null) !== (viewing?.ownerId || null)) {
+      return {
+        ok: false,
+        message: activity.planOwnerId
+          ? `Foi feita no planejamento de ${activity.planOwnerName || 'outra pessoa'}. Abra esse planejamento para desfazer.`
+          : 'Foi feita no seu planejamento. Volte para ele para desfazer.',
+      };
+    }
+    const created = createdMovementsOf(activity, movements);
+    const card = activity.cardName ? cards.find((c) => c.name === activity.cardName) : undefined;
+    if (card && movements.some((m) => m.bank === card.name && !created.includes(m))) {
+      return { ok: false, message: `Ainda há lançamentos no cartão ${card.name}. Desfaça antes as compras feitas nele.` };
+    }
+    created.forEach((m) => deleteMovement(m.id));
+    if (card) deleteCard(card.id);
+    updateForsetiActivity(id, { undoneAt: new Date().toISOString() });
+    const parts = [
+      created.length > 0 ? `${created.length} lançamento${created.length > 1 ? 's' : ''} apagado${created.length > 1 ? 's' : ''}` : '',
+      card ? `cartão ${card.name} removido` : '',
+    ].filter(Boolean);
+    return { ok: true, message: parts.length > 0 ? `Desfeito: ${parts.join(' e ')}.` : 'Desfeito. Os lançamentos já tinham sido apagados.' };
+  };
 
   // Sincronização inicial com Supabase
   useEffect(() => {
@@ -3466,7 +3549,15 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           {
             pendingConfirmation: {
               step: 'ACCOUNT',
-              pendingData: { rawTitle: title || 'Recebimento', amount, dueDate: date, type: 'RECEBER', category: 'Receita Operacional', status },
+              pendingData: {
+                rawTitle: title || 'Recebimento',
+                amount,
+                dueDate: date,
+                type: 'RECEBER',
+                category: 'Receita Operacional',
+                status,
+                request: requestTrailRef.current.join(' → '),
+              },
               question: 'Em qual conta?',
               options: receiveAccountOptions(accounts),
             },
@@ -3490,7 +3581,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           {
             pendingConfirmation: {
               step: 'PAYMENT_METHOD',
-              pendingData: { rawTitle: title, amount, dueDate: todayIso, type: 'PAGAR', category, installments },
+              pendingData: { rawTitle: title, amount, dueDate: todayIso, type: 'PAGAR', category, installments, request: requestTrailRef.current.join(' → ') },
               question: pick.question,
               options: pick.options,
             },
@@ -3520,6 +3611,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return { base, amount, installments: inst?.count };
       };
       const startRegistration = (kind: 'RECEBER' | 'PAGAR', text: string) => {
+        requestTrailRef.current = [trimmed];
         const amount = parseAmount(text);
         const title = titleFrom(text);
         if (kind === 'RECEBER') {
@@ -3572,6 +3664,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           MAIN_CHIPS.includes(trimmed) ||
           !!registrationKind(trimmed) ||
           (!cardStep && !!detectDoubt(trimmed) && parseAmount(trimmed) === null);
+        if (!changedSubject) requestTrailRef.current.push(trimmed);
         if (changedSubject) {
           forsetiFlowRef.current = null;
         } else if (flow.step === 'CARTAO_NOME' || flow.step === 'CARTAO_VENCIMENTO' || flow.step === 'CARTAO_FECHAMENTO') {
@@ -3625,6 +3718,12 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             color: getBankBranding(newCard.name).primaryColor,
           };
           addCard(cardData);
+          logForsetiActivity({
+            kind: 'CARTAO',
+            request: requestTrailRef.current.join(' → '),
+            result: `Cartão ${newCard.name} cadastrado · fecha dia ${closingDay}, vence dia ${dueDay}`,
+            cardName: newCard.name,
+          });
           const saved = `✓ Cartão **${newCard.name}** cadastrado: fecha dia **${closingDay}** e vence dia **${dueDay}**. O limite você ajusta em **Cartões**.`;
           if (!purchase) {
             reply({ text: saved, badge: 'CARTÃO CADASTRADO', chips: MAIN_CHIPS });
@@ -3735,7 +3834,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             emergencyReserveMonths,
             monthlyFreeCashflow,
           };
-          reply(answerDoubt(doubt, trimmed, data));
+          const answer = answerDoubt(doubt, trimmed, data);
+          reply(answer);
+          if (doubt !== 'MENU') logForsetiActivity({ kind: 'DUVIDA', request: trimmed, result: plainSummary(answer.text) });
           return;
         }
 
@@ -3817,6 +3918,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (option.payload.action === OPTION_REGISTER_CARD) {
       if (forsetiBlockedInShared('cadastro cartões', option.label)) return;
       const name: string = option.payload.cardName || '';
+      requestTrailRef.current = [pending.request || pending.rawTitle, option.label];
       forsetiFlowRef.current = { kind: 'PAGAR', step: name ? 'CARTAO_VENCIMENTO' : 'CARTAO_NOME', newCard: { name }, purchase: pending };
       setChatHistory((prev) =>
         prev
@@ -3893,6 +3995,11 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
 
       const res = associateReceiptItemsToInvoice(targetInvoice.id, itemsToLink);
+      logForsetiActivity({
+        kind: 'FATURA',
+        request: `Comprovante${targetMsg.receiptReconciliation?.store ? ` de ${targetMsg.receiptReconciliation.store}` : ''}`,
+        result: `${res.itemsCount} itens vinculados à fatura ${targetInvoice.bank} · ${brl(res.allocatedAmount)}`,
+      });
 
       const userConfirmMsg: CopilotMessage = {
         id: `usr_${Date.now()}`,
@@ -3988,6 +4095,23 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       });
     }
 
+    const created = count
+      ? schedule.map((p, idx) => ({ title: `${movementTitle} (${idx + 1}/${count})`, dueDate: p.dueDate, type: finalType, bank: finalBank }))
+      : [{ title: movementTitle, dueDate: finalDueDate, type: finalType, bank: finalBank }];
+    logForsetiActivity({
+      kind: isIncome ? 'RECEBIMENTO' : 'PAGAMENTO',
+      request: pending.request || pending.rawTitle,
+      result: [
+        count ? `${brl(pending.amount)} em ${count}x` : brl(pending.amount),
+        pending.rawTitle,
+        option.label,
+        isIncome ? `${finalStatus === 'REALIZADA' ? 'recebido' : 'previsto'} em ${whenLabel}` : isCredit ? `fatura de ${whenLabel}` : '',
+      ]
+        .filter(Boolean)
+        .join(' · '),
+      movements: created,
+    });
+
     setTimeout(() => {
       let confirmationText = '';
       if (count) {
@@ -4023,6 +4147,11 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Conciliar Cupom / Nota Fiscal com Mapeamento de Gastos Fixos e Aprendizado Contínuo
   const reconcileReceiptData = (messageId: string, data: ReceiptReconciliationData) => {
     if (forsetiBlockedInShared('lanço cupons nem altero os mapeamentos', undefined, ['LANCAR_DESPESAS', 'EDITAR_NATUREZAS'])) return;
+    logForsetiActivity({
+      kind: 'CUPOM',
+      request: `Cupom fiscal de ${data.store}`,
+      result: `${brl(data.totalAmount)} · ${data.items.length} itens conciliados com os mapeamentos`,
+    });
     // 1. Registrar a movimentação determinística no fluxo de caixa
     const isCredit = data.paymentMethod === 'CARTAO';
     const finalBank = data.paymentMethod === 'DINHEIRO' ? 'Dinheiro' : (data.paymentMethod === 'CARTAO' ? 'Nubank' : 'Inter');
@@ -5115,6 +5244,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         sendMessageToCopilot,
         associateReceiptItemsToInvoice,
         respondToCopilotOption,
+        forsetiActivity,
+        rateForsetiActivity,
+        undoForsetiActivity,
         exportToCSV,
         addNature,
         updateNature,

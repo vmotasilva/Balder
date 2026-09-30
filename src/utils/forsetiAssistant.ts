@@ -1,4 +1,4 @@
-import type { BankAccount, CopilotInteractiveOption, CopilotPendingConfirmation, CreditCardItem, Goal, MonthlyGridProjectionRow, Movement } from '../types';
+import type { BankAccount, CopilotInteractiveOption, CopilotPendingConfirmation, CreditCardItem, ForsetiActivity, Goal, MonthlyGridProjectionRow, Movement } from '../types';
 import type { ForecastEntry, ForecastPeriod, ForecastWindow } from './forecastWindow';
 import { CASH_IN_HAND } from './cashInHand';
 
@@ -891,3 +891,21 @@ export function detectAmbiguity(text: string): ForsetiReply | null {
     chips: found.options.map((o) => o.chip),
   };
 }
+
+// ── Histórico de solicitações ─────────────────────────────────────────────────
+/** Lançamentos que uma solicitação criou e ainda existem (título, vencimento, tipo e conta iguais). */
+export function createdMovementsOf(activity: ForsetiActivity, movements: Movement[]): Movement[] {
+  const created = activity.movements || [];
+  return movements.filter((m) => created.some((c) => c.title === m.title && c.dueDate === m.dueDate && c.type === m.type && c.bank === m.bank));
+}
+
+/** Dá para desfazer pelo histórico: pagamentos, recebimentos e cartões cadastrados. */
+export const canUndoActivity = (a: ForsetiActivity) =>
+  !a.undoneAt && (a.kind === 'PAGAMENTO' || a.kind === 'RECEBIMENTO' || a.kind === 'CARTAO') && ((a.movements?.length || 0) > 0 || !!a.cardName);
+
+/** Primeira linha de uma resposta, sem marcação (resumo curto para o histórico). */
+export const plainSummary = (text: string) =>
+  text
+    .split('\n')
+    .map((l) => l.replace(/[*_#>]/g, '').trim())
+    .filter(Boolean)[0] || '';

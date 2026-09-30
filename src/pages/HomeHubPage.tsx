@@ -18,6 +18,7 @@ import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { useAccountScope } from '../context/AccountScopeContext';
 import { GuidedSetup } from '../components/GuidedSetup';
+import { ForsetiActivityCard } from '../components/ForsetiActivityCard';
 import { PlanningSwitcher } from '../components/PlanningSwitcher';
 import type { TabId } from '../components/Sidebar';
 import { buildPeriodItems, periodRangeLabel, shiftPeriodDate, trackingPeriodRange, TRACKING_PERIOD_LABELS } from '../utils/periodSpending';
@@ -648,6 +649,9 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           </button>
         )}
       </section>
+
+      {/* O que pedi à Forseti? */}
+      <ForsetiActivityCard />
 
       {/* Como vão os gastos no período? */}
       <section className="home-card">

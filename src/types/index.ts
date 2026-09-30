@@ -249,6 +249,8 @@ export interface CopilotPendingConfirmation {
     status?: 'PREVISTA' | 'REALIZADA';
     /** Compra parcelada: número de parcelas (amount é o total). */
     installments?: number;
+    /** O que a pessoa pediu à Forseti (para o histórico de solicitações). */
+    request?: string;
   };
   question: string;
   options: CopilotInteractiveOption[];
@@ -286,6 +288,32 @@ export interface CopilotAttachment {
   size?: string;
   revoke?: () => void;
   isEphemeralPurged?: boolean;
+}
+
+/** Lançamento criado pela Forseti, identificado pelo que não muda quando o id é trocado pelo do servidor. */
+export interface ForsetiCreatedMovement {
+  title: string;
+  dueDate: string;
+  type: MovementType;
+  bank: string;
+}
+
+export type ForsetiActivityKind = 'PAGAMENTO' | 'RECEBIMENTO' | 'CARTAO' | 'CUPOM' | 'FATURA' | 'DUVIDA';
+
+/** Uma solicitação feita à Forseti: o pedido, o que foi feito, a avaliação e se foi desfeita. */
+export interface ForsetiActivity {
+  id: string;
+  at: string; // ISO
+  kind: ForsetiActivityKind;
+  request: string;
+  result: string;
+  /** Planejamento em que a ação foi feita (vazio = o próprio). */
+  planOwnerId?: string;
+  planOwnerName?: string;
+  movements?: ForsetiCreatedMovement[];
+  cardName?: string;
+  rating?: 'UTIL' | 'NAO_UTIL';
+  undoneAt?: string;
 }
 
 export interface CopilotMessage {
