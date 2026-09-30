@@ -314,9 +314,11 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     [period, spendingOffset]
   );
   const { tense: spendingTense, items: periodItems } = useMemo(
-    () => buildPeriodItems({ natures, movements, range: spendingRange }),
-    [natures, movements, spendingRange]
+    () => buildPeriodItems({ natures, movements, range: spendingRange, startDate: activeCheckpoint?.startDate }),
+    [natures, movements, spendingRange, activeCheckpoint?.startDate]
   );
+  // Antes do marco não há o que mostrar: a seta para trás para no período em que o marco começa
+  const atSpendingStart = !!activeCheckpoint?.startDate && spendingRange.from <= activeCheckpoint.startDate;
   const isCurrentSpending = spendingOffset === 0;
   const isFutureSpending = spendingTense === 'FUTURO';
   const spendingWhen = isCurrentSpending ? labels.this : labels.that;
@@ -618,8 +620,9 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           <button
             type="button"
             onClick={() => goToSpending(spendingOffset - 1)}
+            disabled={atSpendingStart}
             aria-label={`${labels.name} anterior`}
-            title={`${labels.name} anterior`}
+            title={atSpendingStart ? 'Início do marco: não há lançamentos antes dele' : `${labels.name} anterior`}
           >
             <ChevronLeft size={16} />
           </button>

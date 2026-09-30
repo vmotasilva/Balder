@@ -141,18 +141,19 @@ function finishItem(base: Omit<PeriodItem, 'planned' | 'spent' | 'done' | 'total
 /**
  * As compras do período, item por item: cada ocorrência prevista dos itens das naturezas (pela data prevista),
  * dizendo se foi paga, quando e por quanto, e as contas a pagar do período (previstas ou já pagas).
- * Pagamentos que cobrem várias datas são divididos igualmente entre elas.
+ * Pagamentos que cobrem várias datas são divididos igualmente entre elas. Nada antes do início do marco aparece.
  */
 export function buildPeriodItems(params: {
   natures: ExpenseNature[];
   movements: Movement[];
   range: PeriodRange;
+  startDate?: string; // início do marco ativo (YYYY-MM-DD)
   today?: Date;
 }): { tense: PeriodTense; items: PeriodItem[] } {
-  const { natures, movements, range } = params;
+  const { natures, movements, range, startDate = '0000-01-01' } = params;
   const todayIso = isoOf(params.today || new Date());
   const tense: PeriodTense = range.to < todayIso ? 'PASSADO' : range.from > todayIso ? 'FUTURO' : 'ATUAL';
-  const inRange = (date?: string) => !!date && date >= range.from && date <= range.to;
+  const inRange = (date?: string) => !!date && date >= range.from && date <= range.to && date >= startDate;
   const openStatus = (date: string): PurchaseStatus => (date < todayIso ? 'ATRASADA' : 'PREVISTA');
 
   const monthKeys: string[] = [];
@@ -213,7 +214,7 @@ export function buildPeriodItems(params: {
   movements.forEach((m) => {
     if (m.type !== 'PAGAR' || m.category === 'Cartões' || m.category === 'Empréstimos') return;
     const paid = m.status === 'REALIZADA';
-    if (!inRange(paid ? m.paymentDate || m.dueDate : m.dueDate)) return;
+    if (!inRange(paid ? m.paymentDate || m.dueDate : m.dueDate) || m.dueDate < startDate) return;
     const purchase: PeriodPurchase = paid
       ? {
           key: m.id,
