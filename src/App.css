@@ -22292,3 +22292,25 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   vertical-align: -2px;
   margin: 0 2px;
 }
+
+/* Perfil › Download: card do iPhone (mesmo formato do Android, em tons de azul) */
+.ios-profile-card {
+  margin-top: 1.25rem;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.08) 0%, rgba(99, 102, 241, 0.05) 50%, rgba(15, 23, 42, 0.6) 100%);
+  border-color: rgba(56, 189, 248, 0.28);
+}
+
+.ios-profile-icon-box {
+  background: rgba(56, 189, 248, 0.12) !important;
+  border-color: rgba(56, 189, 248, 0.3) !important;
+}
+
+.ios-profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ios-profile-actions .btn {
+  text-decoration: none;
+}

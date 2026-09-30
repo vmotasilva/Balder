@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { parseDecimal, parseMoney } from '../utils/parseDecimal';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -9,7 +8,6 @@ import {
   Building,
   Eraser,
   CreditCard,
-  Tag,
   Sliders,
   FileSpreadsheet,
   ShieldCheck,
@@ -18,14 +16,10 @@ import {
   CheckCircle2,
   ChevronRight,
   ChevronDown,
-  ChevronUp,
   Layers,
   Plus,
   Trash2,
   AlertTriangle,
-  Calculator,
-  Info,
-  FileText,
   Check,
   Sun,
   Moon,
@@ -51,13 +45,7 @@ import {
 import { FinanceEntityModal, type EntityTab } from '../components/FinanceEntityModal';
 import { CheckpointSetupModal } from '../components/CheckpointSetupModal';
 import { Modal } from '../components/Modal';
-import { NatureModal } from '../components/NatureModal';
-import { MappingModal } from '../components/MappingModal';
-import {
-  WEEKDAY_OPTIONS,
-  formatItemScheduleBadge,
-} from '../utils/natureScheduling';
-import type { FixedExpenseMapping, FinancialCheckpoint, CheckpointBankDebt } from '../types';
+import type { FinancialCheckpoint, CheckpointBankDebt } from '../types';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
 import { DataFormatPanel } from '../components/DataFormatPanel';
 import { InfoButton } from '../components/InfoButton';
@@ -78,16 +66,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
     deleteBank,
     exportToCSV,
     natures,
-    deleteNature,
-    deleteMapping,
-    addItemToMapping,
-    deleteMappingItem,
-    toggleItemFulfilled,
-    saveCeilingJustification,
-    loadSuggestedMappingsForNature,
-    getNatureCeiling,
-    getNatureSpent,
-    getNatureMissingItems,
     checkpoints,
     activeCheckpoint,
     activateCheckpoint,
@@ -124,9 +102,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
   const completedSteps = onboardingAudit.completedCount;
 
   const [activeSubTab, setActiveSubTab] = useState<
-    'PERFIL' | 'ASSINATURA' | 'APP_ANDROID' | 'SALARIO' | 'MARCOS' | 'CONTAS' | 'BANCOS' | 'CATEGORIAS' | 'PREFERENCIAS' | 'EXPORTACOES' | 'SEGURANCA' | 'FORMATAR'
+    'PERFIL' | 'ASSINATURA' | 'DOWNLOAD' | 'SALARIO' | 'MARCOS' | 'CONTAS' | 'BANCOS' | 'PREFERENCIAS' | 'EXPORTACOES' | 'SEGURANCA' | 'FORMATAR'
   >('PERFIL');
   const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'YEARLY'>('MONTHLY');
+  const [iosLinkCopied, setIosLinkCopied] = useState(false);
   const [subscriptionSuccessMsg, setSubscriptionSuccessMsg] = useState<string | null>(null);
   const [advancedModalOpen, setAdvancedModalOpen] = useState(false);
   const [checkpointModalOpen, setCheckpointModalOpen] = useState(false);
@@ -164,72 +143,14 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
     setEntityModalOpen(true);
   };
 
-  // Estados locais para Naturezas & Mapeamentos
-  const [selectedNatureId, setSelectedNatureId] = useState<string>(natures[0]?.id || 'nat_alimentacao');
-  const [justificationText, setJustificationText] = useState('');
-  const [isDiagnosticExpanded, setIsDiagnosticExpanded] = useState(false);
-  const [isOverCeilingExpanded, setIsOverCeilingExpanded] = useState(false);
-
-  useEffect(() => {
-    setIsDiagnosticExpanded(false);
-    setIsOverCeilingExpanded(false);
-  }, [selectedNatureId]);
-
-  // Formulário Inline de Itens por Mapeamento
-  const [newItemDesc, setNewItemDesc] = useState<Record<string, string>>({});
-  const [newItemQty, setNewItemQty] = useState<Record<string, number | string>>({});
-  const [newItemPrice, setNewItemPrice] = useState<Record<string, number | string>>({});
-  const [newItemMult, setNewItemMult] = useState<Record<string, number>>({});
-  const [newItemRecurrenceType, setNewItemRecurrenceType] = useState<Record<string, 'SEMANAL' | 'QUINZENAL' | 'MENSAL'>>({});
-  const [newItemDayOfWeek, setNewItemDayOfWeek] = useState<Record<string, 'DOMINGO' | 'SEGUNDA' | 'TERCA' | 'QUARTA' | 'QUINTA' | 'SEXTA' | 'SABADO'>>({});
-  const [newItemDayOfFortnight, setNewItemDayOfFortnight] = useState<Record<string, number>>({});
-  const [newItemDayOfMonth, setNewItemDayOfMonth] = useState<Record<string, number>>({});
-
-  // Modais de Criação e Edição de Natureza
-  const [isNatureModalOpen, setIsNatureModalOpen] = useState(false);
-  const [natureToEdit, setNatureToEdit] = useState<any | null>(null);
-
-  const handleOpenCreateNature = () => {
-    setNatureToEdit(null);
-    setIsNatureModalOpen(true);
-  };
-
-  const handleOpenEditNature = (nat?: any | null) => {
-    setNatureToEdit(nat || selectedNature || null);
-    setIsNatureModalOpen(true);
-  };
-
-  const [isMappingModalOpen, setIsMappingModalOpen] = useState(false);
-  const [mappingToEdit, setMappingToEdit] = useState<FixedExpenseMapping | null>(null);
-
-  const handleOpenCreateMapping = () => {
-    setMappingToEdit(null);
-    setIsMappingModalOpen(true);
-  };
-
-  const handleOpenEditMapping = (mapping: FixedExpenseMapping) => {
-    setMappingToEdit(mapping);
-    setIsMappingModalOpen(true);
-  };
-
-  // Dados calculados da Natureza Ativa
-  const selectedNature = natures.find((n) => n.id === selectedNatureId) || natures[0];
-  const natureCeiling = selectedNature ? getNatureCeiling(selectedNature) : 0;
-  const natureSpent = selectedNature ? getNatureSpent(selectedNature) : 0;
-  const ceilingPercentUsed = natureCeiling > 0 ? Math.round((natureSpent / natureCeiling) * 100) : 0;
-  const isCeilingOver = natureCeiling > 0 && natureSpent > natureCeiling;
-  const isCeilingFar = natureCeiling > 0 && !isCeilingOver && natureSpent < natureCeiling * 0.75;
-  const missingItems = selectedNature ? getNatureMissingItems(selectedNature) : [];
-
   // Itens de navegação do perfil correspondentes ao card principal (Imagem 2)
   const PROFILE_NAV_ITEMS = [
     { id: 'PERFIL' as const, label: 'Perfil & Dados Pessoais', icon: User, count: null },
     { id: 'ASSINATURA' as const, label: 'Plano & Assinatura', icon: Crown, count: 'PRO' },
-    { id: 'APP_ANDROID' as const, label: 'Aplicativo Android (APK)', icon: Smartphone, count: 'v1.0' },
+    { id: 'DOWNLOAD' as const, label: 'Download', icon: Download, count: 'Android · iPhone' },
     { id: 'MARCOS' as const, label: 'Marcos de Início', icon: Flag, count: checkpoints.length },
     { id: 'CONTAS' as const, label: 'Contas & Meios', icon: CreditCard, count: accounts.length + cards.length },
     { id: 'BANCOS' as const, label: 'Bancos & Instituições', icon: Building, count: banks.length },
-    { id: 'CATEGORIAS' as const, label: 'Naturezas & Categorias', icon: Tag, count: null },
     { id: 'PREFERENCIAS' as const, label: 'Preferências de Exibição', icon: Sliders, count: null },
     { id: 'EXPORTACOES' as const, label: 'Exportações (Excel & CSV)', icon: FileSpreadsheet, count: null },
     { id: 'SEGURANCA' as const, label: 'Segurança & Criptografia', icon: ShieldCheck, count: null },
@@ -888,17 +809,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
             </div>
           )}
 
-          {activeSubTab === 'APP_ANDROID' && (
+          {activeSubTab === 'DOWNLOAD' && (
             <div className="subtab-content animate-fade-in">
               <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
                 <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3>Aplicativo Android</h3>
-                    <span className="badge-pill badge-pill-emerald">APK Nativo</span>
-                    <span className="badge-pill" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: '1px solid rgba(56, 189, 248, 0.3)' }}>v1.0.0</span>
-                    <span className="badge-pill" style={{ background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-muted)', border: '1px solid rgba(255, 255, 255, 0.1)' }}>~33 MB</span>
-                  </div>
-                  <p className="subtab-desc">Instalação oficial e direta do Balder no seu smartphone Android sem intermediários</p>
+                  <h3>Download</h3>
+                  <p className="subtab-desc">Instale o Balder no seu celular: Android (APK) ou iPhone (Tela de Início)</p>
                 </div>
               </div>
 
@@ -990,6 +906,60 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                     </li>
                     <li>
                       <strong>3. Conclua a instalação:</strong> Toque em <strong>Instalar</strong>. Em seguida, toque em <strong>Abrir</strong> e faça login com sua conta do Balder.
+                    </li>
+                  </ol>
+                </div>
+              </div>
+
+              {/* iPhone: não há instalação por arquivo; o Balder vira app pela Tela de Início */}
+              <div className="android-profile-card ios-profile-card glass-card">
+                <div className="android-profile-card-header">
+                  <div className="android-profile-icon-box ios-profile-icon-box">
+                    <Smartphone size={28} className="text-cyan" />
+                  </div>
+                  <div className="android-profile-header-info">
+                    <h4>Balder para iPhone</h4>
+                    <p>
+                      Instale pela Tela de Início do iPhone: abre em tela cheia, com o ícone do Balder e sempre na versão mais nova,
+                      sem passar pela App Store.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="ios-profile-actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      const link = `${window.location.origin}/#iphone`;
+                      navigator.clipboard?.writeText(link).then(
+                        () => setIosLinkCopied(true),
+                        () => window.prompt('Copie o link para enviar ao iPhone:', link)
+                      );
+                      window.setTimeout(() => setIosLinkCopied(false), 2500);
+                    }}
+                  >
+                    {iosLinkCopied ? <CheckCircle2 size={16} className="text-emerald" /> : <Copy size={16} />}
+                    <span>{iosLinkCopied ? 'Link copiado!' : 'Copiar link para o iPhone'}</span>
+                  </button>
+                </div>
+
+                <div className="android-install-guide mt-2">
+                  <div className="guide-title-row">
+                    <AlertTriangle size={16} className="text-amber" />
+                    <h4>Como instalar no iPhone em 3 passos:</h4>
+                  </div>
+                  <ol className="guide-steps-list">
+                    <li>
+                      <strong>1. Abra no Safari:</strong> acesse <strong>{window.location.host}</strong> no iPhone (ou envie o link acima para
+                      você mesmo). No Chrome do iPhone também funciona.
+                    </li>
+                    <li>
+                      <strong>2. Toque em Compartilhar:</strong> o ícone de quadrado com a seta para cima, na barra do navegador.
+                    </li>
+                    <li>
+                      <strong>3. Escolha "Adicionar à Tela de Início"</strong> e confirme em <strong>Adicionar</strong>. O ícone do Balder
+                      aparece junto com os seus apps.
                     </li>
                   </ol>
                 </div>
@@ -2293,932 +2263,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
             </div>
           )}
 
-            {activeSubTab === 'CATEGORIAS' && (
-            <div className="subtab-content naturezas-subtab animate-fade-in">
-              <div className="naturezas-header-row">
-                <div>
-                  <h3 className="label-with-info">
-                    Naturezas & Mapeamento de Gastos Fixos
-                    <InfoButton title="Naturezas & Mapeamento de Gastos Fixos">
-                      <p>Cadastre suas naturezas orçamentárias e estruture mapeamentos matemáticos de gastos fixos para justificar cada Teto.</p>
-                    </InfoButton>
-                  </h3>
-                </div>
-                <button className="btn btn-primary btn-sm" onClick={handleOpenCreateNature}>
-                  <Plus size={16} />
-                  <span>Nova Natureza</span>
-                </button>
-              </div>
-
-              {/* Seletor de Naturezas em Abas/Pills com Resumo de Teto */}
-              <div className="naturezas-tabs-nav">
-                {natures.map((nat) => {
-                  const ceil = getNatureCeiling(nat);
-                  const spent = getNatureSpent(nat);
-                  const isOver = ceil > 0 && spent > ceil;
-                  const isFar = ceil > 0 && spent < ceil * 0.75;
-                  const isSelected = selectedNature?.id === nat.id;
-
-                  return (
-                    <button
-                      key={nat.id}
-                      className={`natureza-tab-item ${isSelected ? 'active' : ''}`}
-                      onClick={() => setSelectedNatureId(nat.id)}
-                      style={{ borderLeftColor: nat.color }}
-                    >
-                      <div className="natureza-tab-top">
-                        <span className="natureza-tab-icon">{nat.icon}</span>
-                        <strong className="natureza-tab-name">{nat.name}</strong>
-                      </div>
-                      <div className="natureza-tab-meta">
-                        <span className="natureza-tab-ceiling">Teto: {ceil.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                        {isOver ? (
-                          <span className="badge badge-rose text-xs">TETO EXCEDIDO</span>
-                        ) : isFar ? (
-                          <span className="badge badge-cyan text-xs">LONGE DO TETO</span>
-                        ) : (
-                          <span className="badge badge-emerald text-xs">NO LIMITE</span>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {selectedNature ? (
-                <div className="natureza-selected-detail">
-                  {/* Card Resumo do Teto Matemático da Natureza */}
-                  <div className="natureza-kpi-banner glass-card">
-                    <div className="natureza-info-left">
-                      <div className="natureza-badge-title">
-                        <div
-                          className="natureza-large-icon-wrapper"
-                          style={{ position: 'relative', cursor: 'pointer', flexShrink: 0 }}
-                          onClick={() => handleOpenEditNature(selectedNature)}
-                          title="Clique para editar nome, emoji e cor da natureza"
-                        >
-                          <span
-                            className="natureza-large-icon"
-                            style={{
-                              boxShadow: `0 0 16px ${selectedNature.color}33`,
-                              borderColor: `${selectedNature.color}66`,
-                            }}
-                          >
-                            {selectedNature.icon}
-                          </span>
-                          <span
-                            style={{
-                              position: 'absolute',
-                              bottom: '-2px',
-                              right: '-2px',
-                              background: 'rgba(15, 23, 42, 0.95)',
-                              border: '1px solid var(--border-default)',
-                              borderRadius: '50%',
-                              width: '20px',
-                              height: '20px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: '#38BDF8',
-                              boxShadow: '0 2px 5px rgba(0,0,0,0.5)',
-                            }}
-                          >
-                            <Edit2 size={11} />
-                          </span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="natureza-title-meta" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                            <h4 style={{ borderLeft: `3px solid ${selectedNature.color}`, paddingLeft: '8px', margin: 0 }}>
-                              {selectedNature.name}
-                            </h4>
-                            <span
-                              className={`badge ${
-                                selectedNature.type === 'ESSENCIAL'
-                                  ? 'badge-cyan'
-                                  : selectedNature.type === 'FIXA'
-                                  ? 'badge-amber'
-                                  : 'badge-emerald'
-                              }`}
-                            >
-                              {selectedNature.type}
-                            </span>
-
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
-                              <button
-                                type="button"
-                                className="btn btn-outline btn-xs text-cyan"
-                                title="Editar Nome, Emoji e Cor desta Natureza"
-                                onClick={() => handleOpenEditNature(selectedNature)}
-                                style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
-                              >
-                                <Edit2 size={12} />
-                                <span>Editar Natureza</span>
-                              </button>
-
-                              {natures.length > 1 && (
-                                <button
-                                  type="button"
-                                  className="btn btn-ghost btn-xs text-rose"
-                                  title="Excluir esta Natureza"
-                                  onClick={() => {
-                                    confirmAction({
-                                      title: 'Excluir Natureza',
-                                      message: `Deseja realmente excluir a natureza "${selectedNature.name}" e todos os seus mapeamentos? Esta ação não pode ser desfeita.`,
-                                      confirmLabel: 'Excluir',
-                                      onConfirm: () => {
-                                        deleteNature(selectedNature.id);
-                                        const next = natures.find((n) => n.id !== selectedNature.id);
-                                        if (next) setSelectedNatureId(next.id);
-                                      },
-                                    });
-                                  }}
-                                  style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
-                                >
-                                  <Trash2 size={12} />
-                                  <span>Excluir</span>
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                          <p className="natureza-desc-text">
-                            {selectedNature.description || 'Mapeamentos matemáticos definem a fundamentação do teto de gastos desta natureza.'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="natureza-kpis-grid">
-                      <div className="nat-kpi-box">
-                        <span className="nat-kpi-label">
-                          <Calculator size={14} className="text-cyan" />
-                          Teto Calculado
-                        </span>
-                        <strong className="nat-kpi-val text-cyan">
-                          {natureCeiling.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </strong>
-                        <span className="nat-kpi-sub">Soma de {selectedNature.mappings.length} mapeamentos</span>
-                      </div>
-
-                      <div className="nat-kpi-box">
-                        <span className="nat-kpi-label">
-                          <CreditCard size={14} className="text-emerald" />
-                          Gasto Real no Mês
-                        </span>
-                        <strong className={`nat-kpi-val ${isCeilingOver ? 'text-rose' : 'text-emerald'}`}>
-                          {natureSpent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </strong>
-                        <span className="nat-kpi-sub">{ceilingPercentUsed}% do teto consumido</span>
-                      </div>
-
-                      <div className="nat-kpi-box">
-                        <span className="nat-kpi-label">
-                          {isCeilingOver ? <AlertTriangle size={14} className="text-rose" /> : <CheckCircle2 size={14} className="text-cyan" />}
-                          Margem Orçamentária
-                        </span>
-                        <strong className={`nat-kpi-val ${isCeilingOver ? 'text-rose' : 'text-white'}`}>
-                          {isCeilingOver ? `+${(natureSpent - natureCeiling).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}` : (natureCeiling - natureSpent).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                        </strong>
-                        <span className="nat-kpi-sub">{isCeilingOver ? 'Acima do Teto' : 'Disponível até o Teto'}</span>
-                      </div>
-                    </div>
-
-                    {/* Barra de Progresso do Teto */}
-                    <div className="natureza-progress-container mt-4">
-                      <div className="natureza-progress-labels">
-                        <span>Consumo do Teto Orçamentário</span>
-                        <span>{ceilingPercentUsed}%</span>
-                      </div>
-                      <div className="natureza-progress-track">
-                        <div
-                          className={`natureza-progress-fill ${isCeilingOver ? 'bg-rose' : ceilingPercentUsed < 75 ? 'bg-cyan' : 'bg-amber'}`}
-                          style={{ width: `${Math.min(ceilingPercentUsed, 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* BLOCO INTELIGENTE 1: TETO ULTRAPASSADO -> JUSTIFICATIVA OU AJUSTE (RECOLHÍVEL) */}
-                  {isCeilingOver && (
-                    <div className="ceiling-alert-box alert-over-ceiling glass-card animate-fade-in mt-4">
-                      <div
-                        className="ceiling-alert-header cursor-pointer select-none"
-                        onClick={() => setIsOverCeilingExpanded(!isOverCeilingExpanded)}
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px' }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <AlertTriangle size={22} className="text-rose flex-shrink-0" />
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                              <h4 className="text-rose" style={{ margin: 0 }}>
-                                Teto de Gastos Ultrapassado em{' '}
-                                {(natureSpent - natureCeiling).toLocaleString('pt-BR', {
-                                  style: 'currency',
-                                  currency: 'BRL',
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 3,
-                                })}
-                              </h4>
-                              <span className="badge badge-rose text-xs">Excedido</span>
-                            </div>
-                            {!isOverCeilingExpanded && (
-                              <p className="text-xs text-muted" style={{ margin: '3px 0 0' }}>
-                                Clique para registrar justificativa contábil ou consultar o histórico de desvios.
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-xs text-rose"
-                          style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setIsOverCeilingExpanded(!isOverCeilingExpanded);
-                          }}
-                        >
-                          <span>{isOverCeilingExpanded ? 'Recolher' : 'Expandir'}</span>
-                          {isOverCeilingExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                        </button>
-                      </div>
-
-                      {isOverCeilingExpanded && (
-                        <div className="animate-fade-in mt-3" style={{ borderTop: '1px solid rgba(244, 63, 94, 0.2)', paddingTop: '12px' }}>
-                          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.4, marginBottom: '12px' }}>
-                            A despesa acumulada nesta natureza superou o teto estipulado pelos mapeamentos. Registre uma justificativa contábil para conformidade ou reajuste as quantidades/preços dos itens.
-                          </p>
-
-                          <div className="justification-form-box mt-3">
-                            <label>Justificativa do Desvio Orçamentário:</label>
-                            <div className="justification-input-row">
-                              <input
-                                type="text"
-                                className="form-input flex-1"
-                                placeholder="Ex: Compra extraordinária para evento em casa e aumento de preços no hortifrúti..."
-                                value={justificationText}
-                                onChange={(e) => setJustificationText(e.target.value)}
-                              />
-                              <button
-                                className="btn btn-primary"
-                                onClick={() => {
-                                  if (!justificationText.trim()) return;
-                                  saveCeilingJustification(selectedNature.id, justificationText);
-                                  setJustificationText('');
-                                  alert('Justificativa contábil registrada com sucesso!');
-                                }}
-                              >
-                                <FileText size={16} />
-                                <span>Gravar Justificativa</span>
-                              </button>
-                            </div>
-
-                            {selectedNature.justificationHistory && selectedNature.justificationHistory.length > 0 && (
-                              <div className="justification-history mt-3">
-                                <span className="justification-history-title">Histórico de Justificativas Registradas:</span>
-                                <div className="justification-history-list">
-                                  {selectedNature.justificationHistory.map((just) => (
-                                    <div key={just.id} className="just-item">
-                                      <div className="just-item-meta">
-                                        <strong>{just.date} ({just.month})</strong>
-                                        <span className="text-rose">Excedente: +{(just.spentAmount - just.ceilingAmount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 3 })}</span>
-                                      </div>
-                                      <p className="just-item-reason">"{just.reason}"</p>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* BLOCO INTELIGENTE 2: LONGE DO TETO -> DIAGNÓSTICO PRECISO DE ITENS EM FALTA (RECOLHÍVEL POR PADRÃO) */}
-                  {isCeilingFar && (
-                    <div className="ceiling-alert-box alert-far-ceiling glass-card animate-fade-in mt-4">
-                      <div
-                        className="ceiling-alert-header cursor-pointer select-none"
-                        onClick={() => setIsDiagnosticExpanded(!isDiagnosticExpanded)}
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '12px' }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <Info size={22} className="text-cyan flex-shrink-0" />
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                              <h4 className="text-cyan" style={{ margin: 0 }}>
-                                Diagnóstico Orçamentário: Por que o Teto está distante?
-                              </h4>
-                              <span className="badge badge-cyan text-xs">
-                                {missingItems.length} {missingItems.length === 1 ? 'item pendente' : 'itens pendentes'}
-                              </span>
-                            </div>
-                            {!isDiagnosticExpanded && (
-                              <p className="text-xs text-muted" style={{ margin: '3px 0 0' }}>
-                                Falta realizar{' '}
-                                <strong className="text-cyan">
-                                  {(natureCeiling - natureSpent).toLocaleString('pt-BR', {
-                                    style: 'currency',
-                                    currency: 'BRL',
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 3,
-                                  })}
-                                </strong>{' '}
-                                em compras planejadas. Clique para expandir detalhes e itens faltantes.
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-xs text-cyan"
-                          style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setIsDiagnosticExpanded(!isDiagnosticExpanded);
-                          }}
-                        >
-                          <span>{isDiagnosticExpanded ? 'Recolher' : 'Expandir'}</span>
-                          {isDiagnosticExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                        </button>
-                      </div>
-
-                      {isDiagnosticExpanded && (
-                        <div className="animate-fade-in mt-3" style={{ borderTop: '1px solid rgba(56, 189, 248, 0.15)', paddingTop: '12px' }}>
-                          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.4, marginBottom: '12px' }}>
-                            Você realizou <strong>{natureSpent.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong> de um teto estipulado de <strong>{natureCeiling.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong> (restando <strong className="text-cyan">{(natureCeiling - natureSpent).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 3 })}</strong>).
-                            O BALDER identificou os seguintes <strong>itens do mapeamento que ainda estão em falta / pendentes de compra</strong> no mês:
-                          </p>
-
-                          {missingItems.length > 0 ? (
-                            <div className="missing-items-table-box mt-3">
-                              <table className="natureza-items-table">
-                                <thead>
-                                  <tr>
-                                    <th>Item Mapeado</th>
-                                    <th>Mapeamento Origem</th>
-                                    <th>Qtd × Preço × Semanas</th>
-                                    <th>Valor Previsto</th>
-                                    <th>Falta Realizar</th>
-                                    <th>Ação Rápida</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {missingItems.map(({ item, mappingName, missingAmount }) => (
-                                    <tr key={item.id} className="missing-item-row">
-                                      <td>
-                                        <strong>{item.description}</strong>
-                                      </td>
-                                      <td>
-                                        <span className="badge badge-cyan text-xs">{mappingName}</span>
-                                      </td>
-                                      <td>
-                                        {typeof item.quantity === 'number'
-                                          ? item.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 3 })
-                                          : item.quantity}{' '}
-                                        {item.unit || 'un'} ×{' '}
-                                        {item.price.toLocaleString('pt-BR', {
-                                          style: 'currency',
-                                          currency: 'BRL',
-                                          minimumFractionDigits: 2,
-                                          maximumFractionDigits: 3,
-                                        })}{' '}
-                                        × {item.multiplierWeeks} {item.multiplierWeeks > 1 ? 'semanas' : 'sem'}
-                                      </td>
-                                      <td>
-                                        {item.totalValue.toLocaleString('pt-BR', {
-                                          style: 'currency',
-                                          currency: 'BRL',
-                                          minimumFractionDigits: 2,
-                                          maximumFractionDigits: 3,
-                                        })}
-                                      </td>
-                                      <td className="text-cyan font-bold">
-                                        {missingAmount.toLocaleString('pt-BR', {
-                                          style: 'currency',
-                                          currency: 'BRL',
-                                          minimumFractionDigits: 2,
-                                          maximumFractionDigits: 3,
-                                        })}
-                                      </td>
-                                      <td>
-                                        <button
-                                          className="btn btn-outline btn-xs"
-                                          title="Marcar item como comprado/liquidado no mês"
-                                          onClick={() => {
-                                            // Achar em qual mapeamento está
-                                            const parentMap = selectedNature.mappings.find((m) => m.items.some((it) => it.id === item.id));
-                                            if (parentMap) {
-                                              toggleItemFulfilled(selectedNature.id, parentMap.id, item.id);
-                                            }
-                                          }}
-                                        >
-                                          <Check size={12} className="text-emerald" />
-                                          <span>Marcar Comprado</span>
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          ) : (
-                            <p className="subtab-desc mt-2">Todos os itens mapeados já foram marcados como realizados.</p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* SEÇÃO DE MAPEAMENTOS DE GASTOS FIXOS (SUPORTA MAIS DE UM MAPEAMENTO POR NATUREZA) */}
-                  <div className="natureza-mappings-section mt-4">
-                    <div className="mappings-section-header">
-                      <div>
-                        <h4 className="label-with-info">
-                          Mapeamentos de Gastos Fixos ({selectedNature.mappings.length})
-                          <InfoButton title="Mapeamentos de gastos fixos">
-                            <p>Cadastre mais de um mapeamento para esta natureza para cobrir rotinas, compras semanais ou meses específicos. A soma de todos os itens define o Teto.</p>
-                          </InfoButton>
-                        </h4>
-                      </div>
-                      <button
-                        className="btn btn-outline btn-sm"
-                        onClick={handleOpenCreateMapping}
-                      >
-                        <Plus size={14} />
-                        <span>Novo Mapeamento</span>
-                      </button>
-                    </div>
-
-                    {selectedNature.mappings.length === 0 ? (
-                      <div className="empty-mappings-box glass-card mt-3">
-                        <Layers size={32} className="text-muted" />
-                        <p>Nenhum mapeamento de gastos cadastrado para esta natureza.</p>
-                        <div className="flex items-center gap-3 mt-3">
-                          <button className="btn btn-primary btn-sm" onClick={handleOpenCreateMapping}>
-                            <Plus size={14} />
-                            <span>Criar Primeiro Mapeamento</span>
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-outline btn-sm text-xs"
-                            onClick={() => {
-                              if (confirm(`Deseja carregar sugestões de rotina e mapeamentos padrão para "${selectedNature.name}"?`)) {
-                                loadSuggestedMappingsForNature(selectedNature.id);
-                              }
-                            }}
-                            title="Carregar itens e rotinas pré-configuradas para esta natureza"
-                          >
-                            <span>💡 Carregar Modelos Sugeridos</span>
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="mappings-list-container">
-                        {selectedNature.mappings.map((mapping) => {
-                          const mappingTotal = (mapping.items || []).reduce((acc, it) => acc + it.totalValue, 0);
-
-                          return (
-                            <div key={mapping.id} className="mapping-card glass-card mt-4">
-                              <div className="mapping-card-header">
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                  <div
-                                    style={{
-                                      width: '38px',
-                                      height: '38px',
-                                      borderRadius: '10px',
-                                      background: 'rgba(255,255,255,0.06)',
-                                      border: '1px solid var(--border-default)',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      fontSize: '1.4rem',
-                                      cursor: 'pointer',
-                                      flexShrink: 0,
-                                      boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
-                                      transition: 'all 0.15s ease',
-                                    }}
-                                    onClick={() => handleOpenEditMapping(mapping)}
-                                    title="Clique para editar este mapeamento e seu emoji"
-                                  >
-                                    {mapping.icon || '📋'}
-                                  </div>
-
-                                  <div className="mapping-header-info">
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                                      <h5 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700 }}>{mapping.name}</h5>
-                                      <span className="badge badge-cyan">
-                                        Total: {mappingTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 3 })}
-                                      </span>
-                                      <span className="badge badge-emerald">
-                                        {mapping.items.length} {mapping.items.length === 1 ? 'item' : 'itens'}
-                                      </span>
-                                      {mapping.applicableMonths && mapping.applicableMonths.length > 0 && mapping.applicableMonths.length < 12 ? (
-                                        <span
-                                          className="badge badge-purple cursor-pointer hover:border-purple-400"
-                                          onClick={() => handleOpenEditMapping(mapping)}
-                                          title="Clique para alterar os meses de manifestação deste mapeamento"
-                                          style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                                        >
-                                          <Calendar size={11} />
-                                          <span>
-                                            {mapping.applicableMonths.length} {mapping.applicableMonths.length === 1 ? 'mês' : 'meses'} ({mapping.applicableMonths.map((m) => ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][m-1]).join(', ')})
-                                          </span>
-                                        </span>
-                                      ) : (
-                                        <span
-                                          className="badge badge-outline text-muted text-xs cursor-pointer hover:border-cyan"
-                                          onClick={() => handleOpenEditMapping(mapping)}
-                                          title="Clique para definir meses específicos de manifestação na projeção"
-                                          style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}
-                                        >
-                                          <span>Ano Todo (12m)</span>
-                                        </span>
-                                      )}
-                                      {mapping.dayOfMonth && (
-                                        <span className="badge badge-warning" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                          <Calendar size={11} />
-                                          Venc. dia {mapping.dayOfMonth}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="mapping-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                  <button
-                                    type="button"
-                                    className="btn btn-outline btn-xs text-cyan"
-                                    title="Editar Nome, Emoji e Vencimento deste Mapeamento"
-                                    onClick={() => handleOpenEditMapping(mapping)}
-                                    style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
-                                  >
-                                    <Edit2 size={12} />
-                                    <span>Editar Mapeamento</span>
-                                  </button>
-                                  <button
-                                    className="btn btn-ghost btn-xs text-rose"
-                                    title="Excluir Mapeamento"
-                                    onClick={() => {
-                                      if (confirm(`Deseja remover o mapeamento "${mapping.name}"?`)) {
-                                        deleteMapping(selectedNature.id, mapping.id);
-                                      }
-                                    }}
-                                    style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
-                                  >
-                                    <Trash2 size={13} />
-                                    <span>Excluir</span>
-                                  </button>
-                                </div>
-                              </div>
-
-                              {/* TABELA DE ITENS DO MAPEAMENTO */}
-                              <div className="mapping-items-table-wrapper mt-3">
-                                <table className="natureza-items-table">
-                                  <thead>
-                                    <tr>
-                                      <th style={{ width: '25%' }}>Descrição / Item</th>
-                                      <th style={{ width: '9%' }}>Qtd</th>
-                                      <th style={{ width: '12%' }}>Preço Unit.</th>
-                                      <th style={{ width: '22%' }}>Dia de Manifestação</th>
-                                      <th style={{ width: '12%' }}>Multiplicador</th>
-                                      <th style={{ width: '12%' }}>Valor Total</th>
-                                      <th style={{ width: '8%' }}>Ações</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {mapping.items.map((item) => (
-                                      <tr key={item.id} className={item.isFulfilled ? 'item-row-fulfilled' : ''}>
-                                        <td>
-                                          <div className="item-desc-cell" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                              <button
-                                                className={`item-check-circle ${item.isFulfilled ? 'checked' : ''}`}
-                                                title={item.isFulfilled ? 'Realizado no mês' : 'Pendente de compra'}
-                                                onClick={() => toggleItemFulfilled(selectedNature.id, mapping.id, item.id)}
-                                              >
-                                                {item.isFulfilled ? '✓' : ''}
-                                              </button>
-                                              <span className={item.isFulfilled ? 'line-through text-muted' : 'font-semibold'}>
-                                                {item.description}
-                                              </span>
-                                            </div>
-                                            {item.keywords && item.keywords.length > 0 && (
-                                              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', paddingLeft: '24px', marginTop: '2px' }}>
-                                                {item.keywords.map((kw, kwIdx) => (
-                                                  <span
-                                                    key={kwIdx}
-                                                    className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 font-mono"
-                                                    title={`Palavra-chave cadastrada para a IA: "${kw}"`}
-                                                  >
-                                                    #{kw}
-                                                  </span>
-                                                ))}
-                                              </div>
-                                            )}
-                                          </div>
-                                        </td>
-                                        <td>
-                                          <span className="item-val-pill">
-                                            {typeof item.quantity === 'number'
-                                              ? item.quantity.toLocaleString('pt-BR', { maximumFractionDigits: 3 })
-                                              : item.quantity}
-                                          </span>
-                                        </td>
-                                        <td>
-                                          {item.price.toLocaleString('pt-BR', {
-                                            style: 'currency',
-                                            currency: 'BRL',
-                                            minimumFractionDigits: 2,
-                                            maximumFractionDigits: 3,
-                                          })}
-                                        </td>
-                                        <td>
-                                          {(() => {
-                                            const badge = formatItemScheduleBadge(item);
-                                            return (
-                                              <span
-                                                className={`badge ${badge.badgeClass} flex items-center gap-1 text-[11px] font-medium py-0.5 px-2`}
-                                                title={badge.detail}
-                                              >
-                                                <span>{badge.icon}</span>
-                                                <span>{badge.label}</span>
-                                              </span>
-                                            );
-                                          })()}
-                                        </td>
-                                        <td>
-                                          <span className="badge badge-cyan">
-                                            {item.multiplierWeeks}x {item.multiplierWeeks === 1 ? 'semana/mês' : 'semanas'}
-                                          </span>
-                                        </td>
-                                        <td>
-                                          <strong className="text-glow-cyan font-mono">
-                                            {item.totalValue.toLocaleString('pt-BR', {
-                                              style: 'currency',
-                                              currency: 'BRL',
-                                              minimumFractionDigits: 2,
-                                              maximumFractionDigits: 3,
-                                            })}
-                                          </strong>
-                                        </td>
-                                        <td>
-                                          <button
-                                            className="btn btn-ghost btn-xs text-rose"
-                                            title="Excluir item"
-                                            onClick={() => deleteMappingItem(selectedNature.id, mapping.id, item.id)}
-                                          >
-                                            <Trash2 size={13} />
-                                          </button>
-                                        </td>
-                                      </tr>
-                                    ))}
-
-                                    {/* Linha de Cadastro Rápido de Novo Item no Mapeamento */}
-                                    <tr className="quick-add-item-row">
-                                      <td>
-                                        <input
-                                          type="text"
-                                          className="form-input form-input-sm"
-                                          placeholder="Ex: Frutas Frescas, Açougue..."
-                                          value={newItemDesc[mapping.id] || ''}
-                                          onChange={(e) =>
-                                            setNewItemDesc((prev) => ({ ...prev, [mapping.id]: e.target.value }))
-                                          }
-                                        />
-                                      </td>
-                                      <td>
-                                        <input
-                                          type="text"
-                                          inputMode="decimal"
-                                          className="form-input form-input-sm text-center font-mono"
-                                          placeholder="Qtd"
-                                          value={newItemQty[mapping.id] !== undefined ? newItemQty[mapping.id] : 1}
-                                          onChange={(e) => {
-                                            const raw = e.target.value;
-                                            setNewItemQty((prev) => ({
-                                              ...prev,
-                                              [mapping.id]: raw,
-                                            }));
-                                          }}
-                                        />
-                                      </td>
-                                      <td>
-                                        <input
-                                          type="text"
-                                          inputMode="decimal"
-                                          className="form-input form-input-sm font-mono"
-                                          placeholder="R$ 0,00"
-                                          value={newItemPrice[mapping.id] !== undefined ? newItemPrice[mapping.id] : ''}
-                                          onChange={(e) =>
-                                            setNewItemPrice((prev) => ({ ...prev, [mapping.id]: e.target.value }))
-                                          }
-                                        />
-                                      </td>
-                                      <td>
-                                        <div className="flex flex-col gap-1">
-                                          <select
-                                            className="form-input form-input-sm text-xs py-1"
-                                            value={
-                                              newItemRecurrenceType[mapping.id] ||
-                                              (newItemMult[mapping.id] === 2
-                                                ? 'QUINZENAL'
-                                                : newItemMult[mapping.id] === 1
-                                                ? 'MENSAL'
-                                                : 'SEMANAL')
-                                            }
-                                            onChange={(e) => {
-                                              const val = e.target.value as 'SEMANAL' | 'QUINZENAL' | 'MENSAL';
-                                              setNewItemRecurrenceType((prev) => ({ ...prev, [mapping.id]: val }));
-                                              if (val === 'SEMANAL') setNewItemMult((prev) => ({ ...prev, [mapping.id]: 5 }));
-                                              if (val === 'QUINZENAL') setNewItemMult((prev) => ({ ...prev, [mapping.id]: 2 }));
-                                              if (val === 'MENSAL') setNewItemMult((prev) => ({ ...prev, [mapping.id]: 1 }));
-                                            }}
-                                          >
-                                            <option value="SEMANAL">🗓️ Semanal</option>
-                                            <option value="QUINZENAL">🌓 Quinzenal</option>
-                                            <option value="MENSAL">📅 Mensal</option>
-                                          </select>
-
-                                          {(!newItemRecurrenceType[mapping.id] || newItemRecurrenceType[mapping.id] === 'SEMANAL') && (
-                                            <select
-                                              className="form-input form-input-sm text-xs py-1"
-                                              value={newItemDayOfWeek[mapping.id] || 'SABADO'}
-                                              onChange={(e) =>
-                                                setNewItemDayOfWeek((prev) => ({
-                                                  ...prev,
-                                                  [mapping.id]: e.target.value as any,
-                                                }))
-                                              }
-                                            >
-                                              {WEEKDAY_OPTIONS.map((opt) => (
-                                                <option key={opt.value} value={opt.value}>
-                                                  {opt.label}
-                                                </option>
-                                              ))}
-                                            </select>
-                                          )}
-
-                                          {newItemRecurrenceType[mapping.id] === 'QUINZENAL' && (
-                                            <select
-                                              className="form-input form-input-sm text-xs py-1 font-mono"
-                                              value={newItemDayOfFortnight[mapping.id] || 1}
-                                              onChange={(e) =>
-                                                setNewItemDayOfFortnight((prev) => ({
-                                                  ...prev,
-                                                  [mapping.id]: parseInt(e.target.value) || 1,
-                                                }))
-                                              }
-                                            >
-                                              {Array.from({ length: 15 }, (_, i) => i + 1).map((d) => (
-                                                <option key={d} value={d}>
-                                                  Dia {d} (dias {d} e {d + 15})
-                                                </option>
-                                              ))}
-                                            </select>
-                                          )}
-
-                                          {newItemRecurrenceType[mapping.id] === 'MENSAL' && (
-                                            <select
-                                              className="form-input form-input-sm text-xs py-1 font-mono"
-                                              value={newItemDayOfMonth[mapping.id] || 10}
-                                              onChange={(e) =>
-                                                setNewItemDayOfMonth((prev) => ({
-                                                  ...prev,
-                                                  [mapping.id]: parseInt(e.target.value) || 1,
-                                                }))
-                                              }
-                                            >
-                                              {Array.from({ length: 30 }, (_, i) => i + 1).map((d) => (
-                                                <option key={d} value={d}>
-                                                  Dia {d}
-                                                </option>
-                                              ))}
-                                              <option value={31}>Dia 31 (Fim do Mês - ajuste auto 28-31)</option>
-                                            </select>
-                                          )}
-                                        </div>
-                                      </td>
-                                      <td>
-                                        <select
-                                          className="form-input form-input-sm"
-                                          value={newItemMult[mapping.id] !== undefined ? newItemMult[mapping.id] : 5}
-                                          onChange={(e) =>
-                                            setNewItemMult((prev) => ({ ...prev, [mapping.id]: parseInt(e.target.value) || 1 }))
-                                          }
-                                        >
-                                          <option value={5}>5 Semanas (Semanal Padrão)</option>
-                                          <option value={4}>4 Semanas (Semanal Curto)</option>
-                                          <option value={2}>2 Semanas (Quinzenal)</option>
-                                          <option value={1}>1 Semana / Compra Única</option>
-                                          <option value={3}>3 Semanas</option>
-                                        </select>
-                                      </td>
-                                      <td>
-                                        <div className="quick-item-total-preview">
-                                          <strong className="font-mono">
-                                            {(
-                                              Math.round(
-                                                (typeof newItemQty[mapping.id] === 'number'
-                                                  ? (newItemQty[mapping.id] as number)
-                                                  : parseDecimal(String(newItemQty[mapping.id] || '1')) || 1) *
-                                                  (typeof newItemPrice[mapping.id] === 'number'
-                                                    ? (newItemPrice[mapping.id] as number)
-                                                    : parseMoney(String(newItemPrice[mapping.id] || '0')) || 0) *
-                                                  (newItemMult[mapping.id] !== undefined ? newItemMult[mapping.id] : 5) *
-                                                  1000
-                                              ) / 1000
-                                            ).toLocaleString('pt-BR', {
-                                              style: 'currency',
-                                              currency: 'BRL',
-                                              minimumFractionDigits: 2,
-                                              maximumFractionDigits: 3,
-                                            })}
-                                          </strong>
-                                        </div>
-                                      </td>
-                                      <td>
-                                        <button
-                                          className="btn btn-primary btn-xs w-full"
-                                          onClick={() => {
-                                            const desc = (newItemDesc[mapping.id] || '').trim();
-                                            const rawQty = newItemQty[mapping.id];
-                                            const qty =
-                                              typeof rawQty === 'number'
-                                                ? rawQty
-                                                : parseDecimal(String(rawQty || '1')) || 1;
-                                            const rawPrice = newItemPrice[mapping.id];
-                                            const price =
-                                              typeof rawPrice === 'number'
-                                                ? rawPrice
-                                                : parseMoney(String(rawPrice || '0')) || 0;
-                                            const mult = newItemMult[mapping.id] !== undefined ? newItemMult[mapping.id] : 5;
-
-                                            if (!desc) {
-                                              alert('Informe a descrição do item.');
-                                              return;
-                                            }
-                                            if (qty <= 0) {
-                                              alert('Informe uma quantidade válida maior que zero.');
-                                              return;
-                                            }
-                                            if (price <= 0) {
-                                              alert('Informe um preço unitário válido.');
-                                              return;
-                                            }
-
-                                            const recType =
-                                              newItemRecurrenceType[mapping.id] ||
-                                              (mult === 4 || mult === 5
-                                                ? 'SEMANAL'
-                                                : mult === 2
-                                                ? 'QUINZENAL'
-                                                : 'MENSAL');
-                                            const dWeek = newItemDayOfWeek[mapping.id] || 'SABADO';
-                                            const dFort = newItemDayOfFortnight[mapping.id] || 1;
-                                            const dMonth = newItemDayOfMonth[mapping.id] || 10;
-
-                                            addItemToMapping(selectedNature.id, mapping.id, {
-                                              description: desc,
-                                              quantity: qty,
-                                              price: price,
-                                              multiplierWeeks: mult,
-                                              realizedValue: 0,
-                                              isFulfilled: false,
-                                              recurrenceType: recType,
-                                              dayOfWeek: recType === 'SEMANAL' ? dWeek : undefined,
-                                              dayOfFortnight: recType === 'QUINZENAL' ? dFort : undefined,
-                                              dayOfMonth: recType === 'MENSAL' ? dMonth : undefined,
-                                            });
-
-                                            // Limpar campos
-                                            setNewItemDesc((prev) => ({ ...prev, [mapping.id]: '' }));
-                                            setNewItemPrice((prev) => ({ ...prev, [mapping.id]: 0 }));
-                                            setNewItemQty((prev) => ({ ...prev, [mapping.id]: 1 }));
-                                          }}
-                                        >
-                                          <Plus size={12} />
-                                          <span>Adicionar</span>
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="empty-state glass-card p-6 text-center mt-4">
-                  <p>Nenhuma natureza selecionada. Crie uma nova natureza para começar.</p>
-                </div>
-              )}
-            </div>
-          )}
 
 
           {activeSubTab === 'PREFERENCIAS' && (
@@ -3424,30 +2468,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
           {activeSubTab === 'FORMATAR' && <DataFormatPanel />}
         </div>
       </div>
-
-      {/* Modal de Nova ou Edição de Natureza */}
-      <NatureModal
-        isOpen={isNatureModalOpen}
-        onClose={() => setIsNatureModalOpen(false)}
-        natureToEdit={natureToEdit}
-        onSuccess={(id) => {
-          if (id) {
-            setSelectedNatureId(id);
-          }
-        }}
-      />
-
-      {/* Modal de Criação ou Edição de Mapeamento de Gastos */}
-      {selectedNature && (
-        <MappingModal
-          isOpen={isMappingModalOpen}
-          onClose={() => setIsMappingModalOpen(false)}
-          natureId={selectedNature.id}
-          natureName={selectedNature.name}
-          natureColor={selectedNature.color}
-          mappingToEdit={mappingToEdit}
-        />
-      )}
 
       {/* Modal de Ferramentas Avançadas */}
       <Modal

@@ -21,6 +21,7 @@ import { NaturezasPage } from './pages/NaturezasPage';
 import { LoansPage } from './pages/LoansPage';
 import { SharedPlanningPage } from './pages/SharedPlanningPage';
 import { OpportunitiesPage } from './pages/OpportunitiesPage';
+import { IosInstallFromLink } from './components/IosInstallModal';
 import { NewMovementModal } from './components/NewMovementModal';
 import { SimulationModal } from './components/SimulationModal';
 import { LoanPrepaymentModal } from './components/LoanPrepaymentModal';
@@ -288,6 +289,7 @@ export function AppContent() {
       />
 
       <InviteAcceptDialog />
+      <IosInstallFromLink />
     </div>
   );
 }

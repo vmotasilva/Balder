@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Smartphone, Share, SquarePlus, CheckCircle2, X, AlertCircle } from 'lucide-react';
 
 interface IosInstallModalProps {
@@ -15,6 +15,25 @@ export const isIOS = () =>
 export const isStandalone = () =>
   typeof window !== 'undefined' &&
   ((navigator as Navigator & { standalone?: boolean }).standalone === true || window.matchMedia?.('(display-mode: standalone)').matches);
+
+/** Abre o passo a passo quando o endereço termina em #iphone (link enviado para o celular). */
+export const IosInstallFromLink: React.FC = () => {
+  const [open, setOpen] = useState(() => typeof window !== 'undefined' && window.location.hash === '#iphone');
+  useEffect(() => {
+    const onHash = () => setOpen(window.location.hash === '#iphone');
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  return (
+    <IosInstallModal
+      isOpen={open}
+      onClose={() => {
+        setOpen(false);
+        if (window.location.hash === '#iphone') history.replaceState(null, '', window.location.pathname);
+      }}
+    />
+  );
+};
 
 /**
  * No iPhone não existe instalação por arquivo (como o APK do Android): o Balder vira app pelo
