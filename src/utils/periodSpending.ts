@@ -1,5 +1,5 @@
 import type { ExpenseNature, Movement } from '../types';
-import { getItemOccurrences, isExcludedState, resolveMappingItemMonth } from './mappingItemState';
+import { getItemOccurrences, resolveMappingItemMonth } from './mappingItemState';
 
 /** Período em que o usuário gosta de acompanhar as finanças. */
 export type TrackingPeriod = 'SEMANA' | 'QUINZENA' | 'MES';
@@ -71,31 +71,6 @@ export function periodRangeLabel(period: TrackingPeriod, range: PeriodRange, tod
   return `${d1} de ${monthName(from)}${y1 !== y2 ? year(from) : ''} a ${d2} de ${monthName(to)}${year(to)}`;
 }
 
-/** Os `count` períodos imediatamente anteriores ao que contém a data (do mais recente para o mais antigo). */
-export function previousPeriodRanges(period: TrackingPeriod, date: Date, count: number): PeriodRange[] {
-  const ranges: PeriodRange[] = [];
-  let cursor = trackingPeriodRange(period, date);
-  for (let i = 0; i < count; i++) {
-    const [y, m, dd] = cursor.from.split('-').map(Number);
-    cursor = trackingPeriodRange(period, new Date(y, m - 1, dd - 1));
-    ranges.push(cursor);
-  }
-  return ranges;
-}
-
-const daysBetween = (range: PeriodRange) => {
-  const [y1, m1, d1] = range.from.split('-').map(Number);
-  const [y2, m2, d2] = range.to.split('-').map(Number);
-  return Math.round((new Date(y2, m2 - 1, d2).getTime() - new Date(y1, m1 - 1, d1).getTime()) / 86400000) + 1;
-};
-
-/** Parte do teto mensal que cabe no período (proporcional aos dias do mês em que o período começa). */
-export function periodShareOfMonthly(monthlyAmount: number, range: PeriodRange): number {
-  const [y, m] = range.from.split('-').map(Number);
-  const daysInMonth = new Date(y, m, 0).getDate();
-  return round2((monthlyAmount * daysBetween(range)) / daysInMonth);
-}
-
 const normalize = (s: string) =>
   s
     .toLowerCase()
@@ -111,165 +86,146 @@ function movementNatureId(m: Movement, natures: ExpenseNature[]): string | undef
   return natures.find((n) => normalize(n.name) === cat)?.id;
 }
 
+export type PeriodTense = 'PASSADO' | 'ATUAL' | 'FUTURO';
+
 /**
- * Quanto já foi gasto em cada natureza dentro do período: saídas realizadas (pela data do pagamento)
- * e pagamentos registrados nos itens das naturezas.
+ * Situação de uma compra: feita (com data e valor pagos), prevista, vencida sem registro,
+ * que não vai acontecer ou paga por outra pessoa.
  */
-export function natureSpendingInRange(
-  natures: ExpenseNature[],
-  movements: Movement[],
-  range: PeriodRange
-): Record<string, number> {
-  const inRange = (date?: string) => !!date && date >= range.from && date <= range.to;
-  const totals: Record<string, number> = {};
-  const add = (natureId: string, amount: number) => {
-    totals[natureId] = round2((totals[natureId] || 0) + amount);
+export type PurchaseStatus = 'FEITA' | 'PREVISTA' | 'ATRASADA' | 'NAO_VAI' | 'TERCEIROS';
+
+export interface PeriodPurchase {
+  key: string;
+  date: string; // data prevista (ou do lançamento, quando não havia previsão)
+  status: PurchaseStatus;
+  plannedAmount: number; // 0 quando a compra não estava prevista
+  paidAt?: string;
+  paidAmount?: number;
+  note?: string; // quem pagou ou por que não vai acontecer
+}
+
+/** Um item de natureza (ou uma conta avulsa) com as compras dele no período. */
+export interface PeriodItem {
+  id: string;
+  title: string;
+  detail?: string; // mapeamento ou categoria
+  natureId?: string;
+  purchases: PeriodPurchase[];
+  planned: number; // soma prevista das compras que valem (fora "não vai" e "terceiros")
+  spent: number; // soma paga
+  done: number; // compras feitas
+  total: number; // compras que valem
+  nextDate?: string; // próxima compra ainda aberta
+  overdue: boolean;
+}
+
+const isOpen = (p: PeriodPurchase) => p.status === 'PREVISTA' || p.status === 'ATRASADA';
+const counts = (p: PeriodPurchase) => p.status !== 'NAO_VAI' && p.status !== 'TERCEIROS';
+
+function finishItem(base: Omit<PeriodItem, 'planned' | 'spent' | 'done' | 'total' | 'nextDate' | 'overdue'>): PeriodItem {
+  const purchases = [...base.purchases].sort((a, b) => a.date.localeCompare(b.date));
+  const valid = purchases.filter(counts);
+  const open = purchases.filter(isOpen);
+  return {
+    ...base,
+    purchases,
+    planned: round2(valid.reduce((acc, p) => acc + p.plannedAmount, 0)),
+    spent: round2(purchases.reduce((acc, p) => acc + (p.paidAmount || 0), 0)),
+    done: purchases.filter((p) => p.status === 'FEITA').length,
+    total: valid.length,
+    nextDate: open[0]?.date,
+    overdue: open.some((p) => p.status === 'ATRASADA'),
   };
-
-  movements.forEach((m) => {
-    if (m.status !== 'REALIZADA' || m.type !== 'PAGAR') return;
-    if (m.category === 'Cartões' || m.category === 'Empréstimos') return;
-    if (!inRange(m.paymentDate || m.dueDate)) return;
-    const natureId = movementNatureId(m, natures);
-    if (natureId) add(natureId, m.actualAmount ?? m.amount);
-  });
-
-  natures.forEach((nat) => {
-    nat.mappings.forEach((mapping) => {
-      mapping.items.forEach((item) => {
-        Object.values(item.payments || {}).forEach((list) => {
-          list.forEach((p) => {
-            if (inRange(p.paidAt)) add(nat.id, p.amount);
-          });
-        });
-      });
-    });
-  });
-
-  return totals;
 }
 
 /**
- * Quanto ainda está previsto em cada natureza dentro do período, de hoje em diante: ocorrências dos itens
- * das naturezas ainda não pagas (mesma distribuição da previsão de caixa) e contas previstas da natureza.
+ * As compras do período, item por item: cada ocorrência prevista dos itens das naturezas (pela data prevista),
+ * dizendo se foi paga, quando e por quanto, e as contas a pagar do período (previstas ou já pagas).
+ * Pagamentos que cobrem várias datas são divididos igualmente entre elas.
  */
-export function naturePlannedInRange(
-  natures: ExpenseNature[],
-  movements: Movement[],
-  range: PeriodRange,
-  todayIso: string
-): Record<string, number> {
-  const from = range.from > todayIso ? range.from : todayIso;
-  const totals: Record<string, number> = {};
-  if (from > range.to) return totals;
-  const inRange = (date: string) => date >= from && date <= range.to;
-  const add = (natureId: string, amount: number) => {
-    if (amount > 0) totals[natureId] = round2((totals[natureId] || 0) + amount);
-  };
-
-  movements.forEach((m) => {
-    if (m.status !== 'PREVISTA' || m.type !== 'PAGAR') return;
-    if (m.category === 'Cartões' || m.category === 'Empréstimos') return;
-    if (!inRange(m.dueDate)) return;
-    const natureId = movementNatureId(m, natures);
-    if (natureId) add(natureId, m.amount);
-  });
+export function buildPeriodItems(params: {
+  natures: ExpenseNature[];
+  movements: Movement[];
+  range: PeriodRange;
+  today?: Date;
+}): { tense: PeriodTense; items: PeriodItem[] } {
+  const { natures, movements, range } = params;
+  const todayIso = isoOf(params.today || new Date());
+  const tense: PeriodTense = range.to < todayIso ? 'PASSADO' : range.from > todayIso ? 'FUTURO' : 'ATUAL';
+  const inRange = (date?: string) => !!date && date >= range.from && date <= range.to;
+  const openStatus = (date: string): PurchaseStatus => (date < todayIso ? 'ATRASADA' : 'PREVISTA');
 
   const monthKeys: string[] = [];
-  const [fy, fm] = from.split('-').map(Number);
+  const [fy, fm] = range.from.split('-').map(Number);
   for (let d = new Date(fy, fm - 1, 1); isoOf(d).slice(0, 7) <= range.to.slice(0, 7); d.setMonth(d.getMonth() + 1)) {
     monthKeys.push(isoOf(d).slice(0, 7));
   }
 
+  const items: PeriodItem[] = [];
+
   natures.forEach((nat) => {
     nat.mappings.forEach((mapping) => {
       mapping.items.forEach((item) => {
+        const purchases: PeriodPurchase[] = [];
         monthKeys.forEach((monthKey) => {
           const monthNumber = Number(monthKey.slice(5, 7));
           if (mapping.applicableMonths && mapping.applicableMonths.length > 0 && !mapping.applicableMonths.includes(monthNumber)) {
             return;
           }
           const summary = resolveMappingItemMonth(item, monthKey);
-          if (isExcludedState(summary.state) || summary.pending <= 0.005 || summary.state.realized) return;
-          const uncovered = getItemOccurrences(item, monthKey).filter((o) => !summary.coveredDates.has(o.date));
-          if (uncovered.length === 0) return;
-          const perOccurrence = Math.max(0, summary.pending - summary.openBalance) / uncovered.length;
-          uncovered.forEach((o) => {
-            if (inRange(o.date)) add(nat.id, perOccurrence);
+          const { state } = summary;
+          getItemOccurrences(item, monthKey).forEach((o) => {
+            if (!inRange(o.date)) return;
+            const base = { key: `${item.id}_${o.date}`, date: o.date, plannedAmount: round2(o.value) };
+            if (state.skipped) {
+              purchases.push({ ...base, status: 'NAO_VAI', note: state.skipReason });
+              return;
+            }
+            if (state.paidByOthers) {
+              purchases.push({ ...base, status: 'TERCEIROS', note: state.paidBy });
+              return;
+            }
+            const payment = summary.coveredDates.get(o.date);
+            if (payment) {
+              purchases.push({
+                ...base,
+                status: 'FEITA',
+                paidAt: payment.paidAt,
+                paidAmount: round2(payment.amount / Math.max(1, payment.coveredDates.length)),
+              });
+              return;
+            }
+            // Mês marcado como realizado sem pagamentos registrados: pago pelo previsto, sem data
+            if (state.realized && summary.payments.length === 0) {
+              purchases.push({ ...base, status: 'FEITA', paidAmount: base.plannedAmount });
+              return;
+            }
+            purchases.push({ ...base, status: openStatus(o.date) });
           });
         });
+        if (purchases.length === 0) return;
+        items.push(finishItem({ id: item.id, title: item.description, detail: mapping.name, natureId: nat.id, purchases }));
       });
     });
   });
 
-  return totals;
-}
+  // Contas a pagar do período: previstas pelo vencimento, pagas pela data do pagamento
+  movements.forEach((m) => {
+    if (m.type !== 'PAGAR' || m.category === 'Cartões' || m.category === 'Empréstimos') return;
+    const paid = m.status === 'REALIZADA';
+    if (!inRange(paid ? m.paymentDate || m.dueDate : m.dueDate)) return;
+    const purchase: PeriodPurchase = paid
+      ? {
+          key: m.id,
+          date: m.dueDate,
+          status: 'FEITA',
+          plannedAmount: round2(m.amount),
+          paidAt: m.paymentDate || m.dueDate,
+          paidAmount: round2(m.actualAmount ?? m.amount),
+        }
+      : { key: m.id, date: m.dueDate, status: openStatus(m.dueDate), plannedAmount: round2(m.amount) };
+    items.push(finishItem({ id: m.id, title: m.title, detail: m.category || undefined, natureId: movementNatureId(m, natures), purchases: [purchase] }));
+  });
 
-export interface NaturePeriodInsight {
-  natureId: string;
-  name: string;
-  icon: string;
-  spent: number;
-  planned: number; // ainda previsto no período, de hoje em diante
-  expected: number; // parte do teto no período ou, sem teto, média dos períodos anteriores
-  basis: 'TETO' | 'MEDIA' | 'NENHUMA';
-  ratio: number; // spent / expected (0 quando não há referência)
-  projectedRatio: number; // (spent + planned) / expected
-  level: 'ACIMA' | 'ATENCAO' | 'OK';
-}
-
-export type PeriodTense = 'PASSADO' | 'ATUAL' | 'FUTURO';
-
-/**
- * Gasto de cada natureza no período comparado ao esperado: a fração do teto mensal que cabe no período ou,
- * quando a natureza não tem teto, a média dos últimos 4 períodos já vividos. No período atual e nos futuros
- * soma também o que ainda está previsto; nos futuros, o alerta olha para esse previsto.
- */
-export function buildPeriodInsights(params: {
-  natures: ExpenseNature[];
-  movements: Movement[];
-  period: TrackingPeriod;
-  date?: Date; // qualquer dia do período mostrado (padrão: hoje)
-  today?: Date;
-  monthlyCeiling: (nature: ExpenseNature, monthKey: string) => number;
-}): { range: PeriodRange; tense: PeriodTense; totalSpent: number; totalPlanned: number; insights: NaturePeriodInsight[] } {
-  const { natures, movements, period, monthlyCeiling } = params;
-  const today = params.today || new Date();
-  const todayIso = isoOf(today);
-  const range = trackingPeriodRange(period, params.date || today);
-  const tense: PeriodTense = range.to < todayIso ? 'PASSADO' : range.from > todayIso ? 'FUTURO' : 'ATUAL';
-  const current = natureSpendingInRange(natures, movements, range);
-  const planned = tense === 'PASSADO' ? {} : naturePlannedInRange(natures, movements, range, todayIso);
-  // A média vem sempre de períodos já vividos
-  const previous = previousPeriodRanges(period, tense === 'FUTURO' ? today : params.date || today, 4).map((r) =>
-    natureSpendingInRange(natures, movements, r)
-  );
-  const monthKey = range.from.slice(0, 7);
-
-  const insights: NaturePeriodInsight[] = natures
-    .map((nat) => {
-      const spent = current[nat.id] || 0;
-      const plannedAmount = planned[nat.id] || 0;
-      const ceiling = monthlyCeiling(nat, monthKey);
-      const history = previous.map((p) => p[nat.id] || 0);
-      const average = history.some((v) => v > 0) ? round2(history.reduce((a, b) => a + b, 0) / history.length) : 0;
-      const basis: NaturePeriodInsight['basis'] = ceiling > 0 ? 'TETO' : average > 0 ? 'MEDIA' : 'NENHUMA';
-      const expected = basis === 'TETO' ? periodShareOfMonthly(ceiling, range) : basis === 'MEDIA' ? average : 0;
-      const ratio = expected > 0 ? spent / expected : 0;
-      const projectedRatio = expected > 0 ? (spent + plannedAmount) / expected : 0;
-      const alertRatio = tense === 'FUTURO' ? projectedRatio : ratio;
-      const level: NaturePeriodInsight['level'] =
-        expected <= 0 ? 'OK' : alertRatio > 1 ? 'ACIMA' : alertRatio >= 0.8 ? 'ATENCAO' : 'OK';
-      return { natureId: nat.id, name: nat.name, icon: nat.icon, spent, planned: plannedAmount, expected, basis, ratio, projectedRatio, level };
-    })
-    .filter((i) => i.spent > 0 || i.planned > 0)
-    .sort((a, b) =>
-      tense === 'FUTURO'
-        ? b.projectedRatio - a.projectedRatio || b.planned - a.planned
-        : b.ratio - a.ratio || b.spent - a.spent || b.planned - a.planned
-    );
-
-  const totalSpent = round2(insights.reduce((acc, i) => acc + i.spent, 0));
-  const totalPlanned = round2(insights.reduce((acc, i) => acc + i.planned, 0));
-  return { range, tense, totalSpent, totalPlanned, insights };
+  return { tense, items };
 }

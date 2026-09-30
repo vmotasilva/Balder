@@ -21098,8 +21098,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   margin: 4px 0;
 }
 
-.home-task-list,
-.home-spending-list {
+.home-task-list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -21276,92 +21275,90 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   font-weight: 500;
 }
 
-.home-spending-headline {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
+.home-spending-summary {
   font-size: 13px;
-  color: var(--accent-emerald);
-  margin: 0 0 8px;
+  color: var(--text-muted);
+  margin: 0 0 6px;
 }
 
-.home-spending-headline.is-alert {
-  color: var(--accent-amber);
+.home-spending-summary strong {
+  color: var(--text-primary);
 }
 
-.home-spending-headline svg {
+/* Situação de uma compra: feita, prevista, atrasada, não vai acontecer, paga por terceiros */
+.home-purchase-pill {
   flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.home-spending-list li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 2px 10px;
-  padding: 7px 0;
-  border-top: 1px solid var(--border-default);
-  font-size: 13px;
-}
-
-.home-spending-name {
-  color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.home-spending-value {
+  font-size: 11px;
   font-weight: 600;
-  color: var(--text-primary);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-default);
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
-.home-spending-value small {
-  font-weight: 400;
+.home-purchase-pill.is-feita {
+  color: var(--accent-emerald);
+  border-color: color-mix(in srgb, var(--accent-emerald) 40%, transparent);
+  background: color-mix(in srgb, var(--accent-emerald) 10%, transparent);
+}
+
+.home-purchase-pill.is-atrasada {
+  color: var(--accent-rose);
+  border-color: color-mix(in srgb, var(--accent-rose) 40%, transparent);
+  background: color-mix(in srgb, var(--accent-rose) 10%, transparent);
+}
+
+.home-purchase-pill.is-nao_vai,
+.home-purchase-pill.is-terceiros {
+  opacity: 0.7;
+}
+
+/* Item com várias compras: o resumo abre a lista de datas */
+.home-task-list li.home-purchase-item {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+}
+
+.home-purchase-chevron {
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.home-purchase-chevron.is-open {
+  transform: rotate(90deg);
+}
+
+.home-task-list .home-purchase-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0 0 0 12px;
+  border-left: 2px solid var(--border-default);
+}
+
+.home-task-list .home-purchase-list li {
+  gap: 10px;
+  padding: 6px 0;
+  border-top: none;
+}
+
+.home-task-list li.is-overdue .home-purchase-list .home-task-meta {
   color: var(--text-muted);
 }
 
-.home-spending-bar {
-  grid-column: 1 / -1;
-  display: flex;
-  height: 5px;
-  border-radius: 3px;
-  background: var(--border-default);
-  overflow: hidden;
+.home-purchase-list .home-task-meta {
+  flex: 1;
+  min-width: 0;
 }
 
-.home-spending-bar div {
-  height: 100%;
-  border-radius: 3px;
-  background: var(--accent-emerald);
-}
-
-.home-spending-bar .is-atencao {
-  background: var(--accent-amber);
-}
-
-.home-spending-bar .is-acima {
-  background: var(--accent-rose);
-}
-
-/* Parte ainda prevista do período (depois do que já foi gasto) */
-.home-spending-bar .is-planned {
-  opacity: 0.4;
-}
-
-.home-spending-bar div + div {
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-}
-
-.home-spending-bar div:has(+ div) {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-/* Mês: só as naturezas, uma por linha */
-.home-spending-list.is-compact li {
-  padding: 5px 0;
+.home-purchase-date {
+  flex-shrink: 0;
+  width: 40px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .home-modules {
