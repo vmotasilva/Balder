@@ -130,6 +130,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     updateMappingItemState,
     sendMessageToCopilot,
     sharedScenario,
+    natureDetailModes,
   } = useFinancial();
   const { viewing } = useAccountScope();
 
@@ -358,8 +359,9 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     [period, spendingOffset]
   );
   const { tense: spendingTense, items: periodItems } = useMemo(
-    () => buildPeriodItems({ natures, movements, range: spendingRange, startDate: activeCheckpoint?.startDate }),
-    [natures, movements, spendingRange, activeCheckpoint?.startDate]
+    () =>
+      buildPeriodItems({ natures, movements, range: spendingRange, startDate: activeCheckpoint?.startDate, natureDetailModes }),
+    [natures, movements, spendingRange, activeCheckpoint?.startDate, natureDetailModes]
   );
   // Antes do marco não há o que mostrar: a seta para trás para no período em que o marco começa
   const atSpendingStart = !!activeCheckpoint?.startDate && spendingRange.from <= activeCheckpoint.startDate;
@@ -420,12 +422,19 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
         </>
       );
     }
+    // Mapeamento em Resumo pago em parte
+    const partial = p.paidAmount ? ` · ${formatBRL(p.paidAmount)} já pagos` : '';
     if (p.status === 'ATRASADA') {
-      return <span className="text-rose">Venceu {shortDate(p.date)} sem registro · {formatBRL(p.plannedAmount)}</span>;
+      return (
+        <span className="text-rose">
+          Venceu {shortDate(p.date)} {p.paidAmount ? 'sem quitar' : 'sem registro'} · {formatBRL(p.plannedAmount)}
+          {partial}
+        </span>
+      );
     }
     if (p.status === 'NAO_VAI') return `Não vai acontecer${p.note ? `: ${p.note}` : ''}`;
     if (p.status === 'TERCEIROS') return `Paga por ${p.note || 'outra pessoa'}`;
-    return `Prevista para ${whenLabel({ date: p.date, overdue: false })} · ${formatBRL(p.plannedAmount)}`;
+    return `Prevista para ${whenLabel({ date: p.date, overdue: false })} · ${formatBRL(p.plannedAmount)}${partial}`;
   };
 
   const groupSummary = (t: SpendingTotals) =>

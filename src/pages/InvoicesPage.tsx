@@ -495,7 +495,7 @@ export const InvoicesPage: React.FC = () => {
   // Marcar fatura como paga (valor e data conferidos no pop-up) ou reabrir
   const handleToggleInvoiceStatus = (m: Movement) => {
     if (m.status === 'REALIZADA') {
-      confirmAction(reopenConfirmOptions(m, () => updateMovement(m.id, { ...reopenedMovementUpdates(m), paymentDate: undefined })));
+      confirmAction(reopenConfirmOptions(m, () => updateMovement(m.id, reopenedMovementUpdates(m))));
       return;
     }
     setRealization({

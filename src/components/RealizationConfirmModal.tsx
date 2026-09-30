@@ -38,9 +38,14 @@ export const realizedMovementUpdates = (m: Movement, amount: number, date: strin
   };
 };
 
-/** Desfazer a confirmação: volta a ficar em aberto e, se o valor foi corrigido ao confirmar, volta ao previsto. */
+/**
+ * Desfazer a confirmação: volta a ficar em aberto, sem valor real nem data de pagamento, e, se o valor foi
+ * corrigido ao confirmar, volta ao previsto.
+ */
 export const reopenedMovementUpdates = (m: Movement): Partial<Movement> => ({
   status: 'PREVISTA',
+  paymentDate: undefined,
+  actualAmount: undefined,
   ...(m.originalAmount !== undefined && Math.abs(m.originalAmount - m.amount) >= 0.005 ? { amount: m.originalAmount } : {}),
 });
 

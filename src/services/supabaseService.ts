@@ -174,8 +174,9 @@ export const SupabaseService = {
       if (updates.installmentGroupId !== undefined) payload.installment_group_id = updates.installmentGroupId;
       if (updates.interestRatePercent !== undefined) payload.interest_rate_percent = updates.interestRatePercent;
       if (updates.originalAmount !== undefined) payload.original_amount = updates.originalAmount;
-      if (updates.actualAmount !== undefined) payload.actual_amount = updates.actualAmount;
-      if (updates.paymentDate !== undefined) payload.payment_date = updates.paymentDate;
+      // Presentes mas vazios (reabrir um pagamento): limpam o valor real e a data no banco
+      if ('actualAmount' in updates) payload.actual_amount = updates.actualAmount ?? null;
+      if ('paymentDate' in updates) payload.payment_date = updates.paymentDate || null;
       if (updates.adjustmentReason !== undefined) payload.adjustment_reason = updates.adjustmentReason;
       if (updates.natureId !== undefined) payload.nature_id = updates.natureId;
       if (updates.mappingId !== undefined) payload.mapping_id = updates.mappingId;
