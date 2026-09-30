@@ -103,7 +103,11 @@ import {
   titleFrom,
   parseAmount,
   parseDate,
+  parseInstallments,
+  installmentSchedule,
   paymentOptions,
+  pickPaymentOptions,
+  OPTION_OTHER_PAYMENT,
   receiveAccountOptions,
   type ForsetiData,
   type ForsetiFlow,
@@ -3464,16 +3468,26 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           }
         );
       };
-      const askPaymentMethod = (title: string, amount: number, category: string) => {
+      // hint: frase original, onde pode estar a forma de pagamento ("no cartão Inter", "no Pix")
+      type PayContext = { installments?: number; hint?: string };
+      const askPaymentMethod = (title: string, amount: number, category: string, ctx: PayContext = {}) => {
         forsetiFlowRef.current = null;
+        const installments = ctx.installments && ctx.installments >= 2 ? ctx.installments : undefined;
+        const plan = installments ? { count: installments, total: amount } : undefined;
+        const pick = pickPaymentOptions(ctx.hint || '', accounts, cards, category, plan);
+        const parcelas = plan ? ` em **${plan.count}x de ${brl(Math.round((amount / plan.count) * 100) / 100)}**` : '';
         reply(
-          { text: `Anotado: **${brl(amount)}** em **${title}**.\n\n**Como você pagou?**`, badge: 'FORMA DE PAGAMENTO', chips: [] },
+          {
+            text: `Anotado: **${brl(amount)}** em **${title}**${parcelas}.${pick.note ? ` ${pick.note}` : ''}\n\n**${pick.question}**`,
+            badge: 'FORMA DE PAGAMENTO',
+            chips: [],
+          },
           {
             pendingConfirmation: {
               step: 'PAYMENT_METHOD',
-              pendingData: { rawTitle: title, amount, dueDate: todayIso, type: 'PAGAR', category },
-              question: 'Como você pagou?',
-              options: paymentOptions(accounts, cards, category),
+              pendingData: { rawTitle: title, amount, dueDate: todayIso, type: 'PAGAR', category, installments },
+              question: pick.question,
+              options: pick.options,
             },
           }
         );
@@ -3487,11 +3501,18 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           chips: RECEIVE_DATE_CHIPS,
         });
       };
-      const continuePay = (title: string, amount: number, cat: { title: string; category: string } | null) => {
-        if (cat) return askPaymentMethod(title || cat.title, amount, cat.category);
-        if (title) return askPaymentMethod(title, amount, 'Outros');
-        forsetiFlowRef.current = { kind: 'PAGAR', step: 'CATEGORIA', amount };
+      const continuePay = (title: string, amount: number, cat: { title: string; category: string } | null, ctx: PayContext = {}) => {
+        if (cat) return askPaymentMethod(title || cat.title, amount, cat.category, ctx);
+        if (title) return askPaymentMethod(title, amount, 'Outros', ctx);
+        forsetiFlowRef.current = { kind: 'PAGAR', step: 'CATEGORIA', amount, ...ctx };
         reply({ text: `**${brl(amount)}**. **Com o que foi esse gasto?**`, badge: 'CATEGORIA DO GASTO', chips: EXPENSE_CATEGORY_CHIPS });
+      };
+      // "em 6x de 295,87" sem o total: o total é parcela × vezes
+      const readPurchase = (text: string) => {
+        const inst = parseInstallments(text);
+        const base = inst ? inst.rest : text;
+        const amount = parseAmount(base) ?? (inst?.perInstallment ? Math.round(inst.perInstallment * inst.count * 100) / 100 : null);
+        return { base, amount, installments: inst?.count };
       };
       const startRegistration = (kind: 'RECEBER' | 'PAGAR', text: string) => {
         const amount = parseAmount(text);
@@ -3512,17 +3533,20 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           continueReceive(title, amount, date, status);
           return;
         }
-        const cat = inferExpenseCategory(text);
-        if (amount === null) {
-          forsetiFlowRef.current = { kind, step: 'VALOR', title, category: cat || undefined };
+        const purchase = readPurchase(text);
+        const payTitle = titleFrom(purchase.base);
+        const cat = inferExpenseCategory(purchase.base);
+        const ctx: PayContext = { installments: purchase.installments, hint: text };
+        if (purchase.amount === null) {
+          forsetiFlowRef.current = { kind, step: 'VALOR', title: payTitle, category: cat || undefined, ...ctx };
           reply({
-            text: `Vamos registrar. **Qual foi o valor pago?**\n\nPode escrever só o número (ex.: *85,90*) ou com o que foi (ex.: *85,90 na farmácia*).`,
+            text: `Vamos registrar. **Qual foi o valor ${purchase.installments && purchase.installments >= 2 ? 'total da compra' : 'pago'}?**\n\nPode escrever só o número (ex.: *85,90*) ou com o que foi (ex.: *85,90 na farmácia*).`,
             badge: 'VALOR DO PAGAMENTO',
             chips: [],
           });
           return;
         }
-        continuePay(title, amount, cat);
+        continuePay(payTitle, purchase.amount, cat, ctx);
       };
 
       // Resposta a uma pergunta do registro em andamento (sair dele é só mudar de assunto)
@@ -3542,7 +3566,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (changedSubject) {
           forsetiFlowRef.current = null;
         } else if (flow.step === 'VALOR') {
-          const amount = parseAmount(trimmed);
+          const purchase = flow.kind === 'PAGAR' ? readPurchase(trimmed) : null;
+          const amount = purchase ? purchase.amount : parseAmount(trimmed);
           if (amount === null) {
             reply({
               text: 'Não consegui entender o valor 🤔. Digite só o número, por exemplo **150** ou **1.250,90** (ou *cancelar* para desistir).',
@@ -3551,9 +3576,13 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             });
             return;
           }
-          const title = titleFrom(trimmed) || flow.title || '';
+          const title = titleFrom(purchase ? purchase.base : trimmed) || flow.title || '';
           if (flow.kind === 'RECEBER') continueReceive(title, amount, parseDate(trimmed) || flow.date || null, flow.status || 'PREVISTA');
-          else continuePay(title, amount, inferExpenseCategory(trimmed) || flow.category || null);
+          else
+            continuePay(title, amount, inferExpenseCategory(purchase!.base) || flow.category || null, {
+              installments: purchase!.installments || flow.installments,
+              hint: `${flow.hint || ''} ${trimmed}`,
+            });
           return;
         } else if (flow.step === 'DATA') {
           const date = parseDate(trimmed, true);
@@ -3574,10 +3603,10 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             return;
           }
           const cat = categoryFromChip(trimmed) || inferExpenseCategory(trimmed);
-          askPaymentMethod(cat ? cat.title : trimmed, flow.amount || 0, cat ? cat.category : 'Outros');
+          askPaymentMethod(cat ? cat.title : trimmed, flow.amount || 0, cat ? cat.category : 'Outros', flow);
           return;
         } else {
-          askPaymentMethod(trimmed, flow.amount || 0, inferExpenseCategory(trimmed)?.category || 'Outros');
+          askPaymentMethod(trimmed, flow.amount || 0, inferExpenseCategory(trimmed)?.category || 'Outros', flow);
           return;
         }
       }
@@ -3695,6 +3724,26 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return;
     }
 
+    // A forma citada não era a certa: mostra todas as contas e cartões
+    if (option.payload.action === OPTION_OTHER_PAYMENT) {
+      const plan = pending.installments && pending.installments >= 2 ? { count: pending.installments, total: pending.amount } : undefined;
+      setChatHistory((prev) =>
+        prev.map((m) =>
+          m.id === messageId && m.pendingConfirmation
+            ? {
+                ...m,
+                pendingConfirmation: {
+                  ...m.pendingConfirmation,
+                  question: 'Como você pagou?',
+                  options: paymentOptions(accounts, cards, pending.category || 'Outros', plan),
+                },
+              }
+            : m
+        )
+      );
+      return;
+    }
+
     // Confirmar cria lançamento (conforme as permissões) ou altera fatura (só quem compartilhou)
     const confirmType = option.payload.type || pending?.type;
     if (
@@ -3779,23 +3828,54 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const finalDueDate = isCredit ? option.payload.dueDate || pending.dueDate : pending.dueDate;
     const finalStatus = isCredit ? 'PREVISTA' : isIncome ? pending.status || 'PREVISTA' : 'REALIZADA';
     const whenLabel = `${finalDueDate.slice(8, 10)}/${finalDueDate.slice(5, 7)}`;
+    const ddmmOf = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+    const movementTitle =
+      isIncome && pending.rawTitle === 'Recebimento' ? 'Recebimento' : `${isIncome ? 'Recebimento' : 'Despesa'}: ${pending.rawTitle}`;
 
-    addMovement({
-      title: isIncome && pending.rawTitle === 'Recebimento' ? 'Recebimento' : `${isIncome ? 'Recebimento' : 'Despesa'}: ${pending.rawTitle}`,
-      type: finalType,
-      amount: pending.amount,
-      dueDate: finalDueDate,
-      bank: finalBank,
-      status: finalStatus,
-      category: finalCategory,
-      notes: `Confirmado via Forseti: ${option.label} (${option.badge}).`,
-      // Na conta de outra pessoa, a receita lançada é de quem lançou: só essa pessoa confirma
-      ...(viewing && finalType === 'RECEBER' ? { responsibleId: authUser?.$id } : {}),
-    });
+    // Compra parcelada: uma parcela por mês (no cartão, uma em cada fatura; na conta, a 1ª já sai hoje)
+    const count = !isIncome && pending.installments && pending.installments >= 2 ? pending.installments : 0;
+    const schedule = count ? installmentSchedule(pending.amount, count, finalDueDate, isCredit ? option.payload.dueDay : undefined) : [];
+    if (count) {
+      const groupId = `inst_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      addMultipleMovements(
+        schedule.map((p, idx) => ({
+          title: `${movementTitle} (${idx + 1}/${count})`,
+          type: finalType,
+          amount: p.amount,
+          dueDate: p.dueDate,
+          bank: finalBank,
+          status: idx === 0 ? finalStatus : 'PREVISTA',
+          category: finalCategory,
+          notes: `Confirmado via Forseti: ${option.label} (${option.badge}). Parcela ${idx + 1}/${count} • Total: ${brl(pending.amount)}`,
+          installmentNumber: idx + 1,
+          installmentsTotal: count,
+          installmentGroupId: groupId,
+        }))
+      );
+    } else {
+      addMovement({
+        title: movementTitle,
+        type: finalType,
+        amount: pending.amount,
+        dueDate: finalDueDate,
+        bank: finalBank,
+        status: finalStatus,
+        category: finalCategory,
+        notes: `Confirmado via Forseti: ${option.label} (${option.badge}).`,
+        // Na conta de outra pessoa, a receita lançada é de quem lançou: só essa pessoa confirma
+        ...(viewing && finalType === 'RECEBER' ? { responsibleId: authUser?.$id } : {}),
+      });
+    }
 
     setTimeout(() => {
       let confirmationText = '';
-      if (isCredit) {
+      if (count) {
+        const first = schedule[0];
+        const last = schedule[schedule.length - 1];
+        confirmationText = isCredit
+          ? `✓ **Compra parcelada lançada no cartão!**\n\n**${brl(pending.amount)}** (${pending.rawTitle}) em **${count}x de ${brl(first.amount)}** no **${option.label}**.\n\n• **1ª parcela:** fatura que vence em **${ddmmOf(first.dueDate)}**\n• **Última:** fatura de **${ddmmOf(last.dueDate)}**\n• **Categoria:** ${finalCategory}\n• Cada parcela entra na previsão do seu mês; o saldo só muda quando a fatura for paga.`
+          : `✓ **Pagamento parcelado registrado!**\n\n**${brl(pending.amount)}** (${pending.rawTitle}) em **${count}x de ${brl(first.amount)}** com **${option.label}**.\n\n• **1ª parcela:** paga hoje\n• **As outras:** todo dia ${first.dueDate.slice(8, 10)}, até **${ddmmOf(last.dueDate)}**\n• **Categoria:** ${finalCategory}`;
+      } else if (isCredit) {
         confirmationText = `✓ **Compra lançada no cartão!**\n\n**${brl(pending.amount)}** (${pending.rawTitle}) entrou na fatura do **${option.label}** que vence em **${whenLabel}**.\n\n• **Categoria:** ${finalCategory}\n• O saldo da conta só muda quando a fatura for paga.`;
       } else if (isIncome) {
         confirmationText =

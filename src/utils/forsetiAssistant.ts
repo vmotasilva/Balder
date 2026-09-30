@@ -37,6 +37,10 @@ export interface ForsetiFlow {
   date?: string;
   status?: 'PREVISTA' | 'REALIZADA';
   category?: { title: string; category: string };
+  /** Compra parcelada ("em 6x", "dividido em 6 vezes"). */
+  installments?: number;
+  /** Frase original: guarda a forma de pagamento citada ("no cartão Inter") para o último passo. */
+  hint?: string;
 }
 
 const GENERIC_TITLES = ['conta', 'algo', 'coisa', 'pagamento', 'valor', 'gasto', 'dinheiro', 'recebimento'];
@@ -44,7 +48,8 @@ const GENERIC_TITLES = ['conta', 'algo', 'coisa', 'pagamento', 'valor', 'gasto',
 /** Título útil do texto (vazio quando só sobra algo genérico como "uma conta" ou "um valor"). */
 export function titleFrom(text: string): string {
   const t = extractTitle(text).replace(/^[^\p{L}\d]+/u, '').trim();
-  return t.length >= 2 && !GENERIC_TITLES.includes(stripAccents(t)) ? t.charAt(0).toUpperCase() + t.slice(1) : '';
+  if (t.length < 2 || GENERIC_TITLES.includes(stripAccents(t))) return '';
+  return t.length === 2 ? t.toUpperCase() : t.charAt(0).toUpperCase() + t.slice(1);
 }
 
 const isQuestion = (text: string) =>
@@ -105,10 +110,56 @@ export function extractTitle(text: string): string {
   return withoutDates(text)
     .replace(/(?:r\$\s*)?\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|(?:r\$\s*)?\d+(?:[.,]\d{1,2})?\s*(?:mil\b)?/gi, ' ')
     .replace(/\b(?:eu|vou|receber|receberei|recebi|ganhei|paguei|gastei|comprei|pago|reais|real|hoje|amanh[ãa]|ontem)\b/gi, ' ')
+    .replace(/\b(?:no|pelo|por|com)\s+valor(?:\s+de)?\b/gi, ' ')
+    .replace(/(?:^|\s)[àa]\s+vista\b/gi, ' ')
+    // A forma de pagamento citada não faz parte do título ("TV no cartão Inter" → "TV")
+    .replace(PAYMENT_TAIL, ' ')
+    .replace(BANK_TAIL, ' ')
     .replace(/^\s*(?:de|do|da|no|na|em|com|pelo|pela|um|uma)\s+/i, '')
     .replace(/\s+/g, ' ')
-    .replace(/[.!?]+$/, '')
+    .replace(/[.!?,\s]+$/, '')
+    .replace(/\s+(?:de|do|da|no|na|em|por|com|e)$/i, '')
     .trim();
+}
+
+const PAYMENT_TAIL =
+  /\s(?:no|na|com|pelo|pela|via|usando|em)\s+(?:(?:o|a|meu|minha)\s+)?(?:cart[aã]o|cr[eé]dito|d[eé]bito|pix|dinheiro|esp[eé]cie|boleto)(?:\s|$).*$/i;
+const BANK_TAIL =
+  /\s(?:no|na|pelo|pela|via)\s+(?:banco\s+|conta\s+(?:do\s+|da\s+)?)?(?:nu ?bank|inter|ita[uú]|santander|bradesco|banco do brasil|caixa|c6|xp|btg|picpay|mercado ?pago|next|neon|sicoob|sicredi)\b.*$/i;
+
+// ── Parcelas ──────────────────────────────────────────────────────────────────
+const INSTALLMENT_RE =
+  /(?:(?:dividid[oa]|parcelad[oa])\s+)?(?:em\s+)?\b(\d{1,2})\s*(?:x|vezes|parcelas|presta[cç][oõ]es)(?![\p{L}\d])(?:\s+(?:iguais\s+)?(?:de\s+)(?:r\$\s*)?(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?))?(?:\s+sem\s+juros)?/iu;
+
+/**
+ * Parcelamento escrito na frase ("em 6x", "dividido em 6 vezes", "6x de 295,87"). Devolve o texto sem
+ * esse trecho, para o número de parcelas não ser lido como valor nem ficar no título.
+ */
+export function parseInstallments(text: string): { count: number; perInstallment: number | null; rest: string } | null {
+  const match = text.match(INSTALLMENT_RE);
+  if (!match) return null;
+  const count = Number(match[1]);
+  if (count < 1 || count > 48) return null;
+  return {
+    count,
+    perInstallment: match[2] ? parseAmount(match[2]) : null,
+    rest: text.replace(match[0], ' '),
+  };
+}
+
+/** Valores e vencimentos de uma compra parcelada: todo mês no mesmo dia, a última absorve os centavos. */
+export function installmentSchedule(total: number, count: number, firstDue: string, day?: number): { amount: number; dueDate: string }[] {
+  const per = Math.round((total / count) * 100) / 100;
+  const [y, m, d] = firstDue.split('-').map(Number);
+  const dayOfMonth = day || d;
+  return Array.from({ length: count }, (_, i) => {
+    const lastDay = new Date(y, m - 1 + i + 1, 0).getDate();
+    const date = new Date(y, m - 1 + i, Math.min(dayOfMonth, lastDay));
+    return {
+      amount: i === count - 1 ? Math.round((total - per * (count - 1)) * 100) / 100 : per,
+      dueDate: isoOf(date),
+    };
+  });
 }
 
 /** Data a partir de "hoje", "amanhã", "ontem", "dia 5", "5" (só no passo da data) ou "10/10(/2026)". */
@@ -191,7 +242,21 @@ export function receiveAccountOptions(accounts: BankAccount[]): CopilotInteracti
   return list;
 }
 
-export function paymentOptions(accounts: BankAccount[], cards: CreditCardItem[], category: string): CopilotInteractiveOption[] {
+/** Compra parcelada: quantas vezes e o total (para mostrar o valor de cada parcela nas opções). */
+export interface InstallmentPlan {
+  count: number;
+  total: number;
+}
+
+const planLabel = (plan: InstallmentPlan) => `${plan.count}x de ${brl(Math.round((plan.total / plan.count) * 100) / 100)}`;
+
+export function paymentOptions(
+  accounts: BankAccount[],
+  cards: CreditCardItem[],
+  category: string,
+  plan?: InstallmentPlan
+): CopilotInteractiveOption[] {
+  const split = plan && plan.count >= 2 ? plan : undefined;
   const list: CopilotInteractiveOption[] = [
     ...accounts
       .filter((a) => a.type === 'CORRENTE' || a.type === 'CARTEIRA' || a.type === 'OUTRO')
@@ -200,7 +265,7 @@ export function paymentOptions(accounts: BankAccount[], cards: CreditCardItem[],
         label: `${a.name} (conta / Pix)`,
         icon: a.icon || '🏦',
         badge: 'Débito na hora',
-        description: 'Sai agora do saldo da conta',
+        description: split ? `${planLabel(split)} · a 1ª sai hoje da conta, as outras todo mês` : 'Sai agora do saldo da conta',
         payload: { bank: a.name, type: 'PAGAR' as const, category },
       })),
     ...cards.map((c) => {
@@ -210,8 +275,10 @@ export function paymentOptions(accounts: BankAccount[], cards: CreditCardItem[],
         label: c.name,
         icon: '💳',
         badge: 'Cartão de crédito',
-        description: `Entra na fatura que vence em ${ddmm(dueDate)}`,
-        payload: { bank: c.name, type: 'CARTAO' as const, category, dueDate },
+        description: split
+          ? `${planLabel(split)} · a 1ª entra na fatura que vence em ${ddmm(dueDate)}`
+          : `Entra na fatura que vence em ${ddmm(dueDate)}`,
+        payload: { bank: c.name, type: 'CARTAO' as const, category, dueDate, dueDay: c.dueDay },
       };
     }),
   ];
@@ -230,10 +297,123 @@ export function paymentOptions(accounts: BankAccount[], cards: CreditCardItem[],
     label: CASH_IN_HAND,
     icon: '💵',
     badge: 'Dinheiro físico',
-    description: 'Não mexe nas contas bancárias',
+    description: split ? `${planLabel(split)} · não mexe nas contas bancárias` : 'Não mexe nas contas bancárias',
     payload: { bank: CASH_IN_HAND, type: 'PAGAR', category },
   });
   return list;
+}
+
+export const OPTION_OTHER_PAYMENT = 'SHOW_ALL_PAYMENT';
+
+const BANK_MENTIONS: { label: string; re: RegExp }[] = [
+  { label: 'Nubank', re: /\bnu ?bank\b|\broxinho\b/ },
+  { label: 'Inter', re: /\binter\b/ },
+  { label: 'Itaú', re: /\bitau\b/ },
+  { label: 'Santander', re: /\bsantander\b/ },
+  { label: 'Bradesco', re: /\bbradesco\b/ },
+  { label: 'Banco do Brasil', re: /\bbanco do brasil\b|\bbb\b/ },
+  { label: 'Caixa', re: /\bcaixa\b/ },
+  { label: 'C6', re: /\bc6\b/ },
+  { label: 'XP', re: /\bxp\b/ },
+  { label: 'BTG', re: /\bbtg\b/ },
+  { label: 'PicPay', re: /\bpicpay\b/ },
+  { label: 'Mercado Pago', re: /\bmercado ?pago\b/ },
+  { label: 'Next', re: /\bnext\b/ },
+  { label: 'Neon', re: /\bneon\b/ },
+  { label: 'Sicoob', re: /\bsicoob\b/ },
+  { label: 'Sicredi', re: /\bsicredi\b/ },
+];
+/** Palavras que não identificam uma conta ou cartão específico. */
+const GENERIC_NAME_WORDS = new Set(['cartao', 'credito', 'debito', 'conta', 'corrente', 'banco', 'pix', 'meu', 'minha', 'de', 'do', 'da', 'black', 'gold', 'platinum']);
+const nameWords = (name: string) =>
+  stripAccents(name)
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 3 && !GENERIC_NAME_WORDS.has(w));
+
+export interface PaymentPick {
+  question: string;
+  /** Frase sobre a forma de pagamento reconhecida (vazia quando nada foi citado). */
+  note: string;
+  options: CopilotInteractiveOption[];
+}
+
+/**
+ * Forma de pagamento citada na frase ("no cartão de crédito Inter", "no Pix do Nubank", "em dinheiro"):
+ * mostra só as opções que batem com o que foi dito (mais "Outra forma de pagamento") e avisa quando o
+ * cartão citado não está cadastrado.
+ */
+export function pickPaymentOptions(
+  text: string,
+  accounts: BankAccount[],
+  cards: CreditCardItem[],
+  category: string,
+  plan?: InstallmentPlan
+): PaymentPick {
+  const all = paymentOptions(accounts, cards, category, plan);
+  const t = stripAccents(text);
+  const bank = BANK_MENTIONS.find((b) => b.re.test(t));
+  const mentions = (name: string) => {
+    const norm = stripAccents(name);
+    return (!!bank && bank.re.test(norm)) || nameWords(name).some((w) => new RegExp(`\\b${w}\\b`).test(t));
+  };
+
+  const cardOpts = all.filter((o) => o.payload.type === 'CARTAO');
+  const cashOpt = all.find((o) => o.payload.bank === CASH_IN_HAND);
+  const accountOpts = all.filter((o) => o.payload.type === 'PAGAR' && o !== cashOpt);
+  const cardText = (o: CopilotInteractiveOption) => {
+    const c = cards.find((x) => `opt_pay_card_${x.id}` === o.id);
+    return c ? `${c.name} ${c.bank}` : o.label;
+  };
+  const accountText = (o: CopilotInteractiveOption) => {
+    const a = accounts.find((x) => `opt_pay_${x.id}` === o.id);
+    return a ? `${a.name} ${a.bankName || ''}` : o.label;
+  };
+
+  const saysCash = /\b(dinheiro|especie|em maos|cash)\b/.test(t);
+  const saysDebit = /\b(pix|debito|transferencia|ted)\b/.test(t);
+  const saysCard = !saysDebit && /\b(cartao|credito)\b/.test(t);
+  const parcelado = !!plan && plan.count >= 2;
+
+  let shortlist: CopilotInteractiveOption[] = [];
+  let note = '';
+  if (saysCash && cashOpt) {
+    shortlist = [cashOpt];
+  } else if (saysCard) {
+    const matched = cardOpts.filter((o) => mentions(cardText(o)));
+    if (matched.length > 0) shortlist = matched;
+    else if (cardOpts.length === 0) note = 'Você ainda não tem cartão de crédito cadastrado. Dá para cadastrar em **Cartões**; por enquanto, escolha outra forma.';
+    else if (bank) {
+      shortlist = cardOpts;
+      note = `Não encontrei um cartão **${bank.label}** cadastrado. Foi em qual destes?`;
+    } else shortlist = cardOpts;
+  } else if (saysDebit) {
+    const matched = accountOpts.filter((o) => mentions(accountText(o)));
+    shortlist = matched.length > 0 ? matched : accountOpts;
+  } else if (bank || cardOpts.some((o) => mentions(cardText(o))) || accountOpts.some((o) => mentions(accountText(o)))) {
+    // Só o banco foi citado ("no Inter"): parcelado costuma ser cartão
+    const matchedCards = cardOpts.filter((o) => mentions(cardText(o)));
+    const matchedAccounts = accountOpts.filter((o) => mentions(accountText(o)));
+    shortlist = parcelado && matchedCards.length > 0 ? matchedCards : [...matchedCards, ...matchedAccounts];
+  } else if (parcelado && cardOpts.length > 0) {
+    // Parcelado sem dizer como: os cartões vêm primeiro
+    return { question: 'Em qual cartão foi?', note, options: [...cardOpts, ...all.filter((o) => !cardOpts.includes(o))] };
+  }
+
+  if (shortlist.length === 1 && !note) {
+    const only = shortlist[0];
+    note = `${only.payload.type === 'CARTAO' ? 'No cartão' : 'Com'} **${only.label}**.`;
+  }
+  if (shortlist.length === 0 || shortlist.length === all.length) {
+    return { question: 'Como você pagou?', note, options: all };
+  }
+  return {
+    question: shortlist.length === 1 ? 'Confirma a forma de pagamento?' : saysCard ? 'Em qual cartão foi?' : 'Como você pagou?',
+    note,
+    options: [
+      ...shortlist,
+      { id: 'opt_pay_other', label: 'Outra forma de pagamento', icon: '↔️', description: 'Ver todas as contas e cartões', payload: { action: OPTION_OTHER_PAYMENT } },
+    ],
+  };
 }
 
 // ── Dúvidas ───────────────────────────────────────────────────────────────────

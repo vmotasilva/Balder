@@ -21609,6 +21609,20 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   color: var(--text-primary);
 }
 
+/* Uma renda: linha principal, jeito de receber e, em duas partes, adiantamento + restante */
+.guided-income {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--border-default);
+}
+
+.guided-subrow {
+  padding-left: 12px;
+  border-left: 2px solid color-mix(in srgb, var(--accent-cyan) 40%, transparent);
+}
+
 .guided-day {
   display: inline-flex;
   align-items: center;
@@ -21684,6 +21698,11 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 
   .guided-row > .form-input:first-child,
   .guided-row-name {
+    flex-basis: 100%;
+  }
+
+  /* Cartão: nome e valor da fatura em linhas próprias; vencimento e fechamento lado a lado */
+  .guided-card-row > .form-input {
     flex-basis: 100%;
   }
 }

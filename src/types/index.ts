@@ -247,6 +247,8 @@ export interface CopilotPendingConfirmation {
     notes?: string;
     /** Recebimento já ocorrido ("recebi") ou a receber ("vou receber"). */
     status?: 'PREVISTA' | 'REALIZADA';
+    /** Compra parcelada: número de parcelas (amount é o total). */
+    installments?: number;
   };
   question: string;
   options: CopilotInteractiveOption[];

@@ -17,6 +17,10 @@ interface IncomeRow {
   name: string;
   amount: number;
   day: number;
+  /** Paga em duas partes: adiantamento (advance*) + restante (amount/day). */
+  split?: boolean;
+  advanceAmount?: number;
+  advanceDay?: number;
 }
 
 interface BillRow {
@@ -29,8 +33,14 @@ interface BillRow {
 interface CardRow {
   name: string;
   dueDay: number;
+  /** Dia em que a fatura fecha (vazio: uma semana antes do vencimento). */
+  closingDay?: number;
   amount: number;
 }
+
+/** A fatura costuma fechar uma semana antes do vencimento. */
+const defaultClosingDay = (dueDay: number) => (dueDay - 7 >= 1 ? dueDay - 7 : dueDay - 7 + 30);
+const incomeOf = (i: IncomeRow) => (i.amount || 0) + (i.split ? i.advanceAmount || 0 : 0);
 
 /** Criadas sempre: onde a Forseti classifica os gastos do dia a dia. */
 const EVERYDAY_NATURES = [
@@ -115,7 +125,15 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onFinished }) => {
     setStep(prevStep);
   };
 
-  const incomeTotal = incomes.reduce((acc, i) => acc + (i.amount || 0), 0);
+  const incomeTotal = incomes.reduce((acc, i) => acc + incomeOf(i), 0);
+  const updateIncome = (idx: number, changes: Partial<IncomeRow>) =>
+    setIncomes((prev) => prev.map((r, i) => (i === idx ? { ...r, ...changes } : r)));
+  const incomeAnswer = () => {
+    const parts = incomes
+      .filter((i) => i.split && incomeOf(i) > 0)
+      .map((i) => `${i.name.trim() || 'renda'} em duas partes: ${formatBRL(i.advanceAmount || 0)} no dia ${i.advanceDay ?? 20} e ${formatBRL(i.amount)} no dia ${i.day}`);
+    return `${formatBRL(incomeTotal)} por mês${parts.length ? ` (${parts.join('; ')})` : ''}`;
+  };
   const billsTotal = bills.reduce((acc, b) => acc + (b.amount || 0), 0);
   const cardsTotal = usesCard ? cardsInfo.reduce((acc, c) => acc + (c.amount || 0), 0) : 0;
   const monthlyLeft = Math.round((incomeTotal - billsTotal - cardsTotal) * 100) / 100;
@@ -173,23 +191,34 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onFinished }) => {
       // 3. Renda: recebimentos mensais pelos próximos 12 meses
       const incomeMovements: Omit<Movement, 'id'>[] = [];
       incomes
-        .filter((i) => i.amount > 0)
+        .filter((i) => incomeOf(i) > 0)
         .forEach((income, idx) => {
-          const groupId = `rec_${stamp}_${idx}`;
-          const isSalary = idx === 0 && income.name === 'Salário';
-          for (let n = 0; n < 12; n++) {
-            incomeMovements.push({
-              title: income.name.trim() || 'Renda',
-              type: 'RECEBER',
-              amount: income.amount,
-              dueDate: nextDateForDay(income.day, today, n),
-              bank: mainBank,
-              status: 'PREVISTA',
-              category: isSalary ? 'Salário' : 'Receita',
-              notes: `Repetição mensal ${n + 1}/12`,
-              installmentGroupId: groupId,
+          const name = income.name.trim() || 'Renda';
+          const isSalary = /sal[aá]rio/i.test(name);
+          // Em duas partes: adiantamento (q1) e restante (q2), como no detalhamento do salário
+          const parts = income.split
+            ? [
+                { title: `${name} (adiantamento)`, amount: income.advanceAmount || 0, day: income.advanceDay || 20, group: `rec_${stamp}_${idx}_q1` },
+                { title: `${name} (2ª parte)`, amount: income.amount, day: income.day, group: `rec_${stamp}_${idx}_q2` },
+              ]
+            : [{ title: name, amount: income.amount, day: income.day, group: `rec_${stamp}_${idx}` }];
+          parts
+            .filter((part) => part.amount > 0)
+            .forEach((part) => {
+              for (let n = 0; n < 12; n++) {
+                incomeMovements.push({
+                  title: part.title,
+                  type: 'RECEBER',
+                  amount: part.amount,
+                  dueDate: nextDateForDay(part.day, today, n),
+                  bank: mainBank,
+                  status: 'PREVISTA',
+                  category: isSalary ? 'Salário' : 'Receita',
+                  notes: `Repetição mensal ${n + 1}/12`,
+                  installmentGroupId: part.group,
+                });
+              }
             });
-          }
         });
       if (incomeMovements.length > 0) addMultipleMovements(incomeMovements);
 
@@ -250,7 +279,7 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onFinished }) => {
           bank: name,
           brand: 'MASTERCARD',
           limitTotal: Math.max(1000, Math.round(card.amount * 2)),
-          closingDay: Math.max(1, dueDay - 7),
+          closingDay: clampDay(card.closingDay ?? defaultClosingDay(dueDay)),
           dueDay,
           color: getBankBranding(name).primaryColor,
         });
@@ -423,38 +452,87 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onFinished }) => {
       case 'INCOME':
         return (
           <>
-            <p className="guided-hint">Salário e outras rendas que se repetem todo mês.</p>
+            <p className="guided-hint">Salário e outras rendas que se repetem todo mês. Se vem em duas partes (adiantamento e restante), me diga cada uma.</p>
             {incomes.map((income, idx) => (
-              <div key={idx} className="guided-row">
-                <input
-                  className="form-input form-input-sm"
-                  value={income.name}
-                  onChange={(e) => setIncomes((prev) => prev.map((r, i) => (i === idx ? { ...r, name: e.target.value } : r)))}
-                  aria-label="Nome da renda"
-                />
-                <DecimalInput
-                  className="form-input form-input-sm"
-                  money
-                  value={income.amount}
-                  emptyWhenZero
-                  onValueChange={(v) => setIncomes((prev) => prev.map((r, i) => (i === idx ? { ...r, amount: v } : r)))}
-                  aria-label="Valor mensal"
-                  placeholder="Valor"
-                />
-                <label className="guided-day">
-                  <span>dia</span>
-                  <NumberInput
-                    min={1}
-                    max={31}
+              <div key={idx} className="guided-income">
+                <div className="guided-row">
+                  <input
                     className="form-input form-input-sm"
-                    value={income.day}
-                    onValueChange={(day) => setIncomes((prev) => prev.map((r, i) => (i === idx ? { ...r, day } : r)))}
+                    value={income.name}
+                    onChange={(e) => updateIncome(idx, { name: e.target.value })}
+                    aria-label="Nome da renda"
+                    placeholder="Renda (ex.: Pensão)"
                   />
-                </label>
-                {idx > 0 && (
-                  <button type="button" className="guided-icon-btn" aria-label="Remover" onClick={() => setIncomes((prev) => prev.filter((_, i) => i !== idx))}>
-                    <Trash2 size={14} />
+                  {!income.split && (
+                    <>
+                      <DecimalInput
+                        className="form-input form-input-sm"
+                        money
+                        value={income.amount}
+                        emptyWhenZero
+                        onValueChange={(v) => updateIncome(idx, { amount: v })}
+                        aria-label="Valor mensal"
+                        placeholder="Valor"
+                      />
+                      <label className="guided-day">
+                        <span>dia</span>
+                        <NumberInput min={1} max={31} className="form-input form-input-sm" value={income.day} onValueChange={(day) => updateIncome(idx, { day })} />
+                      </label>
+                    </>
+                  )}
+                  {idx > 0 && (
+                    <button type="button" className="guided-icon-btn" aria-label="Remover" onClick={() => setIncomes((prev) => prev.filter((_, i) => i !== idx))}>
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+                <div className="guided-chips">
+                  <button type="button" className={`guided-chip ${!income.split ? 'is-active' : ''}`} onClick={() => updateIncome(idx, { split: false })}>
+                    {!income.split && <Check size={12} />} Tudo de uma vez
                   </button>
+                  <button
+                    type="button"
+                    className={`guided-chip ${income.split ? 'is-active' : ''}`}
+                    onClick={() => updateIncome(idx, { split: true, advanceDay: income.advanceDay ?? 20 })}
+                  >
+                    {income.split && <Check size={12} />} Em duas partes
+                  </button>
+                </div>
+                {income.split && (
+                  <>
+                    <div className="guided-row guided-subrow">
+                      <span className="guided-row-name">Adiantamento</span>
+                      <DecimalInput
+                        className="form-input form-input-sm"
+                        money
+                        value={income.advanceAmount || 0}
+                        emptyWhenZero
+                        onValueChange={(v) => updateIncome(idx, { advanceAmount: v })}
+                        aria-label="Valor do adiantamento"
+                        placeholder="Valor"
+                      />
+                      <label className="guided-day">
+                        <span>dia</span>
+                        <NumberInput min={1} max={31} className="form-input form-input-sm" value={income.advanceDay ?? 20} onValueChange={(advanceDay) => updateIncome(idx, { advanceDay })} />
+                      </label>
+                    </div>
+                    <div className="guided-row guided-subrow">
+                      <span className="guided-row-name">Restante</span>
+                      <DecimalInput
+                        className="form-input form-input-sm"
+                        money
+                        value={income.amount}
+                        emptyWhenZero
+                        onValueChange={(v) => updateIncome(idx, { amount: v })}
+                        aria-label="Valor do restante"
+                        placeholder="Valor"
+                      />
+                      <label className="guided-day">
+                        <span>dia</span>
+                        <NumberInput min={1} max={31} className="form-input form-input-sm" value={income.day} onValueChange={(day) => updateIncome(idx, { day })} />
+                      </label>
+                    </div>
+                  </>
                 )}
               </div>
             ))}
@@ -465,7 +543,7 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onFinished }) => {
               <button type="button" className="btn btn-outline btn-sm" onClick={() => { setIncomes([{ name: 'Salário', amount: 0, day: 5 }]); advance('Não tenho renda fixa'); }}>
                 Não tenho renda fixa
               </button>
-              <button type="button" className="btn btn-primary btn-sm" disabled={incomeTotal <= 0} onClick={() => advance(`${formatBRL(incomeTotal)} por mês`)}>
+              <button type="button" className="btn btn-primary btn-sm" disabled={incomeTotal <= 0} onClick={() => advance(incomeAnswer())}>
                 Continuar
               </button>
             </div>
@@ -536,9 +614,12 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onFinished }) => {
             )}
             {usesCard && (
               <>
-                <p className="guided-hint">Informe o valor da próxima fatura. As compras novas você me conta depois.</p>
+                <p className="guided-hint">
+                  Informe o valor da próxima fatura, o dia em que ela vence e o dia em que fecha (compras depois do fechamento vão para a fatura
+                  seguinte). As compras novas você me conta depois.
+                </p>
                 {cardsInfo.map((card, idx) => (
-                  <div key={idx} className="guided-row">
+                  <div key={idx} className="guided-row guided-card-row">
                     <input
                       className="form-input form-input-sm"
                       list="guided-card-banks"
@@ -564,6 +645,16 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onFinished }) => {
                         className="form-input form-input-sm"
                         value={card.dueDay}
                         onValueChange={(dueDay) => setCardsInfo((prev) => prev.map((c, i) => (i === idx ? { ...c, dueDay } : c)))}
+                      />
+                    </label>
+                    <label className="guided-day">
+                      <span>fecha dia</span>
+                      <NumberInput
+                        min={1}
+                        max={31}
+                        className="form-input form-input-sm"
+                        value={card.closingDay ?? defaultClosingDay(card.dueDay)}
+                        onValueChange={(closingDay) => setCardsInfo((prev) => prev.map((c, i) => (i === idx ? { ...c, closingDay } : c)))}
                       />
                     </label>
                     {idx > 0 && (
