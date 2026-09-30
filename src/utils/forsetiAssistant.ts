@@ -1,4 +1,4 @@
-import type { BankAccount, CopilotInteractiveOption, CreditCardItem, Goal, MonthlyGridProjectionRow, Movement } from '../types';
+import type { BankAccount, CopilotInteractiveOption, CopilotPendingConfirmation, CreditCardItem, Goal, MonthlyGridProjectionRow, Movement } from '../types';
 import type { ForecastEntry, ForecastPeriod, ForecastWindow } from './forecastWindow';
 import { CASH_IN_HAND } from './cashInHand';
 
@@ -31,7 +31,7 @@ export const DOUBT_CHIPS = [
 /** Registro guiado em andamento: a próxima mensagem responde à pergunta do passo atual. */
 export interface ForsetiFlow {
   kind: 'RECEBER' | 'PAGAR';
-  step: 'VALOR' | 'DATA' | 'CATEGORIA' | 'DESCRICAO';
+  step: 'VALOR' | 'DATA' | 'CATEGORIA' | 'DESCRICAO' | 'CARTAO_NOME' | 'CARTAO_VENCIMENTO' | 'CARTAO_FECHAMENTO';
   title?: string;
   amount?: number;
   date?: string;
@@ -41,6 +41,9 @@ export interface ForsetiFlow {
   installments?: number;
   /** Frase original: guarda a forma de pagamento citada ("no cartão Inter") para o último passo. */
   hint?: string;
+  /** Cartão sendo cadastrado na conversa (citado e não encontrado) e a compra que vai para ele. */
+  newCard?: { name: string; dueDay?: number };
+  purchase?: CopilotPendingConfirmation['pendingData'];
 }
 
 const GENERIC_TITLES = ['conta', 'algo', 'coisa', 'pagamento', 'valor', 'gasto', 'dinheiro', 'recebimento'];
@@ -330,6 +333,41 @@ const nameWords = (name: string) =>
     .split(/[^a-z0-9]+/)
     .filter((w) => w.length >= 3 && !GENERIC_NAME_WORDS.has(w));
 
+/** Palavras que podem vir logo depois de "cartão" sem ser o nome dele. */
+const CARD_NAME_SKIP = new Set(['de', 'do', 'da', 'credito']);
+const CARD_NAME_STOP = new Set([
+  'no', 'na', 'em', 'e', 'com', 'o', 'a', 'um', 'uma', 'meu', 'minha', 'valor', 'pra', 'para', 'por', 'pelo', 'pela',
+  'parcelado', 'parcelada', 'dividido', 'dividida', 'sem', 'juros', 'que', 'vezes', 'x', 'hoje', 'ontem', 'mesmo', 'debito',
+]);
+const capitalize = (w: string) => (w.length <= 3 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1));
+
+/**
+ * Cartão citado na frase: um banco conhecido ("cartão de crédito Inter") ou o nome logo depois de
+ * "cartão" ("cartão da Renner", "cartão Principal"). Nulo quando só se disse "no cartão".
+ */
+export function mentionedCard(text: string): { label: string; re: RegExp } | null {
+  const t = stripAccents(text);
+  const after = t.match(/\b(?:cartao|credito)\b(.*)$/);
+  if (after) {
+    const words = after[1].split(/[^a-z0-9]+/).filter(Boolean);
+    for (let i = 0; i < words.length; i++) {
+      const w = words[i];
+      if (CARD_NAME_SKIP.has(w)) continue;
+      if (CARD_NAME_STOP.has(w) || /^\d/.test(w)) break;
+      // Banco conhecido começando aqui ("mercado pago", "banco do brasil")
+      const known = BANK_MENTIONS.find((b) => words.slice(i).join(' ').search(b.re) === 0);
+      if (known) return known;
+      if (w.length >= 2) return { label: capitalize(w), re: new RegExp(`\\b${w}\\b`) };
+      break;
+    }
+  }
+  const bank = BANK_MENTIONS.find((b) => b.re.test(t));
+  return bank && /\b(cartao|credito)\b/.test(t) ? bank : null;
+}
+
+export const OPTION_REGISTER_CARD = 'REGISTER_CARD';
+export const NEW_CARD_DUE_CHIPS = ['Dia 5', 'Dia 10', 'Dia 15', 'Dia 20', 'Dia 25'];
+
 export interface PaymentPick {
   question: string;
   /** Frase sobre a forma de pagamento reconhecida (vazia quando nada foi citado). */
@@ -338,9 +376,9 @@ export interface PaymentPick {
 }
 
 /**
- * Forma de pagamento citada na frase ("no cartão de crédito Inter", "no Pix do Nubank", "em dinheiro"):
- * mostra só as opções que batem com o que foi dito (mais "Outra forma de pagamento") e avisa quando o
- * cartão citado não está cadastrado.
+ * Forma de pagamento citada na frase ("no cartão de crédito Inter", "no Pix do Nubank", "em dinheiro").
+ * Cartão citado: confere se está cadastrado. Se está, mostra só ele para confirmar; se não, avisa e
+ * oferece cadastrar na hora (ou escolher outro). Sempre há "Outra forma de pagamento".
  */
 export function pickPaymentOptions(
   text: string,
@@ -360,32 +398,69 @@ export function pickPaymentOptions(
   const cardOpts = all.filter((o) => o.payload.type === 'CARTAO');
   const cashOpt = all.find((o) => o.payload.bank === CASH_IN_HAND);
   const accountOpts = all.filter((o) => o.payload.type === 'PAGAR' && o !== cashOpt);
+  const cardOf = (o: CopilotInteractiveOption) => cards.find((x) => `opt_pay_card_${x.id}` === o.id);
   const cardText = (o: CopilotInteractiveOption) => {
-    const c = cards.find((x) => `opt_pay_card_${x.id}` === o.id);
+    const c = cardOf(o);
     return c ? `${c.name} ${c.bank}` : o.label;
   };
   const accountText = (o: CopilotInteractiveOption) => {
     const a = accounts.find((x) => `opt_pay_${x.id}` === o.id);
     return a ? `${a.name} ${a.bankName || ''}` : o.label;
   };
+  const other: CopilotInteractiveOption = {
+    id: 'opt_pay_other',
+    label: 'Outra forma de pagamento',
+    icon: '↔️',
+    description: 'Ver todas as contas e cartões',
+    payload: { action: OPTION_OTHER_PAYMENT },
+  };
+  const register = (name?: string): CopilotInteractiveOption => ({
+    id: 'opt_card_new',
+    label: name ? `Cadastrar o cartão ${name}` : 'Cadastrar um cartão',
+    icon: '➕',
+    badge: 'Novo cartão',
+    description: 'Pergunto o vencimento e o fechamento e já lanço a compra nele',
+    payload: { action: OPTION_REGISTER_CARD, cardName: name || '' },
+  });
 
   const saysCash = /\b(dinheiro|especie|em maos|cash)\b/.test(t);
   const saysDebit = /\b(pix|debito|transferencia|ted)\b/.test(t);
   const saysCard = !saysDebit && /\b(cartao|credito)\b/.test(t);
   const parcelado = !!plan && plan.count >= 2;
 
+  if (saysCard) {
+    const named = mentionedCard(text);
+    if (named) {
+      const matched = cardOpts.filter((o) => named.re.test(stripAccents(cardText(o))));
+      if (matched.length === 1) {
+        const c = cardOf(matched[0]);
+        return {
+          question: 'Confirma a forma de pagamento?',
+          note: `Encontrei o seu cartão **${matched[0].label}** cadastrado${c ? ` (fecha dia ${c.closingDay}, vence dia ${c.dueDay})` : ''}.`,
+          options: [...matched, other],
+        };
+      }
+      if (matched.length > 1) {
+        return { question: 'Em qual deles foi?', note: `Você tem ${matched.length} cartões **${named.label}** cadastrados.`, options: [...matched, other] };
+      }
+      return {
+        question: cardOpts.length > 0 ? `Quer cadastrar o ${named.label} agora ou foi em outro cartão?` : `Quer cadastrar o ${named.label} agora?`,
+        note: `O cartão **${named.label}** ainda não está cadastrado.`,
+        options: [register(named.label), ...cardOpts, other],
+      };
+    }
+    if (cardOpts.length === 0) {
+      return { question: 'Quer cadastrar o cartão agora?', note: 'Você ainda não tem cartão de crédito cadastrado.', options: [register(), other] };
+    }
+    if (cardOpts.length === 1) {
+      return { question: 'Confirma a forma de pagamento?', note: `No seu cartão **${cardOpts[0].label}**.`, options: [...cardOpts, register(), other] };
+    }
+    return { question: 'Em qual cartão foi?', note: '', options: [...cardOpts, register(), other] };
+  }
+
   let shortlist: CopilotInteractiveOption[] = [];
-  let note = '';
   if (saysCash && cashOpt) {
     shortlist = [cashOpt];
-  } else if (saysCard) {
-    const matched = cardOpts.filter((o) => mentions(cardText(o)));
-    if (matched.length > 0) shortlist = matched;
-    else if (cardOpts.length === 0) note = 'Você ainda não tem cartão de crédito cadastrado. Dá para cadastrar em **Cartões**; por enquanto, escolha outra forma.';
-    else if (bank) {
-      shortlist = cardOpts;
-      note = `Não encontrei um cartão **${bank.label}** cadastrado. Foi em qual destes?`;
-    } else shortlist = cardOpts;
   } else if (saysDebit) {
     const matched = accountOpts.filter((o) => mentions(accountText(o)));
     shortlist = matched.length > 0 ? matched : accountOpts;
@@ -396,23 +471,17 @@ export function pickPaymentOptions(
     shortlist = parcelado && matchedCards.length > 0 ? matchedCards : [...matchedCards, ...matchedAccounts];
   } else if (parcelado && cardOpts.length > 0) {
     // Parcelado sem dizer como: os cartões vêm primeiro
-    return { question: 'Em qual cartão foi?', note, options: [...cardOpts, ...all.filter((o) => !cardOpts.includes(o))] };
+    return { question: 'Em qual cartão foi?', note: '', options: [...cardOpts, ...all.filter((o) => !cardOpts.includes(o))] };
   }
 
-  if (shortlist.length === 1 && !note) {
-    const only = shortlist[0];
-    note = `${only.payload.type === 'CARTAO' ? 'No cartão' : 'Com'} **${only.label}**.`;
-  }
+  const note = shortlist.length === 1 ? `${shortlist[0].payload.type === 'CARTAO' ? 'No cartão' : 'Com'} **${shortlist[0].label}**.` : '';
   if (shortlist.length === 0 || shortlist.length === all.length) {
     return { question: 'Como você pagou?', note, options: all };
   }
   return {
-    question: shortlist.length === 1 ? 'Confirma a forma de pagamento?' : saysCard ? 'Em qual cartão foi?' : 'Como você pagou?',
+    question: shortlist.length === 1 ? 'Confirma a forma de pagamento?' : 'Como você pagou?',
     note,
-    options: [
-      ...shortlist,
-      { id: 'opt_pay_other', label: 'Outra forma de pagamento', icon: '↔️', description: 'Ver todas as contas e cartões', payload: { action: OPTION_OTHER_PAYMENT } },
-    ],
+    options: [...shortlist, other],
   };
 }
 

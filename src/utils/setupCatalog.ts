@@ -12,6 +12,9 @@ export const isoOf = (d: Date) =>
 export const brDate = (iso: string) => iso.split('-').reverse().join('/');
 export const clampDay = (n: number, max = 31) => Math.min(max, Math.max(1, Math.round(n) || 1));
 
+/** A fatura costuma fechar uma semana antes do vencimento. */
+export const defaultClosingDay = (dueDay: number) => (dueDay - 7 >= 1 ? dueDay - 7 : dueDay - 7 + 30);
+
 /** Próxima data com o dia informado a partir de hoje (este mês, se ainda não passou). */
 export function nextDateForDay(day: number, today: Date, monthOffset = 0): string {
   const base = today.getDate() > day ? 1 : 0;

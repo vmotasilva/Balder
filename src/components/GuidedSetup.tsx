@@ -5,7 +5,7 @@ import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { SupabaseService } from '../services/supabaseService';
 import { POPULAR_BANKS, getBankBranding } from '../utils/bankBranding';
-import { BILL_GROUPS, COMMON_BILLS, clampDay, formatBRL, isoOf, nextDateForDay } from '../utils/setupCatalog';
+import { BILL_GROUPS, COMMON_BILLS, clampDay, defaultClosingDay, formatBRL, isoOf, nextDateForDay } from '../utils/setupCatalog';
 import { Bubble, ForsetiTopicSetup } from './ForsetiTopicSetup';
 import type { TrackingPeriod } from '../utils/periodSpending';
 import type { ExpenseNature, FixedExpenseMapping, MappingItem, Movement } from '../types';
@@ -38,8 +38,6 @@ interface CardRow {
   amount: number;
 }
 
-/** A fatura costuma fechar uma semana antes do vencimento. */
-const defaultClosingDay = (dueDay: number) => (dueDay - 7 >= 1 ? dueDay - 7 : dueDay - 7 + 30);
 const incomeOf = (i: IncomeRow) => (i.amount || 0) + (i.split ? i.advanceAmount || 0 : 0);
 
 /** Criadas sempre: onde a Forseti classifica os gastos do dia a dia. */

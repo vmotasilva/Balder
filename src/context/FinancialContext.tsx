@@ -81,6 +81,8 @@ import {
   DEMO_BANKS,
 } from '../utils/demoData';
 import { deduplicateCards, getCardIdentityKey } from '../utils/cardUtils';
+import { getBankBranding } from '../utils/bankBranding';
+import { defaultClosingDay } from '../utils/setupCatalog';
 import { isExcludedState, mappingItemBaseValue, resolveMappingItemState } from '../utils/mappingItemState';
 import { buildForecastWindow, FORECAST_PERIODS, type ForecastPeriod, type ForecastWindow } from '../utils/forecastWindow';
 import { buildMonthlyProjectionGrid, movementCompetenceDate } from '../utils/projectionMath';
@@ -107,7 +109,10 @@ import {
   installmentSchedule,
   paymentOptions,
   pickPaymentOptions,
+  mentionedCard,
+  NEW_CARD_DUE_CHIPS,
   OPTION_OTHER_PAYMENT,
+  OPTION_REGISTER_CARD,
   receiveAccountOptions,
   type ForsetiData,
   type ForsetiFlow,
@@ -3561,10 +3566,94 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return;
       }
       if (flow) {
+        // No cadastro do cartão, "vence dia 10" é resposta, não a dúvida "o que vence"
+        const cardStep = flow.step.startsWith('CARTAO_');
         const changedSubject =
-          MAIN_CHIPS.includes(trimmed) || !!registrationKind(trimmed) || (!!detectDoubt(trimmed) && parseAmount(trimmed) === null);
+          MAIN_CHIPS.includes(trimmed) ||
+          !!registrationKind(trimmed) ||
+          (!cardStep && !!detectDoubt(trimmed) && parseAmount(trimmed) === null);
         if (changedSubject) {
           forsetiFlowRef.current = null;
+        } else if (flow.step === 'CARTAO_NOME' || flow.step === 'CARTAO_VENCIMENTO' || flow.step === 'CARTAO_FECHAMENTO') {
+          const newCard = flow.newCard || { name: '' };
+          if (flow.step === 'CARTAO_NOME') {
+            const name =
+              mentionedCard(`cartão ${trimmed}`)?.label ||
+              trimmed.replace(/^(?:(?:o|a|meu|minha)\s+)?(?:cart[aã]o\s+)?(?:de\s+cr[eé]dito\s+)?(?:d[oa]\s+)?/i, '').trim();
+            if (!name) {
+              reply({ text: 'Qual é o nome ou o banco do cartão? (ex.: *Itaú*, *Renner*)', badge: 'NOVO CARTÃO', chips: [] });
+              return;
+            }
+            forsetiFlowRef.current = { ...flow, step: 'CARTAO_VENCIMENTO', newCard: { name } };
+            reply({ text: `Cartão **${name}**. **Em que dia vence a fatura?**`, badge: 'NOVO CARTÃO', chips: NEW_CARD_DUE_CHIPS });
+            return;
+          }
+          const dayMatch = trimmed.match(/\b(\d{1,2})\b/);
+          const day = dayMatch ? Number(dayMatch[1]) : 0;
+          const validDay = day >= 1 && day <= 31;
+          if (flow.step === 'CARTAO_VENCIMENTO') {
+            if (!validDay) {
+              reply({ text: 'Não entendi o dia. Escreva só o número do vencimento, por exemplo **10**.', badge: 'NOVO CARTÃO', chips: NEW_CARD_DUE_CHIPS });
+              return;
+            }
+            const suggested = defaultClosingDay(day);
+            forsetiFlowRef.current = { ...flow, step: 'CARTAO_FECHAMENTO', newCard: { ...newCard, dueDay: day } };
+            reply({
+              text: `Vence dia **${day}**. **E em que dia a fatura fecha?** Compras depois do fechamento vão para a fatura seguinte.\n\nSe não souber, costuma ser uma semana antes: **dia ${suggested}**.`,
+              badge: 'NOVO CARTÃO',
+              chips: [`Dia ${suggested}`, 'Não sei'],
+            });
+            return;
+          }
+          const dueDay = newCard.dueDay || 10;
+          const unknown = /n[aã]o sei|semana antes/i.test(trimmed);
+          if (!unknown && !validDay) {
+            reply({ text: 'Não entendi o dia. Escreva só o número do fechamento, por exemplo **3** (ou *não sei*).', badge: 'NOVO CARTÃO', chips: [`Dia ${defaultClosingDay(dueDay)}`, 'Não sei'] });
+            return;
+          }
+          const closingDay = unknown ? defaultClosingDay(dueDay) : day;
+          forsetiFlowRef.current = null;
+          const purchase = flow.purchase;
+          const cardData: Omit<CreditCardItem, 'id'> = {
+            name: newCard.name,
+            bank: newCard.name,
+            brand: 'OUTRA',
+            // Limite ainda desconhecido: pelo menos o valor da compra (ajustável em Cartões)
+            limitTotal: Math.max(1000, Math.ceil(purchase?.amount || 0)),
+            closingDay,
+            dueDay,
+            color: getBankBranding(newCard.name).primaryColor,
+          };
+          addCard(cardData);
+          const saved = `✓ Cartão **${newCard.name}** cadastrado: fecha dia **${closingDay}** e vence dia **${dueDay}**. O limite você ajusta em **Cartões**.`;
+          if (!purchase) {
+            reply({ text: saved, badge: 'CARTÃO CADASTRADO', chips: MAIN_CHIPS });
+            return;
+          }
+          const plan = purchase.installments && purchase.installments >= 2 ? { count: purchase.installments, total: purchase.amount } : undefined;
+          const cardOption = paymentOptions([], [{ ...cardData, id: `novo_${Date.now()}` }], purchase.category || 'Outros', plan).filter(
+            (o) => o.payload.type === 'CARTAO'
+          );
+          const parcelas = plan ? ` em **${plan.count}x de ${brl(Math.round((plan.total / plan.count) * 100) / 100)}**` : '';
+          reply(
+            {
+              text: `${saved}\n\nAgora a compra: **${brl(purchase.amount)}** em **${purchase.rawTitle}**${parcelas}.\n\n**Confirma neste cartão?**`,
+              badge: 'CARTÃO CADASTRADO',
+              chips: [],
+            },
+            {
+              pendingConfirmation: {
+                step: 'PAYMENT_METHOD',
+                pendingData: purchase,
+                question: 'Confirma a compra neste cartão?',
+                options: [
+                  ...cardOption,
+                  { id: 'opt_pay_other', label: 'Outra forma de pagamento', icon: '↔️', description: 'Ver todas as contas e cartões', payload: { action: OPTION_OTHER_PAYMENT } },
+                ],
+              },
+            }
+          );
+          return;
         } else if (flow.step === 'VALOR') {
           const purchase = flow.kind === 'PAGAR' ? readPurchase(trimmed) : null;
           const amount = purchase ? purchase.amount : parseAmount(trimmed);
@@ -3720,6 +3809,38 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       setChatHistory((prev) =>
         prev.map((m) => (m.id === messageId ? { ...m, pendingConfirmation: undefined } : m)).concat(userAdjustMsg, assistantAdjustReply)
+      );
+      return;
+    }
+
+    // Cartão citado não está cadastrado: cadastra na conversa (nome → vencimento → fechamento)
+    if (option.payload.action === OPTION_REGISTER_CARD) {
+      if (forsetiBlockedInShared('cadastro cartões', option.label)) return;
+      const name: string = option.payload.cardName || '';
+      forsetiFlowRef.current = { kind: 'PAGAR', step: name ? 'CARTAO_VENCIMENTO' : 'CARTAO_NOME', newCard: { name }, purchase: pending };
+      setChatHistory((prev) =>
+        prev
+          .map((m) => (m.id === messageId ? { ...m, pendingConfirmation: undefined } : m))
+          .concat(
+            { id: `usr_${Date.now()}`, role: 'user', content: option.label, timestamp: 'Agora' },
+            name
+              ? {
+                  id: `ast_${Date.now()}`,
+                  role: 'assistant',
+                  content: `Vamos cadastrar o cartão **${name}**. **Em que dia vence a fatura?**\n\nEscolha ou escreva o dia (ex.: *dia 12*).`,
+                  timestamp: 'Agora',
+                  actionBadge: 'NOVO CARTÃO',
+                  suggestedFollowUps: NEW_CARD_DUE_CHIPS,
+                }
+              : {
+                  id: `ast_${Date.now()}`,
+                  role: 'assistant',
+                  content: 'Vamos cadastrar. **Qual é o cartão?** Escreva o banco ou o nome dele (ex.: *Itaú*, *Renner*).',
+                  timestamp: 'Agora',
+                  actionBadge: 'NOVO CARTÃO',
+                  suggestedFollowUps: [],
+                }
+          )
       );
       return;
     }
