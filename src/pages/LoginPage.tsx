@@ -1,11 +1,23 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Shield, Smartphone, Download } from 'lucide-react';
 import { AndroidDownloadModal } from '../components/AndroidDownloadModal';
+import { IosInstallModal, isIOS, isStandalone } from '../components/IosInstallModal';
 
 export const LoginPage: React.FC = () => {
   const { loginWithGoogle } = useAuth();
   const [showAndroidModal, setShowAndroidModal] = useState(false);
+  // Link direto para as instruções do iPhone: balder-one.vercel.app/#iphone
+  const [showIosModal, setShowIosModal] = useState(() => typeof window !== 'undefined' && window.location.hash === '#iphone');
+  useEffect(() => {
+    const onHash = () => {
+      if (window.location.hash === '#iphone') setShowIosModal(true);
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  const onIOS = isIOS();
+  const installed = isStandalone();
 
   return (
     <div className="login-screen-wrapper">
@@ -95,7 +107,28 @@ export const LoginPage: React.FC = () => {
           </button>
         </div>
 
-        {/* Android App Download Banner */}
+        {/* Instalar como app: no iPhone pela Tela de Início; nos demais, o APK do Android */}
+        {!installed && onIOS && (
+          <div className="login-android-download-wrapper">
+            <button
+              type="button"
+              className="login-android-download-btn cursor-pointer"
+              onClick={() => setShowIosModal(true)}
+              title="Instalar o Balder no iPhone pela Tela de Início"
+            >
+              <div className="login-android-icon-box">
+                <Smartphone size={20} className="text-emerald" />
+              </div>
+              <div className="login-android-btn-text">
+                <span className="login-android-btn-title">Instalar no iPhone</span>
+                <span className="login-android-btn-sub">Adicionar à Tela de Início</span>
+              </div>
+              <Download size={16} className="login-android-download-arrow" />
+            </button>
+          </div>
+        )}
+
+        {!installed && !onIOS && (
         <div className="login-android-download-wrapper">
           <button
             type="button"
@@ -112,7 +145,19 @@ export const LoginPage: React.FC = () => {
             </div>
             <Download size={16} className="login-android-download-arrow" />
           </button>
+          <button type="button" className="login-ios-link" onClick={() => setShowIosModal(true)}>
+            Tem iPhone? Veja como instalar
+          </button>
         </div>
+        )}
+
+        <IosInstallModal
+          isOpen={showIosModal}
+          onClose={() => {
+            setShowIosModal(false);
+            if (window.location.hash === '#iphone') history.replaceState(null, '', window.location.pathname);
+          }}
+        />
 
         {/* Modal de Download Android */}
         <AndroidDownloadModal

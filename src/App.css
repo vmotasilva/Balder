@@ -7,6 +7,7 @@
   display: flex;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   background-color: var(--bg-space);
   overflow: hidden;
 }
@@ -17,6 +18,7 @@
   flex-direction: column;
   width: var(--sidebar-width);
   height: 100vh;
+  height: 100dvh;
   background: var(--bg-sidebar);
   border-right: 1px solid var(--border-default);
   transition: width var(--transition-normal);
@@ -298,6 +300,7 @@
   flex-direction: column;
   flex: 1;
   height: 100vh;
+  height: 100dvh;
   min-width: 0;
   overflow: hidden;
 }
@@ -594,6 +597,7 @@
   border: 1px solid var(--border-default);
   border-radius: 14px;
   backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
 
@@ -1917,6 +1921,7 @@
   z-index: 1200;
   background: rgba(15, 23, 42, 0.65);
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2221,6 +2226,7 @@
   inset: 0;
   background: rgba(11, 19, 36, 0.88);
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   z-index: 50;
   display: flex;
   flex-direction: column;
@@ -2504,6 +2510,7 @@
   width: 290px;
   background: rgba(15, 23, 42, 0.96);
   backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 14px;
   padding: 10px;
@@ -3785,6 +3792,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   overflow-y: auto;
   flex: 1;
   max-height: calc(100vh - 140px);
+  max-height: calc(100dvh - 140px);
   scrollbar-width: thin;
   scrollbar-color: rgba(56, 189, 248, 0.4) rgba(15, 23, 42, 0.7);
 }
@@ -8770,6 +8778,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   inset: 0;
   background: rgba(0, 0, 0, 0.65);
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -10051,6 +10060,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 [data-theme="light"] .modal-backdrop {
   background: rgba(15, 23, 42, 0.4);
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 [data-theme="light"] .modal-container {
@@ -13045,6 +13055,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   inset: 0;
   background: rgba(11, 19, 43, 0.82);
   backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -13310,6 +13321,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
+  min-height: 100dvh;
   width: 100vw;
   background-color: #030712;
   position: relative;
@@ -13589,6 +13601,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   align-items: center;
   justify-content: center;
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
   background-color: #030712;
   color: #f59e0b;
@@ -14058,7 +14071,9 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 
 .guide-steps-list {
   margin: 0;
-  padding-left: 18px;
+  padding-left: 0;
+  /* O número já vem no texto de cada passo */
+  list-style: none;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -16573,6 +16588,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   inset: 0;
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
   background: rgba(3, 7, 18, 0.82);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -22257,4 +22273,22 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   font-size: 10px;
   font-weight: 500;
   color: var(--text-muted);
+}
+
+/* Login: link para as instruções de instalação no iPhone */
+.login-ios-link {
+  display: block;
+  margin: 10px auto 0;
+  background: none;
+  border: 0;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.ios-inline-icon {
+  display: inline-block;
+  vertical-align: -2px;
+  margin: 0 2px;
 }

@@ -755,3 +755,20 @@ button {
 
 
 
+
+/* ==============================================================
+   iPhone / Safari (vale também para o Chrome do iPhone, que usa o mesmo motor)
+   ============================================================== */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* O iOS dá zoom na página ao tocar em campos com fonte menor que 16px (e não volta sozinho) */
+@supports (-webkit-touch-callout: none) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
