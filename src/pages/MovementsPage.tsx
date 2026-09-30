@@ -30,6 +30,7 @@ import { LoanPrepaymentModal } from '../components/LoanPrepaymentModal';
 import { MovementDetailModal } from '../components/MovementDetailModal';
 import { ImmediateActionsModal } from '../components/ImmediateActionsModal';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
+import { RealizationConfirmModal, realizedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
 import { getPendingFixedBills, type PendingFixedBill } from '../utils/fixedBillsAlert';
 
 interface MovementsPageProps {
@@ -76,6 +77,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
     natures,
     addMovement,
     deleteMovement,
+    updateMovement,
     toggleMovementStatus,
     toggleItemFulfilled,
     exportToCSV,
@@ -84,6 +86,8 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
 
   // Confirm Dialog
   const { confirm: confirmAction, dialogProps: confirmDialogProps } = useConfirmDialog();
+  // Pop-up que confere valor e data antes de dar baixa num pagamento ou recebimento
+  const [realization, setRealization] = useState<RealizationTarget | null>(null);
 
   const [includePreCheckpoint, setIncludePreCheckpoint] = useState(false);
 
@@ -99,13 +103,16 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
     return pendingFixedBills.filter((b) => !dismissedBills[`${b.natureId}_${b.mappingId}`]);
   }, [pendingFixedBills, dismissedBills]);
 
-  // Ação rápida: Confirmar pagamento de conta fixa com 1 clique
-  const handleConfirmBillDirectly = (bill: PendingFixedBill) => {
+  // Ação rápida: Confirmar pagamento de conta fixa (valor e data conferidos no pop-up)
+  const handleConfirmBillDirectly = (bill: PendingFixedBill, amount: number, paidAt: string) => {
     addMovement({
       title: `${bill.mappingName} (${bill.natureName})`,
       type: 'PAGAR',
-      amount: bill.totalAmount,
+      amount,
+      actualAmount: amount,
+      ...(Math.abs(amount - bill.totalAmount) >= 0.005 ? { originalAmount: bill.totalAmount } : {}),
       dueDate: bill.dueDate,
+      paymentDate: paidAt,
       bank: 'Nubank',
       status: 'REALIZADA',
       category: bill.natureName,
@@ -457,7 +464,17 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
             className={`status-toggle-btn ${isRealized ? 'checked' : ''}`}
             onClick={(e) => {
               e.stopPropagation();
-              toggleMovementStatus(item.id);
+              if (isRealized) {
+                toggleMovementStatus(item.id);
+                return;
+              }
+              setRealization({
+                kind: isIncome ? 'ENTRADA' : 'SAIDA',
+                title: item.title,
+                expectedAmount: item.amount,
+                dueDate: item.dueDate,
+                onConfirm: (amount, date) => updateMovement(item.id, realizedMovementUpdates(item, amount, date)),
+              });
             }}
             title={isRealized ? 'Marcar como prevista' : 'Confirmar liquidação'}
           >
@@ -715,7 +732,15 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
                     type="button"
                     className="btn btn-primary btn-sm"
                     style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.45rem 0.85rem' }}
-                    onClick={() => handleConfirmBillDirectly(bill)}
+                    onClick={() =>
+                      setRealization({
+                        kind: 'SAIDA',
+                        title: `${bill.mappingName} (${bill.natureName})`,
+                        expectedAmount: bill.totalAmount,
+                        dueDate: bill.dueDate,
+                        onConfirm: (amount, paidAt) => handleConfirmBillDirectly(bill, amount, paidAt),
+                      })
+                    }
                     title="Confirmar pagamento e registrar saída realizada"
                   >
                     <CheckCircle2 size={15} />
@@ -1126,6 +1151,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
         onOpenPrepaymentSimulator={handleOpenPrepayment}
       />
       <ConfirmDialog {...confirmDialogProps} />
+      <RealizationConfirmModal target={realization} onClose={() => setRealization(null)} />
     </div>
   );
 };

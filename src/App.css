@@ -22498,3 +22498,30 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     flex-direction: column;
   }
 }
+
+/* Confirmação de pagamento/recebimento: atalhos de data e valor */
+.realization-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: -6px;
+}
+
+.realization-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-card-elevated);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.realization-chip:hover {
+  color: var(--text-primary);
+}
+
+.realization-chip.is-active {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}

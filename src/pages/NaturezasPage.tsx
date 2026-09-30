@@ -34,6 +34,7 @@ import { NatureModal } from '../components/NatureModal';
 import { MappingModal } from '../components/MappingModal';
 import { InfoButton } from '../components/InfoButton';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
+import { RealizationConfirmModal, type RealizationTarget } from '../components/RealizationConfirmModal';
 import {
   WEEKDAY_OPTIONS,
   formatItemScheduleBadge,
@@ -70,6 +71,8 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
 
   // Confirm Dialog
   const { confirm: confirmAction, dialogProps: confirmDialogProps } = useConfirmDialog();
+  // Pop-up que confere valor e data antes de registrar o pagamento de uma conta fixa
+  const [realization, setRealization] = useState<RealizationTarget | null>(null);
 
   // Selected Natureza
   const [selectedNatureId, setSelectedNatureId] = useState<string>(
@@ -290,14 +293,17 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
     return pendingFixedBills.filter((b) => !dismissedBills[`${b.natureId}_${b.mappingId}`]);
   }, [pendingFixedBills, dismissedBills]);
 
-  // Ação rápida: Confirmar pagamento de conta fixa com 1 clique
-  const handleConfirmBillDirectly = (bill: PendingFixedBill) => {
+  // Ação rápida: Confirmar pagamento de conta fixa (valor e data conferidos no pop-up)
+  const handleConfirmBillDirectly = (bill: PendingFixedBill, amount: number, paidAt: string) => {
     // 1. Cria a movimentação de saída realizada
     addMovement({
       title: `${bill.mappingName} (${bill.natureName})`,
       type: 'PAGAR',
-      amount: bill.totalAmount,
+      amount,
+      actualAmount: amount,
+      ...(Math.abs(amount - bill.totalAmount) >= 0.005 ? { originalAmount: bill.totalAmount } : {}),
       dueDate: bill.dueDate,
+      paymentDate: paidAt,
       bank: 'Nubank',
       status: 'REALIZADA',
       category: bill.natureName,
@@ -571,7 +577,15 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                     type="button"
                     className="btn btn-primary btn-sm"
                     style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.5rem 0.9rem' }}
-                    onClick={() => handleConfirmBillDirectly(bill)}
+                    onClick={() =>
+                      setRealization({
+                        kind: 'SAIDA',
+                        title: `${bill.mappingName} (${bill.natureName})`,
+                        expectedAmount: bill.totalAmount,
+                        dueDate: bill.dueDate,
+                        onConfirm: (amount, paidAt) => handleConfirmBillDirectly(bill, amount, paidAt),
+                      })
+                    }
                     title="Confirmar pagamento e registrar saída realizada"
                   >
                     <CheckCircle2 size={15} />
@@ -2794,6 +2808,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
         </Modal>
       )}
       <ConfirmDialog {...confirmDialogProps} />
+      <RealizationConfirmModal target={realization} onClose={() => setRealization(null)} />
     </div>
   );
 };

@@ -58,6 +58,7 @@ import {
 } from '../utils/mappingItemState';
 import { MappingItemStateModal, type MappingItemStateTarget } from './MappingItemStateModal';
 import { MappingPaymentModal, type MappingPaymentTarget } from './MappingPaymentModal';
+import { RealizationConfirmModal, realizedMovementUpdates, type RealizationTarget } from './RealizationConfirmModal';
 import {
   DetailViewStyleBar,
   NatureDrillView,
@@ -1117,6 +1118,22 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
   // Estado para edição do recebimento clicado pelo usuário
   const [editingReceipt, setEditingReceipt] = useState<EditingReceiptData | null>(null);
+  // Pop-up que confere valor e data antes de marcar uma fatura como paga
+  const [realization, setRealization] = useState<RealizationTarget | null>(null);
+  // Fatura aberta: pede a confirmação do pagamento; fatura paga: reabre direto
+  const toggleInvoicePaid = (m: Movement) => {
+    if (m.status === 'REALIZADA') {
+      toggleMovementStatus(m.id);
+      return;
+    }
+    setRealization({
+      kind: 'SAIDA',
+      title: m.title,
+      expectedAmount: m.amount,
+      dueDate: m.dueDate,
+      onConfirm: (amount, date) => updateMovement(m.id, realizedMovementUpdates(m, amount, date)),
+    });
+  };
 
   // Item mapeado cuja situação na competência está sendo definida
   const [itemStateTarget, setItemStateTarget] = useState<MappingItemStateTarget | null>(null);
@@ -2872,7 +2889,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                   e.stopPropagation();
                   const targetMov = movements.find((m) => m.id === sub.movementId) || activeItem?.movement;
                   if (targetMov) {
-                    toggleMovementStatus(targetMov.id);
+                    toggleInvoicePaid(targetMov);
                   }
                 }}
                 className={`px-2 py-0.5 rounded-full text-[10px] font-bold cursor-pointer transition flex items-center gap-1 ${
@@ -3666,7 +3683,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                           {invMov ? (
                             <button
                               type="button"
-                              onClick={() => toggleMovementStatus(invMov.id)}
+                              onClick={() => toggleInvoicePaid(invMov)}
                               className={`px-2 py-0.5 rounded-full text-[10px] font-bold cursor-pointer transition flex items-center gap-1 ${
                                 isPaid
                                   ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/40'
@@ -4278,6 +4295,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
       {/* POP-UP DE SITUAÇÃO DO ITEM MAPEADO (REALIZADO / QUEM PAGOU / PRÓXIMAS COMPETÊNCIAS) */}
       <MappingItemStateModal target={itemStateTarget} onClose={() => setItemStateTarget(null)} />
       <MappingPaymentModal target={mappingPaymentTarget} onClose={() => setMappingPaymentTarget(null)} />
+      <RealizationConfirmModal target={realization} onClose={() => setRealization(null)} />
 
       {/* POP-UP DA PARCELA DE EMPRÉSTIMO (PAGAR / ANTECIPAR / REABRIR) */}
       {loanInstallmentTarget && (

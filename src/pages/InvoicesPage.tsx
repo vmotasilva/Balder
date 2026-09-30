@@ -19,11 +19,12 @@ import {
   Copy,
 } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
-import type { Movement, MovementStatus, InvoiceNatureItemBreakdown } from '../types';
+import type { Movement, InvoiceNatureItemBreakdown } from '../types';
 import { MovementDetailModal } from '../components/MovementDetailModal';
 import { NewInvoiceModal } from '../components/NewInvoiceModal';
 import { InvoiceImportModal } from '../components/InvoiceImportModal';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
+import { RealizationConfirmModal, realizedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
 import { getBankBranding } from '../utils/bankBranding';
 import { InfoButton } from '../components/InfoButton';
 
@@ -53,6 +54,8 @@ export const InvoicesPage: React.FC = () => {
   // Modal para Importar Extrato de Fatura
   const [isNewInvoiceImportOpen, setIsNewInvoiceImportOpen] = useState(false);
   const [importingInvoice, setImportingInvoice] = useState<Movement | null>(null);
+  // Pop-up que confere valor e data antes de marcar a fatura como paga
+  const [realization, setRealization] = useState<RealizationTarget | null>(null);
 
   // Modal de Detalhamento Pop-up (MovementDetailModal)
   const [selectedMovementForModal, setSelectedMovementForModal] = useState<Movement | null>(null);
@@ -489,12 +492,18 @@ export const InvoicesPage: React.FC = () => {
     });
   };
 
-  // Marcar fatura como realizada / paga
+  // Marcar fatura como paga (valor e data conferidos no pop-up) ou reabrir
   const handleToggleInvoiceStatus = (m: Movement) => {
-    const nextStatus: MovementStatus = m.status === 'REALIZADA' ? 'PREVISTA' : 'REALIZADA';
-    updateMovement(m.id, {
-      status: nextStatus,
-      paymentDate: nextStatus === 'REALIZADA' ? todayStr : undefined,
+    if (m.status === 'REALIZADA') {
+      updateMovement(m.id, { status: 'PREVISTA', paymentDate: undefined });
+      return;
+    }
+    setRealization({
+      kind: 'SAIDA',
+      title: m.title,
+      expectedAmount: m.amount,
+      dueDate: m.dueDate,
+      onConfirm: (amount, date) => updateMovement(m.id, realizedMovementUpdates(m, amount, date)),
     });
   };
 
@@ -1569,6 +1578,7 @@ export const InvoicesPage: React.FC = () => {
         />
       )}
       <ConfirmDialog {...confirmDialogProps} />
+      <RealizationConfirmModal target={realization} onClose={() => setRealization(null)} />
     </div>
   );
 };

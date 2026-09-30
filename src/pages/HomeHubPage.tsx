@@ -24,6 +24,7 @@ import { buildPeriodItems, periodRangeLabel, shiftPeriodDate, trackingPeriodRang
 import type { PeriodItem, PeriodPurchase, TrackingPeriod } from '../utils/periodSpending';
 import { getItemOccurrences } from '../utils/mappingItemState';
 import { MappingPaymentModal, type MappingPaymentTarget } from '../components/MappingPaymentModal';
+import { RealizationConfirmModal, realizedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
 import type { ForecastEntry } from '../utils/forecastWindow';
 import { displayName } from '../utils/displayName';
 
@@ -137,6 +138,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   // Níveis da lista: naturezas → mapeamentos da natureza → itens do mapeamento
   const [drill, setDrill] = useState<{ natureId: string; mappingId?: string } | null>(null);
   const [mappingPayment, setMappingPayment] = useState<MappingPaymentTarget | null>(null);
+  const [realization, setRealization] = useState<RealizationTarget | null>(null);
   const [finishedSetup, setFinishedSetup] = useState(false);
   // Quantos períodos para trás o card de gastos está mostrando (0 = período atual)
   const [spendingOffset, setSpendingOffset] = useState(0);
@@ -276,20 +278,27 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
             type="button"
             className="btn btn-outline btn-xs"
             onClick={() =>
-              updateMappingItemState(found.nat.id, found.mapping.id, item.id, {
-                payments: {
-                  ...(item.payments || {}),
-                  [monthKey]: [
-                    ...(item.payments?.[monthKey] || []),
-                    {
-                      id: `pay_${Date.now()}`,
-                      paidAt: todayIso,
-                      amount: entry.amount,
-                      expectedAmount: entry.amount,
-                      coveredDates: [occurrences[0].date],
+              setRealization({
+                kind: 'SAIDA',
+                title: entry.title,
+                expectedAmount: entry.amount,
+                dueDate: occurrences[0].date,
+                onConfirm: (amount, paidAt) =>
+                  updateMappingItemState(found.nat.id, found.mapping.id, item.id, {
+                    payments: {
+                      ...(item.payments || {}),
+                      [monthKey]: [
+                        ...(item.payments?.[monthKey] || []),
+                        {
+                          id: `pay_${Date.now()}`,
+                          paidAt,
+                          amount,
+                          expectedAmount: entry.amount,
+                          coveredDates: [occurrences[0].date],
+                        },
+                      ],
                     },
-                  ],
-                },
+                  }),
               })
             }
           >
@@ -304,7 +313,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
       );
     }
     // Receita de outra pessoa: só quem recebe confirma
-    const mov = entry.kind === 'ENTRADA' ? movements.find((m) => m.id === entry.id) : undefined;
+    const mov = movements.find((m) => m.id === entry.id);
     const confirmer = mov?.type === 'RECEBER' ? mov.responsibleId || viewing?.ownerId || user?.$id : undefined;
     if (confirmer && user && !user.isGuest && confirmer !== user.$id) {
       const name =
@@ -317,7 +326,17 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
       <button
         type="button"
         className="btn btn-outline btn-xs"
-        onClick={() => updateMovement(entry.id, { status: 'REALIZADA', paymentDate: todayIso })}
+        onClick={() =>
+          mov
+            ? setRealization({
+                kind: entry.kind === 'ENTRADA' ? 'ENTRADA' : 'SAIDA',
+                title: entry.title,
+                expectedAmount: mov.amount,
+                dueDate: mov.dueDate,
+                onConfirm: (amount, date) => updateMovement(mov.id, realizedMovementUpdates(mov, amount, date)),
+              })
+            : undefined
+        }
       >
         {entry.kind === 'ENTRADA' ? 'Já recebi' : 'Já paguei'}
       </button>
@@ -803,6 +822,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
       </section>
 
       <MappingPaymentModal target={mappingPayment} onClose={() => setMappingPayment(null)} />
+      <RealizationConfirmModal target={realization} onClose={() => setRealization(null)} />
     </div>
   );
 };
