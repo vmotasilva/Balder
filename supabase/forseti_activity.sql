@@ -3,7 +3,7 @@
 -- ==============================================================================
 -- Cada linha é uma solicitação feita à Forseti: o que a pessoa pediu, o que foi
 -- feito, os lançamentos criados (para poder desfazer) e a avaliação.
--- O app guarda os últimos 30 dias e apaga o que é mais antigo.
+-- O app guarda só as últimas 48 horas e apaga o que é mais antigo.
 -- Rodar uma vez no SQL Editor do Supabase. Enquanto a tabela não existir, o app
 -- guarda o histórico só neste navegador.
 -- ==============================================================================

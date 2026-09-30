@@ -4,15 +4,16 @@ import type { ForsetiActivity } from '../types';
 /**
  * Histórico das solicitações à Forseti: tabela forseti_activity no Supabase (supabase/forseti_activity.sql).
  * Enquanto a tabela não existir (ou no modo demonstração), o histórico fica só neste navegador.
- * Guarda os últimos FORSETI_ACTIVITY_DAYS dias.
+ * Guarda só as últimas FORSETI_ACTIVITY_HOURS horas: o que for mais antigo é apagado.
  */
 
-export const FORSETI_ACTIVITY_DAYS = 30;
+export const FORSETI_ACTIVITY_HOURS = 48;
 const TABLE = 'forseti_activity';
 
 let tableMissing = false;
 const localKey = (userId: string) => `balder_forseti_activity_${userId}`;
-const cutoffIso = () => new Date(Date.now() - FORSETI_ACTIVITY_DAYS * 86400000).toISOString();
+export const activityCutoffIso = () => new Date(Date.now() - FORSETI_ACTIVITY_HOURS * 3600000).toISOString();
+const cutoffIso = activityCutoffIso;
 const recent = (list: ForsetiActivity[]) => {
   const cutoff = cutoffIso();
   return list.filter((a) => a.at >= cutoff);

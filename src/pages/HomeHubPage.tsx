@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   Sparkles,
   Camera,
+  History,
   Send,
   LayoutDashboard,
   ArrowLeftRight,
@@ -9,6 +10,7 @@ import {
   Layers,
   Target,
   Landmark,
+  BadgePercent,
   Users,
   CheckCircle2,
   ChevronRight,
@@ -18,7 +20,8 @@ import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { useAccountScope } from '../context/AccountScopeContext';
 import { GuidedSetup } from '../components/GuidedSetup';
-import { ForsetiActivityCard } from '../components/ForsetiActivityCard';
+import { ForsetiActivityModal } from '../components/ForsetiActivityModal';
+import { activityCutoffIso } from '../services/forsetiActivityService';
 import { PlanningSwitcher } from '../components/PlanningSwitcher';
 import type { TabId } from '../components/Sidebar';
 import { buildPeriodItems, periodRangeLabel, shiftPeriodDate, trackingPeriodRange, TRACKING_PERIOD_LABELS } from '../utils/periodSpending';
@@ -130,6 +133,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     updateMovement,
     updateMappingItemState,
     sendMessageToCopilot,
+    forsetiActivity,
     sharedScenario,
     natureDetailModes,
   } = useFinancial();
@@ -494,8 +498,14 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     { tab: 'NATUREZAS', label: 'Naturezas', icon: Layers, status: moduleStatus.naturezas },
     { tab: 'METAS', label: 'Metas', icon: Target, status: moduleStatus.metas },
     { tab: 'EMPRESTIMOS', label: 'Empréstimos', icon: Landmark, status: moduleStatus.emprestimos },
+    { tab: 'OPORTUNIDADES', label: 'Oportunidades', icon: BadgePercent, status: { text: 'Preços em queda', tone: '' } },
     { tab: 'COMPARTILHADO', label: 'Planejamento conjunto', icon: Users, status: { text: 'Acompanhe com alguém', tone: 'invite' } },
   ];
+
+  // Últimas solicitações à Forseti: pop-up pelo ícone ao lado da caixa de texto
+  const [showActivity, setShowActivity] = useState(false);
+  const cutoff = activityCutoffIso();
+  const recentRequests = forsetiActivity.filter((a) => a.at >= cutoff).length;
 
   const submitForseti = (e: React.FormEvent) => {
     e.preventDefault();
@@ -547,6 +557,16 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           placeholder='Conte à Forseti o que aconteceu: "paguei 50 no mercado"'
           aria-label="Mensagem para a Forseti"
         />
+        <button
+          type="button"
+          className="home-forseti-icon has-count"
+          onClick={() => setShowActivity(true)}
+          aria-label="Últimas solicitações à Forseti"
+          title="Últimas solicitações à Forseti"
+        >
+          <History size={18} />
+          {recentRequests > 0 && <span className="home-forseti-count">{recentRequests}</span>}
+        </button>
         <button type="button" className="home-forseti-icon" onClick={onOpenForseti} aria-label="Enviar foto do cupom" title="Enviar foto do cupom">
           <Camera size={18} />
         </button>
@@ -554,6 +574,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           <Send size={16} />
         </button>
       </form>
+      <ForsetiActivityModal isOpen={showActivity} onClose={() => setShowActivity(false)} />
 
       {/* Como estou? */}
       <div className="home-stats">
@@ -649,9 +670,6 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           </button>
         )}
       </section>
-
-      {/* O que pedi à Forseti? */}
-      <ForsetiActivityCard />
 
       {/* Como vão os gastos no período? */}
       <section className="home-card">

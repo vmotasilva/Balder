@@ -240,7 +240,7 @@ interface FinancialContextType {
     invoiceTitle: string;
   };
   respondToCopilotOption: (messageId: string, option: CopilotInteractiveOption) => void;
-  /** Últimas solicitações à Forseti (30 dias), com avaliação e desfazer. */
+  /** Últimas solicitações à Forseti (48 horas), com avaliação e desfazer. */
   forsetiActivity: ForsetiActivity[];
   rateForsetiActivity: (id: string, rating: ForsetiActivity['rating']) => void;
   undoForsetiActivity: (id: string) => { ok: boolean; message: string };

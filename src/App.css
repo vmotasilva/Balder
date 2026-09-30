@@ -22609,3 +22609,24 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     justify-content: flex-end;
   }
 }
+
+/* Ícone das últimas solicitações na barra da Forseti, com a quantidade */
+.home-forseti-icon.has-count {
+  position: relative;
+}
+
+.home-forseti-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-cyan);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}

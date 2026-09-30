@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { ThumbsDown, ThumbsUp, Undo2 } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import { ConfirmDialog, useConfirmDialog } from './ConfirmDialog';
-import { FORSETI_ACTIVITY_DAYS } from '../services/forsetiActivityService';
+import { Modal } from './Modal';
+import { FORSETI_ACTIVITY_HOURS, activityCutoffIso } from '../services/forsetiActivityService';
 import { canUndoActivity, createdMovementsOf } from '../utils/forsetiAssistant';
 import type { ForsetiActivity, ForsetiActivityKind } from '../types';
 
@@ -30,15 +31,16 @@ const whenLabel = (iso: string) => {
 
 /**
  * Últimas solicitações feitas à Forseti: o que foi pedido, o que ela fez, avaliação (ajudou / não ajudou)
- * e desfazer o que foi lançado. Guarda os últimos FORSETI_ACTIVITY_DAYS dias.
+ * e desfazer o que foi lançado. Guarda só as últimas FORSETI_ACTIVITY_HOURS horas. Abre pelo ícone ao lado
+ * da caixa de texto da Forseti.
  */
-export const ForsetiActivityCard: React.FC = () => {
-  const { forsetiActivity, movements, rateForsetiActivity, undoForsetiActivity } = useFinancial();
+export const ForsetiActivityModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
+  const { forsetiActivity: allActivity, movements, rateForsetiActivity, undoForsetiActivity } = useFinancial();
+  // Com o app aberto por muito tempo, o que passou do período some da lista (e do armazenamento no próximo carregamento)
+  const cutoff = activityCutoffIso();
+  const forsetiActivity = allActivity.filter((a) => a.at >= cutoff);
   const { confirm, dialogProps } = useConfirmDialog();
-  const [showAll, setShowAll] = useState(false);
   const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
-
-  const visible = showAll ? forsetiActivity : forsetiActivity.slice(0, 4);
 
   const askUndo = (a: ForsetiActivity) => {
     const created = createdMovementsOf(a, movements);
@@ -58,16 +60,18 @@ export const ForsetiActivityCard: React.FC = () => {
     rateForsetiActivity(a.id, a.rating === rating ? undefined : rating);
 
   return (
-    <section className="home-card">
-      <div className="home-card-head">
-        <h2>Últimas solicitações à Forseti</h2>
-        <span>últimos {FORSETI_ACTIVITY_DAYS} dias</span>
-      </div>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Últimas solicitações à Forseti"
+      subtitle={`Últimas ${FORSETI_ACTIVITY_HOURS} horas · avalie a resposta ou desfaça um lançamento`}
+      maxWidth="560px"
+    >
       {forsetiActivity.length === 0 ? (
-        <p className="home-empty">O que você pedir à Forseti aparece aqui, para avaliar a resposta ou desfazer um lançamento.</p>
+        <p className="home-empty">Nada pedido à Forseti nas últimas {FORSETI_ACTIVITY_HOURS} horas. O que você pedir aparece aqui, para avaliar a resposta ou desfazer um lançamento.</p>
       ) : (
         <ul className="home-task-list forseti-activity-list">
-          {visible.map((a) => (
+          {forsetiActivity.map((a) => (
             <li key={a.id} className={a.undoneAt ? 'is-undone' : ''}>
               <span className="forseti-activity-icon" aria-hidden="true">
                 {KIND_ICON[a.kind]}
@@ -115,12 +119,7 @@ export const ForsetiActivityCard: React.FC = () => {
         </ul>
       )}
       {feedback && <p className={`forseti-activity-feedback ${feedback.ok ? 'text-emerald' : 'text-rose'}`}>{feedback.message}</p>}
-      {forsetiActivity.length > 4 && (
-        <button type="button" className="link-button" onClick={() => setShowAll((v) => !v)}>
-          {showAll ? 'Mostrar menos' : `Ver todas (${forsetiActivity.length})`}
-        </button>
-      )}
       <ConfirmDialog {...dialogProps} />
-    </section>
+    </Modal>
   );
 };
