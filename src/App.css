@@ -21323,6 +21323,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 
 .home-spending-bar {
   grid-column: 1 / -1;
+  display: flex;
   height: 5px;
   border-radius: 3px;
   background: var(--border-default);
@@ -21341,6 +21342,26 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 
 .home-spending-bar .is-acima {
   background: var(--accent-rose);
+}
+
+/* Parte ainda prevista do período (depois do que já foi gasto) */
+.home-spending-bar .is-planned {
+  opacity: 0.4;
+}
+
+.home-spending-bar div + div {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.home-spending-bar div:has(+ div) {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* Mês: só as naturezas, uma por linha */
+.home-spending-list.is-compact li {
+  padding: 5px 0;
 }
 
 .home-modules {

@@ -275,7 +275,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     return shortDate(entry.date);
   };
 
-  // ── Gastos do período por natureza (o atual ou um anterior escolhido nas setas) ──
+  // ── Gastos do período por natureza (o atual, um anterior ou a previsão de um futuro, escolhido nas setas) ──
   const spendingDate = useMemo(() => shiftPeriodDate(period, new Date(), spendingOffset), [period, spendingOffset]);
   const periodSpending = useMemo(
     () =>
@@ -283,13 +283,17 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
         natures,
         movements,
         period,
-        today: spendingDate,
+        date: spendingDate,
         monthlyCeiling: (nat, monthKey) => getNatureCeiling(nat, monthKey),
       }),
     [natures, movements, period, spendingDate, getNatureCeiling]
   );
   const isCurrentSpending = spendingOffset === 0;
+  const isFutureSpending = periodSpending.tense === 'FUTURO';
   const spendingWhen = isCurrentSpending ? labels.this : labels.that;
+  // No mês, só as naturezas em lista resumida; na semana e na quinzena, as 5 principais com barra
+  const compactSpending = period === 'MES';
+  const spendingRows = compactSpending ? periodSpending.insights : periodSpending.insights.slice(0, 5);
   const nextPeriodLabel = period === 'MES' ? 'Próximo mês' : `Próxima ${labels.name.toLowerCase()}`;
   const topAlert = periodSpending.insights.find((i) => i.level === 'ACIMA');
 
@@ -503,7 +507,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
       {/* Como vão os gastos no período? */}
       <section className="home-card">
         <div className="home-card-head">
-          <h2>Gastos {spendingWhen}</h2>
+          <h2>{isFutureSpending ? `Previsão de gastos ${labels.that}` : `Gastos ${spendingWhen}`}</h2>
           <div className="home-period-switch" role="group" aria-label="Período de acompanhamento">
             {PERIODS.map((p) => (
               <button
@@ -541,17 +545,18 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           </span>
           <button
             type="button"
-            onClick={() => setSpendingOffset((o) => Math.min(0, o + 1))}
-            disabled={isCurrentSpending}
+            onClick={() => setSpendingOffset((o) => o + 1)}
             aria-label={nextPeriodLabel}
-            title={isCurrentSpending ? 'Você já está no período atual' : nextPeriodLabel}
+            title={nextPeriodLabel}
           >
             <ChevronRight size={16} />
           </button>
         </div>
         {periodSpending.insights.length === 0 ? (
           <p className="home-empty">
-            {isCurrentSpending
+            {isFutureSpending
+              ? `Nenhum gasto previsto ${labels.that}.`
+              : isCurrentSpending
               ? `Nenhum gasto registrado ${labels.this}. Conte à Forseti quando gastar.`
               : `Nenhum gasto registrado ${labels.that}.`}
           </p>
@@ -559,33 +564,59 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           <>
             <p className={`home-spending-headline ${topAlert ? 'is-alert' : ''}`}>
               {topAlert ? (
+                isFutureSpending ? (
+                  <>
+                    <AlertTriangle size={14} /> Previsão acima do esperado com {topAlert.name.toLowerCase()} {labels.that}:{' '}
+                    {formatBRL(topAlert.spent + topAlert.planned)} de {formatBRL(topAlert.expected)} esperados.
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle size={14} /> {isCurrentSpending ? 'Já gastamos' : 'Gastamos'} bastante com {topAlert.name.toLowerCase()} {spendingWhen}:{' '}
+                    {formatBRL(topAlert.spent)} de {formatBRL(topAlert.expected)} esperados.
+                  </>
+                )
+              ) : isFutureSpending ? (
                 <>
-                  <AlertTriangle size={14} /> {isCurrentSpending ? 'Já gastamos' : 'Gastamos'} bastante com {topAlert.name.toLowerCase()} {spendingWhen}: {formatBRL(topAlert.spent)} de{' '}
-                  {formatBRL(topAlert.expected)} esperados.
+                  <CheckCircle2 size={14} /> {formatBRL(periodSpending.totalPlanned)} previstos {labels.that}, dentro do esperado.
                 </>
               ) : (
                 <>
-                  <CheckCircle2 size={14} /> {formatBRL(periodSpending.totalSpent)} gastos {spendingWhen}, dentro do esperado.
+                  <CheckCircle2 size={14} /> {formatBRL(periodSpending.totalSpent)} gastos {spendingWhen}
+                  {periodSpending.totalPlanned > 0 ? ` e ${formatBRL(periodSpending.totalPlanned)} ainda previstos` : ''}, dentro do esperado.
                 </>
               )}
             </p>
-            <ul className="home-spending-list">
-              {periodSpending.insights.slice(0, 5).map((i) => (
-                <li key={i.natureId}>
-                  <span className="home-spending-name">
-                    {i.icon} {i.name}
-                  </span>
-                  <span className="home-spending-value">
-                    {formatBRL(i.spent)}
-                    {i.expected > 0 && <small> de {formatBRL(i.expected)}</small>}
-                  </span>
-                  {i.expected > 0 && (
-                    <div className="home-spending-bar" title={i.basis === 'TETO' ? 'Comparado à parte do teto no período' : 'Comparado à sua média'}>
-                      <div className={`is-${i.level.toLowerCase()}`} style={{ width: `${Math.min(100, Math.round(i.ratio * 100))}%` }} />
-                    </div>
-                  )}
-                </li>
-              ))}
+            <ul className={`home-spending-list ${compactSpending ? 'is-compact' : ''}`}>
+              {spendingRows.map((i) => {
+                const notes = [
+                  !isFutureSpending && i.planned > 0 ? `+ ${formatBRL(i.planned)} previsto` : '',
+                  i.expected > 0 ? `de ${formatBRL(i.expected)}` : '',
+                ].filter(Boolean);
+                const spentWidth = i.expected > 0 ? Math.min(100, (i.spent / i.expected) * 100) : 0;
+                const plannedWidth = i.expected > 0 ? Math.min(100 - spentWidth, (i.planned / i.expected) * 100) : 0;
+                return (
+                  <li key={i.natureId}>
+                    <span className="home-spending-name">
+                      {i.icon} {i.name}
+                    </span>
+                    <span className="home-spending-value">
+                      {formatBRL(isFutureSpending ? i.planned : i.spent)}
+                      {notes.length > 0 && <small> {notes.join(' · ')}</small>}
+                    </span>
+                    {!compactSpending && i.expected > 0 && (
+                      <div
+                        className="home-spending-bar"
+                        title={`${i.basis === 'TETO' ? 'Comparado à parte do teto no período' : 'Comparado à sua média'}${i.planned > 0 ? ' · parte clara: ainda previsto' : ''}`}
+                      >
+                        {spentWidth > 0 && <div className={`is-${i.level.toLowerCase()}`} style={{ width: `${Math.round(spentWidth)}%` }} />}
+                        {plannedWidth > 0 && (
+                          <div className={`is-${i.level.toLowerCase()} is-planned`} style={{ width: `${Math.round(plannedWidth)}%` }} />
+                        )}
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </>
         )}

@@ -1,4 +1,5 @@
 import type { ExpenseNature, Movement } from '../types';
+import { getItemOccurrences, isExcludedState, resolveMappingItemMonth } from './mappingItemState';
 
 /** Período em que o usuário gosta de acompanhar as finanças. */
 export type TrackingPeriod = 'SEMANA' | 'QUINZENA' | 'MES';
@@ -148,50 +149,127 @@ export function natureSpendingInRange(
   return totals;
 }
 
+/**
+ * Quanto ainda está previsto em cada natureza dentro do período, de hoje em diante: ocorrências dos itens
+ * das naturezas ainda não pagas (mesma distribuição da previsão de caixa) e contas previstas da natureza.
+ */
+export function naturePlannedInRange(
+  natures: ExpenseNature[],
+  movements: Movement[],
+  range: PeriodRange,
+  todayIso: string
+): Record<string, number> {
+  const from = range.from > todayIso ? range.from : todayIso;
+  const totals: Record<string, number> = {};
+  if (from > range.to) return totals;
+  const inRange = (date: string) => date >= from && date <= range.to;
+  const add = (natureId: string, amount: number) => {
+    if (amount > 0) totals[natureId] = round2((totals[natureId] || 0) + amount);
+  };
+
+  movements.forEach((m) => {
+    if (m.status !== 'PREVISTA' || m.type !== 'PAGAR') return;
+    if (m.category === 'Cartões' || m.category === 'Empréstimos') return;
+    if (!inRange(m.dueDate)) return;
+    const natureId = movementNatureId(m, natures);
+    if (natureId) add(natureId, m.amount);
+  });
+
+  const monthKeys: string[] = [];
+  const [fy, fm] = from.split('-').map(Number);
+  for (let d = new Date(fy, fm - 1, 1); isoOf(d).slice(0, 7) <= range.to.slice(0, 7); d.setMonth(d.getMonth() + 1)) {
+    monthKeys.push(isoOf(d).slice(0, 7));
+  }
+
+  natures.forEach((nat) => {
+    nat.mappings.forEach((mapping) => {
+      mapping.items.forEach((item) => {
+        monthKeys.forEach((monthKey) => {
+          const monthNumber = Number(monthKey.slice(5, 7));
+          if (mapping.applicableMonths && mapping.applicableMonths.length > 0 && !mapping.applicableMonths.includes(monthNumber)) {
+            return;
+          }
+          const summary = resolveMappingItemMonth(item, monthKey);
+          if (isExcludedState(summary.state) || summary.pending <= 0.005 || summary.state.realized) return;
+          const uncovered = getItemOccurrences(item, monthKey).filter((o) => !summary.coveredDates.has(o.date));
+          if (uncovered.length === 0) return;
+          const perOccurrence = Math.max(0, summary.pending - summary.openBalance) / uncovered.length;
+          uncovered.forEach((o) => {
+            if (inRange(o.date)) add(nat.id, perOccurrence);
+          });
+        });
+      });
+    });
+  });
+
+  return totals;
+}
+
 export interface NaturePeriodInsight {
   natureId: string;
   name: string;
   icon: string;
   spent: number;
+  planned: number; // ainda previsto no período, de hoje em diante
   expected: number; // parte do teto no período ou, sem teto, média dos períodos anteriores
   basis: 'TETO' | 'MEDIA' | 'NENHUMA';
   ratio: number; // spent / expected (0 quando não há referência)
+  projectedRatio: number; // (spent + planned) / expected
   level: 'ACIMA' | 'ATENCAO' | 'OK';
 }
 
+export type PeriodTense = 'PASSADO' | 'ATUAL' | 'FUTURO';
+
 /**
- * Gasto de cada natureza no período atual comparado ao esperado: a fração do teto mensal que cabe no
- * período ou, quando a natureza não tem teto, a média dos últimos 4 períodos iguais.
+ * Gasto de cada natureza no período comparado ao esperado: a fração do teto mensal que cabe no período ou,
+ * quando a natureza não tem teto, a média dos últimos 4 períodos já vividos. No período atual e nos futuros
+ * soma também o que ainda está previsto; nos futuros, o alerta olha para esse previsto.
  */
 export function buildPeriodInsights(params: {
   natures: ExpenseNature[];
   movements: Movement[];
   period: TrackingPeriod;
+  date?: Date; // qualquer dia do período mostrado (padrão: hoje)
   today?: Date;
   monthlyCeiling: (nature: ExpenseNature, monthKey: string) => number;
-}): { range: PeriodRange; totalSpent: number; insights: NaturePeriodInsight[] } {
+}): { range: PeriodRange; tense: PeriodTense; totalSpent: number; totalPlanned: number; insights: NaturePeriodInsight[] } {
   const { natures, movements, period, monthlyCeiling } = params;
   const today = params.today || new Date();
-  const range = trackingPeriodRange(period, today);
+  const todayIso = isoOf(today);
+  const range = trackingPeriodRange(period, params.date || today);
+  const tense: PeriodTense = range.to < todayIso ? 'PASSADO' : range.from > todayIso ? 'FUTURO' : 'ATUAL';
   const current = natureSpendingInRange(natures, movements, range);
-  const previous = previousPeriodRanges(period, today, 4).map((r) => natureSpendingInRange(natures, movements, r));
+  const planned = tense === 'PASSADO' ? {} : naturePlannedInRange(natures, movements, range, todayIso);
+  // A média vem sempre de períodos já vividos
+  const previous = previousPeriodRanges(period, tense === 'FUTURO' ? today : params.date || today, 4).map((r) =>
+    natureSpendingInRange(natures, movements, r)
+  );
   const monthKey = range.from.slice(0, 7);
 
   const insights: NaturePeriodInsight[] = natures
     .map((nat) => {
       const spent = current[nat.id] || 0;
+      const plannedAmount = planned[nat.id] || 0;
       const ceiling = monthlyCeiling(nat, monthKey);
       const history = previous.map((p) => p[nat.id] || 0);
       const average = history.some((v) => v > 0) ? round2(history.reduce((a, b) => a + b, 0) / history.length) : 0;
       const basis: NaturePeriodInsight['basis'] = ceiling > 0 ? 'TETO' : average > 0 ? 'MEDIA' : 'NENHUMA';
       const expected = basis === 'TETO' ? periodShareOfMonthly(ceiling, range) : basis === 'MEDIA' ? average : 0;
       const ratio = expected > 0 ? spent / expected : 0;
-      const level: NaturePeriodInsight['level'] = expected <= 0 ? 'OK' : ratio > 1 ? 'ACIMA' : ratio >= 0.8 ? 'ATENCAO' : 'OK';
-      return { natureId: nat.id, name: nat.name, icon: nat.icon, spent, expected, basis, ratio, level };
+      const projectedRatio = expected > 0 ? (spent + plannedAmount) / expected : 0;
+      const alertRatio = tense === 'FUTURO' ? projectedRatio : ratio;
+      const level: NaturePeriodInsight['level'] =
+        expected <= 0 ? 'OK' : alertRatio > 1 ? 'ACIMA' : alertRatio >= 0.8 ? 'ATENCAO' : 'OK';
+      return { natureId: nat.id, name: nat.name, icon: nat.icon, spent, planned: plannedAmount, expected, basis, ratio, projectedRatio, level };
     })
-    .filter((i) => i.spent > 0)
-    .sort((a, b) => b.ratio - a.ratio || b.spent - a.spent);
+    .filter((i) => i.spent > 0 || i.planned > 0)
+    .sort((a, b) =>
+      tense === 'FUTURO'
+        ? b.projectedRatio - a.projectedRatio || b.planned - a.planned
+        : b.ratio - a.ratio || b.spent - a.spent || b.planned - a.planned
+    );
 
   const totalSpent = round2(insights.reduce((acc, i) => acc + i.spent, 0));
-  return { range, totalSpent, insights };
+  const totalPlanned = round2(insights.reduce((acc, i) => acc + i.planned, 0));
+  return { range, tense, totalSpent, totalPlanned, insights };
 }
