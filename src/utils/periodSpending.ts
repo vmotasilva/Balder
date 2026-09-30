@@ -3,10 +3,10 @@ import type { ExpenseNature, Movement } from '../types';
 /** Período em que o usuário gosta de acompanhar as finanças. */
 export type TrackingPeriod = 'SEMANA' | 'QUINZENA' | 'MES';
 
-export const TRACKING_PERIOD_LABELS: Record<TrackingPeriod, { name: string; this: string; end: string }> = {
-  SEMANA: { name: 'Semana', this: 'nesta semana', end: 'até domingo' },
-  QUINZENA: { name: 'Quinzena', this: 'nesta quinzena', end: 'até o fim da quinzena' },
-  MES: { name: 'Mês', this: 'neste mês', end: 'até o fim do mês' },
+export const TRACKING_PERIOD_LABELS: Record<TrackingPeriod, { name: string; this: string; that: string; end: string }> = {
+  SEMANA: { name: 'Semana', this: 'nesta semana', that: 'na semana', end: 'até domingo' },
+  QUINZENA: { name: 'Quinzena', this: 'nesta quinzena', that: 'na quinzena', end: 'até o fim da quinzena' },
+  MES: { name: 'Mês', this: 'neste mês', that: 'no mês', end: 'até o fim do mês' },
 };
 
 export interface PeriodRange {
@@ -40,6 +40,34 @@ export function trackingPeriodRange(period: TrackingPeriod, date: Date = new Dat
     from: isoOf(new Date(d.getFullYear(), d.getMonth(), 1)),
     to: isoOf(new Date(d.getFullYear(), d.getMonth(), lastDay)),
   };
+}
+
+/** Uma data dentro do período `offset` períodos distante do que contém a data (negativo = passado). */
+export function shiftPeriodDate(period: TrackingPeriod, date: Date, offset: number): Date {
+  if (period === 'SEMANA') return new Date(date.getFullYear(), date.getMonth(), date.getDate() + 7 * offset);
+  if (period === 'MES') return new Date(date.getFullYear(), date.getMonth() + offset, 1);
+  const half = date.getMonth() * 2 + (date.getDate() <= 15 ? 0 : 1) + offset;
+  return new Date(date.getFullYear(), Math.floor(half / 2), ((half % 2) + 2) % 2 === 0 ? 1 : 16);
+}
+
+const monthName = (d: Date) => d.toLocaleDateString('pt-BR', { month: 'long' });
+
+/** Descrição curta do período: "22 a 28 de setembro", "2ª quinzena de setembro (16 a 30)", "Setembro de 2026". */
+export function periodRangeLabel(period: TrackingPeriod, range: PeriodRange, today: Date = new Date()): string {
+  const [y1, m1, d1] = range.from.split('-').map(Number);
+  const [y2, m2, d2] = range.to.split('-').map(Number);
+  const from = new Date(y1, m1 - 1, d1);
+  const to = new Date(y2, m2 - 1, d2);
+  const year = (d: Date) => (d.getFullYear() !== today.getFullYear() ? ` de ${d.getFullYear()}` : '');
+  if (period === 'MES') {
+    const name = monthName(from);
+    return `${name.charAt(0).toUpperCase()}${name.slice(1)} de ${from.getFullYear()}`;
+  }
+  if (period === 'QUINZENA') {
+    return `${d1 === 1 ? '1ª' : '2ª'} quinzena de ${monthName(from)}${year(from)} (${d1} a ${d2})`;
+  }
+  if (m1 === m2) return `${d1} a ${d2} de ${monthName(to)}${year(to)}`;
+  return `${d1} de ${monthName(from)}${y1 !== y2 ? year(from) : ''} a ${d2} de ${monthName(to)}${year(to)}`;
 }
 
 /** Os `count` períodos imediatamente anteriores ao que contém a data (do mais recente para o mais antigo). */

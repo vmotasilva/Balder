@@ -21215,6 +21215,67 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   color: #fff;
 }
 
+.home-period-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 4px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+}
+
+.home-period-nav > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.home-period-nav > button:hover:not(:disabled) {
+  background: var(--bg-hover, rgba(0, 0, 0, 0.05));
+  color: var(--accent-cyan);
+}
+
+.home-period-nav > button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.home-period-label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.home-period-label small {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.home-period-label .link-button {
+  font-size: 12px;
+  font-weight: 500;
+}
+
 .home-spending-headline {
   display: flex;
   align-items: flex-start;
@@ -22313,4 +22374,111 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 
 .ios-profile-actions .btn {
   text-decoration: none;
+}
+
+/* Lançamento do pagamento de um mapeamento em modo Resumo */
+.mapping-pay {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mapping-pay-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--bg-card-elevated);
+  border: 1px solid var(--border-default);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.mapping-pay-fields {
+  display: flex;
+  gap: 10px;
+}
+
+.mapping-pay-fields label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.mapping-pay-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--accent-amber);
+}
+
+.mapping-pay-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.mapping-pay-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.mapping-pay-list li + li {
+  border-top: 1px solid var(--border-default);
+}
+
+.mapping-pay-list label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.mapping-pay-item {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-primary);
+}
+
+.mapping-pay-value {
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.mapping-pay-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.mapping-pay-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  text-align: center;
+  font-size: 14px;
+}
+
+@media (max-width: 768px) {
+  .mapping-pay-fields {
+    flex-direction: column;
+  }
 }

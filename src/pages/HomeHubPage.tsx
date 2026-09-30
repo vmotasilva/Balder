@@ -21,7 +21,7 @@ import { useAccountScope } from '../context/AccountScopeContext';
 import { GuidedSetup } from '../components/GuidedSetup';
 import { PlanningSwitcher } from '../components/PlanningSwitcher';
 import type { TabId } from '../components/Sidebar';
-import { buildPeriodInsights, TRACKING_PERIOD_LABELS } from '../utils/periodSpending';
+import { buildPeriodInsights, periodRangeLabel, shiftPeriodDate, TRACKING_PERIOD_LABELS } from '../utils/periodSpending';
 import type { TrackingPeriod } from '../utils/periodSpending';
 import { getItemOccurrences } from '../utils/mappingItemState';
 import type { ForecastEntry } from '../utils/forecastWindow';
@@ -106,6 +106,8 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   // Níveis da lista: naturezas → mapeamentos da natureza → itens do mapeamento
   const [drill, setDrill] = useState<{ natureId: string; mappingId?: string } | null>(null);
   const [finishedSetup, setFinishedSetup] = useState(false);
+  // Quantos períodos para trás o card de gastos está mostrando (0 = período atual)
+  const [spendingOffset, setSpendingOffset] = useState(0);
 
   const period: TrackingPeriod = viewPreferences.trackingPeriod || 'MES';
   const labels = TRACKING_PERIOD_LABELS[period];
@@ -273,17 +275,22 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     return shortDate(entry.date);
   };
 
-  // ── Gastos do período por natureza ──
+  // ── Gastos do período por natureza (o atual ou um anterior escolhido nas setas) ──
+  const spendingDate = useMemo(() => shiftPeriodDate(period, new Date(), spendingOffset), [period, spendingOffset]);
   const periodSpending = useMemo(
     () =>
       buildPeriodInsights({
         natures,
         movements,
         period,
+        today: spendingDate,
         monthlyCeiling: (nat, monthKey) => getNatureCeiling(nat, monthKey),
       }),
-    [natures, movements, period, getNatureCeiling]
+    [natures, movements, period, spendingDate, getNatureCeiling]
   );
+  const isCurrentSpending = spendingOffset === 0;
+  const spendingWhen = isCurrentSpending ? labels.this : labels.that;
+  const nextPeriodLabel = period === 'MES' ? 'Próximo mês' : `Próxima ${labels.name.toLowerCase()}`;
   const topAlert = periodSpending.insights.find((i) => i.level === 'ACIMA');
 
   // ── Próximo recebimento ──
@@ -496,28 +503,69 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
       {/* Como vão os gastos no período? */}
       <section className="home-card">
         <div className="home-card-head">
-          <h2>Gastos {labels.this}</h2>
+          <h2>Gastos {spendingWhen}</h2>
           <div className="home-period-switch" role="group" aria-label="Período de acompanhamento">
             {PERIODS.map((p) => (
-              <button key={p} type="button" className={p === period ? 'is-active' : ''} onClick={() => setViewPreferences({ trackingPeriod: p })}>
+              <button
+                key={p}
+                type="button"
+                className={p === period ? 'is-active' : ''}
+                onClick={() => {
+                  setViewPreferences({ trackingPeriod: p });
+                  setSpendingOffset(0);
+                }}
+              >
                 {TRACKING_PERIOD_LABELS[p].name}
               </button>
             ))}
           </div>
         </div>
+        <div className="home-period-nav">
+          <button
+            type="button"
+            onClick={() => setSpendingOffset((o) => o - 1)}
+            aria-label={`${labels.name} anterior`}
+            title={`${labels.name} anterior`}
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <span className="home-period-label">
+            {periodRangeLabel(period, periodSpending.range)}
+            {isCurrentSpending ? (
+              <small>atual</small>
+            ) : (
+              <button type="button" className="link-button" onClick={() => setSpendingOffset(0)}>
+                Voltar para a atual
+              </button>
+            )}
+          </span>
+          <button
+            type="button"
+            onClick={() => setSpendingOffset((o) => Math.min(0, o + 1))}
+            disabled={isCurrentSpending}
+            aria-label={nextPeriodLabel}
+            title={isCurrentSpending ? 'Você já está no período atual' : nextPeriodLabel}
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
         {periodSpending.insights.length === 0 ? (
-          <p className="home-empty">Nenhum gasto registrado {labels.this}. Conte à Forseti quando gastar.</p>
+          <p className="home-empty">
+            {isCurrentSpending
+              ? `Nenhum gasto registrado ${labels.this}. Conte à Forseti quando gastar.`
+              : `Nenhum gasto registrado ${labels.that}.`}
+          </p>
         ) : (
           <>
             <p className={`home-spending-headline ${topAlert ? 'is-alert' : ''}`}>
               {topAlert ? (
                 <>
-                  <AlertTriangle size={14} /> Já gastamos bastante com {topAlert.name.toLowerCase()} {labels.this}: {formatBRL(topAlert.spent)} de{' '}
+                  <AlertTriangle size={14} /> {isCurrentSpending ? 'Já gastamos' : 'Gastamos'} bastante com {topAlert.name.toLowerCase()} {spendingWhen}: {formatBRL(topAlert.spent)} de{' '}
                   {formatBRL(topAlert.expected)} esperados.
                 </>
               ) : (
                 <>
-                  <CheckCircle2 size={14} /> {formatBRL(periodSpending.totalSpent)} gastos {labels.this}, dentro do esperado.
+                  <CheckCircle2 size={14} /> {formatBRL(periodSpending.totalSpent)} gastos {spendingWhen}, dentro do esperado.
                 </>
               )}
             </p>
