@@ -1600,10 +1600,10 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return Object.fromEntries(
       FORECAST_PERIODS.map(({ id }) => [
         id,
-        buildForecastWindow({ movements, natures, startingBalance: availableBalance, startDate, today, period: id }),
+        buildForecastWindow({ movements, natures, startingBalance: availableBalance, startDate, today, period: id, natureDetailModes }),
       ])
     ) as Record<ForecastPeriod, ForecastWindow>;
-  }, [movements, natures, availableBalance, activeCheckpoint]);
+  }, [movements, natures, availableBalance, activeCheckpoint, natureDetailModes]);
   const forecast30d = forecasts.DIAS_30;
 
   const monthlyFreeCashflow = forecast30d.net;

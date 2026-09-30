@@ -24,6 +24,8 @@ export interface ForecastEntry {
   natureId?: string;
   mappingId?: string;
   itemId?: string;
+  /** Mapeamento em modo Resumo: uma linha só para o mapeamento (os itens só compõem o valor). */
+  mappingSummary?: boolean;
 }
 
 export type ForecastPeriod = 'SEMANA' | 'QUINZENA' | 'MES' | 'DIAS_30';
@@ -90,8 +92,10 @@ export function buildForecastWindow(params: {
   startDate?: string; // início do marco ativo (itens das naturezas antes dele são ignorados)
   today?: Date;
   period?: ForecastPeriod;
+  /** Exibição padrão de cada natureza ('MAPEAMENTOS' = Resumo); o mapeamento pode ter a sua. */
+  natureDetailModes?: Record<string, 'ITENS' | 'MAPEAMENTOS'>;
 }): ForecastWindow {
-  const { movements, natures, startingBalance, startDate = '0000-01-01', period = 'DIAS_30' } = params;
+  const { movements, natures, startingBalance, startDate = '0000-01-01', period = 'DIAS_30', natureDetailModes = {} } = params;
   const today = params.today ? new Date(params.today) : new Date();
   today.setHours(0, 0, 0, 0);
   const end = forecastPeriodEnd(period, today);
@@ -147,10 +151,17 @@ export function buildForecastWindow(params: {
 
   natures.forEach((nat) => {
     nat.mappings.forEach((mapping) => {
+      // Modo Resumo: o mapeamento é a linha de cobrança; os itens só somam o valor dele
+      const summarized = (mapping.detailMode ?? natureDetailModes[nat.id]) === 'MAPEAMENTOS';
+      const mappingBuckets = new Map<string, { amount: number; count: number; first: string; overdue: boolean }>();
+      const mappingItemIds = new Set<string>();
+
       mapping.items.forEach((item) => {
         if (item.paymentMethod === 'CARTAO') return;
 
-        const buckets = new Map<string, { amount: number; count: number; first: string; overdue: boolean }>();
+        const buckets = summarized
+          ? mappingBuckets
+          : new Map<string, { amount: number; count: number; first: string; overdue: boolean }>();
         monthKeys.forEach((monthKey) => {
           const monthNumber = Number(monthKey.slice(5, 7));
           if (mapping.applicableMonths && mapping.applicableMonths.length > 0 && !mapping.applicableMonths.includes(monthNumber)) {
@@ -172,8 +183,11 @@ export function buildForecastWindow(params: {
             const overdue = date < fromDate;
             // Ocorrências vencidas só contam dentro da competência atual
             if (overdue && monthKey !== currentMonthKey) return;
-            const key = overdue ? 'overdue' : 'upcoming';
+            // Resumo: uma linha só por mapeamento (em atraso se alguma parte já venceu)
+            const key = summarized ? 'all' : overdue ? 'overdue' : 'upcoming';
+            if (summarized) mappingItemIds.add(item.id);
             const bucket = buckets.get(key) || { amount: 0, count: 0, first: date, overdue };
+            bucket.overdue = bucket.overdue || overdue;
             bucket.amount += amount;
             bucket.count += 1;
             if (date < bucket.first) bucket.first = date;
@@ -185,6 +199,7 @@ export function buildForecastWindow(params: {
           if (summary.openBalance > 0 && monthKey === currentMonthKey) add(fromDate, summary.openBalance);
         });
 
+        if (summarized) return;
         buckets.forEach((b, key) => {
           entries.push({
             id: `nat_${item.id}_${key}`,
@@ -199,6 +214,22 @@ export function buildForecastWindow(params: {
             mappingId: mapping.id,
             itemId: item.id,
           });
+        });
+      });
+
+      mappingBuckets.forEach((b, key) => {
+        entries.push({
+          id: `natmap_${mapping.id}_${key}`,
+          date: b.first,
+          title: mapping.name,
+          detail: `${nat.name} · ${mappingItemIds.size} ${mappingItemIds.size === 1 ? 'item' : 'itens'} no resumo`,
+          kind: 'SAIDA',
+          source: 'NATUREZA',
+          amount: round2(b.amount),
+          overdue: b.overdue,
+          natureId: nat.id,
+          mappingId: mapping.id,
+          mappingSummary: true,
         });
       });
     });

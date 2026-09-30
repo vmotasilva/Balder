@@ -22429,70 +22429,68 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   color: var(--text-secondary);
 }
 
-.mapping-pay-hint {
+.mapping-pay-feedback {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
   margin: 0;
-  font-size: 12px;
-  color: var(--accent-amber);
+  font-size: 12.5px;
+  color: var(--text-secondary);
 }
 
-.mapping-pay-list-head {
+.mapping-pay-history {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mapping-pay-history-title {
   font-size: 12px;
   font-weight: 700;
   color: var(--text-secondary);
 }
 
-.mapping-pay-list {
+.mapping-pay-history ul {
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 260px;
-  overflow-y: auto;
   border: 1px solid var(--border-default);
   border-radius: var(--radius-md);
 }
 
-.mapping-pay-list li + li {
-  border-top: 1px solid var(--border-default);
-}
-
-.mapping-pay-list label {
+.mapping-pay-history li {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 12px;
+  padding: 7px 10px;
   font-size: 13px;
+}
+
+.mapping-pay-history li + li {
+  border-top: 1px solid var(--border-default);
+}
+
+.mapping-pay-history li strong {
+  margin-left: auto;
+}
+
+.mapping-pay-undo {
+  display: inline-flex;
+  padding: 4px;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
   cursor: pointer;
 }
 
-.mapping-pay-item {
-  flex: 1;
-  min-width: 0;
-  color: var(--text-primary);
-}
-
-.mapping-pay-value {
-  font-weight: 700;
-  white-space: nowrap;
-  color: var(--text-secondary);
+.mapping-pay-undo:hover {
+  color: var(--accent-rose);
 }
 
 .mapping-pay-actions {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-}
-
-.mapping-pay-done {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 0;
-  text-align: center;
-  font-size: 14px;
 }
 
 @media (max-width: 768px) {

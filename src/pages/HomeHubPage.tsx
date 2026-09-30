@@ -23,6 +23,7 @@ import type { TabId } from '../components/Sidebar';
 import { buildPeriodItems, periodRangeLabel, shiftPeriodDate, trackingPeriodRange, TRACKING_PERIOD_LABELS } from '../utils/periodSpending';
 import type { PeriodItem, PeriodPurchase, TrackingPeriod } from '../utils/periodSpending';
 import { getItemOccurrences } from '../utils/mappingItemState';
+import { MappingPaymentModal, type MappingPaymentTarget } from '../components/MappingPaymentModal';
 import type { ForecastEntry } from '../utils/forecastWindow';
 import { displayName } from '../utils/displayName';
 
@@ -135,6 +136,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   const [showAllTasks, setShowAllTasks] = useState(false);
   // Níveis da lista: naturezas → mapeamentos da natureza → itens do mapeamento
   const [drill, setDrill] = useState<{ natureId: string; mappingId?: string } | null>(null);
+  const [mappingPayment, setMappingPayment] = useState<MappingPaymentTarget | null>(null);
   const [finishedSetup, setFinishedSetup] = useState(false);
   // Quantos períodos para trás o card de gastos está mostrando (0 = período atual)
   const [spendingOffset, setSpendingOffset] = useState(0);
@@ -187,19 +189,21 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
         .map((entry) => ({ type: 'ENTRY' as const, entry }));
     }
     if (openNature) {
+      const natureEntries = tasks.filter((e) => e.natureId === openNature.id);
       const byMapping = groupEntries(
-        tasks.filter((e) => e.natureId === openNature.id),
+        natureEntries.filter((e) => !e.mappingSummary),
         (e) => e.mappingId
       );
-      return sortRows(
-        [...byMapping].map(([mappingId, g]) => ({
+      return sortRows([
+        ...natureEntries.filter((e) => e.mappingSummary).map((entry) => ({ type: 'ENTRY' as const, entry })),
+        ...[...byMapping].map(([mappingId, g]) => ({
           type: 'GROUP' as const,
           id: mappingId,
           title: openNature.mappings.find((m) => m.id === mappingId)?.name || 'Mapeamento',
           ...g,
           open: () => setDrill({ natureId: openNature.id, mappingId }),
-        }))
-      );
+        })),
+      ]);
     }
     const byNature = groupEntries(tasks, (e) => (e.source === 'NATUREZA' ? e.natureId : undefined));
     return sortRows([
@@ -236,6 +240,27 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
       return (
         <button type="button" className="btn btn-outline btn-xs" onClick={() => onNavigate('FATURAS')}>
           Ver fatura
+        </button>
+      );
+    }
+    if (entry.source === 'NATUREZA' && entry.mappingSummary && entry.natureId && entry.mappingId) {
+      const mapping = natures.find((n) => n.id === entry.natureId)?.mappings.find((m) => m.id === entry.mappingId);
+      return (
+        <button
+          type="button"
+          className="btn btn-outline btn-xs"
+          onClick={() =>
+            mapping &&
+            setMappingPayment({
+              natureId: entry.natureId!,
+              mappingId: mapping.id,
+              itemIds: mapping.items.filter((it) => it.paymentMethod !== 'CARTAO').map((it) => it.id),
+              monthKey: entry.date.slice(0, 7),
+              title: mapping.name,
+            })
+          }
+        >
+          Lançar
         </button>
       );
     }
@@ -776,6 +801,8 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           </button>
         ))}
       </section>
+
+      <MappingPaymentModal target={mappingPayment} onClose={() => setMappingPayment(null)} />
     </div>
   );
 };

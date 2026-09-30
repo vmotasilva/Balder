@@ -401,6 +401,11 @@ export interface MappingItemPayment {
   coveredDates: string[];  // ocorrências cobertas (YYYY-MM-DD); cada data só pode ser paga uma vez
   reason?: string;         // por que o valor foi diferente
   action?: MappingItemPaymentAction;
+  /**
+   * Parte de um pagamento feito no mapeamento (modo Resumo): não cobre datas; abate do previsto do item
+   * na proporção do previsto dele no mês. Todas as partes do mesmo pagamento têm o mesmo id.
+   */
+  mappingPaymentId?: string;
 }
 
 /** Preço por ocorrência que passa a valer a partir de uma competência (inclusive). */

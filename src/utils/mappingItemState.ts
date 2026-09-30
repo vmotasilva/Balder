@@ -113,7 +113,9 @@ export function resolveMappingItemMonth(item: MappingItem, monthKey: string): Ma
 
   const paid = round2(payments.reduce((acc, p) => acc + p.amount, 0));
   const occurrenceValue = (item.quantity || 1) * itemUnitPrice(item, monthKey);
-  const pendingUncovered = state.realized ? 0 : Math.max(0, base - coveredDates.size * occurrenceValue);
+  // Partes de pagamentos do mapeamento (modo Resumo) abatem do previsto sem cobrir datas
+  const mappingShares = payments.filter((p) => p.mappingPaymentId).reduce((acc, p) => acc + p.amount, 0);
+  const pendingUncovered = state.realized ? 0 : Math.max(0, base - coveredDates.size * occurrenceValue - mappingShares);
   const openBalance = payments
     .filter((p) => p.action === 'SALDO_ABERTO')
     .reduce((acc, p) => acc + Math.max(0, p.expectedAmount - p.amount), 0);
@@ -237,4 +239,105 @@ export function removeItemPayment(item: MappingItem, monthKey: string, paymentId
   if (remaining.length > 0) payments[monthKey] = remaining;
   else delete payments[monthKey];
   return { payments };
+}
+
+// ─── Mapeamento em modo Resumo: o mapeamento é a linha de cobrança ───────────────────────────────
+// Os itens só compõem o previsto; o pagamento é lançado no mapeamento (valor e data) e guardado como
+// uma parte em cada item, na proporção do previsto do item no mês (assim previsões e gastos seguem
+// funcionando item a item). Pagamentos parciais vão abatendo até quitar o mapeamento.
+
+export interface MappingMonthPayment {
+  id: string;
+  paidAt: string;
+  amount: number;
+}
+
+export interface MappingMonthSummary {
+  planned: number; // previsto do mês (itens que contam na competência)
+  paid: number;
+  pending: number;
+  payments: MappingMonthPayment[];
+}
+
+type MappingLike = { items: MappingItem[] };
+
+/** Totais do mapeamento na competência e os pagamentos lançados nele. */
+export function resolveMappingMonth(mapping: MappingLike, monthKey: string): MappingMonthSummary {
+  let planned = 0;
+  let paid = 0;
+  let pending = 0;
+  const byPayment = new Map<string, MappingMonthPayment>();
+  mapping.items.forEach((item) => {
+    const s = resolveMappingItemMonth(item, monthKey);
+    if (isExcludedState(s.state)) return;
+    planned += s.base;
+    paid += s.paid;
+    pending += s.pending;
+    s.payments.forEach((p) => {
+      if (!p.mappingPaymentId) return;
+      const agg = byPayment.get(p.mappingPaymentId) || { id: p.mappingPaymentId, paidAt: p.paidAt, amount: 0 };
+      agg.amount = round2(agg.amount + p.amount);
+      byPayment.set(p.mappingPaymentId, agg);
+    });
+  });
+  return {
+    planned: round2(planned),
+    paid: round2(paid),
+    pending: round2(pending),
+    payments: [...byPayment.values()].sort((a, b) => a.paidAt.localeCompare(b.paidAt)),
+  };
+}
+
+/**
+ * Lança um pagamento no mapeamento. Devolve, por item, as alterações a gravar.
+ * O valor é dividido na proporção do previsto de cada item no mês (o último fica com o arredondamento).
+ */
+export function registerMappingPayment(
+  mapping: MappingLike,
+  monthKey: string,
+  input: { paidAt: string; amount: number }
+): { itemId: string; patch: Partial<MappingItem> }[] {
+  const amount = round2(input.amount);
+  if (amount <= 0) return [];
+  const eligible = mapping.items
+    .map((item) => ({ item, s: resolveMappingItemMonth(item, monthKey) }))
+    .filter(({ s }) => !isExcludedState(s.state));
+  if (eligible.length === 0) return [];
+  const totalBase = eligible.reduce((acc, e) => acc + e.s.base, 0);
+  const id = `mpay_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  let remaining = amount;
+  return eligible.map(({ item, s }, i) => {
+    const share =
+      i === eligible.length - 1
+        ? remaining
+        : round2(totalBase > 0 ? (amount * s.base) / totalBase : amount / eligible.length);
+    remaining = round2(remaining - share);
+    const payment: MappingItemPayment = {
+      id: `${id}_${item.id}`,
+      paidAt: input.paidAt,
+      amount: share,
+      expectedAmount: share,
+      coveredDates: [],
+      mappingPaymentId: id,
+    };
+    const existing = item.payments?.[monthKey] || [];
+    return { itemId: item.id, patch: { payments: { ...(item.payments || {}), [monthKey]: [...existing, payment] } } };
+  });
+}
+
+/** Desfaz um pagamento lançado no mapeamento (remove a parte de cada item). */
+export function removeMappingPayment(
+  mapping: MappingLike,
+  monthKey: string,
+  mappingPaymentId: string
+): { itemId: string; patch: Partial<MappingItem> }[] {
+  return mapping.items
+    .filter((item) => (item.payments?.[monthKey] || []).some((p) => p.mappingPaymentId === mappingPaymentId))
+    .map((item) => {
+      const remaining = (item.payments?.[monthKey] || []).filter((p) => p.mappingPaymentId !== mappingPaymentId);
+      const payments = { ...(item.payments || {}) };
+      if (remaining.length > 0) payments[monthKey] = remaining;
+      else delete payments[monthKey];
+      return { itemId: item.id, patch: { payments } };
+    });
 }

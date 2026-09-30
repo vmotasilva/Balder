@@ -1,14 +1,16 @@
 import React, { useMemo, useState } from 'react';
-import { CheckCircle2, Wallet } from 'lucide-react';
+import { CheckCircle2, Trash2, Wallet } from 'lucide-react';
 import { Modal } from './Modal';
 import { DecimalInput } from './DecimalInput';
+import { ConfirmDialog, useConfirmDialog } from './ConfirmDialog';
 import { useFinancial } from '../context/FinancialContext';
-import { getItemOccurrences, isExcludedState, registerItemPayment, resolveMappingItemMonth } from '../utils/mappingItemState';
+import { registerMappingPayment, removeMappingPayment, resolveMappingMonth } from '../utils/mappingItemState';
 
-/** Linha-resumo de um mapeamento (modo Resumo) na competência. */
+/** Mapeamento em modo Resumo na competência (a linha de cobrança da natureza). */
 export interface MappingPaymentTarget {
   natureId: string;
   mappingId: string;
+  /** Itens que compõem a linha (um mapeamento misto tem uma linha para cartão e outra para os demais). */
   itemIds: string[];
   monthKey: string; // YYYY-MM
   title: string;
@@ -20,7 +22,7 @@ interface MappingPaymentModalProps {
 }
 
 const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-const round2 = (v: number) => Math.round(v * 100) / 100;
+const formatDate = (iso: string) => iso.split('-').reverse().join('/');
 const monthLabel = (monthKey: string) => {
   const [y, m] = monthKey.split('-').map(Number);
   return new Date(y, (m || 1) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -32,8 +34,8 @@ const defaultPaidAt = (monthKey: string) => {
 };
 
 /**
- * Lançamento de um mapeamento em modo Resumo: o valor pago é distribuído entre os itens ainda pendentes
- * (proporcional ao previsto de cada um) e cada item recebe o pagamento, dando baixa no previsto da competência.
+ * Lançamento do mapeamento em modo Resumo: só valor e data. Os itens servem apenas para compor o previsto;
+ * cada pagamento abate do previsto do mapeamento (pode ser em partes, ex.: uma compra por semana).
  */
 export const MappingPaymentModal: React.FC<MappingPaymentModalProps> = ({ target, onClose }) => {
   if (!target) return null;
@@ -42,169 +44,111 @@ export const MappingPaymentModal: React.FC<MappingPaymentModalProps> = ({ target
 
 const MappingPaymentForm: React.FC<{ target: MappingPaymentTarget; onClose: () => void }> = ({ target, onClose }) => {
   const { natures, updateMappingItemState } = useFinancial();
+  const { confirm, dialogProps } = useConfirmDialog();
   const { monthKey } = target;
 
-  const rows = useMemo(() => {
+  const scope = useMemo(() => {
     const mapping = natures.find((n) => n.id === target.natureId)?.mappings.find((m) => m.id === target.mappingId);
-    if (!mapping) return [];
-    return mapping.items
-      .filter((it) => target.itemIds.includes(it.id))
-      .map((item) => {
-        const summary = resolveMappingItemMonth(item, monthKey);
-        const excluded = isExcludedState(summary.state);
-        const pendingDates = getItemOccurrences(item, monthKey)
-          .map((o) => o.date)
-          .filter((d) => !summary.coveredDates.has(d));
-        return {
-          item,
-          paid: excluded ? 0 : summary.paid,
-          planned: excluded ? 0 : summary.value,
-          pending: excluded || summary.state.realized ? 0 : round2(summary.pending),
-          pendingDates,
-        };
-      });
-  }, [natures, target, monthKey]);
-
-  const payable = rows.filter((r) => r.pending > 0.005 && r.pendingDates.length > 0);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set(payable.map((r) => r.item.id)));
-  const selected = payable.filter((r) => selectedIds.has(r.item.id));
-  const selectedTotal = round2(selected.reduce((acc, r) => acc + r.pending, 0));
+    return { items: (mapping?.items || []).filter((it) => target.itemIds.includes(it.id)) };
+  }, [natures, target]);
+  const month = resolveMappingMonth(scope, monthKey);
 
   const [amount, setAmount] = useState<number | null>(null);
-  const paidAmount = amount ?? selectedTotal;
+  const paidAmount = amount ?? month.pending;
   const [paidAt, setPaidAt] = useState(() => defaultPaidAt(monthKey));
-  const [done, setDone] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
 
-  const plannedTotal = round2(rows.reduce((acc, r) => acc + r.planned, 0));
-  const paidTotal = round2(rows.reduce((acc, r) => acc + r.paid, 0));
-  const pendingTotal = round2(payable.reduce((acc, r) => acc + r.pending, 0));
-  const diff = round2(paidAmount - selectedTotal);
-
-  const toggle = (id: string) =>
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const apply = (changes: { itemId: string; patch: Parameters<typeof updateMappingItemState>[3] }[]) =>
+    changes.forEach((c) => updateMappingItemState(target.natureId, target.mappingId, c.itemId, c.patch));
 
   const register = () => {
-    if (selected.length === 0 || paidAmount <= 0) return;
-    // Divide o valor pago na proporção do previsto de cada item; o último fica com o arredondamento
-    let remaining = round2(paidAmount);
-    selected.forEach((r, i) => {
-      const share = i === selected.length - 1 ? remaining : round2((paidAmount * r.pending) / selectedTotal);
-      remaining = round2(remaining - share);
-      const hasDiff = Math.abs(share - r.pending) >= 0.01;
-      updateMappingItemState(
-        target.natureId,
-        target.mappingId,
-        r.item.id,
-        registerItemPayment(r.item, monthKey, {
-          paidAt,
-          amount: share,
-          coveredDates: r.pendingDates,
-          ...(hasDiff
-            ? { reason: `Pagamento do mapeamento ${target.title}`, action: share > r.pending ? 'PONTUAL' : 'QUITADO' }
-            : {}),
-        })
-      );
-    });
-    setDone(`${formatBRL(paidAmount)} registrado em ${selected.length} ${selected.length === 1 ? 'item' : 'itens'} de ${target.title}.`);
+    if (paidAmount <= 0) return;
+    apply(registerMappingPayment(scope, monthKey, { paidAt, amount: paidAmount }));
+    const left = Math.max(0, Math.round((month.pending - paidAmount) * 100) / 100);
+    setFeedback(
+      left > 0.005
+        ? `${formatBRL(paidAmount)} lançado em ${formatDate(paidAt)}. Ainda faltam ${formatBRL(left)} no mês.`
+        : `${formatBRL(paidAmount)} lançado em ${formatDate(paidAt)}. ${target.title} está quitado no mês.`
+    );
+    setAmount(null);
   };
 
   return (
-    <Modal isOpen onClose={onClose} title={`Lançar pagamento: ${target.title}`} subtitle={`Competência de ${monthLabel(monthKey)}`} maxWidth="520px">
+    <Modal isOpen onClose={onClose} title={`Lançar pagamento: ${target.title}`} subtitle={`Competência de ${monthLabel(monthKey)}`} maxWidth="460px">
       <div className="mapping-pay">
         <div className="mapping-pay-summary">
           <span>
-            Previsto <strong>{formatBRL(plannedTotal)}</strong>
+            Previsto <strong>{formatBRL(month.planned)}</strong>
           </span>
           <span>
-            Pago <strong className="text-emerald">{formatBRL(paidTotal)}</strong>
+            Pago <strong className="text-emerald">{formatBRL(month.paid)}</strong>
           </span>
           <span>
-            Falta <strong className="text-amber">{formatBRL(pendingTotal)}</strong>
+            Falta <strong className="text-amber">{formatBRL(month.pending)}</strong>
           </span>
         </div>
 
-        {done ? (
-          <div className="mapping-pay-done">
-            <CheckCircle2 size={28} className="text-emerald" />
-            <p>{done}</p>
-            <button type="button" className="btn btn-primary" onClick={onClose}>
-              Concluir
-            </button>
-          </div>
-        ) : payable.length === 0 ? (
-          <div className="mapping-pay-done">
-            <CheckCircle2 size={28} className="text-emerald" />
-            <p>Tudo deste mapeamento já está pago nesta competência.</p>
-            <button type="button" className="btn btn-secondary" onClick={onClose}>
-              Fechar
-            </button>
-          </div>
-        ) : (
-          <>
-            <div className="mapping-pay-fields">
-              <label>
-                <span>Valor pago</span>
-                <DecimalInput
-                  className="form-input"
-                  value={paidAmount}
-                  onValueChange={(v) => setAmount(v)}
-                  aria-label="Valor pago"
-                />
-              </label>
-              <label>
-                <span>Data do pagamento</span>
-                <input type="date" className="form-input" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
-              </label>
-            </div>
-            {Math.abs(diff) >= 0.01 && selected.length > 0 && (
-              <p className="mapping-pay-hint">
-                {diff < 0
-                  ? `Você pagou ${formatBRL(Math.abs(diff))} a menos que o previsto: os itens marcados ficam quitados com o valor real.`
-                  : `Você pagou ${formatBRL(diff)} a mais que o previsto: a diferença fica registrada como gasto pontual.`}
-              </p>
-            )}
+        {feedback && (
+          <p className="mapping-pay-feedback">
+            <CheckCircle2 size={15} className="text-emerald" /> {feedback}
+          </p>
+        )}
 
-            <div className="mapping-pay-list-head">
-              <span>O que este pagamento cobre</span>
-              <button
-                type="button"
-                className="link-button"
-                onClick={() =>
-                  setSelectedIds(selected.length === payable.length ? new Set() : new Set(payable.map((r) => r.item.id)))
-                }
-              >
-                {selected.length === payable.length ? 'Desmarcar todos' : 'Marcar todos'}
-              </button>
-            </div>
-            <ul className="mapping-pay-list">
-              {payable.map((r) => (
-                <li key={r.item.id}>
-                  <label>
-                    <input type="checkbox" checked={selectedIds.has(r.item.id)} onChange={() => toggle(r.item.id)} />
-                    <span className="mapping-pay-item">{r.item.description}</span>
-                    <span className="mapping-pay-value">{formatBRL(r.pending)}</span>
-                  </label>
+        <div className="mapping-pay-fields">
+          <label>
+            <span>Valor pago</span>
+            <DecimalInput className="form-input" value={paidAmount} onValueChange={(v) => setAmount(v)} emptyWhenZero aria-label="Valor pago" />
+          </label>
+          <label>
+            <span>Data do pagamento</span>
+            <input type="date" className="form-input" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
+          </label>
+        </div>
+
+        {month.payments.length > 0 && (
+          <div className="mapping-pay-history">
+            <span className="mapping-pay-history-title">Pagamentos deste mês</span>
+            <ul>
+              {month.payments.map((p) => (
+                <li key={p.id}>
+                  <span>{formatDate(p.paidAt)}</span>
+                  <strong>{formatBRL(p.amount)}</strong>
+                  <button
+                    type="button"
+                    className="mapping-pay-undo"
+                    title="Desfazer este pagamento"
+                    aria-label="Desfazer este pagamento"
+                    onClick={() =>
+                      confirm({
+                        title: 'Desfazer pagamento',
+                        message: `O pagamento de ${formatBRL(p.amount)} em ${formatDate(p.paidAt)} volta a ficar em aberto no previsto.`,
+                        confirmLabel: 'Desfazer',
+                        onConfirm: () => {
+                          apply(removeMappingPayment(scope, monthKey, p.id));
+                          setFeedback(null);
+                        },
+                      })
+                    }
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </li>
               ))}
             </ul>
-
-            <div className="mapping-pay-actions">
-              <button type="button" className="btn btn-secondary" onClick={onClose}>
-                Cancelar
-              </button>
-              <button type="button" className="btn btn-primary" onClick={register} disabled={selected.length === 0 || paidAmount <= 0}>
-                <Wallet size={16} />
-                <span>Registrar {formatBRL(paidAmount)}</span>
-              </button>
-            </div>
-          </>
+          </div>
         )}
+
+        <div className="mapping-pay-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            {feedback ? 'Fechar' : 'Cancelar'}
+          </button>
+          <button type="button" className="btn btn-primary" onClick={register} disabled={paidAmount <= 0}>
+            <Wallet size={16} />
+            <span>Registrar {paidAmount > 0 ? formatBRL(paidAmount) : ''}</span>
+          </button>
+        </div>
       </div>
+      <ConfirmDialog {...dialogProps} />
     </Modal>
   );
 };
