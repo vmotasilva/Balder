@@ -22831,3 +22831,6 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .purchases-list li {
   grid-template-columns: 44px minmax(0, 1fr) auto;
 }
+
+.period-mov-list li.is-clickable { cursor: pointer; }
+.period-mov-list li.is-clickable:hover { background: var(--bg-input); }

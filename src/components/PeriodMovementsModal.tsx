@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { Modal } from './Modal';
+import { MovementDetailModal } from './MovementDetailModal';
 import type { Movement } from '../types';
 
 type FlowFilter = 'TODAS' | 'ENTRADAS' | 'SAIDAS';
@@ -32,6 +33,8 @@ export const PeriodMovementsModal: React.FC<PeriodMovementsModalProps> = ({ isOp
   const [flow, setFlow] = useState<FlowFilter>('TODAS');
   const [status, setStatus] = useState<StatusFilter>('TODAS');
   const [query, setQuery] = useState('');
+  // Movimentação aberta para ajustar valor, data, parcelamento e demais dados
+  const [editing, setEditing] = useState<Movement | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -80,7 +83,7 @@ export const PeriodMovementsModal: React.FC<PeriodMovementsModalProps> = ({ isOp
             {filtered.map((m) => {
               const isIncome = isMovementIncome(m);
               return (
-                <li key={m.id}>
+                <li key={m.id} className="is-clickable" onClick={() => setEditing(m)} onKeyDown={(e) => e.key === 'Enter' && setEditing(m)} tabIndex={0} role="button" title="Ajustar valor, data ou parcelamento">
                   <span className="period-mov-date">{shortDate(movementDate(m))}</span>
                   <span className="period-mov-main">
                     <b>{m.title}</b>
@@ -97,6 +100,7 @@ export const PeriodMovementsModal: React.FC<PeriodMovementsModalProps> = ({ isOp
           </ul>
         )}
       </div>
+      {editing && <MovementDetailModal isOpen movement={editing} onClose={() => setEditing(null)} />}
     </Modal>
   );
 };

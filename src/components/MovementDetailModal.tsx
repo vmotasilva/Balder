@@ -71,6 +71,9 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
   const [actualAmountInput, setActualAmountInput] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [paymentDate, setPaymentDate] = useState('');
+  // Parcelamento (vazio = sem parcelamento)
+  const [instNumberInput, setInstNumberInput] = useState('');
+  const [instTotalInput, setInstTotalInput] = useState('');
   const [bank, setBank] = useState('');
   const [category, setCategory] = useState('');
   const [status, setStatus] = useState<MovementStatus>('PREVISTA');
@@ -110,6 +113,8 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
     setDueDate(movement.dueDate || new Date().toISOString().split('T')[0]);
     setPaymentDate(movement.paymentDate || movement.dueDate || new Date().toISOString().split('T')[0]);
     setBank(movement.bank || 'Nubank');
+    setInstNumberInput(movement.installmentNumber ? String(movement.installmentNumber) : '');
+    setInstTotalInput(movement.installmentsTotal ? String(movement.installmentsTotal) : '');
     setCategory(movement.category || 'Outros');
     setStatus(movement.status || 'PREVISTA');
     setNotes(movement.notes || '');
@@ -667,6 +672,15 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
       status: updatedStatus,
       notes: notes.trim() || undefined,
       adjustmentReason: adjustmentReason.trim() || undefined,
+      ...(movement.type === 'PAGAR' || movement.type === 'RECEBER'
+        ? (() => {
+            const total = parseInt(instTotalInput, 10);
+            const num = parseInt(instNumberInput, 10);
+            return total >= 2 && num >= 1 && num <= total
+              ? { installmentNumber: num, installmentsTotal: total }
+              : { installmentNumber: undefined, installmentsTotal: undefined };
+          })()
+        : {}),
       natureId: selectedNatureId || undefined,
       mappingItemId: selectedMappingItemId || undefined,
       invoiceBreakdown: finalBreakdown,
@@ -1676,6 +1690,33 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
               />
             </div>
           </div>
+
+          {/* Parcelamento: corrige a parcela e o total (vazio = sem parcelamento) */}
+          {(movement.type === 'PAGAR' || movement.type === 'RECEBER') && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '0.25rem', fontSize: '0.78rem' }}>
+              <label style={{ color: 'var(--text-muted)' }}>Parcela</label>
+              <input
+                type="number"
+                min={1}
+                value={instNumberInput}
+                onChange={(e) => setInstNumberInput(e.target.value)}
+                className="form-input"
+                style={{ width: '70px', fontSize: '0.78rem', padding: '4px 8px' }}
+                aria-label="Número da parcela"
+              />
+              <label style={{ color: 'var(--text-muted)' }}>de</label>
+              <input
+                type="number"
+                min={2}
+                value={instTotalInput}
+                onChange={(e) => setInstTotalInput(e.target.value)}
+                className="form-input"
+                style={{ width: '70px', fontSize: '0.78rem', padding: '4px 8px' }}
+                aria-label="Total de parcelas"
+              />
+              <span style={{ color: 'var(--text-muted)' }}>(deixe vazio se não for parcelado)</span>
+            </div>
+          )}
 
           {/* Dados de Liquidação: Data e Banco */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '0.25rem' }}>
