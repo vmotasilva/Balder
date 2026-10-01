@@ -715,7 +715,14 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
       for (const nat of natures) {
         const oldMapping = nat.mappings.find((m) => (m.items || []).some((it) => it.id === movement.mappingItemId));
         if (oldMapping) {
-          updateMappingItem(nat.id, oldMapping.id, movement.mappingItemId, { isFulfilled: false, realizedValue: 0 });
+          const oldItem = oldMapping.items.find((it) => it.id === movement.mappingItemId);
+          // Tira também o pagamento que esta movimentação lançou no item antigo
+          const payments = Object.fromEntries(
+            Object.entries(oldItem?.payments || {})
+              .map(([month, list]) => [month, list.filter((p) => p.movementId !== movement.id)] as const)
+              .filter(([, list]) => list.length > 0)
+          );
+          updateMappingItem(nat.id, oldMapping.id, movement.mappingItemId, { isFulfilled: false, realizedValue: 0, payments });
           break;
         }
       }
@@ -732,6 +739,10 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
             mappingId: targetMapping.id,
             itemId: selectedMappingItemId,
             realizedValue: finalAmount,
+            monthKey: (paymentDate || dueDate).slice(0, 7),
+            paidAt: paymentDate || dueDate,
+            movementId: movement.id,
+            previousAmount: movement.actualAmount ?? movement.amount,
           },
         ]);
       }
