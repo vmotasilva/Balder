@@ -23382,3 +23382,130 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     overflow-wrap: anywhere !important;
   }
 }
+
+/* ==========================================================================
+   MOVIMENTAÇÕES NO CELULAR: cada lançamento vira um card (sem tabela com rolagem lateral)
+   ========================================================================== */
+@media (max-width: 640px) {
+  .mv-cards-mobile {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
+  }
+
+  .mv-cards-mobile .movements-table,
+  .mv-cards-mobile .movements-table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .mv-cards-mobile .movements-table thead {
+    display: none;
+  }
+
+  /* Cabeçalho da competência */
+  .mv-cards-mobile .competence-group-header-row {
+    display: block;
+    margin: 14px 0 8px;
+  }
+
+  .mv-cards-mobile .competence-group-header-row td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    border-radius: 12px;
+    padding: 10px 12px !important;
+  }
+
+  .mv-cards-mobile .competence-title-row {
+    flex-wrap: wrap !important;
+    gap: 6px 8px !important;
+  }
+
+  .mv-cards-mobile .competence-kpi-summary {
+    gap: 4px 12px;
+    margin-top: 2px;
+  }
+
+  /* Card do lançamento */
+  .mv-cards-mobile .movements-table tr:not(.competence-group-header-row) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    box-sizing: border-box;
+    width: 100%;
+    margin: 0 0 10px;
+    padding: 12px;
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+  }
+
+  .mv-cards-mobile .movements-table tr:not(.competence-group-header-row) td {
+    display: block;
+    padding: 0;
+    border: none;
+    min-width: 0;
+  }
+
+  .mv-cards-mobile .mv-td-status {
+    order: 1;
+    flex: 0 0 auto;
+  }
+
+  .mv-cards-mobile .mv-td-title {
+    order: 2;
+    flex: 1 1 calc(100% - 170px);
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .mv-cards-mobile .mv-td-title .item-title {
+    font-size: 13.5px;
+  }
+
+  .mv-cards-mobile .mv-td-title .item-notes {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+
+  .mv-cards-mobile .mv-td-amount {
+    order: 3;
+    flex: 0 0 auto;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  .mv-cards-mobile .mv-td-type {
+    order: 4;
+    flex: 0 0 auto;
+  }
+
+  .mv-cards-mobile .mv-td-category {
+    order: 5;
+    flex: 0 1 auto;
+  }
+
+  .mv-cards-mobile .mv-td-date {
+    order: 6;
+    flex: 0 0 auto;
+  }
+
+  .mv-cards-mobile .mv-td-bank {
+    order: 7;
+    flex: 0 1 auto;
+  }
+
+  .mv-cards-mobile .mv-td-actions {
+    order: 8;
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+
+  /* Simulação de antecipação (empréstimos) ocupa a largura toda do card */
+  .mv-cards-mobile .mv-td-amount .prepayment-row-indicator {
+    white-space: normal;
+  }
+}
