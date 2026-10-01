@@ -29,6 +29,7 @@ import {
   GripVertical,
   List,
   Sigma,
+  MoreVertical,
 } from 'lucide-react';
 import { Modal } from '../components/Modal';
 import { NatureModal } from '../components/NatureModal';
@@ -136,6 +137,8 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
 
   // Modal de Palavras-chave
   const [keywordsModalMapping, setKeywordsModalMapping] = useState<FixedExpenseMapping | null>(null);
+  // Menu de 3 pontos (celular) do mapeamento aberto
+  const [mappingMenuId, setMappingMenuId] = useState<string | null>(null);
   const [newKeywordVal, setNewKeywordVal] = useState('');
 
   // Mapeamentos Recolhidos / Expandidos (Persistidos localmente)
@@ -1415,6 +1418,75 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                       0
                     );
 
+                    const rpBadge = (() => {
+                              // Real (pago) | Previsto (a pagar) do mês atual; o teto do mapeamento fica no título
+                              const brl = (v: number) =>
+                                v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
+                              const now = new Date();
+                              const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                              const monthLabel = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                              const applies =
+                                !mapping.applicableMonths ||
+                                mapping.applicableMonths.length === 0 ||
+                                mapping.applicableMonths.includes(now.getMonth() + 1);
+                              const teto = `Teto do mapeamento: ${brl(mappingTotal)}`;
+                              if (!applies) {
+                                return (
+                                  <span className="badge badge-cyan mapping-rp-badge" title={`${teto} • não se aplica em ${monthLabel}`}>
+                                    {brl(mappingTotal)}
+                                  </span>
+                                );
+                              }
+                              const split = (mapping.items || []).reduce(
+                                (acc, it) => {
+                                  const s = resolveMappingItemMonth(it, monthKey);
+                                  if (isExcludedState(s.state)) return acc;
+                                  return { real: acc.real + s.paid, planned: acc.planned + s.pending };
+                                },
+                                { real: 0, planned: 0 }
+                              );
+                              return (
+                                <span
+                                  className="badge badge-cyan mapping-rp-badge"
+                                  title={`${monthLabel} • Real: já pago • Previsto: a pagar • ${teto}`}
+                                >
+                                  <span className="mapping-rp-label">Real</span>
+                                  {brl(split.real)}
+                                  <span className="rp-sep" aria-hidden="true">|</span>
+                                  <span className="mapping-rp-label">Previsto</span>
+                                  {brl(split.planned)}
+                                </span>
+                              );
+                            })();
+                    const modeToggle = (iconOnly = false) => (() => {
+                              const effectiveMode =
+                                mapping.detailMode ?? natureDetailModes[selectedNature.id] ?? 'ITENS';
+                              const options: { value: NatureDetailMode; label: string; icon: React.ReactNode; title: string }[] = [
+                                { value: 'ITENS', label: 'Detalhado', icon: <List size={12} />, title: 'No detalhamento da grade, mostrar cada item deste mapeamento' },
+                                { value: 'MAPEAMENTOS', label: 'Resumo', icon: <Sigma size={12} />, title: 'No detalhamento da grade, mostrar só o mapeamento com o valor total' },
+                              ];
+                              return (
+                                <div className={`mapping-detail-mode-toggle ${iconOnly ? 'is-icon-only' : ''}`} role="group" aria-label="Exibição no detalhamento da grade">
+                                  {options.map((opt) => {
+                                    const active = effectiveMode === opt.value;
+                                    return (
+                                      <button
+                                        key={opt.value}
+                                        type="button"
+                                        aria-pressed={active}
+                                        title={`${opt.title}${!mapping.detailMode && active ? ' (padrão da natureza)' : ''}`}
+                                        onClick={() => updateMapping(selectedNature.id, mapping.id, { detailMode: opt.value })}
+                                        className={active ? 'active' : ''}
+                                      >
+                                        {opt.icon}
+                                        <span>{opt.label}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })();
+
                     return (
                       <div
                         key={mapping.id}
@@ -1524,46 +1596,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
 
                           {/* LINHA 2: Subtotal (apenas o valor), qtd Itens, palavras-chave e exibição no detalhamento */}
                           <div className="mapping-card-meta-row">
-                            {(() => {
-                              // Real (pago) | Previsto (a pagar) do mês atual; o teto do mapeamento fica no título
-                              const brl = (v: number) =>
-                                v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
-                              const now = new Date();
-                              const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-                              const monthLabel = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-                              const applies =
-                                !mapping.applicableMonths ||
-                                mapping.applicableMonths.length === 0 ||
-                                mapping.applicableMonths.includes(now.getMonth() + 1);
-                              const teto = `Teto do mapeamento: ${brl(mappingTotal)}`;
-                              if (!applies) {
-                                return (
-                                  <span className="badge badge-cyan mapping-rp-badge" title={`${teto} • não se aplica em ${monthLabel}`}>
-                                    {brl(mappingTotal)}
-                                  </span>
-                                );
-                              }
-                              const split = (mapping.items || []).reduce(
-                                (acc, it) => {
-                                  const s = resolveMappingItemMonth(it, monthKey);
-                                  if (isExcludedState(s.state)) return acc;
-                                  return { real: acc.real + s.paid, planned: acc.planned + s.pending };
-                                },
-                                { real: 0, planned: 0 }
-                              );
-                              return (
-                                <span
-                                  className="badge badge-cyan mapping-rp-badge"
-                                  title={`${monthLabel} • Real: já pago • Previsto: a pagar • ${teto}`}
-                                >
-                                  <span className="mapping-rp-label">Real</span>
-                                  {brl(split.real)}
-                                  <span className="rp-sep" aria-hidden="true">|</span>
-                                  <span className="mapping-rp-label">Previsto</span>
-                                  {brl(split.planned)}
-                                </span>
-                              );
-                            })()}
+                            {rpBadge}
                             <span className="badge badge-emerald" style={{ fontSize: '12px', padding: '4px 10px', fontWeight: 600 }}>
                               {mapping.items.length}{' '}
                               {mapping.items.length === 1 ? 'ITEM' : 'ITENS'}
@@ -1578,35 +1611,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                               <Tag size={13} />
                             </button>
 
-                            {/* Exibição no detalhamento da grade: cada item ou só o mapeamento com o total */}
-                            {(() => {
-                              const effectiveMode =
-                                mapping.detailMode ?? natureDetailModes[selectedNature.id] ?? 'ITENS';
-                              const options: { value: NatureDetailMode; label: string; icon: React.ReactNode; title: string }[] = [
-                                { value: 'ITENS', label: 'Detalhado', icon: <List size={12} />, title: 'No detalhamento da grade, mostrar cada item deste mapeamento' },
-                                { value: 'MAPEAMENTOS', label: 'Resumo', icon: <Sigma size={12} />, title: 'No detalhamento da grade, mostrar só o mapeamento com o valor total' },
-                              ];
-                              return (
-                                <div className="mapping-detail-mode-toggle" role="group" aria-label="Exibição no detalhamento da grade">
-                                  {options.map((opt) => {
-                                    const active = effectiveMode === opt.value;
-                                    return (
-                                      <button
-                                        key={opt.value}
-                                        type="button"
-                                        aria-pressed={active}
-                                        title={`${opt.title}${!mapping.detailMode && active ? ' (padrão da natureza)' : ''}`}
-                                        onClick={() => updateMapping(selectedNature.id, mapping.id, { detailMode: opt.value })}
-                                        className={active ? 'active' : ''}
-                                      >
-                                        {opt.icon}
-                                        <span>{opt.label}</span>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              );
-                            })()}
+                            {modeToggle()}
                           </div>
 
                           {/* LINHA 3: Botões (Expandir, editar e Excluir) */}
@@ -1658,6 +1663,112 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                               <Trash2 size={13} />
                               <span>Excluir</span>
                             </button>
+                          </div>
+                        </div>
+
+                        {/* Celular: linha 1 = emoji, título, itens, palavras-chave e Detalhado/Resumo; linha 2 = Real | Previsto e expandir; ações no menu de 3 pontos */}
+                        <div className="mapping-card-mobile-head">
+                          <div className="mmh-main">
+                            <div className="mmh-row mmh-row-1">
+                              <span className="mmh-emoji" onClick={() => handleOpenEditMapping(mapping)}>
+                                {mapping.icon || '📋'}
+                              </span>
+                              <h5 className="mmh-title">{mapping.name}</h5>
+                              <span className="badge badge-emerald mmh-count" title={`${mapping.items.length} ${mapping.items.length === 1 ? 'item' : 'itens'}`}>
+                                {mapping.items.length} {mapping.items.length === 1 ? 'item' : 'itens'}
+                              </span>
+                              <button
+                                type="button"
+                                className="mmh-icon-btn text-cyan"
+                                onClick={() => setKeywordsModalMapping(mapping)}
+                                title="Gerenciar palavras-chave da IA"
+                                aria-label="Palavras-chave"
+                              >
+                                <Tag size={14} />
+                              </button>
+                              {modeToggle(true)}
+                            </div>
+                            <div className="mmh-row mmh-row-2">
+                              <div className="mmh-values">{rpBadge}</div>
+                              <button
+                                type="button"
+                                className="mmh-icon-btn"
+                                style={{ color: isCollapsed ? '#FCD34D' : '#94A3B8' }}
+                                onClick={() => toggleMappingCollapse(mapping.id)}
+                                title={isCollapsed ? 'Expandir itens deste mapeamento' : 'Recolher itens deste mapeamento'}
+                                aria-label={isCollapsed ? 'Expandir' : 'Recolher'}
+                              >
+                                {isCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="mmh-menu">
+                            <button
+                              type="button"
+                              className="mmh-icon-btn"
+                              onClick={() => setMappingMenuId(mappingMenuId === mapping.id ? null : mapping.id)}
+                              aria-label="Ações do mapeamento"
+                              aria-haspopup="menu"
+                              aria-expanded={mappingMenuId === mapping.id}
+                            >
+                              <MoreVertical size={18} />
+                            </button>
+                            {mappingMenuId === mapping.id && (
+                              <>
+                                <div className="mmh-menu-backdrop" onClick={() => setMappingMenuId(null)} />
+                                <div className="mmh-menu-list" role="menu">
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    onClick={() => {
+                                      setMappingMenuId(null);
+                                      handleOpenEditMapping(mapping);
+                                    }}
+                                  >
+                                    <Edit2 size={14} /> Editar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    disabled={mappingIndex === 0}
+                                    onClick={() => {
+                                      setMappingMenuId(null);
+                                      moveMappingOrder(selectedNature.id, mapping.id, 'UP');
+                                    }}
+                                  >
+                                    <ChevronUp size={14} /> Mover para cima
+                                  </button>
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    disabled={mappingIndex === selectedNature.mappings.length - 1}
+                                    onClick={() => {
+                                      setMappingMenuId(null);
+                                      moveMappingOrder(selectedNature.id, mapping.id, 'DOWN');
+                                    }}
+                                  >
+                                    <ChevronDown size={14} /> Mover para baixo
+                                  </button>
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    className="is-danger"
+                                    onClick={() => {
+                                      setMappingMenuId(null);
+                                      confirmAction({
+                                        title: 'Excluir Mapeamento',
+                                        message: `Deseja remover o mapeamento "${mapping.name}" e todos os seus itens? Esta ação não pode ser desfeita.`,
+                                        confirmLabel: 'Sim, Excluir',
+                                        onConfirm: () => deleteMapping(selectedNature.id, mapping.id),
+                                      });
+                                    }}
+                                  >
+                                    <Trash2 size={14} /> Excluir
+                                  </button>
+                                </div>
+                              </>
+                            )}
                           </div>
                         </div>
 
