@@ -98,6 +98,8 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
 
   // Inline Quick Add Items per Mapping
   const [newItemDesc, setNewItemDesc] = useState<Record<string, string>>({});
+  // Mapeamento cujo formulário de novo item está aberto (fechado até tocar no +)
+  const [addingItemMappingId, setAddingItemMappingId] = useState<string | null>(null);
   const [newItemQty, setNewItemQty] = useState<Record<string, number>>({});
   const [newItemPrice, setNewItemPrice] = useState<Record<string, number>>({});
   const [newItemMult, setNewItemMult] = useState<Record<string, number>>({});
@@ -2186,7 +2188,8 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                 );
                               })}
 
-                              {/* Linha de Cadastro Rápido de Novo Item no Mapeamento */}
+                              {/* Linha de Cadastro Rápido de Novo Item no Mapeamento (só aparece após tocar no +) */}
+                              {addingItemMappingId === mapping.id && (
                               <tr className="quick-add-item-row">
                                 <td>
                                   <input
@@ -2448,15 +2451,46 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                       setNewItemDesc((prev) => ({ ...prev, [mapping.id]: '' }));
                                       setNewItemQty((prev) => ({ ...prev, [mapping.id]: 1 }));
                                       setNewItemPrice((prev) => ({ ...prev, [mapping.id]: 0 }));
+                                      setAddingItemMappingId(null);
                                     }}
                                   >
                                     <Plus size={14} />
                                     <span>Adicionar</span>
                                   </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost btn-xs"
+                                    title="Cancelar"
+                                    onClick={() => setAddingItemMappingId(null)}
+                                  >
+                                    <X size={14} />
+                                    <span>Cancelar</span>
+                                  </button>
                                 </td>
                               </tr>
+                              )}
                             </tbody>
                           </table>
+                        </div>
+
+                        {/* + para abrir o formulário de novo item, logo após o último item */}
+                        {addingItemMappingId !== mapping.id && (
+                          <div className="mapping-add-item-row">
+                            <button
+                              type="button"
+                              className="mapping-add-item-btn"
+                              onClick={() => setAddingItemMappingId(mapping.id)}
+                              title="Adicionar item a este mapeamento"
+                              aria-label={`Adicionar item ao mapeamento ${mapping.name}`}
+                            >
+                              <Plus size={18} />
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Delimitador: aqui termina este mapeamento */}
+                        <div className="mapping-end-divider" aria-hidden="true">
+                          <span>Fim de {mapping.name}</span>
                         </div>
                       </>
                     )}

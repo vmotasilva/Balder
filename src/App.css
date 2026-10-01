@@ -23783,3 +23783,63 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     border-left-color: #94A3B8;
   }
 }
+
+/* Botão + para novo item e delimitador do fim do mapeamento */
+.mapping-add-item-row {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 4px;
+}
+
+.mapping-add-item-btn {
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px dashed rgba(6, 182, 212, 0.6);
+  background: rgba(6, 182, 212, 0.08);
+  color: var(--accent-cyan);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.mapping-add-item-btn:hover {
+  background: rgba(6, 182, 212, 0.18);
+}
+
+.quick-add-item-row td:last-child {
+  gap: 8px;
+}
+
+.mapping-end-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 2px;
+  color: var(--text-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.mapping-end-divider::before,
+.mapping-end-divider::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  background: rgba(148, 163, 184, 0.28);
+}
+
+.mapping-end-divider span {
+  max-width: 70%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mapping-card + .mapping-card {
+  margin-top: 28px !important;
+}
