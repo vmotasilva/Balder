@@ -22959,3 +22959,58 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   padding: 7px 16px; border-radius: var(--radius-md); border: none; cursor: pointer; font-weight: 700;
   background: var(--accent-cyan); color: #04202b;
 }
+
+/* Início: os dois cards empilhados (celular e telas médias) */
+.home-columns {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ==========================================================================
+   COMPUTADOR (>= 1100px): navegação à esquerda e Início em paisagem, tudo na tela
+   ========================================================================== */
+@media (min-width: 1100px) {
+  /* A barra lateral volta no computador; o botão circular fica só para telas menores */
+  .app-sidebar,
+  .app-sidebar.collapsed {
+    display: flex !important;
+  }
+  .mobile-nav-root {
+    display: none !important;
+  }
+  .sidebar-brand {
+    display: none;
+  }
+  .app-sidebar .sidebar-nav {
+    padding-top: 16px;
+  }
+
+  /* Início: ocupa a largura, sem rolar a página; cada card rola por dentro se precisar */
+  .app-content-viewport:has(> .home-hub) {
+    padding: 18px 28px 20px;
+    overflow: hidden;
+  }
+  .home-hub {
+    max-width: 1600px;
+    height: 100%;
+    gap: 14px;
+    padding-bottom: 0;
+  }
+  .home-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 14px;
+    flex: 1;
+    min-height: 0;
+  }
+  .home-columns > .home-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .home-modules {
+    display: none;
+  }
+}

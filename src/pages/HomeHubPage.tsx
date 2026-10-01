@@ -635,6 +635,8 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
         movements={periodMovements}
       />
 
+      {/* No computador, os dois cards ficam lado a lado e cabem na tela */}
+      <div className="home-columns">
       {/* O que faço agora? */}
       <section className="home-card">
         <div className="home-card-head">
@@ -914,6 +916,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           </>
         )}
       </section>
+      </div>
 
       {/* Para onde vou? */}
       <section className="home-modules">
