@@ -72,6 +72,7 @@ import type { GoalStatusInfo,
 import { recognizeImageOCR } from '../services/ocrService';
 import { learnReceiptItemAssociation } from '../services/receiptMemoryService';
 import { matchNatureForTransaction } from '../services/invoiceFileParser';
+import { findMappingItemForTitle } from '../utils/mappingMatch';
 import {
   DEMO_ACCOUNTS,
   DEMO_MOVEMENTS,
@@ -3986,9 +3987,23 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const movementTitle =
       isIncome && pending.rawTitle === 'Recebimento' ? 'Recebimento' : `${isIncome ? 'Recebimento' : 'Despesa'}: ${pending.rawTitle}`;
 
+    // Despesa: liga ao item do mapeamento (natureza → mapeamento → item) que o nome indica, ex.: "Neon.tech"
+    const itemLink = isIncome ? null : findMappingItemForTitle(pending.rawTitle, natures);
+    const natureLink: Partial<Movement> = itemLink
+      ? { natureId: itemLink.natureId, mappingItemId: itemLink.itemId }
+      : isIncome
+      ? {}
+      : (() => {
+          const m = matchNatureForTransaction(pending.rawTitle, undefined, natures);
+          return m.natureId !== 'OUTROS' && m.confidence >= 0.9 ? { natureId: m.natureId } : {};
+        })();
+
     // Compra parcelada: uma parcela por mês (no cartão, uma em cada fatura; na conta, a 1ª já sai hoje)
     const count = !isIncome && pending.installments && pending.installments >= 2 ? pending.installments : 0;
     const schedule = count ? installmentSchedule(pending.amount, count, finalDueDate, isCredit ? option.payload.dueDay : undefined) : [];
+    if (itemLink && finalStatus === 'REALIZADA') {
+      markMappingItemsFulfilled([{ ...itemLink, realizedValue: count ? schedule[0].amount : pending.amount }]);
+    }
     if (count) {
       const groupId = `inst_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
       addMultipleMovements(
@@ -4004,6 +4019,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           installmentNumber: idx + 1,
           installmentsTotal: count,
           installmentGroupId: groupId,
+          ...natureLink,
         }))
       );
     } else {
@@ -4016,6 +4032,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         status: finalStatus,
         category: finalCategory,
         notes: `Confirmado via Forseti: ${option.label} (${option.badge}).`,
+        ...natureLink,
         // Na conta de outra pessoa, a receita lançada é de quem lançou: só essa pessoa confirma
         ...(viewing && finalType === 'RECEBER' ? { responsibleId: authUser?.$id } : {}),
       });
