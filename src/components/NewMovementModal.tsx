@@ -442,7 +442,9 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
 
     // Saída já paga e ligada a um item: o item passa a feito com o valor pago
     if (type === 'PAGAR' && !cardPurchase && submitStatus === 'REALIZADA' && natureId && itemId && selectedMapping) {
-      markMappingItemsFulfilled([{ natureId, mappingId: selectedMapping.id, itemId, realizedValue: parsedAmount }]);
+      markMappingItemsFulfilled([
+        { natureId, mappingId: selectedMapping.id, itemId, realizedValue: parsedAmount, monthKey: dueDate.slice(0, 7), paidAt: dueDate },
+      ]);
     }
 
     onSaved?.();

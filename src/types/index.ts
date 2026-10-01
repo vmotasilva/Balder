@@ -448,6 +448,8 @@ export interface MappingItemPayment {
    * na proporção do previsto dele no mês. Todas as partes do mesmo pagamento têm o mesmo id.
    */
   mappingPaymentId?: string;
+  /** Movimentação que originou o pagamento (evita contar duas vezes ao reconfirmar). */
+  movementId?: string;
 }
 
 /** Preço por ocorrência que passa a valer a partir de uma competência (inclusive). */

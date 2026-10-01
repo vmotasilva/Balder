@@ -91,7 +91,7 @@ import { getBankBranding } from '../utils/bankBranding';
 import { ForsetiActivityService } from '../services/forsetiActivityService';
 import { ForsetiTranscriptService } from '../services/forsetiTranscriptService';
 import { defaultClosingDay } from '../utils/setupCatalog';
-import { isExcludedState, mappingItemBaseValue, resolveMappingItemState } from '../utils/mappingItemState';
+import { getItemOccurrences, isExcludedState, mappingItemBaseValue, registerItemPayment, removeItemPayment, resolveMappingItemState } from '../utils/mappingItemState';
 import { buildForecastWindow, FORECAST_PERIODS, type ForecastPeriod, type ForecastWindow } from '../utils/forecastWindow';
 import { buildMonthlyProjectionGrid, movementCompetenceDate } from '../utils/projectionMath';
 import {
@@ -127,6 +127,18 @@ import {
   type ForsetiFlow,
   type ForsetiReply,
 } from '../utils/forsetiAssistant';
+
+/** Item do mapeamento a marcar como feito; com monthKey, o pagamento também entra no "Real" da competência. */
+export interface FulfilledItemInput {
+  natureId: string;
+  mappingId: string;
+  itemId: string;
+  realizedValue?: number;
+  monthKey?: string;      // competência (YYYY-MM) do pagamento
+  paidAt?: string;        // data do pagamento (YYYY-MM-DD)
+  movementId?: string;    // movimentação de origem
+  previousAmount?: number; // valor anterior da movimentação (substitui o pagamento já lançado)
+}
 
 interface FinancialContextType {
   // Estado
@@ -286,7 +298,7 @@ interface FinancialContextType {
   moveMappingOrder: (natureId: string, mappingId: string, direction: 'UP' | 'DOWN') => void;
   reorderMappings: (natureId: string, newMappings: FixedExpenseMapping[]) => void;
   toggleItemFulfilled: (natureId: string, mappingId: string, itemId: string) => void;
-  markMappingItemsFulfilled: (itemsToFulfill: Array<{ natureId: string; mappingId: string; itemId: string; realizedValue?: number }>) => void;
+  markMappingItemsFulfilled: (itemsToFulfill: FulfilledItemInput[]) => void;
   saveCeilingJustification: (natureId: string, reason: string) => void;
   loadSuggestedMappingsForNature: (natureId: string) => void;
   getNatureCeiling: (nature: ExpenseNature, month?: number | string) => number;
@@ -4096,7 +4108,14 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const count = !isIncome && pending.installments && pending.installments >= 2 ? pending.installments : 0;
     const schedule = count ? installmentSchedule(pending.amount, count, finalDueDate, isCredit ? option.payload.dueDay : undefined) : [];
     if (itemLink && finalStatus === 'REALIZADA') {
-      markMappingItemsFulfilled([{ ...itemLink, realizedValue: count ? schedule[0].amount : pending.amount }]);
+      markMappingItemsFulfilled([
+        {
+          ...itemLink,
+          realizedValue: count ? schedule[0].amount : pending.amount,
+          monthKey: finalDueDate.slice(0, 7),
+          paidAt: finalDueDate,
+        },
+      ]);
     }
     if (count) {
       const groupId = `inst_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -4857,9 +4876,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   // Marcar múltiplos itens de mapeamento como realizados em lote (ex: conciliação de fatura aberta)
-  const markMappingItemsFulfilled = (
-    itemsToFulfill: Array<{ natureId: string; mappingId: string; itemId: string; realizedValue?: number }>
-  ) => {
+  const markMappingItemsFulfilled = (itemsToFulfill: FulfilledItemInput[]) => {
     if (!itemsToFulfill || itemsToFulfill.length === 0) return;
     setNatures((prev) => {
       const next = prev.map((nat) => {
@@ -4875,11 +4892,34 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             items: m.items.map((item) => {
               const matched = matchingForMap.find((it) => it.itemId === item.id);
               if (matched) {
-                return {
+                const fulfilled = {
                   ...item,
                   isFulfilled: true,
                   realizedValue: matched.realizedValue !== undefined ? matched.realizedValue : item.totalValue,
                 };
+                const amount = matched.realizedValue ?? 0;
+                if (!matched.monthKey || amount <= 0) return fulfilled;
+
+                // O "Real" do mês vem dos pagamentos do item: lança (ou substitui) o desta movimentação
+                let base: MappingItem = fulfilled;
+                const own = (base.payments?.[matched.monthKey] || []).find(
+                  (p) =>
+                    (matched.movementId && p.movementId === matched.movementId) ||
+                    (matched.movementId && !p.movementId && matched.previousAmount !== undefined && Math.abs(p.amount - matched.previousAmount) < 0.01)
+                );
+                if (own) base = { ...base, ...removeItemPayment(base, matched.monthKey, own.id) };
+                const covered = new Set((base.payments?.[matched.monthKey] || []).flatMap((p) => p.coveredDates));
+                const paidAt = matched.paidAt || `${matched.monthKey}-01`;
+                const open = getItemOccurrences(base, matched.monthKey).filter((o) => !covered.has(o.date));
+                const target = paidAt.slice(0, 7) === matched.monthKey ? paidAt : `${matched.monthKey}-01`;
+                const day = open.length
+                  ? open.reduce((best, o) => (Math.abs(Date.parse(o.date) - Date.parse(target)) < Math.abs(Date.parse(best.date) - Date.parse(target)) ? o : best)).date
+                  : target;
+                const patch = registerItemPayment(base, matched.monthKey, { paidAt, amount, coveredDates: [day] });
+                if (!patch.payments) return { ...base };
+                const list = [...(patch.payments[matched.monthKey] || [])];
+                if (list.length > 0 && matched.movementId) list[list.length - 1] = { ...list[list.length - 1], movementId: matched.movementId };
+                return { ...base, payments: { ...patch.payments, [matched.monthKey]: list } };
               }
               return item;
             }),
