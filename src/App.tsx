@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import { ThemeProvider } from './context/ThemeContext';
 import { FinancialProvider, useFinancial } from './context/FinancialContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -237,6 +238,14 @@ export function AppContent() {
 
         <SharedAccountBanner />
         <main className="app-content-viewport">
+          {/* No celular, toda tela (menos o Início) tem um atalho de volta no topo */}
+          {shownTab !== 'INICIO' && !planningOnly && (
+            <button type="button" className="back-home-btn" onClick={() => setActiveTab('INICIO')}>
+              <ArrowLeft size={16} />
+              <span>Início</span>
+            </button>
+          )}
+
           {shownTab === 'INICIO' && (
             <HomeHubPage
               onNavigate={handleSelectTab}

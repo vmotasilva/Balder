@@ -23092,3 +23092,27 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     max-height: calc(96dvh - 52px) !important;
   }
 }
+
+/* Voltar para o Início: só no celular e tablet (no computador a barra lateral faz isso) */
+.back-home-btn {
+  display: none;
+}
+@media (max-width: 1099px) {
+  .back-home-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    position: sticky;
+    top: -12px;
+    z-index: 6;
+    margin: -12px 0 12px;
+    padding: 6px 12px 6px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border-default);
+    background: var(--bg-card-elevated);
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+}
