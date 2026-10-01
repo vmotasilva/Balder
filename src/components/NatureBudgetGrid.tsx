@@ -121,7 +121,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
       const matchingMovements = movements.filter((m) => {
         const isExpense = m.type === 'PAGAR' || m.type === 'CARTAO';
         const inMonth = movementCompetenceDate(m).startsWith(selectedMonthKey);
-        const nameMatch = m.category.toLowerCase() === nat.name.toLowerCase();
+        const nameMatch = m.natureId === nat.id || m.category.toLowerCase() === nat.name.toLowerCase();
         const itemMatch = nat.mappings.some((mp) => {
           if (
             mp.applicableMonths &&
@@ -130,7 +130,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
           ) {
             return false;
           }
-          return mp.items.some((it) => it.description.toLowerCase() === m.title.toLowerCase());
+          return mp.items.some((it) => it.id === m.mappingItemId || it.description.toLowerCase() === m.title.toLowerCase());
         });
         return isExpense && inMonth && m.status !== 'CANCELADA' && (nameMatch || itemMatch);
       });
@@ -167,13 +167,14 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
       // correspondem a itens (avulsos, compras classificadas) entram pelo status.
       const norm = (t: string) => t.trim().toLowerCase();
       const itemTitles = new Set(natItems.map((ni) => norm(ni.item.description)));
+      const itemIds = new Set(natItems.map((ni) => ni.item.id));
       let real = 0;
       let pending = 0;
       const payments: { date: string; description: string; amount: number }[] = [];
       natItems.forEach((ni) => {
         const summary = resolveMappingItemMonth(ni.item, selectedMonthKey);
         if (isExcludedState(summary.state)) return;
-        const launched = matchingMovements.filter((m) => norm(m.title) === norm(ni.item.description));
+        const launched = matchingMovements.filter((m) => m.mappingItemId === ni.item.id || norm(m.title) === norm(ni.item.description));
         if (launched.length > 0) {
           launched.forEach((m) => {
             if (m.status === 'REALIZADA') real += m.amount;
@@ -186,7 +187,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
         summary.payments.forEach((p) => payments.push({ date: p.paidAt, description: ni.item.description, amount: p.amount }));
       });
       matchingMovements
-        .filter((m) => !itemTitles.has(norm(m.title)))
+        .filter((m) => !itemTitles.has(norm(m.title)) && !(m.mappingItemId && itemIds.has(m.mappingItemId)))
         .forEach((m) => {
           if (m.status === 'REALIZADA') real += m.amount;
           else pending += m.amount;

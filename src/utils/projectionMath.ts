@@ -236,7 +236,7 @@ export function buildMonthlyProjectionGrid(
     let pendingFixedFromNatures = 0;
     let pendingFixedOnCard = 0;
     let pendingFixedDirect = 0;
-    const realizedDirectItems: { description: string; value: number }[] = [];
+    const realizedDirectItems: { id?: string; description: string; value: number }[] = [];
 
     natures.forEach((nat) => {
       nat.mappings.forEach((m) => {
@@ -261,7 +261,7 @@ export function buildMonthlyProjectionGrid(
           } else {
             monthlyFixedDirect += summary.value;
             pendingFixedDirect += summary.pending;
-            if (summary.paid > 0) realizedDirectItems.push({ description: item.description, value: summary.paid });
+            if (summary.paid > 0) realizedDirectItems.push({ id: item.id, description: item.description, value: summary.paid });
           }
         });
       });
@@ -316,7 +316,7 @@ export function buildMonthlyProjectionGrid(
       // Itens mapeados (fora do cartão) marcados como realizados, sem pagamento lançado de mesmo nome
       realizedDirectItems.forEach((it) => {
         const alreadyLaunched = realizedPagar.some(
-          (m) => m.title.toLowerCase() === it.description.toLowerCase()
+          (m) => m.title.toLowerCase() === it.description.toLowerCase() || (!!it.id && m.mappingItemId === it.id)
         );
         if (!alreadyLaunched) realFixedSum += it.value;
       });
