@@ -445,7 +445,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
 
       {/* Global Ceilings Summary Bar */}
       {!embedded && (
-        <div className="glass-card mb-4 p-4 flex items-center justify-between flex-wrap gap-4 border border-[var(--border-default)]">
+        <div className="glass-card nat-global-summary mb-4 p-4 flex items-center justify-between flex-wrap gap-4 border border-[var(--border-default)]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-[rgba(245,158,11,0.15)] text-amber-500 font-bold text-lg">
               🎯
@@ -460,7 +460,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
             </div>
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="nat-global-metrics flex items-center gap-6">
             <div>
               <span className="text-xs text-[var(--text-muted)] block">Realizado no Mês</span>
               <strong className={`text-base font-bold ${totalAllSpent > totalAllCeilings ? 'text-rose-500' : 'text-emerald-500'}`}>

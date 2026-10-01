@@ -23116,3 +23116,113 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     cursor: pointer;
   }
 }
+
+/* ==========================================================================
+   CELULAR: uso mínimo do espaço (menos respiro, cards compactos, ações lado a lado)
+   ========================================================================== */
+@media (max-width: 768px) {
+  /* O espaçamento vem do gap; as margens extras dos blocos só somavam vazio */
+  .page-container,
+  .invoices-page-container {
+    gap: 10px;
+  }
+  .page-container > .mb-3,
+  .page-container > .mb-4,
+  .invoices-page-container > .mb-3,
+  .invoices-page-container > .mb-4 {
+    margin-bottom: 0;
+  }
+  .page-header {
+    padding-bottom: 0;
+  }
+  .dashboard-section {
+    gap: 8px;
+  }
+
+  /* Faturas: os quatro totais em 2x2, sem a frase de apoio */
+  .invoices-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 0;
+  }
+  .invoices-kpi-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 10px 12px;
+  }
+  .invoices-kpi-card:hover {
+    transform: none;
+  }
+  .invoices-kpi-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+  }
+  .invoices-kpi-icon svg {
+    width: 15px;
+    height: 15px;
+  }
+  .invoices-kpi-label {
+    font-size: 10px;
+    letter-spacing: 0.03em;
+  }
+  .invoices-kpi-value {
+    font-size: 16px;
+    margin: 1px 0 0;
+  }
+  .invoices-kpi-hint {
+    display: none;
+  }
+
+  /* Metas: as três ações lado a lado */
+  .goals-acceleration-banner {
+    padding: 8px;
+    border-left-width: 3px;
+  }
+  .acceleration-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .acceleration-actions .btn {
+    flex-direction: column;
+    gap: 4px;
+    height: auto;
+    padding: 8px 4px;
+    font-size: 11.5px;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+  }
+  .goals-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .goal-detail-card {
+    padding: 14px;
+    gap: 10px;
+  }
+
+  /* Naturezas: teto global compacto */
+  .nat-global-summary {
+    padding: 10px 12px !important;
+    gap: 8px !important;
+  }
+  .nat-global-metrics {
+    width: 100%;
+    justify-content: space-between;
+    gap: 10px !important;
+  }
+
+  /* Movimentações: totais e cabeçalho sem vazios */
+  .movements-kpi-row {
+    gap: 6px;
+    margin-bottom: 0;
+  }
+  .movements-page-header {
+    min-height: 0;
+    padding: 0;
+    margin: 0;
+  }
+}
