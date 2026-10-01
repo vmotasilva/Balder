@@ -23509,3 +23509,161 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     white-space: normal;
   }
 }
+
+/* ==========================================================================
+   MAPEAMENTOS NO CELULAR: cabeçalho compacto (2 linhas) com menu de 3 pontos
+   ========================================================================== */
+.mapping-card-mobile-head {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mapping-card-header--compact {
+    display: none !important;
+  }
+
+  .mapping-card-mobile-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 6px;
+    padding: 12px;
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .mmh-main {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .mmh-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .mmh-emoji {
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.05rem;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+  }
+
+  .mmh-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mmh-count {
+    flex: 0 0 auto;
+    font-size: 10.5px !important;
+    padding: 3px 7px !important;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .mmh-icon-btn {
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid var(--border-default);
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+
+  .mmh-row-2 {
+    justify-content: space-between;
+  }
+
+  .mmh-values {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .mmh-values .mapping-rp-badge {
+    max-width: 100%;
+    flex-wrap: wrap;
+    font-size: 11.5px;
+  }
+
+  /* Alternância Detalhado / Resumo: só os ícones */
+  .mapping-detail-mode-toggle.is-icon-only {
+    flex: 0 0 auto;
+  }
+
+  .mapping-detail-mode-toggle.is-icon-only button {
+    padding: 5px 7px;
+  }
+
+  .mapping-detail-mode-toggle.is-icon-only button span {
+    display: none;
+  }
+
+  .mmh-menu {
+    position: relative;
+  }
+
+  .mmh-menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+  }
+
+  .mmh-menu-list {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: 41;
+    min-width: 170px;
+    display: flex;
+    flex-direction: column;
+    padding: 4px;
+    border-radius: 10px;
+    background: var(--bg-card, #0f172a);
+    border: 1px solid var(--border-default);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.45);
+  }
+
+  .mmh-menu-list button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--text-primary);
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .mmh-menu-list button:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  .mmh-menu-list button.is-danger {
+    color: #f87171;
+  }
+}
