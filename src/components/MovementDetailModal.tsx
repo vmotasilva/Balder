@@ -22,6 +22,7 @@ import { ConfirmDialog, useConfirmDialog } from './ConfirmDialog';
 import { useFinancial } from '../context/FinancialContext';
 import { InstallmentPlanner } from './InstallmentPlanner';
 import { normalizeBankKey } from '../utils/cardUtils';
+import { itemUnitPrice } from '../utils/mappingItemState';
 import { getBankBranding } from '../utils/bankBranding';
 import { RecurringChangeDialog, futureRecurringSiblings, type RecurringChangePrompt } from './RecurringChangeDialog';
 import type { Movement, MovementStatus, InvoiceNatureItemBreakdown } from '../types';
@@ -47,6 +48,12 @@ interface ModalBreakdownRow {
 }
 
 const parseBRL = (val: string): number => parseMoney(val);
+
+const brlOf = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const monthLabelOf = (monthKey: string) => {
+  const [y, m] = monthKey.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+};
 
 export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
   isOpen,
@@ -104,9 +111,12 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
     mappingId: string;
     itemId: string;
     itemName: string;
-    oldValue: number;
-    newValue: number;
-    quantity: number;
+    monthKey: string;
+    paymentsCount: number; // pagamentos do mês somados (incluindo este)
+    expectedSum: number;   // previsto das ocorrências pagas no mês
+    paidSum: number;       // soma do que foi pago no mês
+    oldUnit: number;
+    newUnit: number;
   } | null>(null);
 
   // Estados específicos para CARTAO (Detalhamento de Itens por Natureza)
@@ -748,23 +758,45 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
       }
     }
 
-    // 3.1 Associação nova ou trocada com valor diferente do previsto do item: pergunta se atualiza o previsto
-    if (movement.type === 'PAGAR' && selectedNatureId && selectedMappingItemId && selectedMappingItemId !== movement.mappingItemId) {
+    // 3.1 Valor diferente do previsto do item (somando todos os pagamentos do mês, não só este):
+    // pergunta se o previsto muda, só para a competência do pagamento
+    if (
+      movement.type === 'PAGAR' &&
+      selectedNatureId &&
+      selectedMappingItemId &&
+      (selectedMappingItemId !== movement.mappingItemId ||
+        updatedStatus !== movement.status ||
+        Math.abs(finalAmount - (movement.actualAmount ?? movement.amount)) > 0.005)
+    ) {
       const nat = natures.find((n) => n.id === selectedNatureId);
       const mapping = nat?.mappings.find((m) => (m.items || []).some((it) => it.id === selectedMappingItemId));
       const item = mapping?.items.find((it) => it.id === selectedMappingItemId);
       if (nat && mapping && item) {
+        const monthKey = (paymentDate || dueDate).slice(0, 7);
         const quantity = item.quantity > 0 ? item.quantity : 1;
-        const oldValue = Math.round(quantity * item.price * 100) / 100;
-        if (Math.abs(oldValue - finalAmount) > 0.005) {
+        const unit = itemUnitPrice(item, monthKey);
+        // Pagamentos do mês, menos o que esta movimentação já lançou (será substituído pelo valor atual)
+        const others = (item.payments?.[monthKey] || []).filter(
+          (p) =>
+            !p.mappingPaymentId &&
+            p.movementId !== movement.id &&
+            !(!p.movementId && Math.abs(p.amount - (movement.actualAmount ?? movement.amount)) < 0.005)
+        );
+        const occurrences = others.reduce((acc, p) => acc + p.coveredDates.length, 0) + 1;
+        const paidSum = Math.round((others.reduce((acc, p) => acc + p.amount, 0) + finalAmount) * 100) / 100;
+        const expectedSum = Math.round(occurrences * quantity * unit * 100) / 100;
+        if (Math.abs(expectedSum - paidSum) > 0.005) {
           setPlannedPrompt({
             natureId: nat.id,
             mappingId: mapping.id,
             itemId: item.id,
             itemName: item.description,
-            oldValue,
-            newValue: finalAmount,
-            quantity,
+            monthKey,
+            paymentsCount: others.length + 1,
+            expectedSum,
+            paidSum,
+            oldUnit: unit,
+            newUnit: Math.round((paidSum / (occurrences * quantity)) * 1000) / 1000,
           });
           return;
         }
@@ -1947,7 +1979,11 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
       title="Atualizar o previsto?"
       message={
         plannedPrompt
-          ? `Você pagou ${plannedPrompt.newValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} em "${plannedPrompt.itemName}", e o previsto do item é ${plannedPrompt.oldValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}. Quer que o previsto passe a ser ${plannedPrompt.newValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} daqui para a frente?`
+          ? `${
+              plannedPrompt.paymentsCount > 1
+                ? `Somando os ${plannedPrompt.paymentsCount} pagamentos de "${plannedPrompt.itemName}" em ${monthLabelOf(plannedPrompt.monthKey)}, o total pago é ${brlOf(plannedPrompt.paidSum)}`
+                : `Você pagou ${brlOf(plannedPrompt.paidSum)} em "${plannedPrompt.itemName}" em ${monthLabelOf(plannedPrompt.monthKey)}`
+            }, e o previsto era ${brlOf(plannedPrompt.expectedSum)}. Quer que o previsto passe a ser ${brlOf(plannedPrompt.paidSum)} só nesse mês? Os demais meses continuam como estão.`
           : ''
       }
       confirmLabel="Atualizar previsto"
@@ -1955,8 +1991,20 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
       variant="warning"
       onConfirm={() => {
         if (plannedPrompt) {
+          const target = natures
+            .find((n) => n.id === plannedPrompt.natureId)
+            ?.mappings.find((m) => m.id === plannedPrompt.mappingId)
+            ?.items.find((it) => it.id === plannedPrompt.itemId);
+          const [y, mo] = plannedPrompt.monthKey.split('-').map(Number);
+          const next = new Date(y, mo, 1);
+          const nextKey = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`;
+          const rules = (target?.priceRules || []).filter((r) => r.fromMonth !== plannedPrompt.monthKey);
+          // Reajuste só da competência: o mês seguinte volta ao preço de antes (se já não houver regra própria)
+          const restore = rules.some((r) => r.fromMonth === nextKey) ? [] : [{ fromMonth: nextKey, price: plannedPrompt.oldUnit }];
           updateMappingItem(plannedPrompt.natureId, plannedPrompt.mappingId, plannedPrompt.itemId, {
-            price: Math.round((plannedPrompt.newValue / plannedPrompt.quantity) * 1000) / 1000,
+            priceRules: [...rules, { fromMonth: plannedPrompt.monthKey, price: plannedPrompt.newUnit }, ...restore].sort((a, b) =>
+              a.fromMonth.localeCompare(b.fromMonth)
+            ),
           });
         }
         setPlannedPrompt(null);
