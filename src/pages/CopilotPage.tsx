@@ -1,3 +1,4 @@
+import { ForsetiPaymentWizard } from '../components/ForsetiPaymentWizard';
 import React, { useState, useRef, useEffect } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { useAccountScope } from '../context/AccountScopeContext';
@@ -412,7 +413,10 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
                   )}
 
                   {/* Perguntas & Opções Rápidas Interativas */}
-                  {msg.pendingConfirmation && (
+                  {msg.pendingConfirmation?.wizard && (
+                    <ForsetiPaymentWizard messageId={msg.id} pending={msg.pendingConfirmation} />
+                  )}
+                  {msg.pendingConfirmation && !msg.pendingConfirmation.wizard && (
                     <div className="copilot-interactive-options-card animate-fade-in">
                       <div className="options-card-header">
                         <span className="options-question-label">

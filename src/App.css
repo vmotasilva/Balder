@@ -22900,3 +22900,62 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   color: var(--text-primary);
   font-weight: 600;
 }
+
+/* Forseti: registro de pagamento em etapas */
+.pay-wizard {
+  margin-top: 8px;
+  padding: 12px;
+  max-width: 420px;
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 13px;
+}
+.pay-wizard-head { display: flex; align-items: center; gap: 8px; }
+.pay-wizard-back {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: transparent; border: 1px solid var(--border-default); color: var(--text-secondary); cursor: pointer;
+}
+.pay-wizard-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.pay-wizard-choices button,
+.pay-wizard-chip,
+.pay-wizard-bank {
+  padding: 8px 12px; border-radius: var(--radius-md);
+  background: var(--bg-surface, rgba(255,255,255,0.04)); border: 1px solid var(--border-default);
+  color: var(--text-primary); font-weight: 600; cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.pay-wizard-choices button:hover,
+.pay-wizard-chip:hover:not(:disabled),
+.pay-wizard-bank:hover { border-color: var(--accent-cyan); }
+.pay-wizard-chip:disabled { opacity: 0.45; cursor: not-allowed; }
+.pay-wizard-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.pay-wizard-bank { display: inline-flex; align-items: center; gap: 8px; }
+.pay-wizard-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.pay-wizard-custom { display: flex; align-items: center; gap: 8px; color: var(--text-muted); }
+.pay-wizard-custom input { width: 70px; }
+.pay-wizard-hint { color: var(--text-muted); }
+.pay-wizard-summary {
+  display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: center; margin: 0;
+}
+.pay-wizard-summary dt { color: var(--text-muted); }
+.pay-wizard-summary dd { margin: 0; }
+.pay-wizard-summary input {
+  width: 100%; padding: 4px 8px; border-radius: var(--radius-sm, 6px);
+  background: transparent; border: 1px solid var(--border-default); color: var(--text-primary);
+}
+.pay-wizard-edit-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pay-wizard-link { background: none; border: none; color: var(--accent-cyan); cursor: pointer; font-size: 12px; }
+.pay-wizard-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.pay-wizard-cancel {
+  padding: 7px 14px; border-radius: var(--radius-md); background: transparent;
+  border: 1px solid var(--border-default); color: var(--text-secondary); cursor: pointer;
+}
+.pay-wizard-confirm {
+  padding: 7px 16px; border-radius: var(--radius-md); border: none; cursor: pointer; font-weight: 700;
+  background: var(--accent-cyan); color: #04202b;
+}

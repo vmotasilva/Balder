@@ -47,6 +47,8 @@ import type { GoalStatusInfo,
   BankAccount,
   CopilotMessage,
   CopilotInteractiveOption,
+  CopilotPendingConfirmation,
+  PaymentWizardState,
   SimulationPresetId,
   SimulationVerdict,
   CustomScenarioInput,
@@ -73,6 +75,8 @@ import { recognizeImageOCR } from '../services/ocrService';
 import { learnReceiptItemAssociation } from '../services/receiptMemoryService';
 import { matchNatureForTransaction } from '../services/invoiceFileParser';
 import { findMappingItemForTitle } from '../utils/mappingMatch';
+import { listPaymentInstitutions } from '../utils/paymentInstitutions';
+import { CASH_IN_HAND } from '../utils/cashInHand';
 import {
   DEMO_ACCOUNTS,
   DEMO_MOVEMENTS,
@@ -118,7 +122,6 @@ import {
   NEW_CARD_DUE_CHIPS,
   OPTION_OTHER_PAYMENT,
   OPTION_REGISTER_CARD,
-  receiveAccountOptions,
   type ForsetiData,
   type ForsetiFlow,
   type ForsetiReply,
@@ -240,6 +243,14 @@ interface FinancialContextType {
     invoiceTitle: string;
   };
   respondToCopilotOption: (messageId: string, option: CopilotInteractiveOption) => void;
+  /** Registro de pagamento/recebimento em etapas: avança a etapa e/ou corrige os dados do lançamento. */
+  updatePaymentWizard: (
+    messageId: string,
+    wizard?: Partial<PaymentWizardState>,
+    data?: Partial<CopilotPendingConfirmation['pendingData']>
+  ) => void;
+  confirmPaymentWizard: (messageId: string) => void;
+  cancelPaymentWizard: (messageId: string) => void;
   /** Últimas solicitações à Forseti (48 horas), com avaliação e desfazer. */
   forsetiActivity: ForsetiActivity[];
   rateForsetiActivity: (id: string, rating: ForsetiActivity['rating']) => void;
@@ -476,6 +487,9 @@ const SHARED_READ_ONLY_SAFE = new Set([
   // Forseti: conversa liberada; ela mesma confere o papel antes de gravar (forsetiBlockedInShared)
   'sendMessageToCopilot',
   'respondToCopilotOption',
+  'updatePaymentWizard',
+  'confirmPaymentWizard',
+  'cancelPaymentWizard',
   'reconcileReceiptData',
 ]);
 // Ações do colaborador e a permissão que cada uma exige (o banco confere as mesmas regras)
@@ -3486,7 +3500,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                 request: requestTrailRef.current.join(' → '),
               },
               question: 'Em qual conta?',
-              options: receiveAccountOptions(accounts),
+              options: [],
+              wizard: { step: 'WHERE', installments: 1 },
             },
           }
         );
@@ -3499,9 +3514,26 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const plan = installments ? { count: installments, total: amount } : undefined;
         const pick = pickPaymentOptions(ctx.hint || '', accounts, cards, category, plan);
         const parcelas = plan ? ` em **${plan.count}x de ${brl(Math.round((amount / plan.count) * 100) / 100)}**` : '';
+        // Cartão citado e não cadastrado: segue o cadastro na conversa; senão, o registro em etapas
+        const needsRegister = pick.options.some((o) => o.payload.action === OPTION_REGISTER_CARD);
+        let wizard: PaymentWizardState | undefined;
+        if (!needsRegister) {
+          wizard = { step: 'WHERE', installments: plan?.count ?? 1 };
+          // A forma de pagamento já estava clara na frase: vai direto ao resumo, para conferir
+          const real = pick.options.filter((o) => o.payload.action !== OPTION_OTHER_PAYMENT);
+          if (real.length === 1 && pick.question.startsWith('Confirma')) {
+            const insts = listPaymentInstitutions(accounts, cards, banks);
+            const o = real[0];
+            const byCard = insts.find((i) => i.card && o.id === `opt_pay_card_${i.card.id}`);
+            const byAccount = insts.find((i) => i.account && o.id === `opt_pay_${i.account.id}`);
+            if (byCard) wizard = { step: 'SUMMARY', where: 'BANK', institution: byCard.name, method: 'CREDITO', installments: plan?.count ?? 1 };
+            else if (byAccount) wizard = { step: 'SUMMARY', where: 'BANK', institution: byAccount.name, method: 'DEBITO', installments: 1 };
+            else if (o.payload.bank === CASH_IN_HAND) wizard = { step: 'SUMMARY', where: 'CASH', installments: 1 };
+          }
+        }
         reply(
           {
-            text: `Anotado: **${brl(amount)}** em **${title}**${parcelas}.${pick.note ? ` ${pick.note}` : ''}\n\n**${pick.question}**`,
+            text: `Anotado: **${brl(amount)}** em **${title}**${parcelas}.${needsRegister ? `${pick.note ? ` ${pick.note}` : ''}\n\n**${pick.question}**` : ''}`,
             badge: 'FORMA DE PAGAMENTO',
             chips: [],
           },
@@ -3510,7 +3542,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               step: 'PAYMENT_METHOD',
               pendingData: { rawTitle: title, amount, dueDate: todayIso, type: 'PAGAR', category, installments, request: requestTrailRef.current.join(' → ') },
               question: pick.question,
-              options: pick.options,
+              options: wizard ? [] : pick.options,
+              wizard,
             },
           }
         );
@@ -3811,6 +3844,59 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   // Responder a uma opção interativa do Copilot
+  const updatePaymentWizard = (
+    messageId: string,
+    wizard?: Partial<PaymentWizardState>,
+    data?: Partial<CopilotPendingConfirmation['pendingData']>
+  ) => {
+    setChatHistory((prev) =>
+      prev.map((m) => {
+        if (m.id !== messageId || !m.pendingConfirmation) return m;
+        const pc = m.pendingConfirmation;
+        const nextWizard = pc.wizard && wizard ? { ...pc.wizard, ...wizard } : pc.wizard;
+        let nextData = data ? { ...pc.pendingData, ...data } : pc.pendingData;
+        if (nextWizard && pc.pendingData.type !== 'RECEBER') {
+          const n = nextWizard.method === 'CREDITO' ? nextWizard.installments : 1;
+          nextData = { ...nextData, installments: n >= 2 ? n : undefined };
+        }
+        return { ...m, pendingConfirmation: { ...pc, wizard: nextWizard, pendingData: nextData } };
+      })
+    );
+  };
+
+  const cancelPaymentWizard = (messageId: string) => {
+    setChatHistory((prev) => prev.map((m) => (m.id === messageId ? { ...m, pendingConfirmation: undefined } : m)));
+  };
+
+  // Resumo confirmado: vira a opção equivalente da lista antiga e segue o mesmo caminho de gravação
+  const confirmPaymentWizard = (messageId: string) => {
+    const msg = chatHistory.find((m) => m.id === messageId);
+    const pc = msg?.pendingConfirmation;
+    const w = pc?.wizard;
+    if (!pc || !w) return;
+    const pending = pc.pendingData;
+    const category = pending.category || 'Outros';
+    const inst = listPaymentInstitutions(accounts, cards, banks).find((i) => i.name === w.institution);
+    let option: CopilotInteractiveOption;
+    if (pending.type === 'RECEBER') {
+      const bank = w.where === 'CASH' ? CASH_IN_HAND : w.institution || 'Geral';
+      option = { id: 'opt_wizard', label: bank, payload: { bank, type: 'RECEBER' } };
+    } else if (w.where === 'CASH') {
+      option = { id: 'opt_wizard', label: CASH_IN_HAND, payload: { bank: CASH_IN_HAND, type: 'PAGAR', category } };
+    } else if (w.method === 'CREDITO') {
+      const plan = w.installments >= 2 ? { count: w.installments, total: pending.amount } : undefined;
+      const card = inst?.card;
+      const cardOpt = card ? paymentOptions([], [card], category, plan).find((o) => o.payload.type === 'CARTAO') : undefined;
+      option = cardOpt
+        ? { ...cardOpt, label: `${w.institution} (crédito)` }
+        : { id: 'opt_wizard_card', label: `Cadastrar o cartão ${w.institution}`, payload: { action: OPTION_REGISTER_CARD, cardName: w.institution || '' } };
+    } else {
+      const bank = inst?.account?.name ?? w.institution ?? 'Geral';
+      option = { id: 'opt_wizard', label: `${w.institution} (débito)`, payload: { bank, type: 'PAGAR', category } };
+    }
+    respondToCopilotOption(messageId, option);
+  };
+
   const respondToCopilotOption = (messageId: string, option: CopilotInteractiveOption) => {
     const targetMsg = chatHistory.find((m) => m.id === messageId);
     if (!targetMsg || !targetMsg.pendingConfirmation) return;
@@ -3885,7 +3971,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                 pendingConfirmation: {
                   ...m.pendingConfirmation,
                   question: 'Como você pagou?',
-                  options: paymentOptions(accounts, cards, pending.category || 'Outros', plan),
+                  options: [],
+                  wizard: { step: 'WHERE', installments: plan?.count ?? 1 },
                 },
               }
             : m
@@ -5186,6 +5273,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         sendMessageToCopilot,
         associateReceiptItemsToInvoice,
         respondToCopilotOption,
+        updatePaymentWizard,
+        confirmPaymentWizard,
+        cancelPaymentWizard,
         forsetiActivity,
         rateForsetiActivity,
         undoForsetiActivity,

@@ -254,6 +254,18 @@ export interface CopilotPendingConfirmation {
   };
   question: string;
   options: CopilotInteractiveOption[];
+  /** Registro em etapas (banco ou dinheiro → banco → débito/crédito → parcelas → resumo); no lugar da lista de opções. */
+  wizard?: PaymentWizardState;
+}
+
+export interface PaymentWizardState {
+  step: 'WHERE' | 'BANK' | 'METHOD' | 'INSTALLMENTS' | 'SUMMARY';
+  where?: 'BANK' | 'CASH';
+  /** Banco escolhido (pagamento) ou nome da conta (recebimento). */
+  institution?: string;
+  method?: 'DEBITO' | 'CREDITO';
+  /** 1 = à vista. */
+  installments: number;
 }
 
 export interface ReceiptItemLine {
