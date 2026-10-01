@@ -37,6 +37,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     cashInHandBalance,
     emergencyReserveMonths,
     nextCriticalEvent,
+    isDataReady,
   } = useFinancial();
   const { theme, toggleTheme } = useTheme();
   const [isHubOpen, setIsHubOpen] = useState(false);
@@ -93,11 +94,17 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="stat-value text-cyan"
             title={`Em conta: ${accountBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} · Em mãos: ${cashInHandBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`}
           >
-            {availableBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            {isDataReady ? availableBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—'}
           </span>
           <span className="stat-split">
-            🏦 {accountBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} · 💵{' '}
-            {cashInHandBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+            {isDataReady ? (
+              <>
+                🏦 {accountBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} · 💵{' '}
+                {cashInHandBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+              </>
+            ) : (
+              'Carregando…'
+            )}
           </span>
         </div>
 
@@ -106,7 +113,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="navbar-stat-item">
           <span className="stat-label">Reserva Runway</span>
           <span className="stat-value text-emerald">
-            {emergencyReserveMonths} meses
+            {isDataReady ? `${emergencyReserveMonths} meses` : '—'}
           </span>
         </div>
 
