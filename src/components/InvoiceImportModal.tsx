@@ -1,3 +1,4 @@
+import { userNatures } from '../utils/baseNatures';
 import React, { useState, useRef } from 'react';
 import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
@@ -629,7 +630,7 @@ export const InvoiceImportModal: React.FC<InvoiceImportModalProps> = ({
                             onChange={(e) => handleNatureChange(item.id, e.target.value)}
                           >
                             <option value="OUTROS">Outros (Despesas Gerais)</option>
-                            {natures.map((n) => (
+                            {userNatures(natures).map((n) => (
                               <option key={n.id} value={n.id}>
                                 {n.name}
                               </option>

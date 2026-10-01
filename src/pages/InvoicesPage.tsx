@@ -1,3 +1,4 @@
+import { userNatures } from '../utils/baseNatures';
 import React, { useState, useMemo, useEffect } from 'react';
 import { parseMoney } from '../utils/parseDecimal';
 import {
@@ -1465,7 +1466,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                           }
                         >
                           <option value="OUTROS">Outros (Despesas Gerais)</option>
-                          {natures.map((n) => (
+                          {userNatures(natures).map((n) => (
                             <option key={n.id} value={n.id}>
                               {n.name}
                             </option>

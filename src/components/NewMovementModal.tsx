@@ -9,6 +9,7 @@ import { useAccountScope } from '../context/AccountScopeContext';
 import type { MovementType, MovementStatus, Movement, InvoiceNatureItemBreakdown } from '../types';
 import { POPULAR_BANKS } from '../utils/bankBranding';
 import { findMappingItemForTitle } from '../utils/mappingMatch';
+import { userNatures } from '../utils/baseNatures';
 import { firstInvoiceDueDate, invoiceDueDates } from '../utils/cardPurchase';
 import { Calendar, Split, Repeat } from 'lucide-react';
 
@@ -64,7 +65,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   defaultType = 'PAGAR',
   initialData,
 }) => {
-  const { addMovement, updateMovement, addMultipleMovements, markMappingItemsFulfilled, natures, accounts, cards, banks, movements, sharedScenario } = useFinancial();
+  const { addMovement, updateMovement, addMultipleMovements, markMappingItemsFulfilled, natures: allNatures, accounts, cards, banks, movements, sharedScenario } = useFinancial();
   const { user } = useAuth();
   const { viewing } = useAccountScope();
 
@@ -108,6 +109,8 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   const [status, setStatus] = useState<MovementStatus>('PREVISTA');
   const [notes, setNotes] = useState('');
   // Compra: primeiro o banco (ou dinheiro em mãos), depois como foi paga
+  // Só as naturezas do usuário (as criadas pelo sistema para categorias internas ficam de fora)
+  const natures = React.useMemo(() => userNatures(allNatures), [allNatures]);
   // Associação da despesa: natureza → mapeamento → item (sugerida pelo nome, editável)
   const [natureId, setNatureId] = useState('');
   const [mappingId, setMappingId] = useState('');

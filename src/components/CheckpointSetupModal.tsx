@@ -1,3 +1,4 @@
+import { userNatures } from '../utils/baseNatures';
 import React, { useState, useEffect, useMemo } from 'react';
 import { parseMoney } from '../utils/parseDecimal';
 import { useFinancial } from '../context/FinancialContext';
@@ -1862,7 +1863,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                                 onChange={(e) => handleBreakdownNatureChange(b.id, row.id, e.target.value)}
                               >
                                 <option value="">-- Selecione a Natureza --</option>
-                                {natures.map((nat) => (
+                                {userNatures(natures).map((nat) => (
                                   <option key={nat.id} value={nat.id}>
                                     {nat.icon || '🏷️'} {nat.name}
                                   </option>

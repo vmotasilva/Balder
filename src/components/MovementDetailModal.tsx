@@ -1,3 +1,4 @@
+import { userNatures } from '../utils/baseNatures';
 import React, { useState, useEffect, useMemo } from 'react';
 import { CASH_IN_HAND } from '../utils/cashInHand';
 import { parseMoney } from '../utils/parseDecimal';
@@ -1253,7 +1254,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
                           onChange={(e) => handleBreakdownNatureChange(row.id, e.target.value)}
                         >
                           <option value="">Selecione Natureza...</option>
-                          {natures.map((n) => (
+                          {userNatures(natures).map((n) => (
                             <option key={n.id} value={n.id}>
                               {n.icon || '🏷️'} {n.name}
                             </option>
@@ -1588,7 +1589,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
                   }}
                 >
                   <option value="">Nenhuma / Categoria Avulsa</option>
-                  {natures.map((n) => (
+                  {userNatures(natures).map((n) => (
                     <option key={n.id} value={n.id}>
                       {n.icon || '🏷️'} {n.name}
                     </option>

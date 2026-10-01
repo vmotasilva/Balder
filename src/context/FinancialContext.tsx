@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef } from 'react';
 import { useAccountScope, type ViewingAccount } from './AccountScopeContext';
-import { isBaseCategoryName } from '../utils/baseNatures';
+import { isBaseCategoryName, natureCoveringCategory, userNatures } from '../utils/baseNatures';
 import { isCashInHand } from '../utils/cashInHand';
 import { SupabaseService, msSinceProfileSave } from '../services/supabaseService';
 import { supabase, isSupabaseConfigured, TABLES } from '../lib/supabase';
@@ -1891,7 +1891,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             const movsToCheck = formattedAt.NATUREZAS ? [] : [...(cloudMovements || [])];
             for (const mov of movsToCheck) {
               const cat = mov.category?.trim();
-              if (cat && !isBaseCategoryName(cat) && !existingNatureNames.has(cat.toLowerCase()) && (mov.type === 'PAGAR' || mov.type === 'CARTAO')) {
+              if (cat && !isBaseCategoryName(cat) && !existingNatureNames.has(cat.toLowerCase()) && !natureCoveringCategory(cat, finalNatures) && (mov.type === 'PAGAR' || mov.type === 'CARTAO')) {
                 orphanCategories.add(cat);
               }
             }
@@ -4082,13 +4082,13 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       isIncome && pending.rawTitle === 'Recebimento' ? 'Recebimento' : `${isIncome ? 'Recebimento' : 'Despesa'}: ${pending.rawTitle}`;
 
     // Despesa: liga ao item do mapeamento (natureza → mapeamento → item) que o nome indica, ex.: "Neon.tech"
-    const itemLink = isIncome ? null : findMappingItemForTitle(pending.rawTitle, natures);
+    const itemLink = isIncome ? null : findMappingItemForTitle(pending.rawTitle, userNatures(natures));
     const natureLink: Partial<Movement> = itemLink
       ? { natureId: itemLink.natureId, mappingItemId: itemLink.itemId }
       : isIncome
       ? {}
       : (() => {
-          const m = matchNatureForTransaction(pending.rawTitle, undefined, natures);
+          const m = matchNatureForTransaction(pending.rawTitle, undefined, userNatures(natures));
           return m.natureId !== 'OUTROS' && m.confidence >= 0.9 ? { natureId: m.natureId } : {};
         })();
 
