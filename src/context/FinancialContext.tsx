@@ -4107,16 +4107,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     // Compra parcelada: uma parcela por mês (no cartão, uma em cada fatura; na conta, a 1ª já sai hoje)
     const count = !isIncome && pending.installments && pending.installments >= 2 ? pending.installments : 0;
     const schedule = count ? installmentSchedule(pending.amount, count, finalDueDate, isCredit ? option.payload.dueDay : undefined) : [];
-    if (itemLink && finalStatus === 'REALIZADA') {
-      markMappingItemsFulfilled([
-        {
-          ...itemLink,
-          realizedValue: count ? schedule[0].amount : pending.amount,
-          monthKey: finalDueDate.slice(0, 7),
-          paidAt: finalDueDate,
-        },
-      ]);
-    }
+    // O pagamento no item da natureza (Real do mês) é lançado pela reconciliação de movimentações realizadas
     if (count) {
       const groupId = `inst_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
       addMultipleMovements(
@@ -4945,39 +4936,38 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   // Despesa realizada ligada a um item de natureza sem pagamento lançado nele (ex.: criada pelo Forseti,
-  // que não conhece o id da movimentação): lança o pagamento para o valor entrar no "Real" do mês
+  // que não conhece o id definitivo da movimentação): lança o pagamento para o valor entrar no "Real" do mês.
+  // Compara por item/mês/valor (quantas movimentações x quantos pagamentos), então não duplica nem depende do id.
   const reconciledMovementsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!isDataReady || viewing || natures.length === 0) return;
-    const toFulfill: FulfilledItemInput[] = [];
+    const groups = new Map<string, { mv: Movement; amount: number; paidAt: string; count: number }>();
     for (const mv of movements) {
       if (mv.type !== 'PAGAR' || mv.status !== 'REALIZADA' || !mv.natureId || !mv.mappingItemId) continue;
       const amount = mv.actualAmount ?? mv.amount;
       const paidAt = mv.paymentDate || mv.dueDate;
       if (!(amount > 0) || !paidAt) continue;
-      const key = `${mv.id}|${paidAt}|${amount}`;
-      if (reconciledMovementsRef.current.has(key)) continue;
-      const nat = natures.find((n) => n.id === mv.natureId);
-      const mapping = nat?.mappings.find((m) => (m.items || []).some((it) => it.id === mv.mappingItemId));
-      const item = mapping?.items.find((it) => it.id === mv.mappingItemId);
-      if (!nat || !mapping || !item) continue;
-      const monthKey = paidAt.slice(0, 7);
-      const payments = item.payments?.[monthKey] || [];
-      const hasPayment = payments.some(
-        (p) => p.movementId === mv.id || (!p.movementId && Math.abs(p.amount - amount) < 0.01)
-      );
-      reconciledMovementsRef.current.add(key);
-      if (hasPayment || isExcludedState(resolveMappingItemState(item, monthKey))) continue;
-      toFulfill.push({
-        natureId: nat.id,
-        mappingId: mapping.id,
-        itemId: item.id,
-        realizedValue: amount,
-        monthKey,
-        paidAt,
-        movementId: mv.id,
-      });
+      const key = `${mv.natureId}|${mv.mappingItemId}|${paidAt.slice(0, 7)}|${amount.toFixed(2)}`;
+      const g = groups.get(key);
+      if (g) g.count += 1;
+      else groups.set(key, { mv, amount, paidAt, count: 1 });
     }
+    const toFulfill: FulfilledItemInput[] = [];
+    groups.forEach((g, key) => {
+      const nat = natures.find((n) => n.id === g.mv.natureId);
+      const mapping = nat?.mappings.find((m) => (m.items || []).some((it) => it.id === g.mv.mappingItemId));
+      const item = mapping?.items.find((it) => it.id === g.mv.mappingItemId);
+      if (!nat || !mapping || !item) return;
+      const monthKey = g.paidAt.slice(0, 7);
+      if (isExcludedState(resolveMappingItemState(item, monthKey))) return;
+      const have = (item.payments?.[monthKey] || []).filter((p) => Math.abs(p.amount - g.amount) < 0.01).length;
+      if (have >= g.count) return;
+      // Uma tentativa por situação (evita repetir se o pagamento não puder ser lançado)
+      const attemptKey = `${key}|${g.count}|${have}`;
+      if (reconciledMovementsRef.current.has(attemptKey)) return;
+      reconciledMovementsRef.current.add(attemptKey);
+      toFulfill.push({ natureId: nat.id, mappingId: mapping.id, itemId: item.id, realizedValue: g.amount, monthKey, paidAt: g.paidAt });
+    });
     if (toFulfill.length > 0) markMappingItemsFulfilled(toFulfill);
   });
 
