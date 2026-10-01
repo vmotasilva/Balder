@@ -21025,7 +21025,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 
 .home-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -21421,9 +21421,6 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .home-stats .home-stat:first-child {
-    grid-column: 1 / -1;
-  }
 
   .home-modules {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -22671,4 +22668,137 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .record-picker-text small {
   color: var(--text-muted);
   font-size: 0.78rem;
+}
+
+/* Card de movimentações do período e seu pop-up */
+.home-stat.is-clickable {
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 0.15s ease;
+}
+
+.home-stat.is-clickable:hover {
+  border-color: var(--accent-cyan);
+}
+
+.period-mov {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.period-mov-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.period-mov-chips {
+  display: inline-flex;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.period-mov-chips button {
+  padding: 6px 10px;
+  font-size: 12px;
+  background: transparent;
+  color: var(--text-muted);
+  border: 0;
+  cursor: pointer;
+}
+
+.period-mov-chips button.is-active {
+  background: var(--accent-cyan);
+  color: #04141c;
+  font-weight: 600;
+}
+
+.period-mov-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 200px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+}
+
+.period-mov-search input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.period-mov-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.period-mov-totals strong {
+  margin-left: 4px;
+}
+
+.period-mov-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.period-mov-list li {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 2px;
+  border-top: 1px solid var(--border-default);
+}
+
+.period-mov-date {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.period-mov-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.period-mov-main b {
+  font-size: 13px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.period-mov-main small {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.period-mov-list li strong {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.period-mov-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 18px 0;
 }

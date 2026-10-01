@@ -31,6 +31,7 @@ import { MappingPaymentModal, type MappingPaymentTarget } from '../components/Ma
 import { RealizationConfirmModal, realizedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
 import type { ForecastEntry } from '../utils/forecastWindow';
 import { displayName } from '../utils/displayName';
+import { PeriodMovementsModal, isMovementIncome, movementDate, movementValue } from '../components/PeriodMovementsModal';
 
 interface HomeHubPageProps {
   onNavigate: (tab: TabId) => void;
@@ -456,6 +457,26 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     [movements, todayIso]
   );
 
+  // ── Movimentações do período (entradas e saídas, previstas e realizadas) ──
+  const [showPeriodMovements, setShowPeriodMovements] = useState(false);
+  const periodRange = trackingPeriodRange(period);
+  const periodMovements = useMemo(
+    () =>
+      movements.filter((m) => {
+        if (m.status === 'CANCELADA') return false;
+        const date = movementDate(m);
+        return date >= periodRange.from && date <= periodRange.to;
+      }),
+    [movements, periodRange.from, periodRange.to]
+  );
+  const periodFlow = useMemo(() => {
+    const sum = (income: boolean) =>
+      periodMovements.filter((m) => isMovementIncome(m) === income).reduce((acc, m) => acc + movementValue(m), 0);
+    const income = sum(true);
+    const expense = sum(false);
+    return { income, expense, net: income - expense };
+  }, [periodMovements]);
+
   // ── Status de cada módulo ──
   const moduleStatus = useMemo(() => {
     const openInvoices = movements.filter((m) => m.type === 'CARTAO' && m.status === 'PREVISTA');
@@ -591,7 +612,21 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           <strong>{nextIncome ? shortDate(nextIncome.dueDate) : '—'}</strong>
           {nextIncome && <small>{formatBRL(nextIncome.amount)}</small>}
         </div>
+        <button type="button" className="home-stat is-clickable" onClick={() => setShowPeriodMovements(true)}>
+          <span>Movimentações {labels.this}</span>
+          <strong className={periodFlow.net < 0 ? 'text-rose' : 'text-emerald'}>{formatBRL(periodFlow.net)}</strong>
+          <small>
+            {formatBRL(periodFlow.income)} entra · {formatBRL(periodFlow.expense)} sai
+          </small>
+        </button>
       </div>
+      <PeriodMovementsModal
+        isOpen={showPeriodMovements}
+        onClose={() => setShowPeriodMovements(false)}
+        title={`Movimentações ${labels.this}`}
+        subtitle={periodRangeLabel(period, periodRange)}
+        movements={periodMovements}
+      />
 
       {/* O que faço agora? */}
       <section className="home-card">
