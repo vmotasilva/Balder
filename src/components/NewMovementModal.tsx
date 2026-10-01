@@ -20,6 +20,8 @@ interface NewMovementModalProps {
   onClose: () => void;
   defaultType?: MovementType;
   initialData?: Partial<Movement>;
+  /** Registro de compra (à vista ou parcelada): mantém só a saída e libera o parcelamento */
+  purchase?: boolean;
 }
 
 export const NewMovementModal: React.FC<NewMovementModalProps> = ({
@@ -27,6 +29,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   onClose,
   defaultType = 'PAGAR',
   initialData,
+  purchase = false,
 }) => {
   const { addMovement, addMultipleMovements, accounts, cards, banks, movements, sharedScenario } = useFinancial();
   const { user } = useAuth();
@@ -39,7 +42,9 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   // Na conta de outra pessoa, a receita lançada é sempre de quem lança (definido ao gravar)
   const showResponsible = hasPartner && !viewing;
 
-  const [type, setType] = useState<MovementType>(defaultType);
+  // Esta tela só registra contas a receber e a pagar; outros tipos viram a pagar
+  const baseType = (t: MovementType): MovementType => (t === 'RECEBER' && !purchase ? 'RECEBER' : 'PAGAR');
+  const [type, setType] = useState<MovementType>(baseType(defaultType));
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0]);
@@ -51,7 +56,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       if (initialData) {
-        setType(initialData.type || defaultType);
+        setType(baseType(initialData.type || defaultType));
         setTitle(initialData.title || '');
         setAmount(initialData.amount ? String(initialData.amount) : '');
         setDueDate(initialData.dueDate || new Date().toISOString().split('T')[0]);
@@ -60,13 +65,13 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
         setStatus(initialData.status || 'REALIZADA');
         setNotes(initialData.notes || '');
       } else {
-        setType(defaultType);
+        setType(baseType(defaultType));
         setTitle('');
         setAmount('');
         setDueDate(new Date().toISOString().split('T')[0]);
         setBank(accounts[0]?.name || 'Nubank');
         setCategory(defaultType === 'RECEBER' ? 'Receita' : 'Geral');
-        setStatus(defaultType === 'RECEBER' ? 'REALIZADA' : 'PREVISTA');
+        setStatus(defaultType === 'RECEBER' && !purchase ? 'REALIZADA' : 'PREVISTA');
         setNotes('');
       }
       setIsInstallment(false);
@@ -76,12 +81,12 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
       setInstallmentValueType('TOTAL');
       setFirstInstallmentRealized(true);
     }
-  }, [isOpen, defaultType, initialData, accounts]);
+  }, [isOpen, defaultType, initialData, accounts, purchase]);
 
   // Repetição mensal (mesmo valor nos meses seguintes) — contas a receber e a pagar
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringMonths, setRecurringMonths] = useState(12);
-  const canRepeat = type === 'RECEBER' || type === 'PAGAR';
+  const canRepeat = !purchase;
   const repeating = canRepeat && isRecurring;
 
   // Estados de Parcelamento
@@ -240,41 +245,33 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Cadastrar Movimentação"
-      subtitle="Adicione uma previsão, registro financeiro ou parcelamento direto ao seu fluxo"
+      title={purchase ? 'Registrar Compra' : 'Conta a Receber / a Pagar'}
+      subtitle={
+        purchase
+          ? 'Compra à vista ou parcelada, lançada nas saídas do seu fluxo'
+          : 'Adicione uma previsão ou registro financeiro ao seu fluxo'
+      }
     >
       <form onSubmit={handleSubmit} className="movement-form">
-        {/* Type Selector Tabs */}
-        <div className="form-type-selector">
-          <button
-            type="button"
-            className={`type-chip ${type === 'RECEBER' ? 'active-receber' : ''}`}
-            onClick={() => setType('RECEBER')}
-          >
-            + A Receber
-          </button>
-          <button
-            type="button"
-            className={`type-chip ${type === 'PAGAR' ? 'active-pagar' : ''}`}
-            onClick={() => setType('PAGAR')}
-          >
-            - A Pagar
-          </button>
-          <button
-            type="button"
-            className={`type-chip ${type === 'EMPRESTIMO' ? 'active-emp' : ''}`}
-            onClick={() => setType('EMPRESTIMO')}
-          >
-            ⚡ Empréstimo
-          </button>
-          <button
-            type="button"
-            className={`type-chip ${type === 'CARTAO' ? 'active-cc' : ''}`}
-            onClick={() => setType('CARTAO')}
-          >
-            💳 Cartão
-          </button>
-        </div>
+        {/* Type Selector Tabs (compra é sempre saída) */}
+        {!purchase && (
+          <div className="form-type-selector" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+            <button
+              type="button"
+              className={`type-chip ${type === 'RECEBER' ? 'active-receber' : ''}`}
+              onClick={() => setType('RECEBER')}
+            >
+              + A Receber
+            </button>
+            <button
+              type="button"
+              className={`type-chip ${type === 'PAGAR' ? 'active-pagar' : ''}`}
+              onClick={() => setType('PAGAR')}
+            >
+              - A Pagar
+            </button>
+          </div>
+        )}
 
         {/* Title */}
         <div className="form-group">
@@ -376,7 +373,8 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
           </div>
         </div>
 
-        {/* SEÇÃO DE PARCELAMENTO */}
+        {/* SEÇÃO DE PARCELAMENTO (só na compra) */}
+        {purchase && (
         <div className="installment-box glass-card">
           <div className="installment-toggle-row">
             <div className="installment-info-header">
@@ -485,6 +483,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
             </div>
           )}
         </div>
+        )}
 
         {/* REPETIÇÃO MENSAL (contas a receber e a pagar) */}
         {canRepeat && (
@@ -736,7 +735,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
             Cancelar
           </button>
           <button type="submit" className="btn btn-primary">
-            {repeating ? `Salvar ${recurringMonths} meses` : isInstallment ? `Salvar ${count} Parcelas` : 'Salvar Movimentação'}
+            {repeating ? `Salvar ${recurringMonths} meses` : isInstallment ? `Salvar ${count} Parcelas` : purchase ? 'Salvar Compra' : 'Salvar Movimentação'}
           </button>
         </div>
       </form>

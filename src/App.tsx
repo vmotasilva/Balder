@@ -23,6 +23,7 @@ import { SharedPlanningPage } from './pages/SharedPlanningPage';
 import { OpportunitiesPage } from './pages/OpportunitiesPage';
 import { IosInstallFromLink } from './components/IosInstallModal';
 import { NewMovementModal } from './components/NewMovementModal';
+import { NewRecordPickerModal, type NewRecordKind } from './components/NewRecordPickerModal';
 import { SimulationModal } from './components/SimulationModal';
 import { LoanPrepaymentModal } from './components/LoanPrepaymentModal';
 import { ForsetiSetupModal } from './components/ForsetiSetupModal';
@@ -101,6 +102,8 @@ export function AppContent() {
 
   // Global Modals State
   const [newMovementModalOpen, setNewMovementModalOpen] = useState(false);
+  const [recordPickerOpen, setRecordPickerOpen] = useState(false);
+  const [purchaseMode, setPurchaseMode] = useState(false);
   const [defaultMovementType, setDefaultMovementType] = useState<MovementType>('PAGAR');
   const [initialMovementData, setInitialMovementData] = useState<Partial<Movement> | undefined>(undefined);
 
@@ -128,11 +131,22 @@ export function AppContent() {
 
   const handleOpenNewMovement = (
     type: MovementType = 'PAGAR',
-    initialData?: Partial<Movement>
+    initialData?: Partial<Movement>,
+    purchase = false
   ) => {
+    setPurchaseMode(purchase);
     setDefaultMovementType(type);
     setInitialMovementData(initialData);
     setNewMovementModalOpen(true);
+  };
+
+  // Escolha do "+": cada tipo leva à tela específica do cadastro
+  const handleSelectRecordKind = (kind: NewRecordKind) => {
+    setRecordPickerOpen(false);
+    if (kind === 'PAGAR' || kind === 'RECEBER') handleOpenNewMovement(kind);
+    else if (kind === 'COMPRA') handleOpenNewMovement('PAGAR', undefined, true);
+    else if (kind === 'EMPRESTIMO') handleSelectTab('EMPRESTIMOS');
+    else if (kind === 'CARTAO') handleSelectTab('FATURAS');
   };
 
   const handleOpenSimulation = (
@@ -160,7 +174,7 @@ export function AppContent() {
       {/* Main Content Layout */}
       <div className="app-main-layout">
         <Navbar
-          onOpenNewMovementModal={() => handleOpenNewMovement('PAGAR')}
+          onOpenNewMovementModal={() => setRecordPickerOpen(true)}
           onOpenSimulationModal={() => handleOpenSimulation('CARRO')}
           onOpenOnboarding={handleOpenOnboarding}
           onNavigateToMovements={() => setActiveTab('MOVIMENTACOES')}
@@ -210,7 +224,10 @@ export function AppContent() {
           )}
 
           {shownTab === 'MOVIMENTACOES' && (
-            <MovementsPage onOpenNewMovementModal={handleOpenNewMovement} />
+            <MovementsPage
+              onOpenNewMovementModal={handleOpenNewMovement}
+              onOpenNewRecordPicker={() => setRecordPickerOpen(true)}
+            />
           )}
 
           {shownTab === 'FATURAS' && <InvoicesPage />}
@@ -223,7 +240,7 @@ export function AppContent() {
 
           {shownTab === 'METAS' && <GoalsPage />}
 
-          {shownTab === 'OPORTUNIDADES' && <OpportunitiesPage onRegisterPurchase={handleOpenNewMovement} />}
+          {shownTab === 'OPORTUNIDADES' && <OpportunitiesPage onRegisterPurchase={(t, d) => handleOpenNewMovement(t, d, true)} />}
 
           {shownTab === 'COMPARTILHADO' && <SharedPlanningPage />}
 
@@ -274,6 +291,13 @@ export function AppContent() {
         }}
         defaultType={defaultMovementType}
         initialData={initialMovementData}
+        purchase={purchaseMode}
+      />
+
+      <NewRecordPickerModal
+        isOpen={recordPickerOpen}
+        onClose={() => setRecordPickerOpen(false)}
+        onSelect={handleSelectRecordKind}
       />
 
       <SimulationModal

@@ -35,6 +35,7 @@ import { getPendingFixedBills, type PendingFixedBill } from '../utils/fixedBills
 
 interface MovementsPageProps {
   onOpenNewMovementModal: (defaultType?: MovementType, initialData?: Partial<Movement>) => void;
+  onOpenNewRecordPicker?: () => void;
 }
 
 type TabFilter = 'TODOS' | 'RECEBER' | 'PAGAR' | 'EMPRESTIMO' | 'CARTAO';
@@ -71,7 +72,7 @@ const getCompetenceLabel = (yearMonthStr: string): string => {
   return yearMonthStr;
 };
 
-export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementModal }) => {
+export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementModal, onOpenNewRecordPicker }) => {
   const {
     movements,
     natures,
@@ -631,7 +632,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
           <button
             type="button"
             className="btn btn-primary mv-header-btn"
-            onClick={() => onOpenNewMovementModal('PAGAR')}
+            onClick={() => (onOpenNewRecordPicker ? onOpenNewRecordPicker() : onOpenNewMovementModal('PAGAR'))}
             title="Nova Movimentação"
             aria-label="Nova Movimentação"
           >
