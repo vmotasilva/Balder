@@ -1836,7 +1836,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
               >
                 {bankOptions.map((b) => (
                   <option key={b} value={b} style={{ color: b === CASH_IN_HAND ? undefined : getBankBranding(b).primaryColor }}>
-                    {b === CASH_IN_HAND ? `💵 ${b}` : `${getBankBranding(b).iconText} ${b}`}
+                    {b === CASH_IN_HAND ? `💵 ${b}` : `${getBankBranding(b).iconText} ${b.replace(/^conta\s+/i, '')}`}
                   </option>
                 ))}
               </select>
