@@ -154,6 +154,8 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   const [spendingNatureId, setSpendingNatureId] = useState<string | null>(null);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [showAllSpending, setShowAllSpending] = useState(false);
+  // Mês corrente só do primeiro dia até hoje (o que já aconteceu na competência)
+  const [monthToDate, setMonthToDate] = useState(false);
   // Conta avulsa aberta para revisar natureza, mapeamento e item
   const [reviewMovementId, setReviewMovementId] = useState<string | null>(null);
 
@@ -364,10 +366,11 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   };
 
   // ── Compras do período, item a item (o atual, um anterior ou a previsão de um futuro, escolhido nas setas) ──
-  const spendingRange = useMemo(
-    () => trackingPeriodRange(period, shiftPeriodDate(period, new Date(), spendingOffset)),
-    [period, spendingOffset]
-  );
+  const toDateView = monthToDate && period === 'MES' && spendingOffset === 0;
+  const spendingRange = useMemo(() => {
+    const range = trackingPeriodRange(period, shiftPeriodDate(period, new Date(), spendingOffset));
+    return toDateView ? { ...range, to: todayIso } : range;
+  }, [period, spendingOffset, toDateView, todayIso]);
   const { tense: spendingTense, items: periodItems } = useMemo(
     () =>
       buildPeriodItems({ natures, movements, range: spendingRange, startDate: activeCheckpoint?.startDate, natureDetailModes }),
@@ -742,6 +745,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           </button>
           <span className="home-period-label">
             {periodRangeLabel(period, spendingRange)}
+            {toDateView && ` · 1 a ${Number(todayIso.slice(8, 10))}`}
             {isCurrentSpending ? (
               <small>atual</small>
             ) : (
@@ -750,6 +754,20 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
               </button>
             )}
           </span>
+          {period === 'MES' && isCurrentSpending && (
+            <button
+              type="button"
+              className={`link-button ${toDateView ? 'is-active' : ''}`}
+              aria-pressed={toDateView}
+              title="Ver só do primeiro dia do mês até hoje"
+              onClick={() => {
+                setMonthToDate((v) => !v);
+                setExpandedItemId(null);
+              }}
+            >
+              {toDateView ? 'Mês todo' : 'Até hoje'}
+            </button>
+          )}
           <button type="button" onClick={() => goToSpending(spendingOffset + 1)} aria-label={nextPeriodLabel} title={nextPeriodLabel}>
             <ChevronRight size={16} />
           </button>
