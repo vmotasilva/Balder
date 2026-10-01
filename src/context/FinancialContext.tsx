@@ -89,6 +89,7 @@ import {
 import { deduplicateCards, getCardIdentityKey } from '../utils/cardUtils';
 import { getBankBranding } from '../utils/bankBranding';
 import { ForsetiActivityService } from '../services/forsetiActivityService';
+import { ForsetiTranscriptService } from '../services/forsetiTranscriptService';
 import { defaultClosingDay } from '../utils/setupCatalog';
 import { isExcludedState, mappingItemBaseValue, resolveMappingItemState } from '../utils/mappingItemState';
 import { buildForecastWindow, FORECAST_PERIODS, type ForecastPeriod, type ForecastWindow } from '../utils/forecastWindow';
@@ -1686,8 +1687,13 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
   }, [activityUserId, activityGuest]);
 
+  // Uma conversa vai do primeiro pedido até o desfecho (lançamento feito); depois começa outra
+  const conversationIdRef = useRef<string>(crypto.randomUUID());
   const saveActivity = (activity: ForsetiActivity) => {
-    if (activityUserId) ForsetiActivityService.save(activityUserId, activityGuest, activity).catch(console.error);
+    if (!activityUserId) return;
+    ForsetiActivityService.save(activityUserId, activityGuest, activity).catch(console.error);
+    // Cópia para estudo (só o administrador lê): guarda pedido, resposta, desfecho e avaliação
+    ForsetiTranscriptService.record(activityUserId, activityGuest, activity, conversationIdRef.current);
   };
 
   const logForsetiActivity = (entry: Omit<ForsetiActivity, 'id' | 'at' | 'planOwnerId' | 'planOwnerName'>) => {
@@ -1702,6 +1708,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
     setForsetiActivity((prev) => [activity, ...prev]);
     saveActivity(activity);
+    if (entry.kind !== 'CONVERSA') conversationIdRef.current = crypto.randomUUID();
   };
 
   const updateForsetiActivity = (id: string, updates: Partial<ForsetiActivity>) => {

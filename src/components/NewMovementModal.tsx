@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { useAccountScope } from '../context/AccountScopeContext';
 import type { MovementType, MovementStatus, Movement, InvoiceNatureItemBreakdown } from '../types';
 import { POPULAR_BANKS } from '../utils/bankBranding';
+import { findMappingItemForTitle } from '../utils/mappingMatch';
 import { firstInvoiceDueDate, invoiceDueDates } from '../utils/cardPurchase';
 import { Calendar, Split, Repeat } from 'lucide-react';
 
@@ -30,7 +31,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   defaultType = 'PAGAR',
   initialData,
 }) => {
-  const { addMovement, updateMovement, addMultipleMovements, accounts, cards, banks, movements, sharedScenario } = useFinancial();
+  const { addMovement, updateMovement, addMultipleMovements, markMappingItemsFulfilled, natures, accounts, cards, banks, movements, sharedScenario } = useFinancial();
   const { user } = useAuth();
   const { viewing } = useAccountScope();
 
@@ -74,6 +75,11 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   const [status, setStatus] = useState<MovementStatus>('PREVISTA');
   const [notes, setNotes] = useState('');
   // Compra: primeiro o banco (ou dinheiro em mãos), depois como foi paga
+  // Associação da despesa: natureza → mapeamento → item (sugerida pelo nome, editável)
+  const [natureId, setNatureId] = useState('');
+  const [mappingId, setMappingId] = useState('');
+  const [itemId, setItemId] = useState('');
+  const [assocTouched, setAssocTouched] = useState(false);
   const [institution, setInstitution] = useState(CASH_IN_HAND);
   const [payMethod, setPayMethod] = useState<'SALDO' | 'CARTAO'>('SALDO');
 
@@ -106,6 +112,10 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
               CASH_IN_HAND
       );
       setPayMethod('SALDO');
+      setNatureId(initialData?.natureId || '');
+      setMappingId('');
+      setItemId(initialData?.mappingItemId || '');
+      setAssocTouched(!!initialData?.natureId);
       setIsInstallment(false);
       setIsRecurring(false);
       setRecurringMonths(12);
@@ -118,6 +128,19 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   // Repetição mensal (mesmo valor nos meses seguintes) — contas a receber e a pagar
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringMonths, setRecurringMonths] = useState(12);
+  useEffect(() => {
+    if (!isOpen || assocTouched || type !== 'PAGAR') return;
+    const match = findMappingItemForTitle(title, natures);
+    setNatureId(match?.natureId || '');
+    setMappingId(match?.mappingId || '');
+    setItemId(match?.itemId || '');
+  }, [title, natures, type, isOpen, assocTouched]);
+  const selectedNature = natures.find((n) => n.id === natureId);
+  const selectedMapping =
+    selectedNature?.mappings.find((m) => m.id === mappingId) ||
+    selectedNature?.mappings.find((m) => m.items.some((it) => it.id === itemId));
+  const suggestedByName = !assocTouched && !!natureId;
+
   // Compra no cartão vira parcelas nas faturas; a repetição mensal é das demais contas
   const isPay = type === 'PAGAR';
   const canRepeat = !(isPay && payMethod === 'CARTAO' && institution !== CASH_IN_HAND);
@@ -205,7 +228,9 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
     // Receita de outra pessoa: entra prevista e só ela confirma o recebimento
     const incomeOwner = type === 'RECEBER' && showResponsible && responsibleId ? responsibleId : undefined;
     const confirmableByMe = !incomeOwner || incomeOwner === user?.$id;
-    const extra: Partial<Movement> = incomeOwner ? { responsibleId: incomeOwner } : {};
+    const assoc: Partial<Movement> =
+      type === 'PAGAR' && natureId ? { natureId, ...(itemId ? { mappingItemId: itemId } : {}) } : {};
+    const extra: Partial<Movement> = { ...(incomeOwner ? { responsibleId: incomeOwner } : {}), ...assoc };
     const submitStatus: MovementStatus = confirmableByMe ? status : 'PREVISTA';
 
     if (cardPurchase) {
@@ -218,8 +243,10 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
       dates.forEach((dateStr, idx) => {
         const item: InvoiceNatureItemBreakdown = {
           id: `${itemId}_${idx + 1}`,
-          natureId: 'OUTROS',
-          natureName: 'Outros',
+          natureId: natureId || 'OUTROS',
+          natureName: selectedNature?.name || 'Outros',
+          mappingId: selectedMapping?.id,
+          mappingItemId: itemId || undefined,
           description: n > 1 ? `${cleanTitle} (${idx + 1}/${n})` : cleanTitle,
           amount: each,
           isAnalyzed: true,
@@ -322,6 +349,11 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
         notes: notes.trim() || undefined,
         ...extra,
       });
+    }
+
+    // Saída já paga e ligada a um item: o item passa a feito com o valor pago
+    if (type === 'PAGAR' && !cardPurchase && submitStatus === 'REALIZADA' && natureId && itemId && selectedMapping) {
+      markMappingItemsFulfilled([{ natureId, mappingId: selectedMapping.id, itemId, realizedValue: parsedAmount }]);
     }
 
     // Reset Form
@@ -461,6 +493,66 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
             </span>
           </div>
         </div>
+
+        {/* Conta a pagar: banco (ou dinheiro) e depois como foi paga */}
+        {isPay && (
+          <>
+            <div className="form-group">
+              <label htmlFor="mov-institution">Banco ou dinheiro</label>
+              <select
+                id="mov-institution"
+                className="form-select"
+                value={institution}
+                onChange={(e) => {
+                  setInstitution(e.target.value);
+                  if (e.target.value === CASH_IN_HAND) {
+                    setPayMethod('SALDO');
+                    setIsInstallment(false);
+                  }
+                }}
+              >
+                <option value={CASH_IN_HAND}>💵 Dinheiro em mãos</option>
+                {institutions.map((i) => (
+                  <option key={i.name} value={i.name}>
+                    🏦 {i.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {institution !== CASH_IN_HAND && (
+              <div className="form-group">
+                <label>Como foi pago?</label>
+                <div className="form-type-selector" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                  <button
+                    type="button"
+                    className={`type-chip ${payMethod === 'SALDO' ? 'active-pagar' : ''}`}
+                    onClick={() => {
+                      setPayMethod('SALDO');
+                      setIsInstallment(false);
+                    }}
+                  >
+                    Saldo da conta (débito / Pix)
+                  </button>
+                  <button
+                    type="button"
+                    className={`type-chip ${payMethod === 'CARTAO' ? 'active-cc' : ''}`}
+                    onClick={() => setPayMethod('CARTAO')}
+                  >
+                    💳 Cartão de crédito
+                  </button>
+                </div>
+                {cardPurchase && (
+                  <small className="form-hint">
+                    Entra na fatura de {institution} com vencimento em{' '}
+                    {firstInvoiceDue.split('-').reverse().join('/')}
+                    {installing ? `; as demais parcelas seguem nas faturas seguintes` : ''}.
+                  </small>
+                )}
+              </div>
+            )}
+          </>
+        )}
 
         {/* SEÇÃO DE PARCELAMENTO (só na compra) */}
         {cardPurchase && (
@@ -665,66 +757,6 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
           </div>
         )}
 
-        {/* Conta a pagar: banco (ou dinheiro) e depois como foi paga */}
-        {isPay && (
-          <>
-            <div className="form-group">
-              <label htmlFor="mov-institution">Banco ou dinheiro</label>
-              <select
-                id="mov-institution"
-                className="form-select"
-                value={institution}
-                onChange={(e) => {
-                  setInstitution(e.target.value);
-                  if (e.target.value === CASH_IN_HAND) {
-                    setPayMethod('SALDO');
-                    setIsInstallment(false);
-                  }
-                }}
-              >
-                <option value={CASH_IN_HAND}>💵 Dinheiro em mãos</option>
-                {institutions.map((i) => (
-                  <option key={i.name} value={i.name}>
-                    🏦 {i.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {institution !== CASH_IN_HAND && (
-              <div className="form-group">
-                <label>Como foi pago?</label>
-                <div className="form-type-selector" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
-                  <button
-                    type="button"
-                    className={`type-chip ${payMethod === 'SALDO' ? 'active-pagar' : ''}`}
-                    onClick={() => {
-                      setPayMethod('SALDO');
-                      setIsInstallment(false);
-                    }}
-                  >
-                    Saldo da conta (débito / Pix)
-                  </button>
-                  <button
-                    type="button"
-                    className={`type-chip ${payMethod === 'CARTAO' ? 'active-cc' : ''}`}
-                    onClick={() => setPayMethod('CARTAO')}
-                  >
-                    💳 Cartão de crédito
-                  </button>
-                </div>
-                {cardPurchase && (
-                  <small className="form-hint">
-                    Entra na fatura de {institution} com vencimento em{' '}
-                    {firstInvoiceDue.split('-').reverse().join('/')}
-                    {installing ? `; as demais parcelas seguem nas faturas seguintes` : ''}.
-                  </small>
-                )}
-              </div>
-            )}
-          </>
-        )}
-
         {/* Bank & Category */}
         <div className="form-row">
           {!isPay && (
@@ -813,6 +845,72 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
             </select>
           </div>
         </div>
+
+        {isPay && natures.length > 0 && (
+          <div className="form-group">
+            <label>
+              Natureza, mapeamento e item
+              {suggestedByName && <small className="form-hint"> — sugerido pelo nome</small>}
+            </label>
+            <div className="form-row">
+              <select
+                className="form-select"
+                value={natureId}
+                aria-label="Natureza"
+                onChange={(e) => {
+                  setNatureId(e.target.value);
+                  setMappingId('');
+                  setItemId('');
+                  setAssocTouched(true);
+                }}
+              >
+                <option value="">Sem natureza</option>
+                {natures.map((n) => (
+                  <option key={n.id} value={n.id}>
+                    {n.icon ? `${n.icon} ` : ''}
+                    {n.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="form-select"
+                value={selectedMapping?.id || ''}
+                disabled={!selectedNature}
+                aria-label="Mapeamento"
+                onChange={(e) => {
+                  setMappingId(e.target.value);
+                  setItemId('');
+                  setAssocTouched(true);
+                }}
+              >
+                <option value="">Sem mapeamento</option>
+                {(selectedNature?.mappings || []).map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {selectedMapping && (
+              <select
+                className="form-select"
+                value={itemId}
+                aria-label="Item"
+                onChange={(e) => {
+                  setItemId(e.target.value);
+                  setAssocTouched(true);
+                }}
+              >
+                <option value="">Sem item específico</option>
+                {selectedMapping.items.map((it) => (
+                  <option key={it.id} value={it.id}>
+                    {it.description}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
 
         {type === 'RECEBER' && showResponsible && (
           <div className="form-group">

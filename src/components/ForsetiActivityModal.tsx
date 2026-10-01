@@ -43,7 +43,8 @@ export const ForsetiActivityModal: React.FC<{ isOpen: boolean; onClose: () => vo
   const { forsetiActivity: allActivity, movements, rateForsetiActivity, undoForsetiActivity } = useFinancial();
   // Com o app aberto por muito tempo, o que passou do período some da lista (e do armazenamento no próximo carregamento)
   const cutoff = activityCutoffIso();
-  const forsetiActivity = allActivity.filter((a) => a.at >= cutoff);
+  // As conversas completas são guardadas só para estudo da Forseti; aqui ficam os desfechos
+  const forsetiActivity = allActivity.filter((a) => a.at >= cutoff && a.kind !== 'CONVERSA');
   const { confirm, dialogProps } = useConfirmDialog();
   const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
 
