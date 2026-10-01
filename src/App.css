@@ -23328,3 +23328,57 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   .mdm-modal .mdm-footer > div { flex: 1; flex-wrap: nowrap !important; gap: 6px !important; }
   .mdm-modal .mdm-footer > div .btn { flex: 1; justify-content: center; padding: 8px 6px !important; white-space: nowrap; }
 }
+
+/* ==========================================================================
+   NATUREZAS NO CELULAR: cards e controles cabem na largura da tela (sem rolagem lateral)
+   ========================================================================== */
+@media (max-width: 640px) {
+  .nature-budget-grid-container {
+    padding: 14px 12px !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: hidden !important;
+  }
+
+  .nature-grid-header,
+  .nature-grid-controls {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .nature-grid-controls > * {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .nature-grid-controls select {
+    max-width: 100% !important;
+  }
+
+  .nature-cards-grid-view {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .nature-card-item {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    padding: 12px !important;
+  }
+
+  .nature-card-item .nature-card-alert,
+  .nature-card-item .nature-card-last {
+    flex-wrap: wrap !important;
+    min-width: 0 !important;
+    overflow-wrap: anywhere !important;
+    white-space: normal !important;
+  }
+
+  .nature-card-rp-values {
+    gap: 4px !important;
+  }
+
+  .nature-card-rp-values .font-mono {
+    font-size: 11px !important;
+    overflow-wrap: anywhere !important;
+  }
+}
