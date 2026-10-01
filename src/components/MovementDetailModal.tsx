@@ -793,12 +793,14 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
       }
       subtitle="Ajuste o valor para a realidade que foi efetivamente aplicada e confirme a conciliação financeira."
       maxWidth={movement.type === 'CARTAO' ? '880px' : '680px'}
+      className="mdm-modal"
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <div className="mdm-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {/* ========================================================================= */}
         {/* CABEÇALHO CONTEXTUAL DA TRANSAÇÃO                                         */}
         {/* ========================================================================= */}
         <div
+          className="mdm-head"
           style={{
             padding: '0.85rem 1rem',
             borderRadius: '12px',
@@ -902,7 +904,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
           </div>
 
           {/* Destaque do Valor Nominal Original */}
-          <div style={{ textAlign: 'right' }}>
+          <div className="mdm-nominal" style={{ textAlign: 'right' }}>
             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'block' }}>
               Valor Nominal Previsto
             </span>
@@ -1559,6 +1561,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
         {/* ------------------------------------------------------------------------- */}
         {movement.type === 'PAGAR' && (
           <div
+            className="mdm-nature"
             style={{
               padding: '0.85rem',
               borderRadius: '10px',
@@ -1574,7 +1577,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
             </span>
 
             {/* Seletor de Natureza e Item de Mapeamento */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
+            <div className="mdm-two" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Vincular à Natureza</label>
                 <select
@@ -1627,6 +1630,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
         {/* BLOCO PRINCIPAL: AJUSTE DO VALOR REAL APLICADO                            */}
         {/* ========================================================================= */}
         <div
+          className="mdm-main"
           style={{
             padding: '1rem',
             borderRadius: '12px',
@@ -1642,7 +1646,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
               <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                 Valor Real Aplicado / Praticado
               </span>
-              <p style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+              <p className="mdm-desc" style={{ margin: 0, fontSize: '0.7rem', color: 'var(--text-muted)' }}>
                 Informe a quantia exata que foi debitada ou creditada.
               </p>
             </div>
@@ -1690,10 +1694,10 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
             )}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div className="mdm-two mdm-two-keep" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <div style={{ position: 'relative' }}>
               <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
-                Valor Total Real da Transação (R$)
+                Valor Real (R$)
               </label>
               <span
                 style={{
@@ -1725,13 +1729,13 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
 
             <div>
               <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
-                Motivo / Justificativa da Realidade Aplicada
+                Motivo / Justificativa
               </label>
               <input
                 type="text"
                 className="form-input"
                 style={{ fontSize: '0.8rem', padding: '6px 10px' }}
-                placeholder="ex: Conta veio mais cara, antecipação, horas extras..."
+                placeholder="ex: conta veio mais cara..."
                 value={adjustmentReason}
                 onChange={(e) => setAdjustmentReason(e.target.value)}
               />
@@ -1771,10 +1775,10 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
           )}
 
           {/* Dados de Liquidação: Data e Banco */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '0.25rem' }}>
+          <div className="mdm-three" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '0.25rem' }}>
             <div>
               <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
-                Data de Vencimento
+                Vencimento
               </label>
               <input
                 type="date"
@@ -1787,7 +1791,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
 
             <div>
               <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
-                Data do Pagamento / Crédito
+                Pagamento
               </label>
               <input
                 type="date"
@@ -1800,7 +1804,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
 
             <div>
               <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
-                Banco / Conta
+                Banco
               </label>
               <select
                 className="form-input"
@@ -1820,7 +1824,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
           {/* Observações Opcionais */}
           <div>
             <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
-              Notas / Observações Adicionais
+              Observações
             </label>
             <input
               type="text"
@@ -1837,6 +1841,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
         {/* RODAPÉ DO MODAL COM AÇÕES E LIQUIDAÇÃO                                    */}
         {/* ========================================================================= */}
         <div
+          className="mdm-footer"
           style={{
             position: 'sticky',
             bottom: '-24px',
@@ -1861,7 +1866,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
             title="Excluir movimentação permanentemente"
           >
             <Trash2 size={15} />
-            <span>Excluir</span>
+            <span className="mdm-long">Excluir</span>
           </button>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -1872,7 +1877,8 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
               title="Salvar o novo valor real mantendo o status de previsto"
             >
               <Clock size={14} />
-              <span>Salvar Previsão Retificada</span>
+              <span className="mdm-long">Salvar Previsão Retificada</span>
+              <span className="mdm-short">Prevista</span>
             </button>
 
             <button
@@ -1883,7 +1889,8 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
               title="Confirmar quitação/depósito com o valor real e mudar status para Realizada"
             >
               <CheckCircle2 size={16} />
-              <span>
+              <span className="mdm-short">Realizado</span>
+              <span className="mdm-long">
                 Confirmar Realizado ({actualAmountNum.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
               </span>
             </button>

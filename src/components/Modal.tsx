@@ -9,6 +9,7 @@ interface ModalProps {
   subtitle?: string;
   children: React.ReactNode;
   maxWidth?: string;
+  className?: string;
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -18,6 +19,7 @@ export const Modal: React.FC<ModalProps> = ({
   subtitle,
   children,
   maxWidth = '560px',
+  className = '',
 }) => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -45,7 +47,7 @@ export const Modal: React.FC<ModalProps> = ({
   return createPortal(
     <div className="modal-backdrop" onClick={onClose}>
       <div
-        className="modal-container glass-card animate-fade-in"
+        className={`modal-container glass-card animate-fade-in ${className}`}
         style={{ maxWidth }}
         onClick={(e) => e.stopPropagation()}
       >

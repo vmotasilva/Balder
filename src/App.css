@@ -23278,3 +23278,49 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     margin: 0 !important;
   }
 }
+
+/* Detalhes & Liquidação: no celular o formulário cabe na tela, sem rolagem */
+.mdm-modal .mdm-short { display: none; }
+@media (max-width: 768px) {
+  .modal-backdrop:has(.mdm-modal) { padding: 6px; align-items: flex-start; }
+  .mdm-modal.modal-container { max-height: calc(100dvh - 12px); border-radius: 14px; }
+  .mdm-modal .modal-header { padding: 8px 12px; align-items: center; }
+  .mdm-modal .modal-title { font-size: 14px; line-height: 1.25; }
+  .mdm-modal .modal-subtitle { display: none; }
+  .mdm-modal .modal-body { padding: 10px 12px; max-height: calc(100dvh - 60px); }
+  .mdm-modal .mdm-body { gap: 8px !important; }
+  .mdm-modal .mdm-long { display: none; }
+  .mdm-modal .mdm-short { display: inline; }
+
+  .mdm-modal .mdm-head { padding: 8px 10px !important; gap: 6px !important; flex-wrap: nowrap !important; }
+  .mdm-modal .mdm-head > div:first-child { gap: 8px !important; min-width: 0; flex: 1; }
+  .mdm-modal .mdm-head > div:first-child > div:first-child { width: 32px !important; height: 32px !important; }
+  .mdm-modal .mdm-head > div:first-child > div:first-child svg { width: 18px; height: 18px; }
+  .mdm-modal .mdm-head > div:first-child > div:last-child { min-width: 0; flex: 1; }
+  .mdm-modal .mdm-head .form-input { font-size: 0.85rem !important; }
+  .mdm-modal .mdm-nominal { flex-shrink: 0; }
+  .mdm-modal .mdm-nominal span { font-size: 0.6rem !important; }
+  .mdm-modal .mdm-nominal strong { font-size: 0.9rem !important; }
+
+  .mdm-modal .mdm-nature { padding: 8px 10px !important; gap: 6px !important; }
+  .mdm-modal .mdm-nature > span { font-size: 0.72rem !important; }
+  .mdm-modal .mdm-two { grid-template-columns: 1fr 1fr !important; gap: 6px !important; }
+  .mdm-modal .mdm-main { padding: 8px 10px !important; gap: 6px !important; }
+  .mdm-modal .mdm-desc { display: none; }
+  .mdm-modal .mdm-three { grid-template-columns: 1fr 1fr 1fr !important; gap: 6px !important; margin-top: 0 !important; }
+  .mdm-modal .mdm-three .form-input { padding: 4px 3px !important; font-size: 0.7rem !important; }
+  .mdm-modal .mdm-main label { font-size: 0.66rem !important; margin-bottom: 1px !important; }
+  .mdm-modal .mdm-main .form-input,
+  .mdm-modal .mdm-nature .form-input { min-height: 0; padding-top: 4px; padding-bottom: 4px; }
+  .mdm-modal .mdm-main .installment-planner { margin-top: 0; padding: 6px 8px; }
+
+  .mdm-modal .mdm-footer {
+    bottom: -10px !important;
+    margin: 4px -12px -10px -12px !important;
+    padding: 8px 12px !important;
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+  }
+  .mdm-modal .mdm-footer > div { flex: 1; flex-wrap: nowrap !important; gap: 6px !important; }
+  .mdm-modal .mdm-footer > div .btn { flex: 1; justify-content: center; padding: 8px 6px !important; white-space: nowrap; }
+}
