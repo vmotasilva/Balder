@@ -3278,6 +3278,20 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           let cashPaid: number | undefined;
           let changeAmount: number | undefined;
 
+          // Se o usuário disse do que se trata ("almoço", "refeição"...), isso vale mais que o aprendizado por item
+          const hintNorm = trimmed.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          const mealHint = /almoc|jantar|refeic|restaurante|lanche|marmita|cafe da manha/.test(hintNorm);
+          let hintedNature = matchNatureForTransaction(trimmed, undefined, natures);
+          if (hintedNature.natureId === 'OUTROS' && mealHint) {
+            const mealNature = natures.find((n) =>
+              /refei|restaurante|almoc|lanch|comer fora|alimentacao fora/.test(
+                n.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+              )
+            );
+            if (mealNature) hintedNature = { ...hintedNature, natureId: mealNature.id, natureName: mealNature.name };
+          }
+          const hasHint = hintedNature.natureId !== 'OUTROS' && (hintedNature.confidence >= 0.9 || mealHint);
+
           ocrResults.forEach((res, rIdx) => {
             if (!detectedStore && res.detectedStore) detectedStore = res.detectedStore;
             if (!detectedDate && res.detectedDate) detectedDate = res.detectedDate;
@@ -3290,8 +3304,18 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               allDetectedItems.push({
                 ...item,
                 id: `item_rec_${rIdx}_${iIdx}_${Date.now()}`,
-                natureId: item.natureId || match.natureId,
-                newCategoryName: item.newCategoryName || match.natureName,
+                ...(hasHint
+                  ? {
+                      natureId: hintedNature.natureId,
+                      newCategoryName: hintedNature.natureName,
+                      matchedMappingItemId: undefined,
+                      targetMappingId: undefined,
+                      isNewSuggestedItem: false,
+                    }
+                  : {
+                      natureId: item.natureId || match.natureId,
+                      newCategoryName: item.newCategoryName || match.natureName,
+                    }),
               });
             });
             totalDetectedAmount += res.detectedAmount;
@@ -3390,6 +3414,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           }
 
           // 2. Fluxo Regular com opção prioritária de fatura
+          const ocrCategory = hasHint ? hintedNature.natureName : 'Alimentação & Mercado';
           const dynamicOptions: CopilotInteractiveOption[] = [];
 
           if (targetInvoice) {
@@ -3411,7 +3436,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               icon: '🟠',
               badge: 'Conta Corrente',
               description: 'Debitar imediatamente do saldo em caixa',
-              payload: { bank: 'Inter', type: 'PAGAR', category: 'Alimentação & Mercado' },
+              payload: { bank: 'Inter', type: 'PAGAR', category: ocrCategory },
             },
             {
               id: 'opt_ocr_cash',
@@ -3422,7 +3447,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                 style: 'currency',
                 currency: 'BRL',
               })} em dinheiro`,
-              payload: { bank: 'Dinheiro', type: 'PAGAR', category: 'Alimentação & Mercado' },
+              payload: { bank: 'Dinheiro', type: 'PAGAR', category: ocrCategory },
             },
             {
               id: 'opt_ocr_adjust',
@@ -3430,7 +3455,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               icon: '✏️',
               badge: 'Personalizar',
               description: 'Editar valores, vincular rotinas fixas ou alterar fatura',
-              payload: { action: 'ADJUST_AMOUNT', category: 'Alimentação & Mercado' },
+              payload: { action: 'ADJUST_AMOUNT', category: ocrCategory },
             }
           );
 
@@ -3441,7 +3466,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               amount: totalDetectedAmount,
               dueDate: detectedDate || new Date().toISOString().split('T')[0],
               type: 'CARTAO',
-              category: 'Alimentação & Mercado',
+              category: ocrCategory,
               notes: `Lançamento extraído via Forseti OCR (${attachmentsList.length} ${
                 attachmentsList.length === 1 ? 'foto' : 'fotos'
               }).`,
