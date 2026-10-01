@@ -23108,6 +23108,10 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   .app-content-viewport {
     padding-bottom: 72px;
   }
+  /* Forseti: a janela termina acima da barra, e a caixa de mensagem fica visível */
+  .copilot-popup-overlay {
+    bottom: 52px;
+  }
 }
 @media (max-width: 768px) {
   /* A folha de navegação sobe a partir da barra */
