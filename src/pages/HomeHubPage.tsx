@@ -614,7 +614,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
       <div className="home-tabs home-tabs-mobile" role="tablist" aria-label="Seções do Início">
         {([
           ['FAZER', `Em aberto${tasks.length > 0 ? ` · ${tasks.length}` : ''}`],
-          ['GASTOS', 'Gastos'],
+          ['GASTOS', 'Previstos'],
           ['NATUREZAS', 'Naturezas'],
           ['METAS', 'Metas'],
         ] as const).map(([id, label]) => (
