@@ -4923,13 +4923,13 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         };
       });
 
-      if (isCloudUser && user) {
-        try {
-          localStorage.setItem(`balder_natures_${user.$id}`, JSON.stringify(next));
-        } catch {}
-      } else {
-        localStorage.setItem('balder_natures', JSON.stringify(next));
-      }
+      // Grava no navegador e na nuvem (sem isso o pagamento some quando as naturezas são recarregadas)
+      const touched = [...new Set(itemsToFulfill.map((it) => it.natureId))];
+      touched.forEach((natureId) => {
+        const nat = next.find((n) => n.id === natureId);
+        if (!nat) return;
+        saveNaturesData(next, natureId, { mappings: nat.mappings });
+      });
 
       return next;
     });
@@ -4938,7 +4938,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Despesa realizada ligada a um item de natureza sem pagamento lançado nele (ex.: criada pelo Forseti,
   // que não conhece o id definitivo da movimentação): lança o pagamento para o valor entrar no "Real" do mês.
   // Compara por item/mês/valor (quantas movimentações x quantos pagamentos), então não duplica nem depende do id.
-  const reconciledMovementsRef = useRef<Set<string>>(new Set());
+  const reconciledMovementsRef = useRef<Map<string, number>>(new Map());
   useEffect(() => {
     if (!isDataReady || viewing || natures.length === 0) return;
     const groups = new Map<string, { mv: Movement; amount: number; paidAt: string; count: number }>();
@@ -4964,8 +4964,10 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (have >= g.count) return;
       // Uma tentativa por situação (evita repetir se o pagamento não puder ser lançado)
       const attemptKey = `${key}|${g.count}|${have}`;
-      if (reconciledMovementsRef.current.has(attemptKey)) return;
-      reconciledMovementsRef.current.add(attemptKey);
+      // Até 3 tentativas por situação (se as naturezas forem recarregadas da nuvem, lança de novo; sem loop infinito)
+      const attempts = reconciledMovementsRef.current.get(attemptKey) || 0;
+      if (attempts >= 3) return;
+      reconciledMovementsRef.current.set(attemptKey, attempts + 1);
       toFulfill.push({ natureId: nat.id, mappingId: mapping.id, itemId: item.id, realizedValue: g.amount, monthKey, paidAt: g.paidAt });
     });
     if (toFulfill.length > 0) markMappingItemsFulfilled(toFulfill);
