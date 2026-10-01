@@ -4,14 +4,6 @@ import {
   Camera,
   History,
   Send,
-  LayoutDashboard,
-  ArrowLeftRight,
-  CreditCard,
-  Layers,
-  Target,
-  FileText,
-  ShoppingBag,
-  Users,
   CheckCircle2,
   ChevronRight,
   ChevronLeft,
@@ -32,7 +24,6 @@ import { MappingPaymentModal, type MappingPaymentTarget } from '../components/Ma
 import { RealizationConfirmModal, realizedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
 import type { ForecastEntry } from '../utils/forecastWindow';
 import { displayName } from '../utils/displayName';
-import { userNatures } from '../utils/baseNatures';
 import { PeriodMovementsModal, isMovementIncome, movementDate, movementValue } from '../components/PeriodMovementsModal';
 
 interface HomeHubPageProps {
@@ -127,8 +118,6 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     activeCheckpoint,
     movements,
     natures,
-    goals,
-    goalStatuses,
     forecasts,
     availableBalance,
     viewPreferences,
@@ -491,52 +480,6 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     const expense = sum(false);
     return { income, expense, net: income - expense };
   }, [periodMovements]);
-
-  // ── Status de cada módulo ──
-  const moduleStatus = useMemo(() => {
-    const openInvoices = movements.filter((m) => m.type === 'CARTAO' && m.status === 'PREVISTA');
-    const invoicesTotal = openInvoices.reduce((acc, m) => acc + m.amount, 0);
-    const dueInPeriod = periodWindow.entries.filter((e) => e.source !== 'NATUREZA' && e.source !== 'FATURA').length;
-    const activeGoals = goals.filter((g) => !goalStatuses[g.id]);
-    const goalsProgress =
-      activeGoals.length > 0
-        ? Math.round(
-            (activeGoals.reduce((acc, g) => acc + Math.min(1, g.targetAmount > 0 ? g.currentAmount / g.targetAmount : 0), 0) /
-              activeGoals.length) *
-              100
-          )
-        : 0;
-    const nextInstallment = movements
-      .filter((m) => m.type === 'EMPRESTIMO' && m.category !== 'Recebimento' && m.status === 'PREVISTA' && m.dueDate >= todayIso)
-      .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
-
-    return {
-      movimentacoes: dueInPeriod > 0 ? { text: `${dueInPeriod} vencem ${labels.this}`, tone: 'warn' } : { text: 'Tudo em dia', tone: 'ok' },
-      faturas:
-        openInvoices.length > 0
-          ? { text: `${openInvoices.length} aberta(s) · ${formatBRL(invoicesTotal)}`, tone: '' }
-          : { text: 'Cadastre seu cartão', tone: 'invite' },
-      naturezas: userNatures(natures).length > 0 ? { text: `${userNatures(natures).length} naturezas`, tone: '' } : { text: 'Organize seus gastos', tone: 'invite' },
-      metas:
-        activeGoals.length > 0
-          ? { text: `${activeGoals.length} ativa(s) · ${goalsProgress}%`, tone: '' }
-          : { text: 'Crie sua primeira meta', tone: 'invite' },
-      emprestimos: nextInstallment
-        ? { text: `Parcela em ${shortDate(nextInstallment.dueDate)}`, tone: '' }
-        : { text: 'Simule ou cadastre', tone: 'invite' },
-    };
-  }, [movements, natures, goals, goalStatuses, periodWindow, todayIso, labels.this]);
-
-  const modules: { tab: TabId; label: string; icon: React.ElementType; status: { text: string; tone: string } }[] = [
-    { tab: 'DASHBOARD', label: 'Painel', icon: LayoutDashboard, status: { text: 'Indicadores e projeção', tone: '' } },
-    { tab: 'MOVIMENTACOES', label: 'Movimentações', icon: ArrowLeftRight, status: moduleStatus.movimentacoes },
-    { tab: 'FATURAS', label: 'Faturas', icon: CreditCard, status: moduleStatus.faturas },
-    { tab: 'NATUREZAS', label: 'Naturezas', icon: Layers, status: moduleStatus.naturezas },
-    { tab: 'METAS', label: 'Metas', icon: Target, status: moduleStatus.metas },
-    { tab: 'EMPRESTIMOS', label: 'Contratos', icon: FileText, status: moduleStatus.emprestimos },
-    { tab: 'OPORTUNIDADES', label: 'Compras', icon: ShoppingBag, status: { text: 'Confira e ache preços', tone: '' } },
-    { tab: 'COMPARTILHADO', label: 'Planejamento conjunto', icon: Users, status: { text: 'Acompanhe com alguém', tone: 'invite' } },
-  ];
 
   // Últimas solicitações à Forseti: pop-up pelo ícone ao lado da caixa de texto
   const [showActivity, setShowActivity] = useState(false);
@@ -937,18 +880,6 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
         )}
       </section>
       </div>
-
-      {/* Para onde vou? */}
-      <section className="home-modules">
-        {modules.map((m) => (
-          <button key={m.tab} type="button" className="home-module" onClick={() => onNavigate(m.tab)}>
-            <m.icon size={18} aria-hidden="true" />
-            <span className="home-module-label">{m.label}</span>
-            <span className={`home-module-status ${m.status.tone ? `is-${m.status.tone}` : ''}`}>{m.status.text}</span>
-            <ChevronRight size={14} className="home-module-arrow" aria-hidden="true" />
-          </button>
-        ))}
-      </section>
 
       {reviewMovementId && (
         <MovementDetailModal
