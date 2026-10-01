@@ -15,6 +15,7 @@ import {
 import type { ExpenseNature, MonthlyGridProjectionRow, MappingItem } from '../types';
 import { buildMonthlyProjectionGrid, movementCompetenceDate } from '../utils/projectionMath';
 import { mappingItemMonthValue, resolveMappingItemMonth } from '../utils/mappingItemState';
+import { userNatures } from '../utils/baseNatures';
 import { GridCellDetailModal } from './GridCellDetailModal';
 import type { GridCellSelection } from './GridCellDetailModal';
 
@@ -112,7 +113,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
   const natureRows: NatureBudgetRow[] = useMemo(() => {
     const selectedMonthNumber = parseInt(selectedMonthKey.split('-')[1], 10);
 
-    return natures.map((nat) => {
+    return userNatures(natures).map((nat) => {
       // 1. Previsto (Teto orçado mensal da natureza específico para este mês de competência)
       const planned = getNatureCeiling(nat, selectedMonthKey);
 
