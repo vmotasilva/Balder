@@ -50,6 +50,8 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
   const [selectedMonthFilter, setSelectedMonthFilter] = useState('ALL');
 
   // Modal para Criar Nova Fatura
+  // Filtros: abertos no computador, recolhidos no celular
+  const [filtersOpen, setFiltersOpen] = useState(() => (typeof window === 'undefined' ? true : window.innerWidth >= 1100));
   const [isNewInvoiceModalOpen, setIsNewInvoiceModalOpen] = useState(newInvoiceSignal > 0);
   // Pedido externo (ex.: "+ > Fatura de cartão") abre o cadastro de fatura
   useEffect(() => {
@@ -808,7 +810,13 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
 
       {/* Filter Panel com Abas Visuais por Banco */}
       <div className="invoices-filter-panel">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+        <button
+          type="button"
+          className="invoices-filter-toggle"
+          onClick={() => setFiltersOpen((v) => !v)}
+          aria-expanded={filtersOpen}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: filtersOpen ? '12px' : 0, flexWrap: 'wrap', gap: '8px', width: '100%', background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, textAlign: 'left' }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <SlidersHorizontal size={15} style={{ color: 'var(--text-muted)' }} />
             <span style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)' }}>
@@ -818,8 +826,11 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
           <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
             Mostrando <strong style={{ color: 'var(--text-primary)' }}>{filteredInvoices.length}</strong> de {cardMovements.length} faturas
           </span>
-        </div>
+          <ChevronDown size={16} style={{ color: 'var(--text-muted)', transform: filtersOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} aria-hidden="true" />
+        </button>
 
+        {filtersOpen && (
+        <>
         {/* Abas Rápidas por Banco com cores da marca */}
         <div className="invoices-bank-pills">
           <button
@@ -937,6 +948,8 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
             </select>
           </div>
         </div>
+        </>
+        )}
       </div>
 
       {/* Lista de Faturas */}
