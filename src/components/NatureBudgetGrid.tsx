@@ -176,19 +176,27 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
       let real = 0;
       let pending = 0;
       const payments: { date: string; description: string; amount: number }[] = [];
+      // O que passou do previsto: itens pagos/lançados acima do valor do mês e lançamentos fora dos itens
+      const overages: { name: string; amount: number }[] = [];
       natItems.forEach((ni) => {
         const summary = resolveMappingItemMonth(ni.item, selectedMonthKey);
         if (isExcludedState(summary.state)) return;
         const launched = matchingMovements.filter((m) => m.mappingItemId === ni.item.id || norm(m.title) === norm(ni.item.description));
         if (launched.length > 0) {
+          let launchedTotal = 0;
           launched.forEach((m) => {
+            launchedTotal += m.amount;
             if (m.status === 'REALIZADA') real += m.amount;
             else pending += m.amount;
           });
+          if (launchedTotal - summary.base > 0.005) overages.push({ name: ni.item.description, amount: launchedTotal - summary.base });
           return;
         }
         real += summary.paid;
         pending += summary.pending;
+        if (summary.paid + summary.pending - summary.base > 0.005) {
+          overages.push({ name: ni.item.description, amount: summary.paid + summary.pending - summary.base });
+        }
         summary.payments.forEach((p) => payments.push({ date: p.paidAt, description: ni.item.description, amount: p.amount }));
       });
       matchingMovements
@@ -196,6 +204,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
         .forEach((m) => {
           if (m.status === 'REALIZADA') real += m.amount;
           else pending += m.amount;
+          overages.push({ name: m.title, amount: m.amount });
         });
       real = Math.round(real * 100) / 100;
       pending = Math.round(pending * 100) / 100;
@@ -247,7 +256,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
             }
             return (
               mp.frequency !== 'PONTUAL' &&
-              mp.items.some((it) => it.description.trim().toLowerCase() === m.title.trim().toLowerCase())
+              mp.items.some((it) => it.id === m.mappingItemId || it.description.trim().toLowerCase() === m.title.trim().toLowerCase())
             );
           });
 
@@ -287,23 +296,16 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
         .filter((e) => e.isAtypical && e.amount > 0)
         .sort((a, b) => b.amount - a.amount);
 
-      // Maior despesa geral para caso de estouro sem atípicos explícitos
-      const topOverallExpense = [...allExpenses]
-        .filter((e) => e.amount > 0)
-        .sort((a, b) => b.amount - a.amount)[0];
-
       // 6. Regra de Negócios para Observações Analíticas
       let autoObservation = '';
 
       if (isOver) {
-        // Se houver estouro de teto (Realizado > Previsto):
-        // Identifique e exiba o nome e valor da maior despesa ou da despesa atípica que causou o estouro.
-        const primeOffender = atypicalExpenses.length > 0 ? atypicalExpenses[0] : topOverallExpense;
-        if (primeOffender) {
-          autoObservation = `Excedente impactado por: ${primeOffender.name} (${formatBRL(primeOffender.amount)}).`;
-        } else {
-          autoObservation = `Excedente impactado por despesas pontuais (${formatBRL(Math.abs(diff))}).`;
-        }
+        // Estouro de teto: aponta o que realmente passou do previsto (item acima do valor do mês ou gasto avulso)
+        const overBy = Math.round((realized + pending - planned) * 100) / 100;
+        const culprit = [...overages].sort((a, b) => b.amount - a.amount)[0];
+        autoObservation = culprit
+          ? `Excedente de ${formatBRL(overBy)} impactado por: ${culprit.name} (${formatBRL(culprit.amount)} acima do previsto).`
+          : `Excedente de ${formatBRL(overBy)} sobre o teto.`;
       } else if (atypicalExpenses.length > 0) {
         // Se houver gastos atípicos (mas dentro do teto):
         // Exiba um resumo curto dessas anomalias.
