@@ -23242,3 +23242,15 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     display: none !important;
   }
 }
+
+/* Celular e tablet: o topo das telas só tem o botão de voltar ao Início.
+   Ficam apenas as ações que criam algo e não existem no "+" (Nova Meta, Nova Natureza). */
+@media (max-width: 1099px) {
+  .page-header .page-header-actions.page-header-actions:not(.keep-mobile) {
+    display: none !important;
+  }
+  .page-header:has(.page-header-actions):not(:has(.keep-mobile)) {
+    display: none !important;
+    margin: 0 !important;
+  }
+}

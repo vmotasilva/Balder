@@ -66,7 +66,7 @@ export const GoalsPage: React.FC = () => {
           </h1>
         </div>
 
-        <div className="page-header-actions">
+        <div className="page-header-actions keep-mobile">
           <button className="btn btn-primary" onClick={() => setIsNewGoalOpen(true)}>
             <Plus size={16} />
             <span>Nova Meta</span>

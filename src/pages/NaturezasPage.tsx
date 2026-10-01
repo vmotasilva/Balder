@@ -430,7 +430,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
               </InfoButton>
             </h1>
           </div>
-          <div className="page-header-actions">
+          <div className="page-header-actions keep-mobile">
             <button
               className="btn btn-primary"
               onClick={handleOpenCreateNature}
