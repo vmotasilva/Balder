@@ -23233,3 +23233,12 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     display: none !important;
   }
 }
+
+/* Celular e tablet: o que a barra inferior e o "+" já fazem não se repete nas telas */
+@media (max-width: 1099px) {
+  .mv-btn-redundant,        /* Movimentações: Ações Imediatas e Nova Movimentação */
+  #btn-add-invoice,         /* Faturas: Adicionar Fatura (o "+" abre Fatura de cartão) */
+  .loan-new-btn {           /* Contratos: + Novo Empréstimo (o "+" abre Contratar) */
+    display: none !important;
+  }
+}

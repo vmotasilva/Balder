@@ -610,7 +610,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
         <div className="page-header-actions mv-header-actions">
           <button
             type="button"
-            className="btn btn-outline mv-header-btn"
+            className="btn btn-outline mv-header-btn mv-btn-redundant"
             onClick={() => setIsImmediateActionsOpen(true)}
             title="Ações Imediatas"
             aria-label="Ações Imediatas (7 ações)"
@@ -631,7 +631,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
           </button>
           <button
             type="button"
-            className="btn btn-primary mv-header-btn"
+            className="btn btn-primary mv-header-btn mv-btn-redundant"
             onClick={() => (onOpenNewRecordPicker ? onOpenNewRecordPicker() : onOpenNewMovementModal('PAGAR'))}
             title="Nova Movimentação"
             aria-label="Nova Movimentação"

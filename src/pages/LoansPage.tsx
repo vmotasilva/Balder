@@ -1570,7 +1570,7 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
                   )}
                   <button
                     type="button"
-                    className="btn btn-primary"
+                    className="btn btn-primary loan-new-btn"
                     onClick={() => setIsSimulatorModalOpen(true)}
                     style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
                   >
