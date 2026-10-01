@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ThemeProvider } from './context/ThemeContext';
 import { FinancialProvider, useFinancial } from './context/FinancialContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -22,7 +22,8 @@ import { ContractsPage } from './pages/ContractsPage';
 import { SharedPlanningPage } from './pages/SharedPlanningPage';
 import { PurchasesPage } from './pages/PurchasesPage';
 import { IosInstallFromLink } from './components/IosInstallModal';
-import { NewMovementModal } from './components/NewMovementModal';
+import { NewMovementModal, type MovementDraft } from './components/NewMovementModal';
+import { Modal } from './components/Modal';
 import { NewRecordPickerModal, type NewRecordKind } from './components/NewRecordPickerModal';
 import { SimulationModal } from './components/SimulationModal';
 import { LoanPrepaymentModal } from './components/LoanPrepaymentModal';
@@ -103,6 +104,16 @@ export function AppContent() {
   // Global Modals State
   const [newMovementModalOpen, setNewMovementModalOpen] = useState(false);
   const [recordPickerOpen, setRecordPickerOpen] = useState(false);
+  // Lançamento começado e deixado em suspensão por 5 minutos (retomado pelo botão da barra superior)
+  const SUSPEND_MS = 5 * 60 * 1000;
+  const [suspended, setSuspended] = useState<{ draft: MovementDraft; expiresAt: number } | null>(null);
+  const [resumeDraft, setResumeDraft] = useState<MovementDraft | null>(null);
+  const [resumePromptOpen, setResumePromptOpen] = useState(false);
+  useEffect(() => {
+    if (!suspended) return;
+    const id = window.setTimeout(() => setSuspended(null), Math.max(0, suspended.expiresAt - Date.now()));
+    return () => window.clearTimeout(id);
+  }, [suspended]);
   const [newInvoiceSignal, setNewInvoiceSignal] = useState(0);
   const [newLoanSignal, setNewLoanSignal] = useState(0);
   const [defaultMovementType, setDefaultMovementType] = useState<MovementType>('PAGAR');
@@ -134,9 +145,32 @@ export function AppContent() {
     type: MovementType = 'PAGAR',
     initialData?: Partial<Movement>
   ) => {
+    // Lançamento novo limpa o que estava em suspensão
+    setSuspended(null);
+    setResumeDraft(null);
     setDefaultMovementType(type);
     setInitialMovementData(initialData);
     setNewMovementModalOpen(true);
+  };
+
+  // "+": com um lançamento em suspensão, pergunta se quer retomá-lo antes de começar outro
+  const openNewRecord = () => {
+    if (suspended && suspended.expiresAt > Date.now()) setResumePromptOpen(true);
+    else setRecordPickerOpen(true);
+  };
+  const resumeSuspended = () => {
+    if (!suspended) return;
+    setResumePromptOpen(false);
+    setResumeDraft(suspended.draft);
+    setDefaultMovementType(suspended.draft.type);
+    setInitialMovementData(undefined);
+    setSuspended(null);
+    setNewMovementModalOpen(true);
+  };
+  const startNewDiscardingSuspended = () => {
+    setSuspended(null);
+    setResumePromptOpen(false);
+    setRecordPickerOpen(true);
   };
 
   // Escolha do "+": cada tipo leva à tela específica do cadastro
@@ -178,7 +212,9 @@ export function AppContent() {
       {/* Main Content Layout */}
       <div className="app-main-layout">
         <Navbar
-          onOpenNewMovementModal={() => setRecordPickerOpen(true)}
+          onOpenNewMovementModal={openNewRecord}
+          suspendedDraft={suspended ? { label: suspended.draft.title.trim() || 'sem título', expiresAt: suspended.expiresAt } : null}
+          onResumeDraft={resumeSuspended}
           onOpenSimulationModal={() => handleOpenSimulation('CARRO')}
           onOpenOnboarding={handleOpenOnboarding}
           onNavigateToMovements={() => setActiveTab('MOVIMENTACOES')}
@@ -230,7 +266,7 @@ export function AppContent() {
           {shownTab === 'MOVIMENTACOES' && (
             <MovementsPage
               onOpenNewMovementModal={handleOpenNewMovement}
-              onOpenNewRecordPicker={() => setRecordPickerOpen(true)}
+              onOpenNewRecordPicker={openNewRecord}
             />
           )}
 
@@ -292,10 +328,37 @@ export function AppContent() {
         onClose={() => {
           setNewMovementModalOpen(false);
           setInitialMovementData(undefined);
+          setResumeDraft(null);
         }}
+        resumeDraft={resumeDraft}
+        onSuspend={(draft) => setSuspended({ draft, expiresAt: Date.now() + SUSPEND_MS })}
+        onSaved={() => setSuspended(null)}
         defaultType={defaultMovementType}
         initialData={initialMovementData}
       />
+
+      <Modal
+        isOpen={resumePromptOpen}
+        onClose={() => setResumePromptOpen(false)}
+        title="Há um lançamento em suspensão"
+        subtitle="Você começou um lançamento e deixou para depois. Quer retomá-lo antes de começar outro?"
+        maxWidth="460px"
+      >
+        {suspended && (
+          <p className="text-sm" style={{ marginBottom: 16 }}>
+            <strong>{suspended.draft.title.trim() || 'Sem título'}</strong>
+            {suspended.draft.amount ? ` · R$ ${suspended.draft.amount}` : ''}
+          </p>
+        )}
+        <div className="modal-footer-actions">
+          <button type="button" className="btn btn-outline" onClick={startNewDiscardingSuspended}>
+            Descartar e começar outro
+          </button>
+          <button type="button" className="btn btn-primary" onClick={resumeSuspended}>
+            Retomar
+          </button>
+        </div>
+      </Modal>
 
       <NewRecordPickerModal
         isOpen={recordPickerOpen}

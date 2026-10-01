@@ -18,9 +18,39 @@ const parseBRLAmount = (val: string): number => parseMoney(val);
 // Limite da repetição mensal (20 anos)
 const MAX_REPEAT_MONTHS = 240;
 
+/** Lançamento começado e deixado em suspensão (por 5 minutos) para ser retomado depois. */
+export interface MovementDraft {
+  type: MovementType;
+  title: string;
+  amount: string;
+  dueDate: string;
+  bank: string;
+  category: string;
+  status: MovementStatus;
+  notes: string;
+  institution: string;
+  payMethod: 'SALDO' | 'CARTAO';
+  natureId: string;
+  mappingId: string;
+  itemId: string;
+  assocTouched: boolean;
+  isInstallment: boolean;
+  installmentsCount: number;
+  installmentValueType: 'TOTAL' | 'PARCELA';
+  isRecurring: boolean;
+  recurringMonths: number;
+  responsibleId: string;
+}
+
 interface NewMovementModalProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Rascunho a retomar em vez de um formulário em branco. */
+  resumeDraft?: MovementDraft | null;
+  /** Fechou sem salvar com algo preenchido: o rascunho fica em suspensão. */
+  onSuspend?: (draft: MovementDraft) => void;
+  /** Salvou: nada fica em suspensão. */
+  onSaved?: () => void;
   defaultType?: MovementType;
   initialData?: Partial<Movement>;
 }
@@ -28,6 +58,9 @@ interface NewMovementModalProps {
 export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   isOpen,
   onClose,
+  resumeDraft,
+  onSuspend,
+  onSaved,
   defaultType = 'PAGAR',
   initialData,
 }) => {
@@ -85,6 +118,30 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+      if (resumeDraft) {
+        const d = resumeDraft;
+        setType(d.type);
+        setTitle(d.title);
+        setAmount(d.amount);
+        setDueDate(d.dueDate);
+        setBank(d.bank);
+        setCategory(d.category);
+        setStatus(d.status);
+        setNotes(d.notes);
+        setInstitution(d.institution);
+        setPayMethod(d.payMethod);
+        setNatureId(d.natureId);
+        setMappingId(d.mappingId);
+        setItemId(d.itemId);
+        setAssocTouched(d.assocTouched);
+        setIsInstallment(d.isInstallment);
+        setInstallmentsCount(d.installmentsCount);
+        setInstallmentValueType(d.installmentValueType);
+        setIsRecurring(d.isRecurring);
+        setRecurringMonths(d.recurringMonths);
+        setResponsibleId(d.responsibleId);
+        return;
+      }
       if (initialData) {
         setType(baseType(initialData.type || defaultType));
         setTitle(initialData.title || '');
@@ -123,7 +180,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
       setInstallmentValueType('TOTAL');
       setFirstInstallmentRealized(true);
     }
-  }, [isOpen, defaultType, initialData, accounts]);
+  }, [isOpen, defaultType, initialData, accounts, resumeDraft]);
 
   // Repetição mensal (mesmo valor nos meses seguintes) — contas a receber e a pagar
   const [isRecurring, setIsRecurring] = useState(false);
@@ -217,6 +274,35 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   const installmentDates = cardPurchase ? invoiceDueDates(firstInvoiceDue, count) : getInstallmentDates(dueDate, count);
   const firstDueDateFormatted = installmentDates[0]?.split('-').reverse().join('/') || dueDate;
   const lastDueDateFormatted = installmentDates[installmentDates.length - 1]?.split('-').reverse().join('/') || dueDate;
+
+  // Fechar sem salvar com algo preenchido deixa o lançamento em suspensão
+  const handleDismiss = () => {
+    if (onSuspend && (title.trim() || parseBRLAmount(amount) > 0 || notes.trim())) {
+      onSuspend({
+        type,
+        title,
+        amount,
+        dueDate,
+        bank,
+        category,
+        status,
+        notes,
+        institution,
+        payMethod,
+        natureId,
+        mappingId,
+        itemId,
+        assocTouched,
+        isInstallment,
+        installmentsCount,
+        installmentValueType,
+        isRecurring,
+        recurringMonths,
+        responsibleId,
+      });
+    }
+    onClose();
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -356,6 +442,8 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
       markMappingItemsFulfilled([{ natureId, mappingId: selectedMapping.id, itemId, realizedValue: parsedAmount }]);
     }
 
+    onSaved?.();
+
     // Reset Form
     setTitle('');
     setAmount('');
@@ -368,7 +456,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleDismiss}
       title="Conta a Pagar / a Receber"
       subtitle="Adicione uma previsão ou registro financeiro ao seu fluxo"
 
@@ -982,7 +1070,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
 
         {/* Submit */}
         <div className="modal-footer-actions">
-          <button type="button" className="btn btn-outline" onClick={onClose}>
+          <button type="button" className="btn btn-outline" onClick={handleDismiss}>
             Cancelar
           </button>
           <button type="submit" className="btn btn-primary">

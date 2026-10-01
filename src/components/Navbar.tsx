@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { useTheme } from '../context/ThemeContext';
-import { Plus, Sparkles, Sun, Moon, Bell } from 'lucide-react';
+import { Plus, Sparkles, Sun, Moon, Bell, PauseCircle } from 'lucide-react';
 import { BalderHubModal } from './BalderHubModal';
 import { PlanningSwitcher } from './PlanningSwitcher';
 import { useHubNotifications } from '../hooks/useHubNotifications';
@@ -18,6 +18,9 @@ interface NavbarProps {
   onNavigateToDashboard?: () => void;
   onPlanWithOthers?: () => void;
   onNavigateToOpportunities?: () => void;
+  /** Lançamento deixado em suspensão (some quando expira). */
+  suspendedDraft?: { label: string; expiresAt: number } | null;
+  onResumeDraft?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -28,6 +31,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onNavigateToCopilot,
   onPlanWithOthers,
   onNavigateToOpportunities,
+  suspendedDraft,
+  onResumeDraft,
 }) => {
   const { viewing } = useAccountScope();
   const planningOnly = viewing?.scope === 'PLANEJAMENTO';
@@ -40,6 +45,15 @@ export const Navbar: React.FC<NavbarProps> = ({
     isDataReady,
   } = useFinancial();
   const { theme, toggleTheme } = useTheme();
+  // Minutos que faltam para o lançamento em suspensão expirar
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!suspendedDraft) return;
+    setNow(Date.now());
+    const id = window.setInterval(() => setNow(Date.now()), 15000);
+    return () => window.clearInterval(id);
+  }, [suspendedDraft]);
+  const minutesLeft = suspendedDraft ? Math.max(1, Math.ceil((suspendedDraft.expiresAt - now) / 60000)) : 0;
   const [isHubOpen, setIsHubOpen] = useState(false);
 
   // Notificações da Central: o sino mostra só as não lidas (abrir a Central marca como lidas)
@@ -158,6 +172,18 @@ export const Navbar: React.FC<NavbarProps> = ({
         >
           {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
         </button>
+
+        {suspendedDraft && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm navbar-suspended-btn"
+            onClick={onResumeDraft}
+            title={`Retomar o lançamento em suspensão: ${suspendedDraft.label} (some em ${minutesLeft} min)`}
+          >
+            <PauseCircle size={14} className="text-amber" />
+            <span>Lançamento em suspensão · {minutesLeft} min</span>
+          </button>
+        )}
 
         {/* Quick Action Buttons */}
         <button 
