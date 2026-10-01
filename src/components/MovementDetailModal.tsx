@@ -22,6 +22,7 @@ import { ConfirmDialog, useConfirmDialog } from './ConfirmDialog';
 import { useFinancial } from '../context/FinancialContext';
 import { InstallmentPlanner } from './InstallmentPlanner';
 import { normalizeBankKey } from '../utils/cardUtils';
+import { getBankBranding } from '../utils/bankBranding';
 import { RecurringChangeDialog, futureRecurringSiblings, type RecurringChangePrompt } from './RecurringChangeDialog';
 import type { Movement, MovementStatus, InvoiceNatureItemBreakdown } from '../types';
 
@@ -1817,13 +1818,25 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
               </label>
               <select
                 className="form-input"
-                style={{ fontSize: '0.78rem', padding: '4px 8px' }}
+                style={{
+                  fontSize: '0.78rem',
+                  padding: '4px 8px',
+                  fontWeight: 600,
+                  ...(bank !== CASH_IN_HAND && bank
+                    ? {
+                        background: getBankBranding(bank).badgeBg,
+                        borderColor: getBankBranding(bank).accentBorder,
+                        borderLeft: `4px solid ${getBankBranding(bank).accentBorder}`,
+                        color: getBankBranding(bank).textColor,
+                      }
+                    : {}),
+                }}
                 value={bank}
                 onChange={(e) => setBank(e.target.value)}
               >
                 {bankOptions.map((b) => (
-                  <option key={b} value={b}>
-                    {b === CASH_IN_HAND ? `💵 ${b}` : b}
+                  <option key={b} value={b} style={{ color: b === CASH_IN_HAND ? undefined : getBankBranding(b).primaryColor }}>
+                    {b === CASH_IN_HAND ? `💵 ${b}` : `${getBankBranding(b).iconText} ${b}`}
                   </option>
                 ))}
               </select>
