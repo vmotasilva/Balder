@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { parseMoney } from '../utils/parseDecimal';
 import {
   CreditCard,
@@ -28,7 +28,7 @@ import { RealizationConfirmModal, realizedMovementUpdates, reopenConfirmOptions,
 import { getBankBranding } from '../utils/bankBranding';
 import { InfoButton } from '../components/InfoButton';
 
-export const InvoicesPage: React.FC = () => {
+export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoiceSignal = 0 }) => {
   const {
     movements,
     updateMovement,
@@ -49,7 +49,11 @@ export const InvoicesPage: React.FC = () => {
   const [selectedMonthFilter, setSelectedMonthFilter] = useState('ALL');
 
   // Modal para Criar Nova Fatura
-  const [isNewInvoiceModalOpen, setIsNewInvoiceModalOpen] = useState(false);
+  const [isNewInvoiceModalOpen, setIsNewInvoiceModalOpen] = useState(newInvoiceSignal > 0);
+  // Pedido externo (ex.: "+ > Fatura de cartão") abre o cadastro de fatura
+  useEffect(() => {
+    if (newInvoiceSignal > 0) setIsNewInvoiceModalOpen(true);
+  }, [newInvoiceSignal]);
 
   // Modal para Importar Extrato de Fatura
   const [isNewInvoiceImportOpen, setIsNewInvoiceImportOpen] = useState(false);

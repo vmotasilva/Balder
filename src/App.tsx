@@ -103,6 +103,8 @@ export function AppContent() {
   // Global Modals State
   const [newMovementModalOpen, setNewMovementModalOpen] = useState(false);
   const [recordPickerOpen, setRecordPickerOpen] = useState(false);
+  const [newInvoiceSignal, setNewInvoiceSignal] = useState(0);
+  const [newLoanSignal, setNewLoanSignal] = useState(0);
   const [purchaseMode, setPurchaseMode] = useState(false);
   const [defaultMovementType, setDefaultMovementType] = useState<MovementType>('PAGAR');
   const [initialMovementData, setInitialMovementData] = useState<Partial<Movement> | undefined>(undefined);
@@ -145,8 +147,14 @@ export function AppContent() {
     setRecordPickerOpen(false);
     if (kind === 'PAGAR' || kind === 'RECEBER') handleOpenNewMovement(kind);
     else if (kind === 'COMPRA') handleOpenNewMovement('PAGAR', undefined, true);
-    else if (kind === 'EMPRESTIMO') handleSelectTab('EMPRESTIMOS');
-    else if (kind === 'CARTAO') handleSelectTab('FATURAS');
+    else if (kind === 'EMPRESTIMO') {
+      handleSelectTab('EMPRESTIMOS');
+      setNewLoanSignal((n) => n + 1);
+    }
+    else if (kind === 'CARTAO') {
+      handleSelectTab('FATURAS');
+      setNewInvoiceSignal((n) => n + 1);
+    }
   };
 
   const handleOpenSimulation = (
@@ -230,13 +238,13 @@ export function AppContent() {
             />
           )}
 
-          {shownTab === 'FATURAS' && <InvoicesPage />}
+          {shownTab === 'FATURAS' && <InvoicesPage newInvoiceSignal={newInvoiceSignal} />}
 
           {shownTab === 'NATUREZAS' && (
             <NaturezasPage onOpenNewMovementModal={handleOpenNewMovement} />
           )}
 
-          {shownTab === 'EMPRESTIMOS' && <ContractsPage />}
+          {shownTab === 'EMPRESTIMOS' && <ContractsPage newLoanSignal={newLoanSignal} />}
 
           {shownTab === 'METAS' && <GoalsPage />}
 

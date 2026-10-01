@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, ChevronRight, FileText, Handshake, Home, Landmark } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import { groupLoanMovements } from '../utils/loanMath';
@@ -19,9 +19,12 @@ interface ContractModality {
 const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 /** Hub de contratos de crédito: cada modalidade (empréstimos, financiamentos, consórcios…) abre na sua tela. */
-export const ContractsPage: React.FC = () => {
+export const ContractsPage: React.FC<{ newLoanSignal?: number }> = ({ newLoanSignal = 0 }) => {
   const { movements, archivedLoanGroups } = useFinancial();
-  const [openKind, setOpenKind] = useState<ContractKind | null>(null);
+  const [openKind, setOpenKind] = useState<ContractKind | null>(newLoanSignal > 0 ? 'EMPRESTIMOS' : null);
+  useEffect(() => {
+    if (newLoanSignal > 0) setOpenKind('EMPRESTIMOS');
+  }, [newLoanSignal]);
 
   const loanSummary = useMemo(() => {
     const active = groupLoanMovements(movements).filter((g) => !archivedLoanGroups.includes(g.groupId));
@@ -37,7 +40,7 @@ export const ContractsPage: React.FC = () => {
             <span>Contratos</span>
           </button>
         </div>
-        <LoansPage />
+        <LoansPage openSimulatorSignal={newLoanSignal} />
       </>
     );
   }

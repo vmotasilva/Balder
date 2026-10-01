@@ -38,7 +38,7 @@ export interface RowSimConfig {
   customAmount?: number;
 }
 
-export const LoansPage: React.FC = () => {
+export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimulatorSignal = 0 }) => {
   const {
     movements,
     natures,
@@ -57,7 +57,11 @@ export const LoansPage: React.FC = () => {
   const [payingInstallment, setPayingInstallment] = useState<Movement | null>(null);
 
   const [activeTab, setActiveTab] = useState<'CONTRACTED' | 'SIMULATOR'>('CONTRACTED');
-  const [isSimulatorModalOpen, setIsSimulatorModalOpen] = useState(false);
+  const [isSimulatorModalOpen, setIsSimulatorModalOpen] = useState(openSimulatorSignal > 0);
+  // Pedido externo (ex.: "+ > Empréstimo") abre o simulador de novo empréstimo
+  useEffect(() => {
+    if (openSimulatorSignal > 0) setIsSimulatorModalOpen(true);
+  }, [openSimulatorSignal]);
 
   // Parcelas já pagas no passado para empréstimos existentes
   const [alreadyPaidCount, setAlreadyPaidCount] = useState<number>(0);
