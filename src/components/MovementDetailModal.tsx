@@ -21,6 +21,7 @@ import { InvoiceImportModal } from './InvoiceImportModal';
 import { ConfirmDialog, useConfirmDialog } from './ConfirmDialog';
 import { useFinancial } from '../context/FinancialContext';
 import { InstallmentPlanner } from './InstallmentPlanner';
+import { normalizeBankKey } from '../utils/cardUtils';
 import { RecurringChangeDialog, futureRecurringSiblings, type RecurringChangePrompt } from './RecurringChangeDialog';
 import type { Movement, MovementStatus, InvoiceNatureItemBreakdown } from '../types';
 
@@ -200,8 +201,16 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
     ['Nubank', 'Inter', 'Caixa', 'XP', 'Itaú', 'Bradesco', 'Santander', 'BB'].forEach((def) => {
       if (!list.includes(def)) list.push(def);
     });
-    return list;
-  }, [accounts, cards, banks]);
+    // Remove repetições do mesmo banco ("Conta Nubank" e "Nubank"): fica um por banco,
+    // mantendo o valor já gravado na movimentação para ele continuar selecionado
+    const seen = new Map<string, string>();
+    list.forEach((name) => {
+      if (name === CASH_IN_HAND) return;
+      const key = normalizeBankKey(name);
+      if (!seen.has(key) || name === bank) seen.set(key, name);
+    });
+    return list.filter((name) => name === CASH_IN_HAND || seen.get(normalizeBankKey(name)) === name);
+  }, [accounts, cards, banks, bank]);
 
   // Cálculo da variação do valor real vs nominal
   const actualAmountNum = parseBRL(actualAmountInput);
