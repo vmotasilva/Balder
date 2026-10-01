@@ -23290,7 +23290,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   .mdm-modal .modal-body { padding: 10px 12px; max-height: calc(100dvh - 60px); }
   .mdm-modal .mdm-body { gap: 8px !important; }
   .mdm-modal .mdm-long { display: none; }
-  .mdm-modal .mdm-short { display: inline; }
+  .mdm-modal .btn-sm .mdm-short { display: inline !important; }
 
   .mdm-modal .mdm-head { padding: 8px 10px !important; gap: 6px !important; flex-wrap: nowrap !important; }
   .mdm-modal .mdm-head > div:first-child { gap: 8px !important; min-width: 0; flex: 1; }
