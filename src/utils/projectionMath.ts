@@ -236,6 +236,8 @@ export function buildMonthlyProjectionGrid(
     let pendingFixedFromNatures = 0;
     let pendingFixedOnCard = 0;
     let pendingFixedDirect = 0;
+    // Itens de natureza ativos na competência: a movimentação ligada a um deles já é contada pelo item
+    const linkedItemIds = new Set<string>();
     const realizedDirectItems: { id?: string; description: string; value: number }[] = [];
 
     natures.forEach((nat) => {
@@ -248,6 +250,7 @@ export function buildMonthlyProjectionGrid(
           return;
         }
         m.items.forEach((item) => {
+          linkedItemIds.add(item.id);
           // Pago + ainda pendente no mês (pagamentos registrados substituem o previsto das datas cobertas)
           const summary = resolveMappingItemMonth(item, comp.key);
           // Itens pagos por terceiros na competência não entram nos valores
@@ -337,7 +340,8 @@ export function buildMonthlyProjectionGrid(
             m.category !== 'Cartões' &&
             m.category !== 'Empréstimos' &&
             movementCompetenceDate(m, options.startDate).startsWith(comp.key) &&
-            m.status === 'PREVISTA'
+            m.status === 'PREVISTA' &&
+            !(m.mappingItemId && linkedItemIds.has(m.mappingItemId))
         )
         .reduce((acc, m) => acc + m.amount, 0);
     } else {
@@ -351,7 +355,8 @@ export function buildMonthlyProjectionGrid(
             m.type === 'PAGAR' &&
             m.category !== 'Cartões' &&
             m.category !== 'Empréstimos' &&
-            movementCompetenceDate(m, options.startDate).startsWith(comp.key)
+            movementCompetenceDate(m, options.startDate).startsWith(comp.key) &&
+            !(m.mappingItemId && linkedItemIds.has(m.mappingItemId))
         )
         .reduce((acc, m) => acc + m.amount, 0);
     }

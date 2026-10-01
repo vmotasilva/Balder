@@ -2227,9 +2227,19 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
       // 3. Custos Avulsos & Variáveis: cada lançamento com a sua situação (pago ou a pagar), para o
       // Pago | A pagar do resumo acompanhar na hora (mesmo filtro da projeção consolidada)
       if (row.variableCost > 0) {
+        // Movimentação ligada a um item de natureza ativo na competência já aparece no item (não repete aqui)
+        const varCompMonth = parseInt(row.monthKey.split('-')[1], 10);
+        const activeItemIds = new Set<string>();
+        natures.forEach((nat) =>
+          nat.mappings.forEach((mp) => {
+            if (mp.applicableMonths && mp.applicableMonths.length > 0 && !mp.applicableMonths.includes(varCompMonth)) return;
+            mp.items.forEach((it) => activeItemIds.add(it.id));
+          })
+        );
         const varSubItems: CellBreakdownSubItem[] = movements
           .filter(
             (m) =>
+              !(m.mappingItemId && activeItemIds.has(m.mappingItemId)) &&
               m.type === 'PAGAR' &&
               m.category !== 'Cartões' &&
               m.category !== 'Empréstimos' &&
