@@ -459,7 +459,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
         title="Clique para abrir os detalhes e ajustar o valor real da transação"
       >
         {/* Toggle Status Checkbox */}
-        <td>
+        <td className="mv-td-status">
           <button
             className={`status-toggle-btn ${isRealized ? 'checked' : ''}`}
             onClick={(e) => {
@@ -483,7 +483,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
         </td>
 
         {/* Title */}
-        <td>
+        <td className="mv-td-title">
           <div className="item-title-col">
             <div className="flex items-center gap-2">
               <span className={`item-title ${isRealized ? 'line-through' : ''}`}>{item.title}</span>
@@ -498,29 +498,29 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
         </td>
 
         {/* Type Badge */}
-        <td>
+        <td className="mv-td-type">
           <span className={`type-badge type-${item.type.toLowerCase()}`}>
             {item.type}
           </span>
         </td>
 
         {/* Category */}
-        <td>
+        <td className="mv-td-category">
           <span className="category-pill">{item.category}</span>
         </td>
 
         {/* Due Date */}
-        <td>
+        <td className="mv-td-date">
           <span className="date-text font-mono">{formattedDueDate}</span>
         </td>
 
         {/* Bank */}
-        <td>
+        <td className="mv-td-bank">
           <span className="bank-text">{item.bank}</span>
         </td>
 
         {/* Amount + Valor Se Pago Hoje */}
-        <td style={{ textAlign: 'right' }}>
+        <td className="mv-td-amount" style={{ textAlign: 'right' }}>
           <span className={`amount-text ${isIncome ? 'text-emerald' : 'text-rose font-semibold'}`}>
             {isIncome ? '+' : '-'} {item.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           </span>
@@ -558,7 +558,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
         </td>
 
         {/* Actions */}
-        <td style={{ textAlign: 'center' }}>
+        <td className="mv-td-actions" style={{ textAlign: 'center' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
             <button
               type="button"
@@ -1039,7 +1039,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
           })}
       </div>
 
-      <div className="movements-table-card glass-card">
+      <div className="movements-table-card glass-card mv-cards-mobile">
         {displayedMovements.length > 0 ? (
           <table className="movements-table">
             <thead>
@@ -1063,7 +1063,7 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
                       <tr className="competence-group-header-row">
                         <td colSpan={8}>
                           <div className="competence-header-content">
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div className="competence-title-row" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                               <button
                                 type="button"
                                 className="competence-collapse-toggle"
