@@ -23226,3 +23226,10 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     margin: 0;
   }
 }
+
+/* Painel no celular: Ações Rápidas e Consultar Forseti saem (a barra inferior e o "+" já dão acesso) */
+@media (max-width: 1099px) {
+  .dashboard-header-actions {
+    display: none !important;
+  }
+}

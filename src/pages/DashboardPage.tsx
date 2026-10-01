@@ -220,7 +220,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </p>
         </div>
 
-        <div className="page-header-actions flex items-center gap-2">
+        <div className="page-header-actions dashboard-header-actions flex items-center gap-2">
           <QuickActionsDropdown
             onOpenSimulation={onOpenSimulation}
             onNavigateToLoans={onNavigateToLoans}
