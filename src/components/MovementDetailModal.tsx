@@ -1516,6 +1516,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
         {/* ------------------------------------------------------------------------- */}
         {movement.type === 'RECEBER' && (
           <div
+            className="mdm-nature mdm-receive"
             style={{
               padding: '0.85rem',
               borderRadius: '10px',
@@ -1528,7 +1529,9 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
               <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#34d399', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <TrendingUp size={14} /> Tratativa de Recebimento & Apuração de Líquido
+                <TrendingUp size={14} />
+                <span className="mdm-rcv-long">Tratativa de Recebimento & Apuração de Líquido</span>
+                <span className="mdm-rcv-short">Recebimento</span>
               </span>
 
               <button
@@ -1537,13 +1540,24 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
                 style={{ fontSize: '0.7rem', padding: '2px 8px' }}
                 onClick={() => setIsSalaryDetailMode(!isSalaryDetailMode)}
               >
-                {isSalaryDetailMode ? 'Modo Simples (Valor Direto)' : '⚡ Apurar Holerite (Descontos/Extras)'}
+                {isSalaryDetailMode ? (
+                  <>
+                    <span className="mdm-rcv-long">Modo Simples (Valor Direto)</span>
+                    <span className="mdm-rcv-short">Simples</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="mdm-rcv-long">⚡ Apurar Holerite (Descontos/Extras)</span>
+                    <span className="mdm-rcv-short">⚡ Holerite</span>
+                  </>
+                )}
               </button>
             </div>
 
             {/* Painel de Apuração de Holerite */}
             {isSalaryDetailMode ? (
               <div
+                className="mdm-payslip"
                 style={{
                   padding: '0.65rem 0.85rem',
                   borderRadius: '8px',
@@ -1554,9 +1568,9 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
                   gap: '0.5rem',
                 }}
               >
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                <div className="mdm-payslip-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
                   <div>
-                    <label style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>1. Salário Base / Bruto</label>
+                    <label style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}><span className="mdm-rcv-long">1. Salário Base / Bruto</span><span className="mdm-rcv-short">1. Bruto</span></label>
                     <input
                       type="text"
                       className="form-input"
@@ -1567,7 +1581,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
                   </div>
 
                   <div>
-                    <label style={{ fontSize: '0.68rem', color: 'var(--accent-rose)' }}>2. Descontos Folha (-)</label>
+                    <label style={{ fontSize: '0.68rem', color: 'var(--accent-rose)' }}><span className="mdm-rcv-long">2. Descontos Folha (-)</span><span className="mdm-rcv-short">2. Descontos (-)</span></label>
                     <input
                       type="text"
                       className="form-input"
@@ -1579,7 +1593,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
                   </div>
 
                   <div>
-                    <label style={{ fontSize: '0.68rem', color: 'var(--accent-emerald)' }}>3. Acréscimos (+)</label>
+                    <label style={{ fontSize: '0.68rem', color: 'var(--accent-emerald)' }}><span className="mdm-rcv-long">3. Acréscimos (+)</span><span className="mdm-rcv-short">3. Extras (+)</span></label>
                     <input
                       type="text"
                       className="form-input"
@@ -1602,7 +1616,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
                 </button>
               </div>
             ) : (
-              <p style={{ margin: 0, fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+              <p className="mdm-desc" style={{ margin: 0, fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
                 Se o valor depositado na sua conta foi diferente do valor previsto, informe abaixo a quantia real.
               </p>
             )}
@@ -1802,7 +1816,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
 
           {/* Parcelamento: corrige a parcela e o total (vazio = sem parcelamento) */}
           {movement.type === 'RECEBER' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '0.25rem', fontSize: '0.78rem' }}>
+            <div className="mdm-installment-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '0.25rem', fontSize: '0.78rem' }}>
               <label style={{ color: 'var(--text-muted)' }}>Parcela</label>
               <input
                 type="number"
@@ -1823,7 +1837,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
                 style={{ width: '70px', fontSize: '0.78rem', padding: '4px 8px' }}
                 aria-label="Total de parcelas"
               />
-              <span style={{ color: 'var(--text-muted)' }}>(deixe vazio se não for parcelado)</span>
+              <span className="mdm-rcv-long" style={{ color: 'var(--text-muted)' }}>(deixe vazio se não for parcelado)</span>
             </div>
           )}
 
