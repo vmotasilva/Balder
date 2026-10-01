@@ -6,6 +6,7 @@ import type { Movement } from '../types';
 
 type FlowFilter = 'TODAS' | 'ENTRADAS' | 'SAIDAS';
 type StatusFilter = 'TODAS' | 'REALIZADA' | 'PREVISTA';
+type UntilFilter = 'PERIODO' | 'HOJE';
 
 interface PeriodMovementsModalProps {
   isOpen: boolean;
@@ -33,6 +34,13 @@ export const PeriodMovementsModal: React.FC<PeriodMovementsModalProps> = ({ isOp
   const [flow, setFlow] = useState<FlowFilter>('TODAS');
   const [status, setStatus] = useState<StatusFilter>('TODAS');
   const [query, setQuery] = useState('');
+  // Só o que já aconteceu: do começo do período até hoje
+  const [until, setUntil] = useState<UntilFilter>('PERIODO');
+  const todayIso = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }, []);
+  const hasFuture = movements.some((m) => movementDate(m) > todayIso);
   // Movimentação aberta para ajustar valor, data, parcelamento e demais dados
   const [editing, setEditing] = useState<Movement | null>(null);
 
@@ -41,9 +49,10 @@ export const PeriodMovementsModal: React.FC<PeriodMovementsModalProps> = ({ isOp
     return movements
       .filter((m) => (flow === 'TODAS' ? true : flow === 'ENTRADAS' ? isMovementIncome(m) : !isMovementIncome(m)))
       .filter((m) => (status === 'TODAS' ? true : m.status === status))
+      .filter((m) => until === 'PERIODO' || movementDate(m) <= todayIso)
       .filter((m) => !q || `${m.title} ${m.category} ${m.bank}`.toLowerCase().includes(q))
       .sort((a, b) => movementDate(a).localeCompare(movementDate(b)));
-  }, [movements, flow, status, query]);
+  }, [movements, flow, status, query, until, todayIso]);
 
   const income = sumBy(filtered, true);
   const expense = sumBy(filtered, false);
@@ -64,6 +73,7 @@ export const PeriodMovementsModal: React.FC<PeriodMovementsModalProps> = ({ isOp
         <div className="period-mov-filters">
           {chips<FlowFilter>(flow, setFlow, [['TODAS', 'Todas'], ['ENTRADAS', 'Entradas'], ['SAIDAS', 'Saídas']])}
           {chips<StatusFilter>(status, setStatus, [['TODAS', 'Todas as situações'], ['REALIZADA', 'Realizadas'], ['PREVISTA', 'Previstas']])}
+          {hasFuture && chips<UntilFilter>(until, setUntil, [['PERIODO', 'Período todo'], ['HOJE', 'Até hoje']])}
           <label className="period-mov-search">
             <Search size={14} aria-hidden="true" />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar por título, natureza ou banco" aria-label="Buscar movimentações" />
