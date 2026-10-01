@@ -78,6 +78,8 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
 
   // Estado para abertura do modal de detalhamento da célula/natureza
   const [cellSelection, setCellSelection] = useState<GridCellSelection | null>(null);
+  // Natureza com alerta: o pop-up com as descrições abre antes do detalhamento
+  const [alertRow, setAlertRow] = useState<NatureBudgetRow | null>(null);
 
   const initialBalance = activeCheckpoint ? activeCheckpoint.initialBalance : 0;
 
@@ -404,6 +406,14 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
   }, [natureRows]);
 
   // Abrir modal de detalhamento para uma natureza específica
+  const hasAlert = (row: NatureBudgetRow) => row.hasAttentionPoint && !!row.observations && row.observations !== '-';
+
+  // Com alerta, mostra primeiro o pop-up; sem alerta, abre direto as movimentações
+  const handleNatureClick = (row: NatureBudgetRow) => {
+    if (hasAlert(row)) setAlertRow(row);
+    else handleOpenNatureDetail(row);
+  };
+
   const handleOpenNatureDetail = (row: NatureBudgetRow) => {
     if (!currentRow) return;
     // Abre pelas saídas totais com foco na natureza: "Todas as naturezas" (subir um nível) mostra
@@ -629,7 +639,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
                       : 'row-attention-amber'
                     : ''
                 }`}
-                onClick={() => handleOpenNatureDetail(row)}
+                onClick={() => handleNatureClick(row)}
                 title="Clique para ver o detalhamento completo dos lançamentos desta natureza"
               >
                 {/* Coluna 1: Natureza */}
@@ -868,7 +878,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
                     : 'card-attention-amber'
                   : ''
               }`}
-              onClick={() => handleOpenNatureDetail(row)}
+              onClick={() => handleNatureClick(row)}
               title="Clique para ver os lançamentos desta natureza"
             >
               {(() => {
@@ -925,8 +935,12 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
                     </div>
 
                     {/* Estouro: aponta o maior causador */}
-                    {row.isOverCeiling && row.observations !== '-' && (
-                      <p className="nature-card-alert" title={row.observations}>
+                    {hasAlert(row) && (
+                      <p
+                        className="nature-card-alert"
+                        title={row.observations}
+                        style={row.isOverCeiling ? undefined : { color: '#fbbf24' }}
+                      >
                         <AlertTriangle size={11} className="flex-shrink-0" />
                         <span className="truncate">{row.observations}</span>
                       </p>
@@ -1046,6 +1060,79 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
                 className="btn btn-primary text-xs py-1 px-3"
               >
                 Salvar Observação
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pop-up com as descrições dos alertas da natureza */}
+      {alertRow && (
+        <div className="modal-backdrop animate-fade-in" onClick={() => setAlertRow(null)}>
+          <div
+            className="glass-card p-4 rounded-xl max-w-md w-full"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', maxHeight: '85vh', overflowY: 'auto' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-border/40">
+              <h3 className="text-sm font-bold flex items-center gap-2 min-w-0" style={{ color: 'var(--text-primary)' }}>
+                <AlertTriangle size={15} className={alertRow.isOverCeiling ? 'text-rose' : 'text-amber'} />
+                <span className="truncate">Alertas — {alertRow.name}</span>
+              </h3>
+              <button type="button" onClick={() => setAlertRow(null)} className="text-muted hover:text-primary cursor-pointer" aria-label="Fechar">
+                <X size={16} />
+              </button>
+            </div>
+
+            <ul className="my-3 flex flex-col gap-2">
+              {alertRow.observations
+                .split(' • ')
+                .filter(Boolean)
+                .map((text, i) => (
+                  <li
+                    key={i}
+                    className="text-xs p-2.5 rounded-lg"
+                    style={{
+                      background: alertRow.isOverCeiling ? 'rgba(244,63,94,0.10)' : 'rgba(245,158,11,0.10)',
+                      border: `1px solid ${alertRow.isOverCeiling ? 'rgba(244,63,94,0.30)' : 'rgba(245,158,11,0.30)'}`,
+                      color: 'var(--text-primary)',
+                      overflowWrap: 'anywhere',
+                    }}
+                  >
+                    {text}
+                  </li>
+                ))}
+            </ul>
+
+            <div className="grid grid-cols-3 gap-2 text-center text-xs mb-3">
+              <div className="p-1.5 rounded-lg bg-black/20">
+                <span className="text-[10px] text-muted block uppercase font-semibold">Real</span>
+                <span className="font-mono font-bold text-emerald">{formatBRL(alertRow.realizedAmount)}</span>
+              </div>
+              <div className="p-1.5 rounded-lg bg-black/20">
+                <span className="text-[10px] text-muted block uppercase font-semibold">Previsto</span>
+                <span className="font-mono font-bold text-amber">{formatBRL(alertRow.pendingAmount)}</span>
+              </div>
+              <div className="p-1.5 rounded-lg bg-black/20">
+                <span className="text-[10px] text-muted block uppercase font-semibold">Teto</span>
+                <span className="font-mono">{formatBRL(alertRow.plannedAmount)}</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
+              <button type="button" onClick={() => setAlertRow(null)} className="btn btn-secondary text-xs py-1 px-3">
+                Fechar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const row = alertRow;
+                  setAlertRow(null);
+                  handleOpenNatureDetail(row);
+                }}
+                className="btn btn-primary text-xs py-1 px-3"
+              >
+                Ver movimentações
               </button>
             </div>
           </div>
