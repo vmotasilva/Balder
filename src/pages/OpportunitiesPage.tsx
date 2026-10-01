@@ -1,7 +1,9 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
   BellRing,
+  ChevronDown,
   ExternalLink,
+  SlidersHorizontal,
   Loader2,
   Pencil,
   RefreshCw,
@@ -22,8 +24,20 @@ import { OpportunityService } from '../services/opportunityService';
 import type { ProductSnapshot } from '../services/priceExtraction';
 import type { SearchResult } from '../services/productSearch';
 import {
+  DEFAULT_FILTERS,
+  activeFilterCount,
+  applyFilters,
+  groupResults,
+  suggestOffers,
+  type OfferFilters,
+  type ProductGroup,
+} from '../utils/offerSearch';
+import {
+  HEALTH_LABEL,
   OPPORTUNITY_LABEL,
+  bestOffer,
   storeSearchLinks,
+  watchOffers,
   watchStats,
   type PriceWatch,
   type WatchStats,
@@ -73,10 +87,11 @@ type Draft =
   | { step: 'RESULTS'; query: string; results: SearchResult[]; failedSources: string[]; error?: string }
   | { step: 'LOADING'; url: string }
   | { step: 'FOUND'; product: ProductSnapshot; target: number | null }
+  | { step: 'GROUP'; title: string; imageUrl?: string; picks: SearchResult[]; target: number | null }
   | { step: 'MANUAL'; url: string; error: string; title: string; price: number | null; target: number | null };
 
 export const OpportunitiesPage: React.FC<OpportunitiesPageProps> = ({ onRegisterPurchase }) => {
-  const { watches, loaded, checkingIds, storage, add, addManual, update, remove, check, checkAll, setManualPrice } =
+  const { watches, loaded, checkingIds, storage, add, addGroup, addOffer, removeOffer, addManual, update, remove, check, checkAll, setManualPrice } =
     useOpportunities();
   const { confirm, dialogProps } = useConfirmDialog();
   const [input, setInput] = useState('');
@@ -125,16 +140,30 @@ export const OpportunitiesPage: React.FC<OpportunitiesPageProps> = ({ onRegister
     setInput('');
   };
 
-  /** Escolheu um resultado da busca: segue para o preço-alvo, como se tivesse colado o link. */
-  const pickResult = (r: SearchResult) =>
-    setDraft({
-      step: 'FOUND',
-      product: { url: r.url, title: r.title, price: r.price, currency: 'BRL', store: r.store, imageUrl: r.imageUrl, available: true },
-      target: null,
-    });
+  /** Escolheu as lojas de um produto: segue para o preço-alvo. */
+  const trackGroup = (group: ProductGroup, picks: SearchResult[]) =>
+    setDraft({ step: 'GROUP', title: group.title, imageUrl: group.imageUrl, picks, target: null });
 
   const startWatching = async () => {
-    if (draft.step === 'FOUND') {
+    if (draft.step === 'GROUP') {
+      await addGroup(
+        draft.title,
+        draft.imageUrl,
+        draft.picks.map((r) => ({
+          url: r.url,
+          store: r.store,
+          title: r.title,
+          imageUrl: r.imageUrl,
+          price: r.price,
+          condition: r.condition,
+          origin: r.origin,
+          installments: r.installments,
+          noInterest: r.noInterest,
+        })),
+        draft.target && draft.target > 0 ? draft.target : null
+      );
+      resetDraft();
+    } else if (draft.step === 'FOUND') {
       await add(draft.product, draft.target && draft.target > 0 ? draft.target : null);
       resetDraft();
     } else if (draft.step === 'MANUAL' && draft.title.trim() && draft.price && draft.price > 0) {
@@ -223,12 +252,53 @@ export const OpportunitiesPage: React.FC<OpportunitiesPageProps> = ({ onRegister
             results={draft.results}
             failedSources={draft.failedSources}
             error={draft.error}
-            onPick={pickResult}
+            onTrack={trackGroup}
             onClose={resetDraft}
           />
         )}
 
         {draft.step === 'LOADING' && <p className="opp-draft-hint">Lendo o preço na loja…</p>}
+
+        {draft.step === 'GROUP' && (
+          <div className="opp-draft opp-found">
+            <div className="opp-found-product">
+              {draft.imageUrl && <img src={draft.imageUrl} alt="" className="opp-thumb" />}
+              <div className="opp-found-info">
+                <strong className="opp-title">{draft.title}</strong>
+                <span className="opp-meta">
+                  {draft.picks.length} {draft.picks.length === 1 ? 'loja' : 'lojas'}: o aviso vale para qualquer uma delas
+                </span>
+              </div>
+            </div>
+            <ul className="opp-pick-list">
+              {draft.picks.map((r) => (
+                <li key={r.url}>
+                  <span>{r.store}</span>
+                  <strong>{brl(r.price)}</strong>
+                </li>
+              ))}
+            </ul>
+            <label className="opp-field">
+              <span>Me avise quando alguma chegar a (opcional)</span>
+              <DecimalInput
+                className="form-input"
+                value={draft.target}
+                onValueChange={(v) => setDraft({ ...draft, target: v })}
+                emptyWhenZero
+                placeholder={`Ex.: ${brl(Math.round(Math.min(...draft.picks.map((r) => r.price)) * 0.9))}`}
+              />
+            </label>
+            <div className="opp-draft-actions">
+              <button type="button" className="btn btn-outline" onClick={resetDraft}>
+                Cancelar
+              </button>
+              <button type="button" className="btn btn-primary" onClick={() => void startWatching()}>
+                <BellRing size={16} />
+                <span>Acompanhar nas {draft.picks.length} {draft.picks.length === 1 ? 'loja' : 'lojas'}</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {draft.step === 'FOUND' && (
           <div className="opp-draft opp-found">
@@ -349,6 +419,8 @@ export const OpportunitiesPage: React.FC<OpportunitiesPageProps> = ({ onRegister
                 onCancelEdit={() => setEditing(null)}
                 onCheck={() => void check(w.id)}
                 onBuy={() => registerPurchase(w)}
+                onAddOffer={(url) => addOffer(w.id, url)}
+                onRemoveOffer={(offerId) => void removeOffer(w.id, offerId)}
                 onRemove={() =>
                   confirm({
                     title: 'Parar de acompanhar?',
@@ -373,7 +445,7 @@ interface SearchResultsProps {
   results: SearchResult[];
   failedSources: string[];
   error?: string;
-  onPick: (r: SearchResult) => void;
+  onTrack: (group: ProductGroup, picks: SearchResult[]) => void;
   onClose: () => void;
 }
 
@@ -383,22 +455,51 @@ const SORT_LABEL: Record<SortKey, string> = {
   PRICE_DESC: 'Maior preço',
 };
 
-const SearchResults: React.FC<SearchResultsProps> = ({ query, results, failedSources, error, onPick, onClose }) => {
-  const [sort, setSort] = useState<SortKey>('RELEVANCE');
-  const [store, setStore] = useState<string | null>(null);
+const CONDITION_LABEL = { NOVO: 'Novo', USADO: 'Usado', RECONDICIONADO: 'Recondicionado' } as const;
+const ORIGIN_LABEL = { NACIONAL: 'Nacional', IMPORTADO: 'Importado' } as const;
 
-  const stores = useMemo(() => {
+const OfferTags: React.FC<{ r: SearchResult }> = ({ r }) => (
+  <span className="opp-tags">
+    {r.condition && <span className={`opp-tag ${r.condition !== 'NOVO' ? 'is-warn' : ''}`}>{CONDITION_LABEL[r.condition]}</span>}
+    {r.origin && <span className={`opp-tag ${r.origin === 'IMPORTADO' ? 'is-warn' : ''}`}>{ORIGIN_LABEL[r.origin]}</span>}
+    {r.installments && r.installments > 1 && (
+      <span className="opp-tag">
+        até {r.installments}x{r.noInterest ? ' sem juros' : ''}
+      </span>
+    )}
+  </span>
+);
+
+const SearchResults: React.FC<SearchResultsProps> = ({ query, results, failedSources, error, onTrack, onClose }) => {
+  const [sort, setSort] = useState<SortKey>('RELEVANCE');
+  const [filters, setFilters] = useState<OfferFilters>(DEFAULT_FILTERS);
+  const [showFilters, setShowFilters] = useState(false);
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  // Lojas marcadas por produto; sem escolha ainda, valem as sugestões
+  const [picked, setPicked] = useState<Record<string, string[]>>({});
+
+  const allStores = useMemo(() => {
     const count = new Map<string, number>();
     results.forEach((r) => count.set(r.store, (count.get(r.store) ?? 0) + 1));
     return [...count.entries()].sort((a, b) => b[1] - a[1]);
   }, [results]);
 
-  const shown = useMemo(() => {
-    const list = store ? results.filter((r) => r.store === store) : results;
-    if (sort === 'PRICE_ASC') return [...list].sort((a, b) => a.price - b.price);
-    if (sort === 'PRICE_DESC') return [...list].sort((a, b) => b.price - a.price);
+  const filtered = useMemo(() => applyFilters(results, filters), [results, filters]);
+  const groups = useMemo(() => {
+    const list = groupResults(filtered);
+    if (sort === 'PRICE_ASC') return [...list].sort((a, b) => a.offers[0].price - b.offers[0].price);
+    if (sort === 'PRICE_DESC') return [...list].sort((a, b) => b.offers[0].price - a.offers[0].price);
     return list;
-  }, [results, store, sort]);
+  }, [filtered, sort]);
+
+  const set = <K extends keyof OfferFilters>(key: K, value: OfferFilters[K]) => setFilters((f) => ({ ...f, [key]: value }));
+  const filterCount = activeFilterCount(filters);
+
+  const selectedUrls = (g: ProductGroup) => picked[g.id] ?? suggestOffers(g).map((x) => x.offer.url);
+  const toggleOffer = (g: ProductGroup, url: string) => {
+    const cur = selectedUrls(g);
+    setPicked({ ...picked, [g.id]: cur.includes(url) ? cur.filter((u) => u !== url) : [...cur, url] });
+  };
 
   return (
     <div className="opp-draft">
@@ -407,7 +508,7 @@ const SearchResults: React.FC<SearchResultsProps> = ({ query, results, failedSou
           {error
             ? error
             : results.length
-              ? `${results.length} ${results.length === 1 ? 'resultado' : 'resultados'} para "${query}". Escolha o que quer acompanhar:`
+              ? `${groups.length} ${groups.length === 1 ? 'produto' : 'produtos'} (${filtered.length} de ${results.length} ofertas) para "${query}". Marque as lojas que quer acompanhar:`
               : `Não achei "${query}" nas lojas consultadas. Tente outras palavras (marca e modelo ajudam) ou cole o link do produto.`}
         </p>
         <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar resultados">
@@ -416,51 +517,153 @@ const SearchResults: React.FC<SearchResultsProps> = ({ query, results, failedSou
       </div>
 
       {results.length > 0 && (
-        <div className="opp-results-tools">
-          <div className="opp-store-links" role="group" aria-label="Filtrar por loja">
-            <button type="button" className={`opp-store-chip ${store === null ? 'is-active' : ''}`} onClick={() => setStore(null)}>
-              Todas
+        <>
+          <div className="opp-results-tools">
+            <button type="button" className={`opp-store-chip ${showFilters || filterCount > 0 ? 'is-active' : ''}`} onClick={() => setShowFilters((v) => !v)}>
+              <SlidersHorizontal size={13} /> Filtros{filterCount > 0 ? ` · ${filterCount}` : ''}
             </button>
-            {stores.slice(0, 6).map(([name, n]) => (
-              <button
-                key={name}
-                type="button"
-                className={`opp-store-chip ${store === name ? 'is-active' : ''}`}
-                onClick={() => setStore(store === name ? null : name)}
-              >
-                {name} · {n}
+            {filterCount > 0 && (
+              <button type="button" className="link-button" onClick={() => setFilters(DEFAULT_FILTERS)}>
+                Limpar filtros
               </button>
-            ))}
+            )}
+            <select className="form-input opp-sort" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="Ordenar resultados">
+              {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
+                <option key={k} value={k}>
+                  {SORT_LABEL[k]}
+                </option>
+              ))}
+            </select>
           </div>
-          <select className="form-input opp-sort" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="Ordenar resultados">
-            {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
-              <option key={k} value={k}>
-                {SORT_LABEL[k]}
-              </option>
-            ))}
-          </select>
+
+          {showFilters && (
+            <div className="opp-filters">
+              <label className="opp-field">
+                <span>Condição</span>
+                <select className="form-input" value={filters.condition} onChange={(e) => set('condition', e.target.value as OfferFilters['condition'])}>
+                  <option value="ANY">Qualquer</option>
+                  <option value="NOVO">Novo</option>
+                  <option value="USADO">Usado</option>
+                  <option value="RECONDICIONADO">Recondicionado</option>
+                </select>
+              </label>
+              <label className="opp-field">
+                <span>Origem</span>
+                <select className="form-input" value={filters.origin} onChange={(e) => set('origin', e.target.value as OfferFilters['origin'])}>
+                  <option value="ANY">Qualquer</option>
+                  <option value="NACIONAL">Nacional</option>
+                  <option value="IMPORTADO">Importado</option>
+                </select>
+              </label>
+              <label className="opp-field">
+                <span>Parcelas (mínimo)</span>
+                <select className="form-input" value={filters.minInstallments} onChange={(e) => set('minInstallments', Number(e.target.value))}>
+                  <option value={0}>Qualquer</option>
+                  <option value={3}>3x ou mais</option>
+                  <option value={6}>6x ou mais</option>
+                  <option value={10}>10x ou mais</option>
+                  <option value={12}>12x ou mais</option>
+                </select>
+              </label>
+              <label className="opp-field">
+                <span>Preço mínimo</span>
+                <DecimalInput className="form-input" value={filters.minPrice} onValueChange={(v) => set('minPrice', v > 0 ? v : null)} emptyWhenZero placeholder="R$" />
+              </label>
+              <label className="opp-field">
+                <span>Preço máximo</span>
+                <DecimalInput className="form-input" value={filters.maxPrice} onValueChange={(v) => set('maxPrice', v > 0 ? v : null)} emptyWhenZero placeholder="R$" />
+              </label>
+              <div className="opp-filter-checks">
+                <label>
+                  <input type="checkbox" checked={filters.noInterestOnly} onChange={(e) => set('noInterestOnly', e.target.checked)} /> Só parcelado sem juros
+                </label>
+                <label>
+                  <input type="checkbox" checked={filters.includeUnknown} onChange={(e) => set('includeUnknown', e.target.checked)} /> Incluir quando a loja não informa
+                </label>
+              </div>
+              <div className="opp-store-links opp-filter-stores" role="group" aria-label="Filtrar por loja">
+                {allStores.slice(0, 10).map(([name, n]) => (
+                  <button
+                    key={name}
+                    type="button"
+                    className={`opp-store-chip ${filters.stores.includes(name) ? 'is-active' : ''}`}
+                    onClick={() => set('stores', filters.stores.includes(name) ? filters.stores.filter((x) => x !== name) : [...filters.stores, name])}
+                  >
+                    {name} · {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {groups.length > 0 && (
+        <div className="opp-groups">
+          {groups.map((g) => {
+            const sel = selectedUrls(g);
+            const suggestions = new Map(suggestOffers(g).map((x) => [x.offer.url, x.reasons]));
+            const open = openGroup === g.id || g.offers.length === 1;
+            return (
+              <article key={g.id} className="opp-group">
+                <button type="button" className="opp-group-head" onClick={() => setOpenGroup(openGroup === g.id ? null : g.id)} aria-expanded={open}>
+                  {g.imageUrl ? <img src={g.imageUrl} alt="" className="opp-thumb" loading="lazy" /> : <div className="opp-thumb opp-thumb-empty"><Tag size={18} /></div>}
+                  <span className="opp-result-info">
+                    <span className="opp-title">{g.title}</span>
+                    <span className="opp-meta">
+                      {g.offers.length} {g.offers.length === 1 ? 'loja' : 'lojas'}: {g.offers.map((o) => o.store).join(', ')}
+                    </span>
+                  </span>
+                  <span className="opp-result-price">
+                    <span className="opp-meta">{g.offers.length > 1 ? 'a partir de' : ''}</span>
+                    <span className="opp-price">{brl(g.offers[0].price)}</span>
+                  </span>
+                  {g.offers.length > 1 && <ChevronDown size={16} className={`opp-chevron ${open ? 'is-open' : ''}`} />}
+                </button>
+
+                {open && (
+                  <div className="opp-group-offers">
+                    {g.offers.map((o) => (
+                      <label key={o.url} className="opp-group-offer">
+                        <input type="checkbox" checked={sel.includes(o.url)} onChange={() => toggleOffer(g, o.url)} />
+                        <span className="opp-group-offer-main">
+                          <span>
+                            <strong>{o.store}</strong>
+                            {o.source !== o.store ? <small> · via {o.source}</small> : null}
+                          </span>
+                          <OfferTags r={o} />
+                          {suggestions.has(o.url) && <small className="opp-reason">Sugerida: {suggestions.get(o.url)!.join(' · ')}</small>}
+                        </span>
+                        <span className="opp-price">{brl(o.price)}</span>
+                        <a href={o.url} target="_blank" rel="noopener noreferrer" className="icon-btn" title="Abrir na loja" aria-label={`Abrir ${o.store}`} onClick={(e) => e.stopPropagation()}>
+                          <ExternalLink size={13} />
+                        </a>
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                <div className="opp-group-actions">
+                  <button
+                    type="button"
+                    className="btn btn-primary opp-btn"
+                    disabled={sel.length === 0}
+                    onClick={() => onTrack(g, g.offers.filter((o) => sel.includes(o.url)))}
+                  >
+                    <BellRing size={14} />
+                    <span>
+                      Acompanhar {sel.length} {sel.length === 1 ? 'loja' : 'lojas'}
+                    </span>
+                  </button>
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
 
-      {shown.length > 0 && (
-        <div className="opp-results">
-          {shown.map((r) => (
-            <button key={r.url} type="button" className="opp-result" onClick={() => onPick(r)}>
-              {r.imageUrl ? <img src={r.imageUrl} alt="" className="opp-thumb" loading="lazy" /> : <div className="opp-thumb opp-thumb-empty"><Tag size={18} /></div>}
-              <span className="opp-result-info">
-                <span className="opp-title">{r.title}</span>
-                <span className="opp-meta">
-                  {r.store}
-                  {r.source !== r.store ? ` · via ${r.source}` : ''}
-                </span>
-              </span>
-              <span className="opp-result-price">
-                <span className="opp-price">{brl(r.price)}</span>
-                {r.installment && <span className="opp-meta">{r.installment}</span>}
-              </span>
-            </button>
-          ))}
-        </div>
+      {results.length > 0 && groups.length === 0 && (
+        <p className="opp-draft-hint">Nenhuma oferta com esses filtros. Afrouxe um filtro ou aceite resultados em que a loja não informa o dado.</p>
       )}
 
       {failedSources.length > 0 && (
@@ -470,9 +673,9 @@ const SearchResults: React.FC<SearchResultsProps> = ({ query, results, failedSou
       <div className="opp-search-elsewhere">
         <span className="opp-draft-hint">Não é o que procura? Veja em outras lojas e cole o link aqui:</span>
         <div className="opp-store-links">
-          {storeSearchLinks(query).map((s) => (
-            <a key={s.store} href={s.url} target="_blank" rel="noopener noreferrer" className="opp-store-chip">
-              {s.store} <ExternalLink size={12} />
+          {storeSearchLinks(query).map((st) => (
+            <a key={st.store} href={st.url} target="_blank" rel="noopener noreferrer" className="opp-store-chip">
+              {st.store} <ExternalLink size={12} />
             </a>
           ))}
         </div>
@@ -493,10 +696,28 @@ interface WatchCardProps {
   onCheck: () => void;
   onBuy: () => void;
   onRemove: () => void;
+  onAddOffer: (url: string) => Promise<{ ok: true } | { ok: false; error: string }>;
+  onRemoveOffer: (offerId: string) => void;
 }
 
-const WatchCard: React.FC<WatchCardProps> = ({ w, s, checking, editing, onEdit, onEditValue, onSaveEdit, onCancelEdit, onCheck, onBuy, onRemove }) => {
+const WatchCard: React.FC<WatchCardProps> = ({ w, s, checking, editing, onEdit, onEditValue, onSaveEdit, onCancelEdit, onCheck, onBuy, onRemove, onAddOffer, onRemoveOffer }) => {
   const change = s.changeFromFirstPct;
+  const offers = watchOffers(w);
+  const best = bestOffer(w);
+  const [newLink, setNewLink] = useState('');
+  const [linkMsg, setLinkMsg] = useState<string | null>(null);
+  const [addingLink, setAddingLink] = useState(false);
+  const submitLink = async () => {
+    const url = newLink.trim();
+    if (!url) return;
+    setAddingLink(true);
+    const r = await onAddOffer(url);
+    setAddingLink(false);
+    if (r.ok) {
+      setNewLink('');
+      setLinkMsg(null);
+    } else setLinkMsg(r.error);
+  };
   return (
     <article className={`opp-card glass-card ${s.opportunity ? 'is-opportunity' : ''}`}>
       {s.opportunity && (
@@ -540,6 +761,50 @@ const WatchCard: React.FC<WatchCardProps> = ({ w, s, checking, editing, onEdit, 
         <span>
           Alvo: <strong>{w.targetPrice ? brl(w.targetPrice) : '—'}</strong>
         </span>
+      </div>
+
+      <div className="opp-offers">
+        <span className="opp-offers-title">{offers.length === 1 ? 'Loja' : `${offers.length} lojas acompanhadas`}</span>
+        {offers.map((o) => (
+          <div key={o.id} className={`opp-offer ${best?.id === o.id ? 'is-best' : ''} ${o.health !== 'OK' ? 'is-broken' : ''}`}>
+            <a href={o.url} target="_blank" rel="noopener noreferrer" className="opp-offer-store" title={o.title || w.title}>
+              {o.store}
+              <ExternalLink size={11} />
+            </a>
+            {o.health !== 'OK' ? (
+              <span className="opp-offer-health" title={o.lastError || undefined}>
+                {HEALTH_LABEL[o.health]}
+              </span>
+            ) : (
+              <span className="opp-offer-price">{o.price != null ? brl(o.price) : '—'}</span>
+            )}
+            {best?.id === o.id && offers.length > 1 && <span className="opp-offer-tag">menor preço</span>}
+            {offers.length > 1 && (
+              <button type="button" className="icon-btn" onClick={() => onRemoveOffer(o.id)} title="Parar de acompanhar esta loja" aria-label={`Parar de acompanhar ${o.store}`}>
+                <X size={13} />
+              </button>
+            )}
+          </div>
+        ))}
+        <form
+          className="opp-offer-add"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submitLink();
+          }}
+        >
+          <input
+            className="form-input"
+            value={newLink}
+            onChange={(e) => setNewLink(e.target.value)}
+            placeholder="Acompanhar em outra loja: cole o link"
+            aria-label="Link de outra loja"
+          />
+          <button type="submit" className="btn btn-outline opp-btn" disabled={!newLink.trim() || addingLink}>
+            {addingLink ? <Loader2 size={14} className="opp-spin" /> : <span>Adicionar</span>}
+          </button>
+        </form>
+        {linkMsg && <p className="opp-warning">{linkMsg}</p>}
       </div>
 
       {!w.available && <p className="opp-warning">A loja indica que o produto está indisponível.</p>}

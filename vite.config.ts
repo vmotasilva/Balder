@@ -8,8 +8,8 @@ const priceCheckDev = (): Plugin => ({
   name: 'balder-price-check-dev',
   configureServer(server) {
     server.middlewares.use('/api/price-check', async (req, res) => {
-      const url = new URL(req.url || '', 'http://localhost').searchParams.get('url') || ''
-      const result = await fetchProduct(url)
+      const params = new URL(req.url || '', 'http://localhost').searchParams
+      const result = await fetchProduct(params.get('url') || '', params.get('expect') || undefined)
       res.setHeader('Content-Type', 'application/json')
       res.setHeader('Cache-Control', 'no-store')
       res.end(JSON.stringify(result))

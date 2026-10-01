@@ -496,3 +496,58 @@ a.opp-title:hover {
     justify-content: flex-end;
   }
 }
+
+/* Busca em várias lojas: filtros, produtos agrupados e lojas marcadas */
+.opp-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+}
+.opp-filter-checks,
+.opp-filter-stores { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; }
+.opp-groups { display: flex; flex-direction: column; gap: 10px; }
+.opp-group {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-input);
+  overflow: hidden;
+}
+.opp-group-head {
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px;
+  background: transparent; border: none; text-align: left; color: inherit; cursor: pointer;
+}
+.opp-chevron { transition: transform var(--transition-fast); flex-shrink: 0; }
+.opp-chevron.is-open { transform: rotate(180deg); }
+.opp-group-offers { display: flex; flex-direction: column; border-top: 1px solid var(--border-default); }
+.opp-group-offer {
+  display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 10px;
+  padding: 8px 12px; cursor: pointer; font-size: 13px;
+}
+.opp-group-offer + .opp-group-offer { border-top: 1px solid var(--border-default); }
+.opp-group-offer-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.opp-reason { color: var(--accent-emerald); }
+.opp-group-actions { display: flex; justify-content: flex-end; padding: 8px 12px 10px; }
+.opp-tags { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.opp-tag {
+  font-size: 11px; padding: 1px 7px; border-radius: 999px;
+  border: 1px solid var(--border-default); color: var(--text-secondary);
+}
+.opp-tag.is-warn { border-color: var(--accent-amber); color: var(--accent-amber); }
+.opp-pick-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.opp-pick-list li { display: flex; justify-content: space-between; gap: 12px; }
+
+/* Lojas de um produto acompanhado */
+.opp-offers { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; font-size: 13px; }
+.opp-offers-title { color: var(--text-muted); font-size: 12px; }
+.opp-offer { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+.opp-offer-store { display: inline-flex; align-items: center; gap: 4px; flex: 1; color: var(--text-primary); }
+.opp-offer.is-best .opp-offer-price { color: var(--accent-emerald); font-weight: 700; }
+.opp-offer.is-broken { opacity: 0.8; }
+.opp-offer-health { color: var(--accent-amber); font-size: 12px; }
+.opp-offer-tag { font-size: 11px; color: var(--accent-emerald); }
+.opp-offer-add { display: flex; gap: 8px; margin-top: 4px; }
+.opp-offer-add input { flex: 1; font-size: 12px; }

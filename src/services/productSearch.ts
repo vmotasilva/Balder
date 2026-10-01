@@ -8,16 +8,25 @@
 
 import { parsePrice } from './priceExtraction.js';
 
+export type ProductCondition = 'NOVO' | 'USADO' | 'RECONDICIONADO';
+export type ProductOrigin = 'NACIONAL' | 'IMPORTADO';
+
 export interface SearchResult {
   title: string;
   price: number;
   /** Loja que oferece o preço (ou a fonte, quando o comparador não diz). */
   store: string;
   /** Fonte consultada. */
-  source: 'Zoom' | 'Kabum';
+  source: 'Zoom' | 'Kabum' | 'Amazon';
   url: string;
   imageUrl?: string;
   installment?: string;
+  /** Só preenchidos quando a loja informa (ou o título deixa claro); vazio = não informado. */
+  condition?: ProductCondition;
+  origin?: ProductOrigin;
+  /** Número de parcelas e se são sem juros, lidos do texto de parcelamento. */
+  installments?: number;
+  noInterest?: boolean;
 }
 
 export type ProductSearchResponse =
@@ -25,7 +34,7 @@ export type ProductSearchResponse =
   | { ok: false; error: string };
 
 const FETCH_TIMEOUT_MS = 10_000;
-const MAX_RESULTS = 40;
+const MAX_RESULTS = 60;
 const USER_AGENT =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36';
 
@@ -134,6 +143,52 @@ export function parseKabum(html: string): SearchResult[] {
   return out;
 }
 
+/** Amazon: cada resultado é um bloco s-search-result com título, preço e imagem. */
+export function parseAmazon(html: string): SearchResult[] {
+  const marks = [...html.matchAll(/<div[^>]*data-component-type="s-search-result"[^>]*>/g)];
+  const out: SearchResult[] = [];
+  marks.forEach((m, i) => {
+    const start = m.index ?? 0;
+    const chunk = html.slice(start, marks[i + 1]?.index ?? start + 12000);
+    const asin = m[0].match(/data-asin="([^"]+)"/)?.[1];
+    const title = chunk.match(/<h2[^>]*aria-label="([^"]+)"/)?.[1] || chunk.match(/<h2[\s\S]*?<span[^>]*>([^<]+)</)?.[1];
+    // O primeiro a-offscreen é o preço atual ("De: ..." vem depois e é o preço antigo)
+    const priceText = [...chunk.matchAll(/class="a-offscreen">([^<]+)</g)].map((x) => x[1]).find((t) => /R\$/.test(t) && !/^De/i.test(t.trim()));
+    const price = parsePrice(priceText);
+    if (!asin || !title || !price) return;
+    const image = chunk.match(/class="s-image"[^>]*src="([^"]+)"/)?.[1] || chunk.match(/src="([^"]+)"[^>]*class="s-image"/)?.[1];
+    out.push({
+      title: clean(title),
+      price,
+      store: 'Amazon',
+      source: 'Amazon',
+      url: `https://www.amazon.com.br/dp/${asin}`,
+      imageUrl: image ? decode(image) : undefined,
+    });
+  });
+  return out;
+}
+
+const USED_RE = /\b(usado|usada|seminovo|semi-novo|semi novo|segunda m[aã]o)\b/i;
+const REFURB_RE = /\b(recondicionado|recondicionada|renovado|renovada|open box|vitrine|outlet)\b/i;
+const IMPORTED_RE = /\b(importado|importada|internacional|importa[cç][aã]o|aliexpress)\b/i;
+
+/** Acrescenta condição, origem e parcelas, só quando o texto deixa claro (senão fica "não informado"). */
+export function enrichResult(r: SearchResult): SearchResult {
+  const text = fold(`${r.title} ${r.store}`);
+  const condition: ProductCondition | undefined = REFURB_RE.test(text) ? 'RECONDICIONADO' : USED_RE.test(text) ? 'USADO' : undefined;
+  const origin: ProductOrigin | undefined = IMPORTED_RE.test(text) ? 'IMPORTADO' : /\b(nacional|brasil)\b/.test(text) ? 'NACIONAL' : undefined;
+  const inst = r.installment ? fold(r.installment) : '';
+  const count = inst.match(/(\d{1,2})\s*x/)?.[1];
+  return {
+    ...r,
+    condition: r.condition ?? condition,
+    origin: r.origin ?? origin,
+    installments: r.installments ?? (count ? Number(count) : undefined),
+    noInterest: r.noInterest ?? (/sem juros/.test(inst) ? true : undefined),
+  };
+}
+
 const tokens = (q: string) => fold(q).split(/[^a-z0-9]+/).filter((t) => t.length > 1 || /\d/.test(t));
 
 /** A loja devolve resultados "parecidos" (a Kabum, por exemplo, mistura categorias): só entra quem cita todos os termos. */
@@ -151,6 +206,7 @@ export async function searchProducts(rawQuery: string): Promise<ProductSearchRes
   const sources: { name: string; run: () => Promise<SearchResult[]> }[] = [
     { name: 'Zoom', run: async () => parseZoom(await getText(`https://www.zoom.com.br/search?q=${q}`)) },
     { name: 'Kabum', run: async () => parseKabum(await getText(`https://www.kabum.com.br/busca/${q.replace(/%20/g, '-')}`)) },
+    { name: 'Amazon', run: async () => parseAmazon(await getText(`https://www.amazon.com.br/s?k=${q.replace(/%20/g, '+')}`)) },
   ];
   const settled = await Promise.allSettled(sources.map((s) => s.run()));
 
@@ -177,5 +233,5 @@ export async function searchProducts(rawQuery: string): Promise<ProductSearchRes
     }
   }
 
-  return { ok: true, results, failedSources };
+  return { ok: true, results: results.map(enrichResult), failedSources };
 }

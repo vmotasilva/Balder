@@ -12,6 +12,7 @@ const TABLE = 'price_watches';
 export type WatchStorage = 'CLOUD' | 'LOCAL';
 
 let tableMissing = false;
+let offersColumnMissing = false;
 const localKey = (userId: string) => `balder_price_watches_${userId}`;
 
 const readLocal = (userId: string): PriceWatch[] => {
@@ -49,6 +50,7 @@ type Row = {
   last_checked_at: string | null;
   last_error: string | null;
   created_at: string;
+  offers?: PriceWatch['offers'] | null;
 };
 
 const num = (v: number | string | null) => (v == null ? null : Number(v));
@@ -66,6 +68,7 @@ const fromRow = (r: Row): PriceWatch => ({
   lastCheckedAt: r.last_checked_at,
   lastError: r.last_error,
   createdAt: r.created_at,
+  offers: Array.isArray(r.offers) && r.offers.length > 0 ? r.offers : undefined,
 });
 const toRow = (w: PriceWatch, userId: string) => ({
   id: w.id,
@@ -81,6 +84,7 @@ const toRow = (w: PriceWatch, userId: string) => ({
   history: w.history,
   last_checked_at: w.lastCheckedAt ?? null,
   last_error: w.lastError ?? null,
+  offers: w.offers ?? [],
 });
 
 const cloudEnabled = (isGuest: boolean) => isSupabaseConfigured && !isGuest && !tableMissing;
@@ -93,7 +97,12 @@ export const OpportunityService = {
   async list(userId: string, isGuest: boolean): Promise<PriceWatch[]> {
     if (cloudEnabled(isGuest)) {
       const { data, error } = await supabase.from(TABLE).select('*').eq('user_id', userId).order('created_at', { ascending: true });
-      if (!error) return (data as Row[]).map(fromRow);
+      if (!error) {
+        const cloud = (data as Row[]).map(fromRow);
+        // Sem a coluna de lojas na nuvem, as ofertas vêm da cópia deste aparelho
+        const local = readLocal(userId);
+        return cloud.map((w) => (w.offers ? w : { ...w, offers: local.find((l) => l.id === w.id)?.offers }));
+      }
       if (isMissingTable(error)) tableMissing = true;
       else console.error('[OpportunityService] Erro ao buscar produtos:', error.message);
     }
@@ -102,8 +111,25 @@ export const OpportunityService = {
 
   async save(userId: string, isGuest: boolean, watch: PriceWatch): Promise<void> {
     if (cloudEnabled(isGuest)) {
-      const { error } = await supabase.from(TABLE).upsert(toRow(watch, userId));
-      if (!error) return;
+      const row = toRow(watch, userId);
+      let { error } = await supabase.from(TABLE).upsert(row);
+      // Coluna "offers" ainda não criada (supabase/opportunities_offers.sql): salva sem ela e as lojas ficam só neste aparelho
+      if (error && /offers/i.test(error.message || '')) {
+        const { offers: _offers, ...legacy } = row;
+        void _offers;
+        ({ error } = await supabase.from(TABLE).upsert(legacy));
+        if (!error) offersColumnMissing = true;
+      }
+      if (!error) {
+        if (offersColumnMissing && watch.offers) {
+          const list = readLocal(userId);
+          const i = list.findIndex((w) => w.id === watch.id);
+          if (i >= 0) list[i] = watch;
+          else list.push(watch);
+          writeLocal(userId, list);
+        }
+        return;
+      }
       if (isMissingTable(error)) tableMissing = true;
       else {
         console.error('[OpportunityService] Erro ao salvar produto:', error.message);
@@ -142,9 +168,10 @@ export const OpportunityService = {
   },
 
   /** Lê o produto pela função do servidor (/api/price-check). */
-  async check(url: string): Promise<PriceCheckResult> {
+  async check(url: string, expectedTitle?: string): Promise<PriceCheckResult> {
     try {
-      const res = await fetch(`/api/price-check?url=${encodeURIComponent(url)}`);
+      const expect = expectedTitle ? `&expect=${encodeURIComponent(expectedTitle.slice(0, 200))}` : '';
+      const res = await fetch(`/api/price-check?url=${encodeURIComponent(url)}${expect}`);
       if (!res.ok) return { ok: false, error: 'O serviço de leitura de preços não respondeu. Tente de novo em instantes.' };
       return (await res.json()) as PriceCheckResult;
     } catch {

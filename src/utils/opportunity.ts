@@ -2,14 +2,41 @@
  * Oportunidades: produtos acompanhados e a regra que decide quando o preço virou uma boa hora de comprar.
  */
 
+import type { OfferHealth } from '../services/priceExtraction';
+
+export type { OfferHealth };
+
 export interface PricePoint {
   at: string; // ISO
   price: number;
   source: 'AUTO' | 'MANUAL';
 }
 
+/** Uma loja onde o produto é acompanhado. O produto vale pelo menor preço entre as ofertas boas. */
+export interface WatchOffer {
+  id: string;
+  url: string;
+  store: string;
+  /** Título do anúncio nessa loja (usado para conferir se o link ainda abre o mesmo produto). */
+  title?: string;
+  imageUrl?: string;
+  price?: number | null;
+  available: boolean;
+  condition?: 'NOVO' | 'USADO' | 'RECONDICIONADO';
+  origin?: 'NACIONAL' | 'IMPORTADO';
+  installments?: number;
+  noInterest?: boolean;
+  /** Situação do link na última conferência (não é "OK" quando não abre o produto). */
+  health: OfferHealth;
+  lastCheckedAt?: string | null;
+  lastError?: string | null;
+  history: PricePoint[];
+}
+
 export interface PriceWatch {
   id: string;
+  /** Lojas acompanhadas; sem isso o produto tem uma só (url/store abaixo). */
+  offers?: WatchOffer[];
   url: string;
   title: string;
   store?: string;
@@ -22,6 +49,64 @@ export interface PriceWatch {
   lastCheckedAt?: string | null;
   lastError?: string | null;
   createdAt: string;
+}
+
+/** Lojas do produto (um produto antigo, de uma loja só, vira uma oferta). */
+export function watchOffers(w: PriceWatch): WatchOffer[] {
+  if (w.offers && w.offers.length > 0) return w.offers;
+  return [
+    {
+      id: `${w.id}_main`,
+      url: w.url,
+      store: w.store || 'Loja',
+      title: w.title,
+      imageUrl: w.imageUrl,
+      price: w.currentPrice ?? null,
+      available: w.available,
+      health: w.lastError ? 'SEM_PRODUTO' : 'OK',
+      lastCheckedAt: w.lastCheckedAt,
+      lastError: w.lastError,
+      history: w.history,
+    },
+  ];
+}
+
+/** Ofertas que valem para o preço: link abrindo o produto (ou ainda não conferido), com preço e disponível. */
+export const isUsableOffer = (o: WatchOffer) => o.health === 'OK' && o.available && o.price != null && o.price > 0;
+
+/** A oferta mais barata entre as boas. */
+export function bestOffer(w: PriceWatch): WatchOffer | undefined {
+  return watchOffers(w)
+    .filter(isUsableOffer)
+    .sort((a, b) => (a.price as number) - (b.price as number))[0];
+}
+
+export const HEALTH_LABEL: Record<Exclude<OfferHealth, 'OK'>, string> = {
+  SEM_PRODUTO: 'Link não mostra o produto',
+  OUTRO_PRODUTO: 'Abre outro produto',
+  BLOQUEADA: 'Loja bloqueou a leitura',
+  ERRO: 'Loja fora do ar',
+};
+
+/**
+ * Junta as ofertas no produto: o preço atual é o da melhor oferta e a leitura entra no histórico do produto.
+ * Url e loja do produto passam a ser os da melhor oferta ("Ir para a loja" leva a ela).
+ */
+export function withOffers(w: PriceWatch, offers: WatchOffer[], at = new Date()): PriceWatch {
+  const next: PriceWatch = { ...w, offers };
+  const best = bestOffer(next);
+  if (!best) {
+    const anyAvailable = offers.some((o) => o.available);
+    return { ...next, available: anyAvailable, lastCheckedAt: at.toISOString() };
+  }
+  return {
+    ...withReading(next, best.price as number, 'AUTO', at),
+    url: best.url,
+    store: best.store,
+    imageUrl: w.imageUrl || best.imageUrl,
+    available: true,
+    lastError: null,
+  };
 }
 
 export type OpportunityKind = 'ALVO' | 'MENOR_PRECO' | 'QUEDA';
@@ -69,7 +154,8 @@ export function watchStats(w: PriceWatch): WatchStats {
 
   if (w.targetPrice && current <= w.targetPrice) {
     stats.opportunity = 'ALVO';
-    stats.reason = `Chegou ao seu preço-alvo de ${brl(w.targetPrice)}.`;
+    const hit = (w.offers?.length ?? 0) > 1 ? bestOffer(w) : undefined;
+    stats.reason = `Chegou ao seu preço-alvo de ${brl(w.targetPrice)}${hit ? ` na ${hit.store}` : ''}.`;
   } else if (earlier.length >= 1 && current < Math.min(...earlier)) {
     stats.opportunity = 'MENOR_PRECO';
     stats.reason = `Menor preço desde que você começou a acompanhar (antes: ${brl(Math.min(...earlier))}).`;

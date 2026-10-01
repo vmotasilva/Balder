@@ -16,7 +16,48 @@ export interface ProductSnapshot {
   available: boolean;
 }
 
-export type PriceCheckResult = { ok: true; product: ProductSnapshot } | { ok: false; error: string };
+/**
+ * Situação do link de uma oferta:
+ * OK = abre o produto; SEM_PRODUTO = a página não existe mais, caiu na busca/início ou não mostra preço;
+ * OUTRO_PRODUTO = abre um produto diferente do acompanhado; BLOQUEADA = a loja barrou a leitura automática;
+ * ERRO = a loja não respondeu (fora do ar ou lenta).
+ */
+export type OfferHealth = 'OK' | 'SEM_PRODUTO' | 'OUTRO_PRODUTO' | 'BLOQUEADA' | 'ERRO';
+
+export type PriceCheckResult =
+  | { ok: true; product: ProductSnapshot }
+  | { ok: false; error: string; kind?: Exclude<OfferHealth, 'OK'> };
+
+const foldText = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const titleTokens = (s: string) => foldText(s).split(/[^a-z0-9]+/).filter((t) => t.length > 2 || /\d/.test(t));
+
+/**
+ * A página mostra o produto esperado? A maior parte das palavras precisa bater, e o modelo/capacidade não pode
+ * conflitar (256GB x 512GB, 12000 x 9000 BTUs). Se a página simplesmente não cita o número, não conta como conflito.
+ */
+export function sameProduct(expected: string, found: string): boolean {
+  const want = titleTokens(expected);
+  if (want.length === 0) return true;
+  const have = new Set(titleTokens(found));
+  const spec = (t: string) => t.match(/^(\d{3,})([a-z]*)$/);
+  for (const t of want) {
+    const m = spec(t);
+    if (!m || have.has(t)) continue;
+    const conflicting = [...have].some((h) => {
+      const hm = spec(h);
+      return !!hm && hm[2] === m[2] && hm[1] !== m[1];
+    });
+    if (conflicting) return false;
+  }
+  const hits = want.filter((t) => have.has(t)).length;
+  return hits / want.length >= 0.45;
+}
+
+/** Endereço de busca, categoria ou início: não é uma página de produto. */
+function looksLikeNotProductPath(url: URL): boolean {
+  const path = url.pathname.toLowerCase();
+  return path === '/' || path === '' || /\/(busca|search|lista|categoria|categorias|s|encontre)(\/|$)/.test(path) || url.searchParams.has('q') || url.searchParams.has('k');
+}
 
 const MAX_HTML_BYTES = 3_000_000;
 const FETCH_TIMEOUT_MS = 12_000;
@@ -162,6 +203,7 @@ export function extractProduct(html: string, pageUrl: string): PriceCheckResult 
     return {
       ok: false,
       error: 'Não encontrei o preço nesta página. Confira se o link é da página do produto (não de uma busca) ou tente o link de outra loja.',
+      kind: 'SEM_PRODUTO',
     };
   }
   let imageUrl = ld.imageUrl || meta.imageUrl;
@@ -206,7 +248,7 @@ export function validateProductUrl(raw: string): URL | string {
 }
 
 /** Busca a página e lê o produto. Usado pela função /api/price-check. */
-export async function fetchProduct(rawUrl: string): Promise<PriceCheckResult> {
+export async function fetchProduct(rawUrl: string, expectedTitle?: string): Promise<PriceCheckResult> {
   const checked = validateProductUrl(rawUrl);
   if (typeof checked === 'string') return { ok: false, error: checked };
 
@@ -225,20 +267,34 @@ export async function fetchProduct(rawUrl: string): Promise<PriceCheckResult> {
     const finalUrl = new URL(res.url || checked.toString());
     if (isBlockedHost(finalUrl.hostname)) return { ok: false, error: 'Esse endereço não pode ser consultado.' };
     // Lojas com proteção contra robôs respondem 403/429 ou erro 5xx em vez da página
-    if (res.status === 403 || res.status === 429 || res.status >= 500) {
-      return { ok: false, error: `A loja ${finalUrl.hostname.replace(/^www\./, '')} bloqueou a consulta automática. Tente o link do mesmo produto em outra loja.` };
+    if (res.status === 403 || res.status === 429) {
+      return { ok: false, kind: 'BLOQUEADA', error: `A loja ${finalUrl.hostname.replace(/^www\./, '')} bloqueou a consulta automática. Tente o link do mesmo produto em outra loja.` };
     }
-    if (!res.ok) return { ok: false, error: `A página respondeu com erro (${res.status}). Confira se o link ainda funciona.` };
+    if (res.status >= 500) {
+      return { ok: false, kind: 'ERRO', error: `A loja ${finalUrl.hostname.replace(/^www\./, '')} está fora do ar agora (erro ${res.status}). Tente de novo mais tarde.` };
+    }
+    if (res.status === 404 || res.status === 410) {
+      return { ok: false, kind: 'SEM_PRODUTO', error: 'A página do produto não existe mais (o link está quebrado ou o produto saiu da loja).' };
+    }
+    if (!res.ok) return { ok: false, kind: 'ERRO', error: `A página respondeu com erro (${res.status}). Confira se o link ainda funciona.` };
     const type = res.headers.get('content-type') || '';
-    if (!type.includes('html')) return { ok: false, error: 'O link não é de uma página de produto.' };
+    if (!type.includes('html')) return { ok: false, kind: 'SEM_PRODUTO', error: 'O link não é de uma página de produto.' };
+    // Redirecionou para a busca ou para o início da loja: o produto não está mais lá
+    if (looksLikeNotProductPath(finalUrl) && !looksLikeNotProductPath(checked)) {
+      return { ok: false, kind: 'SEM_PRODUTO', error: 'O link agora leva à busca ou ao início da loja, sem mostrar o produto.' };
+    }
     const html = (await res.text()).slice(0, MAX_HTML_BYTES);
     if (/captcha|robot check|are you a human/i.test(html) && !/application\/ld\+json/i.test(html)) {
-      return { ok: false, error: 'A loja pediu verificação de "não sou um robô". Tente de novo mais tarde ou use o link de outra loja.' };
+      return { ok: false, kind: 'BLOQUEADA', error: 'A loja pediu verificação de "não sou um robô". Tente de novo mais tarde ou use o link de outra loja.' };
     }
-    return extractProduct(html, finalUrl.toString());
+    const extracted = extractProduct(html, finalUrl.toString());
+    if (extracted.ok && expectedTitle && extracted.product.title && !sameProduct(expectedTitle, extracted.product.title)) {
+      return { ok: false, kind: 'OUTRO_PRODUTO', error: `A página abre outro produto ("${extracted.product.title.slice(0, 80)}"), não o que você acompanha.` };
+    }
+    return extracted;
   } catch (e) {
     const aborted = e instanceof Error && e.name === 'AbortError';
-    return { ok: false, error: aborted ? 'A loja demorou demais para responder. Tente de novo.' : 'Não consegui acessar a página da loja.' };
+    return { ok: false, kind: 'ERRO', error: aborted ? 'A loja demorou demais para responder. Tente de novo.' : 'Não consegui acessar a página da loja.' };
   } finally {
     clearTimeout(timer);
   }

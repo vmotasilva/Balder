@@ -4,7 +4,9 @@
 import { fetchProduct } from '../src/services/priceExtraction.js';
 
 export async function GET(request: Request): Promise<Response> {
-  const url = new URL(request.url).searchParams.get('url') || '';
-  const result = await fetchProduct(url);
+  const params = new URL(request.url).searchParams;
+  const url = params.get('url') || '';
+  // Título esperado (opcional): confere se o link ainda abre o mesmo produto
+  const result = await fetchProduct(url, params.get('expect') || undefined);
   return Response.json(result, { headers: { 'Cache-Control': 'no-store' } });
 }
