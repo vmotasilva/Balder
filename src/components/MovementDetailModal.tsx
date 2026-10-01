@@ -61,6 +61,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
     banks,
     natures,
     markMappingItemsFulfilled,
+    updateMappingItem,
   } = useFinancial();
 
   // Alteração de valor em série mensal: pergunta se vale para os meses seguintes
@@ -94,6 +95,16 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
   // Estados específicos para PAGAR (Vinculação com Naturezas)
   const [selectedNatureId, setSelectedNatureId] = useState('');
   const [selectedMappingItemId, setSelectedMappingItemId] = useState('');
+  // Ao ligar a despesa a um item, pergunta se o previsto do item acompanha o valor pago
+  const [plannedPrompt, setPlannedPrompt] = useState<{
+    natureId: string;
+    mappingId: string;
+    itemId: string;
+    itemName: string;
+    oldValue: number;
+    newValue: number;
+    quantity: number;
+  } | null>(null);
 
   // Estados específicos para CARTAO (Detalhamento de Itens por Natureza)
   const [breakdownRows, setBreakdownRows] = useState<ModalBreakdownRow[]>([]);
@@ -688,6 +699,17 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
       unanalyzedAmount: finalUnanalyzed,
     });
 
+    // 2.1 Trocou (ou tirou) o item do mapeamento: o item antigo volta a ficar em aberto
+    if (movement.mappingItemId && movement.mappingItemId !== (selectedMappingItemId || undefined)) {
+      for (const nat of natures) {
+        const oldMapping = nat.mappings.find((m) => (m.items || []).some((it) => it.id === movement.mappingItemId));
+        if (oldMapping) {
+          updateMappingItem(nat.id, oldMapping.id, movement.mappingItemId, { isFulfilled: false, realizedValue: 0 });
+          break;
+        }
+      }
+    }
+
     // 3. Se for PAGAR e tiver item de mapeamento selecionado, marca como cumprido
     if (movement.type === 'PAGAR' && selectedNatureId && selectedMappingItemId && updatedStatus === 'REALIZADA') {
       const nat = natures.find((n) => n.id === selectedNatureId);
@@ -701,6 +723,29 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
             realizedValue: finalAmount,
           },
         ]);
+      }
+    }
+
+    // 3.1 Associação nova ou trocada com valor diferente do previsto do item: pergunta se atualiza o previsto
+    if (movement.type === 'PAGAR' && selectedNatureId && selectedMappingItemId && selectedMappingItemId !== movement.mappingItemId) {
+      const nat = natures.find((n) => n.id === selectedNatureId);
+      const mapping = nat?.mappings.find((m) => (m.items || []).some((it) => it.id === selectedMappingItemId));
+      const item = mapping?.items.find((it) => it.id === selectedMappingItemId);
+      if (nat && mapping && item) {
+        const quantity = item.quantity > 0 ? item.quantity : 1;
+        const oldValue = Math.round(quantity * item.price * 100) / 100;
+        if (Math.abs(oldValue - finalAmount) > 0.005) {
+          setPlannedPrompt({
+            natureId: nat.id,
+            mappingId: mapping.id,
+            itemId: item.id,
+            itemName: item.description,
+            oldValue,
+            newValue: finalAmount,
+            quantity,
+          });
+          return;
+        }
       }
     }
 
@@ -1856,6 +1901,31 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
       />
     )}
     <ConfirmDialog {...confirmDialogProps} />
+    <ConfirmDialog
+      isOpen={!!plannedPrompt}
+      title="Atualizar o previsto?"
+      message={
+        plannedPrompt
+          ? `Você pagou ${plannedPrompt.newValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} em "${plannedPrompt.itemName}", e o previsto do item é ${plannedPrompt.oldValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}. Quer que o previsto passe a ser ${plannedPrompt.newValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} daqui para a frente?`
+          : ''
+      }
+      confirmLabel="Atualizar previsto"
+      cancelLabel="Manter previsto"
+      variant="warning"
+      onConfirm={() => {
+        if (plannedPrompt) {
+          updateMappingItem(plannedPrompt.natureId, plannedPrompt.mappingId, plannedPrompt.itemId, {
+            price: Math.round((plannedPrompt.newValue / plannedPrompt.quantity) * 1000) / 1000,
+          });
+        }
+        setPlannedPrompt(null);
+        onClose();
+      }}
+      onCancel={() => {
+        setPlannedPrompt(null);
+        onClose();
+      }}
+    />
     {recurringPrompt && (
       <RecurringChangeDialog
         prompt={recurringPrompt}

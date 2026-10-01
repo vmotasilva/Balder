@@ -110,6 +110,8 @@ export interface PeriodItem {
   title: string;
   detail?: string; // mapeamento ou categoria
   natureId?: string;
+  /** Conta avulsa: o lançamento por trás do item (para revisar a associação) */
+  movementId?: string;
   purchases: PeriodPurchase[];
   planned: number; // soma prevista das compras que valem (fora "não vai" e "terceiros")
   spent: number; // soma paga
@@ -323,6 +325,8 @@ export function buildPeriodItems(params: {
   // Contas a pagar do período: previstas pelo vencimento, pagas pela data do pagamento
   movements.forEach((m) => {
     if (m.type !== 'PAGAR' || m.category === 'Cartões' || m.category === 'Empréstimos') return;
+    // Já ligado a um item de mapeamento: o próprio item mostra a compra
+    if (m.mappingItemId && natures.some((n) => n.mappings.some((mp) => mp.items.some((it) => it.id === m.mappingItemId)))) return;
     const paid = m.status === 'REALIZADA';
     if (!inRange(paid ? m.paymentDate || m.dueDate : m.dueDate) || m.dueDate < startDate) return;
     const purchase: PeriodPurchase = paid
@@ -335,7 +339,7 @@ export function buildPeriodItems(params: {
           paidAmount: round2(m.actualAmount ?? m.amount),
         }
       : { key: m.id, date: m.dueDate, status: openStatus(m.dueDate), plannedAmount: round2(m.amount) };
-    items.push(finishItem({ id: m.id, title: m.title, detail: m.category || undefined, natureId: movementNatureId(m, natures), purchases: [purchase] }));
+    items.push(finishItem({ id: m.id, title: m.title, detail: m.category || undefined, natureId: movementNatureId(m, natures), movementId: m.id, purchases: [purchase] }));
   });
 
   return { tense, items };

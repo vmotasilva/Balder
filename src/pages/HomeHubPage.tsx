@@ -20,6 +20,7 @@ import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { useAccountScope } from '../context/AccountScopeContext';
 import { GuidedSetup } from '../components/GuidedSetup';
+import { MovementDetailModal } from '../components/MovementDetailModal';
 import { ForsetiActivityModal } from '../components/ForsetiActivityModal';
 import { activityCutoffIso } from '../services/forsetiActivityService';
 import { PlanningSwitcher } from '../components/PlanningSwitcher';
@@ -153,6 +154,8 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   const [spendingNatureId, setSpendingNatureId] = useState<string | null>(null);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [showAllSpending, setShowAllSpending] = useState(false);
+  // Conta avulsa aberta para revisar natureza, mapeamento e item
+  const [reviewMovementId, setReviewMovementId] = useState<string | null>(null);
 
   const period: TrackingPeriod = viewPreferences.trackingPeriod || 'MES';
   const labels = TRACKING_PERIOD_LABELS[period];
@@ -821,11 +824,29 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
                   const only = item.purchases[0];
                   return (
                     <li key={`i_${item.id}`} className={item.overdue ? 'is-overdue' : ''}>
-                      <div className="home-task-main">
-                        <span className="home-task-title">{item.title}</span>
-                        <span className="home-task-meta">{describePurchase(only)}</span>
-                      </div>
-                      <span className={`home-purchase-pill is-${only.status.toLowerCase()}`}>{PURCHASE_PILL[only.status]}</span>
+                      {item.movementId ? (
+                        <button
+                          type="button"
+                          className="home-task-drill"
+                          onClick={() => setReviewMovementId(item.movementId!)}
+                          title="Revisar natureza, mapeamento e item"
+                        >
+                          <div className="home-task-main">
+                            <span className="home-task-title">{item.title}</span>
+                            <span className="home-task-meta">{describePurchase(only)}</span>
+                          </div>
+                          <span className={`home-purchase-pill is-${only.status.toLowerCase()}`}>{PURCHASE_PILL[only.status]}</span>
+                          <ChevronRight size={16} aria-hidden="true" />
+                        </button>
+                      ) : (
+                        <>
+                          <div className="home-task-main">
+                            <span className="home-task-title">{item.title}</span>
+                            <span className="home-task-meta">{describePurchase(only)}</span>
+                          </div>
+                          <span className={`home-purchase-pill is-${only.status.toLowerCase()}`}>{PURCHASE_PILL[only.status]}</span>
+                        </>
+                      )}
                     </li>
                   );
                 }
@@ -888,6 +909,13 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
         ))}
       </section>
 
+      {reviewMovementId && (
+        <MovementDetailModal
+          isOpen
+          movement={movements.find((m) => m.id === reviewMovementId) || null}
+          onClose={() => setReviewMovementId(null)}
+        />
+      )}
       <MappingPaymentModal target={mappingPayment} onClose={() => setMappingPayment(null)} />
       <RealizationConfirmModal target={realization} onClose={() => setRealization(null)} />
     </div>
