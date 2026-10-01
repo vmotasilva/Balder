@@ -4944,6 +4944,43 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
+  // Despesa realizada ligada a um item de natureza sem pagamento lançado nele (ex.: criada pelo Forseti,
+  // que não conhece o id da movimentação): lança o pagamento para o valor entrar no "Real" do mês
+  const reconciledMovementsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!isDataReady || viewing || natures.length === 0) return;
+    const toFulfill: FulfilledItemInput[] = [];
+    for (const mv of movements) {
+      if (mv.type !== 'PAGAR' || mv.status !== 'REALIZADA' || !mv.natureId || !mv.mappingItemId) continue;
+      const amount = mv.actualAmount ?? mv.amount;
+      const paidAt = mv.paymentDate || mv.dueDate;
+      if (!(amount > 0) || !paidAt) continue;
+      const key = `${mv.id}|${paidAt}|${amount}`;
+      if (reconciledMovementsRef.current.has(key)) continue;
+      const nat = natures.find((n) => n.id === mv.natureId);
+      const mapping = nat?.mappings.find((m) => (m.items || []).some((it) => it.id === mv.mappingItemId));
+      const item = mapping?.items.find((it) => it.id === mv.mappingItemId);
+      if (!nat || !mapping || !item) continue;
+      const monthKey = paidAt.slice(0, 7);
+      const payments = item.payments?.[monthKey] || [];
+      const hasPayment = payments.some(
+        (p) => p.movementId === mv.id || (!p.movementId && Math.abs(p.amount - amount) < 0.01)
+      );
+      reconciledMovementsRef.current.add(key);
+      if (hasPayment || isExcludedState(resolveMappingItemState(item, monthKey))) continue;
+      toFulfill.push({
+        natureId: nat.id,
+        mappingId: mapping.id,
+        itemId: item.id,
+        realizedValue: amount,
+        monthKey,
+        paidAt,
+        movementId: mv.id,
+      });
+    }
+    if (toFulfill.length > 0) markMappingItemsFulfilled(toFulfill);
+  });
+
   // Registrar Justificativa Contábil de Estouro de Teto
   const saveCeilingJustification = (natureId: string, reason: string) => {
     const targetNature = natures.find((n) => n.id === natureId);
