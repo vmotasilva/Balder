@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   BellRing,
   ExternalLink,
@@ -20,6 +20,7 @@ import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
 import { useOpportunities } from '../hooks/useOpportunities';
 import { OpportunityService } from '../services/opportunityService';
 import type { ProductSnapshot } from '../services/priceExtraction';
+import type { SearchResult } from '../services/productSearch';
 import {
   OPPORTUNITY_LABEL,
   storeSearchLinks,
@@ -64,9 +65,12 @@ const Sparkline: React.FC<{ prices: number[]; good: boolean }> = ({ prices, good
   );
 };
 
+type SortKey = 'RELEVANCE' | 'PRICE_ASC' | 'PRICE_DESC';
+
 type Draft =
   | { step: 'IDLE' }
-  | { step: 'SEARCH'; query: string }
+  | { step: 'SEARCHING'; query: string }
+  | { step: 'RESULTS'; query: string; results: SearchResult[]; failedSources: string[]; error?: string }
   | { step: 'LOADING'; url: string }
   | { step: 'FOUND'; product: ProductSnapshot; target: number | null }
   | { step: 'MANUAL'; url: string; error: string; title: string; price: number | null; target: number | null };
@@ -89,11 +93,21 @@ export const OpportunitiesPage: React.FC<OpportunitiesPageProps> = ({ onRegister
   const opportunities = rows.filter((r) => r.s.opportunity).length;
   const checkingAll = checkingIds.length > 0;
 
+  const searchSeq = useRef(0);
+
   const lookup = async () => {
     const text = input.trim();
     if (!text) return;
+    const seq = ++searchSeq.current;
     if (!isUrl(text)) {
-      setDraft({ step: 'SEARCH', query: text });
+      setDraft({ step: 'SEARCHING', query: text });
+      const found = await OpportunityService.search(text);
+      if (seq !== searchSeq.current) return; // a pessoa mudou a busca enquanto esta carregava
+      setDraft(
+        found.ok
+          ? { step: 'RESULTS', query: text, results: found.results, failedSources: found.failedSources }
+          : { step: 'RESULTS', query: text, results: [], failedSources: [], error: found.error }
+      );
       return;
     }
     setDraft({ step: 'LOADING', url: text });
@@ -106,9 +120,18 @@ export const OpportunitiesPage: React.FC<OpportunitiesPageProps> = ({ onRegister
   };
 
   const resetDraft = () => {
+    searchSeq.current++;
     setDraft({ step: 'IDLE' });
     setInput('');
   };
+
+  /** Escolheu um resultado da busca: segue para o preço-alvo, como se tivesse colado o link. */
+  const pickResult = (r: SearchResult) =>
+    setDraft({
+      step: 'FOUND',
+      product: { url: r.url, title: r.title, price: r.price, currency: 'BRL', store: r.store, imageUrl: r.imageUrl, available: true },
+      target: null,
+    });
 
   const startWatching = async () => {
     if (draft.step === 'FOUND') {
@@ -147,8 +170,9 @@ export const OpportunitiesPage: React.FC<OpportunitiesPageProps> = ({ onRegister
             Oportunidades
             <InfoButton title="Como funcionam as Oportunidades">
               <p>
-                Cole o link de um produto que você quer comprar. O Balder lê o preço na loja, guarda o histórico e confere
-                de novo sempre que você abre o app (se a última leitura tiver mais de 12 horas).
+                Busque o produto pelo nome (ou cole o link da loja). O Balder procura em lojas e comparadores, mostra os
+                preços encontrados e, ao escolher um, guarda o histórico e confere de novo sempre que você abre o app
+                (se a última leitura tiver mais de 12 horas).
               </p>
               <p>
                 <strong>Quando vira oportunidade:</strong> o preço chegou ao seu preço-alvo, ficou abaixo de todos os
@@ -178,27 +202,30 @@ export const OpportunitiesPage: React.FC<OpportunitiesPageProps> = ({ onRegister
             value={input}
             onChange={(e) => {
               setInput(e.target.value);
-              if (draft.step === 'SEARCH') setDraft({ step: 'IDLE' });
+              if (draft.step === 'RESULTS') {
+                searchSeq.current++;
+                setDraft({ step: 'IDLE' });
+              }
             }}
-            placeholder="Cole o link do produto ou digite o nome"
+            placeholder="Busque pelo nome do produto ou cole o link"
             aria-label="Link ou nome do produto"
           />
-          <button type="submit" className="btn btn-primary" disabled={!input.trim() || draft.step === 'LOADING'}>
-            {draft.step === 'LOADING' ? <Loader2 size={16} className="opp-spin" /> : <span>Buscar</span>}
+          <button type="submit" className="btn btn-primary" disabled={!input.trim() || draft.step === 'LOADING' || draft.step === 'SEARCHING'}>
+            {draft.step === 'LOADING' || draft.step === 'SEARCHING' ? <Loader2 size={16} className="opp-spin" /> : <span>Buscar</span>}
           </button>
         </form>
 
-        {draft.step === 'SEARCH' && (
-          <div className="opp-draft">
-            <p className="opp-draft-hint">Abra o produto em uma loja, copie o link da página e cole aqui:</p>
-            <div className="opp-store-links">
-              {storeSearchLinks(draft.query).map((s) => (
-                <a key={s.store} href={s.url} target="_blank" rel="noopener noreferrer" className="opp-store-chip">
-                  {s.store} <ExternalLink size={12} />
-                </a>
-              ))}
-            </div>
-          </div>
+        {draft.step === 'SEARCHING' && <p className="opp-draft-hint">Buscando "{draft.query}" nas lojas…</p>}
+
+        {draft.step === 'RESULTS' && (
+          <SearchResults
+            query={draft.query}
+            results={draft.results}
+            failedSources={draft.failedSources}
+            error={draft.error}
+            onPick={pickResult}
+            onClose={resetDraft}
+          />
         )}
 
         {draft.step === 'LOADING' && <p className="opp-draft-hint">Lendo o preço na loja…</p>}
@@ -287,7 +314,7 @@ export const OpportunitiesPage: React.FC<OpportunitiesPageProps> = ({ onRegister
         <div className="opp-empty glass-card">
           <Tag size={28} className="text-cyan" />
           <h4>Nenhum produto acompanhado</h4>
-          <p>Cole acima o link de algo que você quer comprar. Quando o preço cair, o Balder te avisa.</p>
+          <p>Busque acima o nome de algo que você quer comprar (ou cole o link). Quando o preço cair, o Balder te avisa.</p>
         </div>
       ) : (
         <section className="opp-watchlist">
@@ -337,6 +364,119 @@ export const OpportunitiesPage: React.FC<OpportunitiesPageProps> = ({ onRegister
       )}
 
       <ConfirmDialog {...dialogProps} />
+    </div>
+  );
+};
+
+interface SearchResultsProps {
+  query: string;
+  results: SearchResult[];
+  failedSources: string[];
+  error?: string;
+  onPick: (r: SearchResult) => void;
+  onClose: () => void;
+}
+
+const SORT_LABEL: Record<SortKey, string> = {
+  RELEVANCE: 'Mais relevantes',
+  PRICE_ASC: 'Menor preço',
+  PRICE_DESC: 'Maior preço',
+};
+
+const SearchResults: React.FC<SearchResultsProps> = ({ query, results, failedSources, error, onPick, onClose }) => {
+  const [sort, setSort] = useState<SortKey>('RELEVANCE');
+  const [store, setStore] = useState<string | null>(null);
+
+  const stores = useMemo(() => {
+    const count = new Map<string, number>();
+    results.forEach((r) => count.set(r.store, (count.get(r.store) ?? 0) + 1));
+    return [...count.entries()].sort((a, b) => b[1] - a[1]);
+  }, [results]);
+
+  const shown = useMemo(() => {
+    const list = store ? results.filter((r) => r.store === store) : results;
+    if (sort === 'PRICE_ASC') return [...list].sort((a, b) => a.price - b.price);
+    if (sort === 'PRICE_DESC') return [...list].sort((a, b) => b.price - a.price);
+    return list;
+  }, [results, store, sort]);
+
+  return (
+    <div className="opp-draft">
+      <div className="opp-results-head">
+        <p className="opp-draft-hint">
+          {error
+            ? error
+            : results.length
+              ? `${results.length} ${results.length === 1 ? 'resultado' : 'resultados'} para "${query}". Escolha o que quer acompanhar:`
+              : `Não achei "${query}" nas lojas consultadas. Tente outras palavras (marca e modelo ajudam) ou cole o link do produto.`}
+        </p>
+        <button type="button" className="icon-btn" onClick={onClose} aria-label="Fechar resultados">
+          <X size={16} />
+        </button>
+      </div>
+
+      {results.length > 0 && (
+        <div className="opp-results-tools">
+          <div className="opp-store-links" role="group" aria-label="Filtrar por loja">
+            <button type="button" className={`opp-store-chip ${store === null ? 'is-active' : ''}`} onClick={() => setStore(null)}>
+              Todas
+            </button>
+            {stores.slice(0, 6).map(([name, n]) => (
+              <button
+                key={name}
+                type="button"
+                className={`opp-store-chip ${store === name ? 'is-active' : ''}`}
+                onClick={() => setStore(store === name ? null : name)}
+              >
+                {name} · {n}
+              </button>
+            ))}
+          </div>
+          <select className="form-input opp-sort" value={sort} onChange={(e) => setSort(e.target.value as SortKey)} aria-label="Ordenar resultados">
+            {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
+              <option key={k} value={k}>
+                {SORT_LABEL[k]}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {shown.length > 0 && (
+        <div className="opp-results">
+          {shown.map((r) => (
+            <button key={r.url} type="button" className="opp-result" onClick={() => onPick(r)}>
+              {r.imageUrl ? <img src={r.imageUrl} alt="" className="opp-thumb" loading="lazy" /> : <div className="opp-thumb opp-thumb-empty"><Tag size={18} /></div>}
+              <span className="opp-result-info">
+                <span className="opp-title">{r.title}</span>
+                <span className="opp-meta">
+                  {r.store}
+                  {r.source !== r.store ? ` · via ${r.source}` : ''}
+                </span>
+              </span>
+              <span className="opp-result-price">
+                <span className="opp-price">{brl(r.price)}</span>
+                {r.installment && <span className="opp-meta">{r.installment}</span>}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {failedSources.length > 0 && (
+        <p className="opp-storage-note">Não consegui consultar: {failedSources.join(', ')}. Os resultados podem estar incompletos.</p>
+      )}
+
+      <div className="opp-search-elsewhere">
+        <span className="opp-draft-hint">Não é o que procura? Veja em outras lojas e cole o link aqui:</span>
+        <div className="opp-store-links">
+          {storeSearchLinks(query).map((s) => (
+            <a key={s.store} href={s.url} target="_blank" rel="noopener noreferrer" className="opp-store-chip">
+              {s.store} <ExternalLink size={12} />
+            </a>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };

@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import type { PriceCheckResult } from './priceExtraction';
+import type { ProductSearchResponse } from './productSearch';
 import type { PriceWatch } from '../utils/opportunity';
 
 /**
@@ -127,6 +128,17 @@ export const OpportunityService = {
       }
     }
     writeLocal(userId, readLocal(userId).filter((w) => w.id !== id));
+  },
+
+  /** Busca produtos por nome pela função do servidor (/api/product-search). */
+  async search(query: string): Promise<ProductSearchResponse> {
+    try {
+      const res = await fetch(`/api/product-search?q=${encodeURIComponent(query)}`);
+      if (!res.ok) return { ok: false, error: 'O serviço de busca não respondeu. Tente de novo em instantes.' };
+      return (await res.json()) as ProductSearchResponse;
+    } catch {
+      return { ok: false, error: 'Sem conexão para buscar nas lojas agora.' };
+    }
   },
 
   /** Lê o produto pela função do servidor (/api/price-check). */
