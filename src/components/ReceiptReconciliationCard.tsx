@@ -392,9 +392,9 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
             value={paymentMethod}
             onChange={(e) => setPaymentMethod(e.target.value as any)}
           >
-            <option value="DINHEIRO">💵 Dinheiro em Espécie (Pago R$ 315 / Troco R$ 46,80)</option>
-            <option value="DEBITO">🟠 Banco Inter (Débito / PIX)</option>
-            <option value="CARTAO">💳 Cartão Nubank Mastercard Black</option>
+            <option value="DINHEIRO">💵 Dinheiro em Espécie</option>
+            <option value="DEBITO">🏦 Débito / PIX</option>
+            <option value="CARTAO">💳 Cartão de Crédito</option>
           </select>
         </div>
       </div>

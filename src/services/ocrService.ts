@@ -7,7 +7,6 @@ export interface OCRResult {
   rawText: string;
   detectedStore: string;
   detectedCategory: string;
-  detectedSubcategory?: string;
   detectedAmount: number;
   detectedAmountFormatted: string;
   isEstimatedAmount: boolean;
@@ -21,31 +20,6 @@ export interface OCRResult {
   natureId: string;
   notes?: string;
 }
-
-// Cesta de referência para cupons de supermercado/feira de alta fidelidade
-const SAO_ROQUE_KNOWN_ITEMS: { raw: string; name: string; price: number; fallbackMappingId?: string; fallbackRoutineId?: string; isNew?: boolean }[] = [
-  { raw: 'CENOURA (PESO)', name: 'Cenoura (0,475 kg)', price: 4.27, fallbackMappingId: 'item_f2', fallbackRoutineId: 'map_feira_semanal' },
-  { raw: 'TOMATE (PESO)', name: 'Tomate Selecionado (0,785 kg)', price: 6.98, fallbackMappingId: 'item_f2', fallbackRoutineId: 'map_feira_semanal' },
-  { raw: 'MELANCIA (PESO)', name: 'Melancia (3,085 kg)', price: 11.08, fallbackMappingId: 'item_f1', fallbackRoutineId: 'map_feira_semanal' },
-  { raw: 'MACA TURMA DA MONICA', name: 'Maçã Turma da Mônica (1 kg)', price: 18.41, fallbackMappingId: 'item_f1', fallbackRoutineId: 'map_feira_semanal' },
-  { raw: 'AMEIXA FRESCA IMPORTADA', name: 'Ameixa Fresca Importada (0,615 kg)', price: 17.83, fallbackMappingId: 'item_f1', fallbackRoutineId: 'map_feira_semanal' },
-  { raw: 'UVA THOMPSON VERDE S/SEMENTE', name: 'Uva Thompson s/ Semente (500g)', price: 8.47, fallbackMappingId: 'item_f1', fallbackRoutineId: 'map_feira_semanal' },
-  { raw: 'BANANA PRATA (PESO)', name: 'Banana Prata (1,235 kg)', price: 8.39, fallbackMappingId: 'item_f1', fallbackRoutineId: 'map_feira_semanal' },
-  { raw: 'BANANA DA TERRA (PESO)', name: 'Banana da Terra (1,540 kg)', price: 14.77, fallbackMappingId: 'item_f1', fallbackRoutineId: 'map_feira_semanal' },
-  { raw: 'QUIABO (PESO)', name: 'Quiabo Selecionado (0,380 kg)', price: 4.52, fallbackMappingId: 'item_f2', fallbackRoutineId: 'map_feira_semanal' },
-  { raw: 'COENTRO UN', name: 'Coentro Fresco & Temperos (1 un)', price: 3.99, fallbackMappingId: 'item_f2', fallbackRoutineId: 'map_feira_semanal' },
-  { raw: 'LARANJA (PESO)', name: 'Laranja para Suco (1,220 kg)', price: 1.92, fallbackMappingId: 'item_f1', fallbackRoutineId: 'map_feira_semanal' },
-  { raw: 'CARNE BOV ACEM C/OSSO', name: 'Carne Bovina Acém c/ Osso (1,696 kg)', price: 46.62, fallbackMappingId: 'item_p2', fallbackRoutineId: 'map_acougue_proteinas' },
-  { raw: 'SOBREMESA LACT CHANDELLE', name: 'Sobremesa Láctea Chandelle (4 un)', price: 32.76, fallbackMappingId: 'item_m5', fallbackRoutineId: 'map_mercado_mensal' },
-  { raw: 'BEB LACTEA NESCAU 180ML', name: 'Bebida Láctea Nescau 180ml (6 un)', price: 13.62, fallbackMappingId: 'item_m5', fallbackRoutineId: 'map_mercado_mensal' },
-  { raw: 'AMAC CONC COMFORT 900ML', name: 'Amaciante Concentrado Comfort 900ml', price: 21.99, fallbackMappingId: 'item_m6', fallbackRoutineId: 'map_mercado_mensal' },
-  { raw: 'BEB LACTEA NESCAU 1L', name: 'Bebida Láctea Nescau Choc 1 Litro', price: 15.59, fallbackMappingId: 'item_m5', fallbackRoutineId: 'map_mercado_mensal' },
-  { raw: 'SNACK EQLIBRI PANETINI', name: 'Snack Eqlibri Panetini Tomate (2 un)', price: 7.98, isNew: true },
-  { raw: 'BISC MUCILON LANCHINHO', name: 'Biscoito Mucilon Lanchinho (2 un)', price: 11.98, isNew: true },
-  { raw: 'BOLINHO BAUDUCCO BAUNILHA', name: 'Bolinho Bauducco Baunilha (4 un)', price: 8.76, isNew: true },
-  { raw: 'BISC VITARELLA WAFER', name: 'Biscoito Vitarella Wafer (2 un)', price: 3.98, isNew: true },
-  { raw: 'SALG MIKAO PRESUNTO', name: 'Salgadinho Mikao Presunto (1 un)', price: 4.29, isNew: true },
-];
 
 /**
  * Pré-processa a imagem em um Canvas HTML5 para otimizar legibilidade do Tesseract
@@ -121,166 +95,154 @@ export async function preprocessImageForOCR(imageUrl: string): Promise<{ process
   });
 }
 
+const MONEY_RE = /\d{1,3}(?:\.\d{3})+,\d{2}(?!\d)|\d{1,6}[.,]\d{2}(?!\d)/g;
+const QTY_RE = /(\d+[.,]\d{1,3})\s*(un|kg|g|l|ml|pc|cx)\b/i;
+const NOT_ITEM_RE =
+  /total|pagar|pago|troco|dinheiro|cnpj|cupom|itens|desconto|d[eé]bito|cr[eé]dito|cart[aã]o|pix|tribut|imposto|icms|consumidor|chave|protocolo|nota fiscal|acr[eé]scimo|forma de pag/i;
+
+function parseMoney(token: string): number {
+  const n = token.includes(',') ? token.replace(/\./g, '').replace(',', '.') : token;
+  const v = parseFloat(n);
+  return Number.isFinite(v) ? Math.round(v * 100) / 100 : 0;
+}
+
+function moneyIn(line: string): number[] {
+  return (line.match(MONEY_RE) || []).map(parseMoney);
+}
+
+function toTitle(s: string): string {
+  return s.toLowerCase().replace(/(^|\s)(\S)/g, (_, sp, ch) => sp + ch.toUpperCase());
+}
+
+function detectStore(lines: string[]): string {
+  const company = lines.find((l) => /\b(ltda|eireli|epp|s\/?a|me)\b/i.test(l) && /[A-Za-zÀ-ÿ]{3}/.test(l));
+  const line = company || lines.find((l) => (l.match(/[A-Za-zÀ-ÿ]/g) || []).length >= 6);
+  if (!line) return 'Cupom Fiscal';
+  const name = line.replace(/\b(ltda|eireli|epp)\b\.?/gi, '').replace(/[^A-Za-zÀ-ÿ0-9&.\- ]/g, ' ').replace(/\s+/g, ' ').trim();
+  return name.length >= 3 ? toTitle(name) : 'Cupom Fiscal';
+}
+
+function detectDate(text: string): string {
+  const m = text.match(/\b(\d{2})[\/\-.](\d{2})[\/\-.](\d{4})\b/);
+  if (m) {
+    const [, d, mo, y] = m;
+    if (+mo >= 1 && +mo <= 12 && +d >= 1 && +d <= 31 && +y >= 2000) return `${y}-${mo}-${d}`;
+  }
+  return new Date().toISOString().split('T')[0];
+}
+
+function detectPayment(text: string): OCRResult['suggestedPaymentMethod'] {
+  const t = text.toLowerCase();
+  if (/d[eé]bito/.test(t)) return 'DEBITO';
+  if (/cr[eé]dito/.test(t)) return 'CARTAO';
+  if (/\bpix\b/.test(t)) return 'PIX';
+  if (/dinheiro/.test(t)) return 'DINHEIRO';
+  return 'DEBITO';
+}
+
+function detectTotal(lines: string[]): number {
+  const rules: [RegExp, number][] = [
+    [/a\s*pagar/i, 3],
+    [/valor\s*pago/i, 2],
+    [/valor\s*total|^total/i, 1],
+  ];
+  let best = 0;
+  let bestScore = 0;
+  for (const line of lines) {
+    const values = moneyIn(line);
+    if (!values.length) continue;
+    const value = values[values.length - 1];
+    for (const [re, score] of rules) {
+      if (re.test(line) && value > 0 && score > bestScore) {
+        best = value;
+        bestScore = score;
+      }
+    }
+  }
+  return best;
+}
+
 /**
- * Analisa o texto bruto extraído pelo OCR de cupom fiscal e extrai entidades contábeis precisas.
+ * Interpreta o texto bruto do OCR de um cupom fiscal (NFC-e): loja, data, itens, total e forma de pagamento.
+ * Só usa o que foi lido da imagem; sem dados de exemplo.
  */
-export function parseReceiptText(
-  text: string,
-  userText?: string,
-  _hasOrganicTones?: boolean
-): OCRResult {
+export function parseReceiptText(text: string, _userText?: string): OCRResult {
   const clean = text || '';
   const lines = clean
     .split('\n')
     .map((l) => l.trim())
-    .filter((l) => l.length > 0);
+    .filter(Boolean);
 
-  const combinedContext = (clean + ' ' + (userText || '')).toLowerCase();
+  const detectedStore = detectStore(lines);
+  const detectedDate = detectDate(clean);
+  const suggestedPaymentMethod = detectPayment(clean);
 
-  // 1. Identificação do Estabelecimento
-  let detectedStore = 'Supermercado São Roque (Feira & Alimentos)';
-  let detectedCategory = 'Alimentação & Mercado';
-  let detectedSubcategory = 'Feira Livre & Hortifrúti (Rotina Semanal)';
-  const natureId = 'nat_alimentacao';
-
-  const isSaoRoque =
-    combinedContext.includes('sao roque') ||
-    combinedContext.includes('são roque') ||
-    combinedContext.includes('artemia') ||
-    combinedContext.includes('sim') ||
-    combinedContext.includes('feira de santana') ||
-    combinedContext.includes('03.705.630') ||
-    combinedContext.includes('00028920') ||
-    combinedContext.includes('melancia') ||
-    combinedContext.includes('cenoura');
-
-  if (isSaoRoque) {
-    detectedStore = 'Supermercado São Roque (Feira & Alimentos)';
-    detectedCategory = 'Alimentação & Mercado';
-    detectedSubcategory = 'Feira Livre & Hortifrúti (Rotina Semanal)';
-  } else if (combinedContext.includes('atacadao') || combinedContext.includes('atacadão')) {
-    detectedStore = 'Atacadão';
-    detectedSubcategory = 'Supermercado Base Mensal';
-  } else if (combinedContext.includes('assai') || combinedContext.includes('assaí')) {
-    detectedStore = 'Assaí Atacadista';
-    detectedSubcategory = 'Supermercado Base Mensal';
-  } else if (combinedContext.includes('pao de acucar') || combinedContext.includes('pão de açúcar')) {
-    detectedStore = 'Supermercado Pão de Açúcar';
-    detectedSubcategory = 'Supermercado Base Mensal';
-  } else if (combinedContext.includes('carrefour')) {
-    detectedStore = 'Carrefour';
-    detectedSubcategory = 'Supermercado Base Mensal';
-  } else if (combinedContext.includes('gbarbosa') || combinedContext.includes('g barbosa')) {
-    detectedStore = 'Supermercado GBarbosa';
-    detectedSubcategory = 'Supermercado Base Mensal';
-  }
-
-  // 2. Extração de Produtos / Itens da Nota
   const receiptItemLines: ReceiptItemLine[] = [];
-  const detectedItemNames: string[] = [];
+  const stamp = Date.now();
+  for (const line of lines) {
+    if (NOT_ITEM_RE.test(line)) continue;
+    const prices = moneyIn(line);
+    if (!prices.length || prices[prices.length - 1] <= 0) continue;
 
-  // Se for o cupom São Roque ou contiver produtos dele, preenche a lista completa
-  if (isSaoRoque) {
-    SAO_ROQUE_KNOWN_ITEMS.forEach((item, idx) => {
-      detectedItemNames.push(item.name);
+    const qtyMatch = line.match(QTY_RE);
+    const head = line
+      .replace(/^\d{3,14}\s+/, '')
+      .slice(0, qtyMatch ? line.replace(/^\d{3,14}\s+/, '').indexOf(qtyMatch[0]) : undefined)
+      .replace(MONEY_RE, ' ')
+      .replace(/[^A-Za-zÀ-ÿ0-9\/.\- ]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if ((head.match(/[A-Za-zÀ-ÿ]/g) || []).length < 3) continue;
 
-      const learned = matchItemToLearnedRecord(item.raw);
-      const mappingItemId = learned?.mappingItemId || item.fallbackMappingId;
-      const targetMappingId = learned?.targetMappingId || item.fallbackRoutineId || 'map_feira_semanal';
-
-      let quantity = 1;
-      let unit = 'un';
-      const qtyMatch = item.name.match(/\(([\d,.]+)\s*(un|kg|g)\)/i);
-      if (qtyMatch) {
-        quantity = parseFloat(qtyMatch[1].replace(',', '.'));
-        unit = qtyMatch[2].toLowerCase();
-      }
-
-      receiptItemLines.push({
-        id: `item_rec_${idx}_${Date.now()}`,
-        rawName: item.raw,
-        detectedName: item.name,
-        price: item.price,
-        quantity,
-        unit,
-        matchedMappingItemId: mappingItemId,
-        targetMappingId,
-        natureId: 'nat_alimentacao',
-        isNewSuggestedItem: item.isNew || !mappingItemId,
-        newCategoryName: item.isNew ? 'Snacks & Biscoitos' : undefined,
-      });
+    const rawName = head;
+    const learned = matchItemToLearnedRecord(rawName);
+    receiptItemLines.push({
+      id: `item_rec_${receiptItemLines.length}_${stamp}`,
+      rawName,
+      detectedName: rawName,
+      price: prices[prices.length - 1],
+      quantity: qtyMatch ? parseFloat(qtyMatch[1].replace(',', '.')) : undefined,
+      unit: qtyMatch ? qtyMatch[2].toLowerCase() : undefined,
+      matchedMappingItemId: learned?.mappingItemId,
+      targetMappingId: learned?.targetMappingId,
+      natureId: learned?.natureId,
+      isNewSuggestedItem: !learned?.mappingItemId,
     });
-  } else {
-    // Parser dinâmico de itens para outros cupons fiscais
-    const itemRegex = /^(?:[0-9]{3,14}\s+)?([A-Za-zÀ-ÿ0-9\s\/\.\'\-]{4,40}?)\s+([0-9]{1,4}[.,][0-9]{2})$/;
-    let idx = 0;
-
-    for (const line of lines) {
-      if (/total|pagar|troco|dinheiro|cnpj|cupom|itens/i.test(line)) continue;
-      const match = line.match(itemRegex);
-      if (match) {
-        const rawName = match[1].trim();
-        const price = parseFloat(match[2].replace(',', '.'));
-        if (!isNaN(price) && price > 0) {
-          const learned = matchItemToLearnedRecord(rawName);
-          detectedItemNames.push(rawName);
-          receiptItemLines.push({
-            id: `item_rec_${idx++}_${Date.now()}`,
-            rawName,
-            detectedName: rawName,
-            price,
-            matchedMappingItemId: learned?.mappingItemId,
-            targetMappingId: learned?.targetMappingId,
-            natureId: learned?.natureId || 'nat_alimentacao',
-            isNewSuggestedItem: !learned?.mappingItemId,
-          });
-        }
-      }
-    }
   }
 
-  // 3. Valor Total Determinístico
-  // Soma os itens do cupom ou busca valor a pagar explícito
-  let detectedAmount = 268.20; // Valor canônico verificado do cupom São Roque
-  if (receiptItemLines.length > 0) {
-    const sum = Math.round(receiptItemLines.reduce((acc, curr) => acc + curr.price, 0) * 100) / 100;
-    if (sum > 0) {
-      detectedAmount = sum;
-    }
+  const itemsSum = Math.round(receiptItemLines.reduce((acc, it) => acc + it.price, 0) * 100) / 100;
+  const detectedAmount = detectTotal(lines) || itemsSum;
+
+  // Total lido mas itens não: uma linha única, para o usuário poder conciliar mesmo assim
+  if (receiptItemLines.length === 0 && detectedAmount > 0) {
+    receiptItemLines.push({
+      id: `item_rec_0_${stamp}`,
+      rawName: `Compra em ${detectedStore}`,
+      detectedName: `Compra em ${detectedStore}`,
+      price: detectedAmount,
+      isNewSuggestedItem: true,
+    });
   }
 
-  const finalAmount = Math.round(detectedAmount * 100) / 100;
-  const detectedAmountFormatted = finalAmount.toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  });
-
-  // 4. Forma de Pagamento e Troco
-  const suggestedPaymentMethod: 'CARTAO' | 'DEBITO' | 'DINHEIRO' | 'PIX' = 'DINHEIRO';
-  const cashPaid = 315.00;
-  const changeAmount = 46.80;
-
-  // 5. Data
-  const detectedDate = '2026-09-14';
+  const troco = lines.map((l) => (/troco/i.test(l) ? moneyIn(l).pop() : undefined)).find((v) => v);
+  const isCash = suggestedPaymentMethod === 'DINHEIRO';
 
   return {
-    success: true,
+    success: detectedAmount > 0,
     rawText: clean,
     detectedStore,
-    detectedCategory,
-    detectedSubcategory,
-    detectedAmount: finalAmount,
-    detectedAmountFormatted,
-    isEstimatedAmount: false,
+    detectedCategory: '',
+    detectedAmount,
+    detectedAmountFormatted: detectedAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+    isEstimatedAmount: !detectTotal(lines),
     detectedDate,
-    detectedItems: detectedItemNames,
+    detectedItems: receiptItemLines.map((it) => it.detectedName),
     receiptItemLines,
     suggestedPaymentMethod,
-    cashPaid,
-    changeAmount,
-    confidenceText: 'Alta (Detecção Completa de Itens)',
-    natureId,
-    notes: 'Cupom fiscal Supermercado São Roque (Feira de Santana - BA).',
+    cashPaid: isCash && troco ? Math.round((detectedAmount + troco) * 100) / 100 : undefined,
+    changeAmount: isCash ? troco : undefined,
+    confidenceText: itemsSum && Math.abs(itemsSum - detectedAmount) < 0.01 ? 'Alta (itens batem com o total)' : 'Revise os valores',
+    natureId: '',
   };
 }
 
@@ -288,12 +250,10 @@ export function parseReceiptText(
  * Executa o reconhecimento OCR completo na imagem
  */
 export async function recognizeImageOCR(imageUrl: string, userText?: string): Promise<OCRResult> {
-  let hasOrganicTones = false;
   let ocrExtractedText = '';
 
   try {
-    const { processedUrl, dominantFeiraHue } = await preprocessImageForOCR(imageUrl);
-    hasOrganicTones = dominantFeiraHue;
+    const { processedUrl } = await preprocessImageForOCR(imageUrl);
 
     const ocrPromise = (async () => {
       try {
@@ -308,7 +268,7 @@ export async function recognizeImageOCR(imageUrl: string, userText?: string): Pr
     })();
 
     const timeoutPromise = new Promise<string>((resolve) => {
-      setTimeout(() => resolve(''), 8000);
+      setTimeout(() => resolve(''), 60000);
     });
 
     ocrExtractedText = await Promise.race([ocrPromise, timeoutPromise]);
@@ -316,5 +276,5 @@ export async function recognizeImageOCR(imageUrl: string, userText?: string): Pr
     console.warn('Erro ao processar imagem:', err);
   }
 
-  return parseReceiptText(ocrExtractedText, userText, hasOrganicTones);
+  return parseReceiptText(ocrExtractedText, userText);
 }

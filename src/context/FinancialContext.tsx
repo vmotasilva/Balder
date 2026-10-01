@@ -3293,11 +3293,26 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
                 natureId: item.natureId || match.natureId,
                 newCategoryName: item.newCategoryName || match.natureName,
               });
-              totalDetectedAmount += item.price;
             });
+            totalDetectedAmount += res.detectedAmount;
           });
 
           totalDetectedAmount = Math.round(totalDetectedAmount * 100) / 100;
+
+          // Nada legível: avisa em vez de montar um lançamento zerado
+          if (totalDetectedAmount <= 0 && allDetectedItems.length === 0) {
+            setChatHistory((prev) =>
+              prev.filter((m) => m.id !== loadingId).concat({
+                id: `ast_${Date.now()}`,
+                role: 'assistant',
+                content:
+                  '⚠️ Não consegui ler valores nesta foto. Tente de novo com o cupom aberto, bem iluminado e sem reflexo (de preferência de frente, sem inclinar), ou me diga o valor e o local por texto.',
+                timestamp: 'Agora',
+                actionBadge: 'VISÃO COMPUTACIONAL OCR',
+              })
+            );
+            return;
+          }
 
           // Análise de Intenção do Usuário
           const lower = (trimmed + ' ' + (userMessage.content || '')).toLowerCase();
