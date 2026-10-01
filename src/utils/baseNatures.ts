@@ -1,11 +1,18 @@
 import type { ExpenseNature } from '../types';
 
 /** Categorias que o sistema usa por conta própria (faturas, lançamentos sem natureza); nunca viram natureza do usuário. */
-const BASE_CATEGORY_NAMES = new Set(['fatura de cartão', 'não analisada', 'geral', 'outros']);
+const BASE_CATEGORY_NAMES = new Set(['fatura de cartao', 'fatura do cartao', 'nao analisada', 'geral', 'outros']);
+
+const plain = (text: string) =>
+  text
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 
 const RESTORED_MARKER = 'Natureza restaurada automaticamente';
 
-export const isBaseCategoryName = (name: string) => BASE_CATEGORY_NAMES.has(name.trim().toLowerCase());
+export const isBaseCategoryName = (name: string) => BASE_CATEGORY_NAMES.has(plain(name));
 
 /**
  * Natureza de base: criada pelo sistema (recuperada de uma categoria de lançamento sem natureza,
