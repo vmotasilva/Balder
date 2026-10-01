@@ -785,6 +785,45 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                   </button>
                 );
               })}
+
+              {/* Ações da natureza selecionada (o card com nome/descrição fica oculto no celular) */}
+              {selectedNature && (
+                <div className="naturezas-dropdown-actions">
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-sm text-cyan"
+                    onClick={() => {
+                      setIsNatureDropdownOpen(false);
+                      handleOpenEditNature(selectedNature);
+                    }}
+                  >
+                    <Edit2 size={13} />
+                    <span>Editar {selectedNature.name}</span>
+                  </button>
+                  {natures.length > 1 && (
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm text-rose"
+                      onClick={() => {
+                        setIsNatureDropdownOpen(false);
+                        confirmAction({
+                          title: 'Excluir Natureza',
+                          message: `Deseja realmente excluir a natureza "${selectedNature.name}" e todos os seus mapeamentos e itens? Esta ação não pode ser desfeita.`,
+                          confirmLabel: 'Sim, Excluir',
+                          onConfirm: () => {
+                            deleteNature(selectedNature.id);
+                            const next = natures.find((n) => n.id !== selectedNature.id);
+                            if (next) setSelectedNatureId(next.id);
+                          },
+                        });
+                      }}
+                    >
+                      <Trash2 size={13} />
+                      <span>Excluir {selectedNature.name}</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

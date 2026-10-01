@@ -23843,3 +23843,30 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .mapping-card + .mapping-card {
   margin-top: 28px !important;
 }
+
+/* Naturezas no celular: some o card de nome/descrição e fica só a barra de consumo do teto */
+.naturezas-dropdown-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-default);
+}
+
+.naturezas-dropdown-actions .btn {
+  justify-content: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .natureza-kpi-banner .natureza-info-left {
+    display: none;
+  }
+
+  .natureza-kpi-banner .natureza-progress-container {
+    margin-top: 0 !important;
+  }
+}
