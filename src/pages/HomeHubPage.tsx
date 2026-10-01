@@ -12,6 +12,8 @@ import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { useAccountScope } from '../context/AccountScopeContext';
 import { GuidedSetup } from '../components/GuidedSetup';
+import { NatureBudgetGrid } from '../components/NatureBudgetGrid';
+import { GoalsOverview } from '../components/GoalsOverview';
 import { MovementDetailModal } from '../components/MovementDetailModal';
 import { ForsetiActivityModal } from '../components/ForsetiActivityModal';
 import { activityCutoffIso } from '../services/forsetiActivityService';
@@ -144,7 +146,9 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [showAllSpending, setShowAllSpending] = useState(false);
   // No celular, "Para fazer agora" e "Gastos no período" dividem o mesmo espaço, em abas
-  const [homePane, setHomePane] = useState<'FAZER' | 'GASTOS'>('FAZER');
+  const [homePane, setHomePane] = useState<'FAZER' | 'GASTOS' | 'NATUREZAS' | 'METAS'>('FAZER');
+  // No computador "Para fazer agora" fica à esquerda; à direita alternam Gastos, Naturezas e Metas
+  const rightPane = homePane === 'FAZER' ? 'GASTOS' : homePane;
   // Período corrente (semana, quinzena ou mês) só do início até hoje: o que já aconteceu na competência
   const [monthToDate, setMonthToDate] = useState(false);
   // Conta avulsa aberta para revisar natureza, mapeamento e item
@@ -606,14 +610,18 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
       </div>
 
       {/* No computador, os dois cards ficam lado a lado e cabem na tela */}
-      <div className="home-columns" data-pane={homePane}>
-      <div className="home-tabs" role="tablist" aria-label="Seções do Início">
-        <button type="button" role="tab" aria-selected={homePane === 'FAZER'} className={homePane === 'FAZER' ? 'is-active' : ''} onClick={() => setHomePane('FAZER')}>
-          Para fazer agora{tasks.length > 0 ? ` · ${tasks.length}` : ''}
-        </button>
-        <button type="button" role="tab" aria-selected={homePane === 'GASTOS'} className={homePane === 'GASTOS' ? 'is-active' : ''} onClick={() => setHomePane('GASTOS')}>
-          Gastos no período
-        </button>
+      <div className="home-columns" data-pane={homePane} data-right={rightPane}>
+      <div className="home-tabs home-tabs-mobile" role="tablist" aria-label="Seções do Início">
+        {([
+          ['FAZER', `Para fazer${tasks.length > 0 ? ` · ${tasks.length}` : ''}`],
+          ['GASTOS', 'Gastos'],
+          ['NATUREZAS', 'Naturezas'],
+          ['METAS', 'Metas'],
+        ] as const).map(([id, label]) => (
+          <button key={id} type="button" role="tab" aria-selected={homePane === id} className={homePane === id ? 'is-active' : ''} onClick={() => setHomePane(id)}>
+            {label}
+          </button>
+        ))}
       </div>
       {/* O que faço agora? */}
       <section className="home-card home-pane-fazer">
@@ -693,6 +701,18 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
         )}
       </section>
 
+      <div className="home-right">
+      <div className="home-tabs home-tabs-desktop" role="tablist" aria-label="Gastos, naturezas e metas">
+        {([
+          ['GASTOS', spendingTitle],
+          ['NATUREZAS', 'Naturezas'],
+          ['METAS', 'Metas'],
+        ] as const).map(([id, label]) => (
+          <button key={id} type="button" role="tab" aria-selected={rightPane === id} className={rightPane === id ? 'is-active' : ''} onClick={() => setHomePane(id)}>
+            {label}
+          </button>
+        ))}
+      </div>
       {/* Como vão os gastos no período? */}
       <section className="home-card home-pane-gastos">
         <div className="home-card-head">
@@ -879,6 +899,15 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           </>
         )}
       </section>
+
+      <section className="home-card home-pane-naturezas">
+        <NatureBudgetGrid onNavigateToNatures={() => onNavigate('NATUREZAS')} />
+      </section>
+
+      <section className="home-card home-pane-metas">
+        <GoalsOverview onNavigateToGoals={() => onNavigate('METAS')} />
+      </section>
+      </div>
       </div>
 
       {reviewMovementId && (

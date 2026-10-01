@@ -23040,13 +23040,37 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   color: #04202b;
 }
 @media (max-width: 1099px) {
-  .home-columns[data-pane='FAZER'] > .home-pane-gastos,
-  .home-columns[data-pane='GASTOS'] > .home-pane-fazer {
+  .home-right {
+    display: contents;
+  }
+  .home-tabs-desktop {
+    display: none;
+  }
+  .home-columns:not([data-pane='FAZER']) .home-pane-fazer,
+  .home-columns:not([data-pane='GASTOS']) .home-pane-gastos,
+  .home-columns:not([data-pane='NATUREZAS']) .home-pane-naturezas,
+  .home-columns:not([data-pane='METAS']) .home-pane-metas {
     display: none;
   }
 }
 @media (min-width: 1100px) {
-  .home-tabs {
+  .home-tabs-mobile {
+    display: none;
+  }
+  .home-right {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+  }
+  .home-right > .home-card {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .home-columns:not([data-right='GASTOS']) .home-pane-gastos,
+  .home-columns:not([data-right='NATUREZAS']) .home-pane-naturezas,
+  .home-columns:not([data-right='METAS']) .home-pane-metas {
     display: none;
   }
 }
