@@ -114,7 +114,6 @@ import {
   mentionedCard,
   createdMovementsOf,
   canUndoActivity,
-  plainSummary,
   NEW_CARD_DUE_CHIPS,
   OPTION_OTHER_PAYMENT,
   OPTION_REGISTER_CARD,
@@ -1681,8 +1680,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       ...entry,
       id: crypto.randomUUID(),
       at: new Date().toISOString(),
-      request: entry.request.slice(0, 280),
-      result: entry.result.slice(0, 280),
+      request: entry.request.slice(0, 600),
+      // A resposta fica inteira (como apareceu na conversa), para poder ser avaliada
+      result: entry.result.slice(0, 4000),
       ...(viewing ? { planOwnerId: viewing.ownerId, planOwnerName: viewing.ownerName } : {}),
     };
     setForsetiActivity((prev) => [activity, ...prev]);
@@ -3443,6 +3443,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const lower = trimmed.toLowerCase();
 
       const reply = (r: ForsetiReply, extra?: Partial<CopilotMessage>) => {
+        logForsetiActivity({ kind: 'CONVERSA', request: trimmed, result: r.text });
         setChatHistory((prev) => [
           ...prev,
           {
@@ -3761,7 +3762,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           };
           const answer = answerDoubt(doubt, trimmed, data);
           reply(answer);
-          if (doubt !== 'MENU') logForsetiActivity({ kind: 'DUVIDA', request: trimmed, result: plainSummary(answer.text) });
           return;
         }
 
@@ -3804,6 +3804,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         suggestedFollowUps,
       };
 
+      logForsetiActivity({ kind: 'CONVERSA', request: trimmed, result: responseText });
       setChatHistory((prev) => [...prev, assistantMessage]);
     }, 400);
   };

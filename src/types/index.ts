@@ -298,7 +298,7 @@ export interface ForsetiCreatedMovement {
   bank: string;
 }
 
-export type ForsetiActivityKind = 'PAGAMENTO' | 'RECEBIMENTO' | 'CARTAO' | 'CUPOM' | 'FATURA' | 'DUVIDA';
+export type ForsetiActivityKind = 'PAGAMENTO' | 'RECEBIMENTO' | 'CARTAO' | 'CUPOM' | 'FATURA' | 'DUVIDA' | 'CONVERSA';
 
 /** Uma solicitação feita à Forseti: o pedido, o que foi feito, a avaliação e se foi desfeita. */
 export interface ForsetiActivity {

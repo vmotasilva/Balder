@@ -14,7 +14,12 @@ const KIND_ICON: Record<ForsetiActivityKind, string> = {
   CUPOM: '🧾',
   FATURA: '🧾',
   DUVIDA: '❓',
+  CONVERSA: '💬',
 };
+
+/** Mostra a resposta como apareceu na conversa: quebras de linha e **negrito**. */
+const renderBold = (text: string) =>
+  text.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 === 1 ? <strong key={i}>{part}</strong> : <React.Fragment key={i}>{part}</React.Fragment>));
 
 const whenLabel = (iso: string) => {
   const d = new Date(iso);
@@ -80,7 +85,7 @@ export const ForsetiActivityModal: React.FC<{ isOpen: boolean; onClose: () => vo
                 <span className="home-task-title" title={a.request}>
                   “{a.request}”
                 </span>
-                <span className="forseti-activity-result">{a.result}</span>
+                <span className="forseti-activity-result">{renderBold(a.result)}</span>
                 <span className="home-task-meta">
                   {whenLabel(a.at)}
                   {a.planOwnerName ? ` · planejamento de ${a.planOwnerName}` : ''}
