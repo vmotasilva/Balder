@@ -646,7 +646,7 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData): ForsetiR
       }
       const rest = overdue.length + soon.length - Math.min(overdue.length, 6) - Math.min(soon.length, 8);
       return {
-        text: `${parts.join('\n\n')}${rest > 0 ? `\n\n…e mais ${rest} item(ns). A lista completa está no Início, em "Para fazer agora".` : ''}\n\nSe algum já foi pago, é só me contar (ex.: "paguei a energia") para o saldo ficar certo.`,
+        text: `${parts.join('\n\n')}${rest > 0 ? `\n\n…e mais ${rest} item(ns). A lista completa está no Início, em "Em aberto".` : ''}\n\nSe algum já foi pago, é só me contar (ex.: "paguei a energia") para o saldo ficar certo.`,
         badge: 'VENCIMENTOS',
         chips: [CHIP_PAGAR, 'Quanto ainda posso gastar este mês?', CHIP_DUVIDA],
       };

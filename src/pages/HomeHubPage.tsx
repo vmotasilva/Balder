@@ -145,9 +145,9 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   const [spendingNatureId, setSpendingNatureId] = useState<string | null>(null);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [showAllSpending, setShowAllSpending] = useState(false);
-  // No celular, "Para fazer agora" e "Gastos no período" dividem o mesmo espaço, em abas
+  // No celular, "Em aberto" e "Gastos no período" dividem o mesmo espaço, em abas
   const [homePane, setHomePane] = useState<'FAZER' | 'GASTOS' | 'NATUREZAS' | 'METAS'>('FAZER');
-  // No computador "Para fazer agora" fica à esquerda; à direita alternam Gastos, Naturezas e Metas
+  // No computador "Em aberto" fica à esquerda; à direita alternam Gastos, Naturezas e Metas
   const rightPane = homePane === 'FAZER' ? 'GASTOS' : homePane;
   // Período corrente (semana, quinzena ou mês) só do início até hoje: o que já aconteceu na competência
   const [monthToDate, setMonthToDate] = useState(false);
@@ -613,7 +613,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
       <div className="home-columns" data-pane={homePane} data-right={rightPane}>
       <div className="home-tabs home-tabs-mobile" role="tablist" aria-label="Seções do Início">
         {([
-          ['FAZER', `Para fazer${tasks.length > 0 ? ` · ${tasks.length}` : ''}`],
+          ['FAZER', `Em aberto${tasks.length > 0 ? ` · ${tasks.length}` : ''}`],
           ['GASTOS', 'Gastos'],
           ['NATUREZAS', 'Naturezas'],
           ['METAS', 'Metas'],
@@ -626,7 +626,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
       {/* O que faço agora? */}
       <section className="home-card home-pane-fazer">
         <div className="home-card-head">
-          <h2>Para fazer agora</h2>
+          <h2>Em aberto</h2>
           <span>
             {atRoot
               ? tasks.length > 0
