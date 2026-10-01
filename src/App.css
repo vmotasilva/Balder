@@ -22834,3 +22834,68 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 
 .period-mov-list li.is-clickable { cursor: pointer; }
 .period-mov-list li.is-clickable:hover { background: var(--bg-input); }
+
+/* Parcelar / desfazer parcelamento no pop-up de uma despesa */
+.installment-planner {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 0.5rem;
+  padding: 10px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+.installment-planner-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+}
+
+.installment-planner-head .btn {
+  margin-left: auto;
+}
+
+.installment-planner-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.installment-planner-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.installment-planner-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.installment-planner-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 160px;
+  overflow-y: auto;
+  font-size: 0.76rem;
+}
+
+.installment-planner-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 2px;
+  border-top: 1px solid var(--border-default);
+  color: var(--text-muted);
+}
+
+.installment-planner-list li.is-current {
+  color: var(--text-primary);
+  font-weight: 600;
+}

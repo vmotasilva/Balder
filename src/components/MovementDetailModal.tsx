@@ -19,6 +19,7 @@ import { Modal } from './Modal';
 import { InvoiceImportModal } from './InvoiceImportModal';
 import { ConfirmDialog, useConfirmDialog } from './ConfirmDialog';
 import { useFinancial } from '../context/FinancialContext';
+import { InstallmentPlanner } from './InstallmentPlanner';
 import { RecurringChangeDialog, futureRecurringSiblings, type RecurringChangePrompt } from './RecurringChangeDialog';
 import type { Movement, MovementStatus, InvoiceNatureItemBreakdown } from '../types';
 
@@ -1691,8 +1692,13 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
             </div>
           </div>
 
+          {/* Parcelamento: parcelar a compra nas faturas certas ou desfazer */}
+          {(movement.type === 'PAGAR' || (movement.type === 'CARTAO' && !movement.invoiceBreakdown?.length && movement.category !== 'Fatura de Cartão' && movement.category !== 'Não Analisada')) && (
+            <InstallmentPlanner movement={movement} amount={actualAmountNum} onDone={onClose} />
+          )}
+
           {/* Parcelamento: corrige a parcela e o total (vazio = sem parcelamento) */}
-          {(movement.type === 'PAGAR' || movement.type === 'RECEBER') && (
+          {movement.type === 'RECEBER' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '0.25rem', fontSize: '0.78rem' }}>
               <label style={{ color: 'var(--text-muted)' }}>Parcela</label>
               <input
