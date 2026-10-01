@@ -23014,3 +23014,89 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     display: none;
   }
 }
+
+/* Início no celular: abas no lugar dos dois cards empilhados */
+.home-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: var(--radius-md);
+  background: var(--bg-card-elevated);
+  border: 1px solid var(--border-default);
+}
+.home-tabs button {
+  flex: 1;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+.home-tabs button.is-active {
+  background: var(--accent-cyan);
+  color: #04202b;
+}
+@media (max-width: 1099px) {
+  .home-columns[data-pane='FAZER'] > .home-pane-gastos,
+  .home-columns[data-pane='GASTOS'] > .home-pane-fazer {
+    display: none;
+  }
+}
+@media (min-width: 1100px) {
+  .home-tabs {
+    display: none;
+  }
+}
+
+/* Navegação no celular e tablet: barra fixa na base que abre o menu sobre a tela */
+.mobile-nav-bar-label {
+  display: none;
+}
+@media (max-width: 1099px) {
+  .mobile-nav-orb-btn,
+  .mobile-nav-orb-btn:hover,
+  .mobile-nav-orb-btn:active,
+  .mobile-nav-orb-btn.open,
+  .mobile-nav-orb-btn.is-dragging {
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    top: auto !important;
+    width: 100% !important;
+    height: 52px !important;
+    border-radius: 0 !important;
+    border: none !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.18) !important;
+    transform: none !important;
+    cursor: pointer;
+  }
+  .mobile-nav-orb-glow {
+    display: none;
+  }
+  .mobile-nav-orb-inner {
+    gap: 10px;
+  }
+  .mobile-nav-orb-icon {
+    width: 20px;
+    height: 20px;
+  }
+  .mobile-nav-bar-label {
+    display: inline;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  /* O conteúdo não fica escondido atrás da barra */
+  .app-content-viewport {
+    padding-bottom: 72px;
+  }
+}
+@media (max-width: 768px) {
+  /* A folha de navegação sobe a partir da barra */
+  .mobile-nav-sheet {
+    bottom: 52px !important;
+    max-height: calc(96dvh - 52px) !important;
+  }
+}

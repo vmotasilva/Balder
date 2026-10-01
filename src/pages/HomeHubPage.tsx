@@ -154,6 +154,8 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   const [spendingNatureId, setSpendingNatureId] = useState<string | null>(null);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [showAllSpending, setShowAllSpending] = useState(false);
+  // No celular, "Para fazer agora" e "Gastos no período" dividem o mesmo espaço, em abas
+  const [homePane, setHomePane] = useState<'FAZER' | 'GASTOS'>('FAZER');
   // Período corrente (semana, quinzena ou mês) só do início até hoje: o que já aconteceu na competência
   const [monthToDate, setMonthToDate] = useState(false);
   // Conta avulsa aberta para revisar natureza, mapeamento e item
@@ -636,9 +638,17 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
       />
 
       {/* No computador, os dois cards ficam lado a lado e cabem na tela */}
-      <div className="home-columns">
+      <div className="home-columns" data-pane={homePane}>
+      <div className="home-tabs" role="tablist" aria-label="Seções do Início">
+        <button type="button" role="tab" aria-selected={homePane === 'FAZER'} className={homePane === 'FAZER' ? 'is-active' : ''} onClick={() => setHomePane('FAZER')}>
+          Para fazer agora{tasks.length > 0 ? ` · ${tasks.length}` : ''}
+        </button>
+        <button type="button" role="tab" aria-selected={homePane === 'GASTOS'} className={homePane === 'GASTOS' ? 'is-active' : ''} onClick={() => setHomePane('GASTOS')}>
+          Gastos no período
+        </button>
+      </div>
       {/* O que faço agora? */}
-      <section className="home-card">
+      <section className="home-card home-pane-fazer">
         <div className="home-card-head">
           <h2>Para fazer agora</h2>
           <span>
@@ -716,9 +726,9 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
       </section>
 
       {/* Como vão os gastos no período? */}
-      <section className="home-card">
+      <section className="home-card home-pane-gastos">
         <div className="home-card-head">
-          <h2>{isFutureSpending ? `Gastos previstos ${labels.that}` : `Gastos ${spendingWhen}`}</h2>
+          <h2>{isFutureSpending ? 'Gastos previstos no período' : 'Gastos no período'}</h2>
           <div className="home-period-switch" role="group" aria-label="Período de acompanhamento">
             {PERIODS.map((p) => (
               <button

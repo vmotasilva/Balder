@@ -468,6 +468,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ) : (
               <LayoutGrid size={24} className="mobile-nav-orb-icon icon-menu" />
             )}
+            {/* No celular o botão vira uma barra fixa na base, com o nome da tela atual */}
+            <span className="mobile-nav-bar-label">{isMenuOpen ? 'Fechar menu' : `${activeItem.label} · Menu`}</span>
           </div>
           <span className="mobile-nav-orb-glow" />
         </button>
