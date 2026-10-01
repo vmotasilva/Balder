@@ -61,8 +61,11 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
     monthlyClosings,
   } = useFinancial();
 
-  // Mês selecionado para acompanhamento (padrão: Set/2026)
-  const [selectedMonthKey, setSelectedMonthKey] = useState<string>('2026-09');
+  // Mês selecionado para acompanhamento (padrão: mês atual; se não houver competência nele, a primeira disponível)
+  const [pickedMonthKey, setSelectedMonthKey] = useState<string>(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
   // Termo de busca rápida para filtrar naturezas
   const [searchTerm, setSearchTerm] = useState<string>('');
   // Filtro de status: ALL, OVER (Acima do teto), WITHIN (Dentro do teto)
@@ -100,8 +103,10 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
   }, [allRows]);
 
   const currentRow = useMemo(() => {
-    return allRows.find((r) => r.monthKey === selectedMonthKey) || allRows[0];
-  }, [allRows, selectedMonthKey]);
+    return allRows.find((r) => r.monthKey === pickedMonthKey) || allRows[0];
+  }, [allRows, pickedMonthKey]);
+  // Competência efetivamente exibida: os valores das naturezas e o rótulo usam sempre a mesma
+  const selectedMonthKey = currentRow?.monthKey ?? pickedMonthKey;
 
   // Formatação monetária
   const formatBRL = (val?: number) => {
