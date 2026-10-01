@@ -47,7 +47,6 @@ import type { GoalStatusInfo,
   BankAccount,
   CopilotMessage,
   CopilotInteractiveOption,
-  CopilotPendingConfirmation,
   SimulationPresetId,
   SimulationVerdict,
   CustomScenarioInput,
@@ -3278,6 +3277,20 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           let cashPaid: number | undefined;
           let changeAmount: number | undefined;
 
+          // Se o usuário disse do que se trata ("almoço", "refeição"...), isso vale mais que o aprendizado por item
+          const hintNorm = trimmed.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          const mealHint = /almoc|jantar|refeic|restaurante|lanche|marmita|cafe da manha/.test(hintNorm);
+          let hintedNature = matchNatureForTransaction(trimmed, undefined, natures);
+          if (hintedNature.natureId === 'OUTROS' && mealHint) {
+            const mealNature = natures.find((n) =>
+              /refei|restaurante|almoc|lanch|comer fora|alimentacao fora/.test(
+                n.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+              )
+            );
+            if (mealNature) hintedNature = { ...hintedNature, natureId: mealNature.id, natureName: mealNature.name };
+          }
+          const hasHint = hintedNature.natureId !== 'OUTROS' && (hintedNature.confidence >= 0.9 || mealHint);
+
           ocrResults.forEach((res, rIdx) => {
             if (!detectedStore && res.detectedStore) detectedStore = res.detectedStore;
             if (!detectedDate && res.detectedDate) detectedDate = res.detectedDate;
@@ -3290,14 +3303,39 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               allDetectedItems.push({
                 ...item,
                 id: `item_rec_${rIdx}_${iIdx}_${Date.now()}`,
-                natureId: item.natureId || match.natureId,
-                newCategoryName: item.newCategoryName || match.natureName,
+                ...(hasHint
+                  ? {
+                      natureId: hintedNature.natureId,
+                      newCategoryName: hintedNature.natureName,
+                      matchedMappingItemId: undefined,
+                      targetMappingId: undefined,
+                      isNewSuggestedItem: false,
+                    }
+                  : {
+                      natureId: item.natureId || match.natureId,
+                      newCategoryName: item.newCategoryName || match.natureName,
+                    }),
               });
-              totalDetectedAmount += item.price;
             });
+            totalDetectedAmount += res.detectedAmount;
           });
 
           totalDetectedAmount = Math.round(totalDetectedAmount * 100) / 100;
+
+          // Nada legível: avisa em vez de montar um lançamento zerado
+          if (totalDetectedAmount <= 0 && allDetectedItems.length === 0) {
+            setChatHistory((prev) =>
+              prev.filter((m) => m.id !== loadingId).concat({
+                id: `ast_${Date.now()}`,
+                role: 'assistant',
+                content:
+                  '⚠️ Não consegui ler valores nesta foto. Tente de novo com o cupom aberto, bem iluminado e sem reflexo (de preferência de frente, sem inclinar), ou me diga o valor e o local por texto.',
+                timestamp: 'Agora',
+                actionBadge: 'VISÃO COMPUTACIONAL OCR',
+              })
+            );
+            return;
+          }
 
           // Análise de Intenção do Usuário
           const lower = (trimmed + ' ' + (userMessage.content || '')).toLowerCase();
@@ -3330,35 +3368,12 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           if (isInvoiceIntent && targetInvoice) {
             const assocResult = associateReceiptItemsToInvoice(targetInvoice.id, allDetectedItems);
 
-            const itemsSummaryText = allDetectedItems
-              .map(
-                (it) =>
-                  `• **${it.detectedName}**: ${it.price.toLocaleString('pt-BR', {
-                    style: 'currency',
-                    currency: 'BRL',
-                  })} → Natureza: **${it.newCategoryName || 'Alimentação & Mercado'}**`
-              )
-              .join('\n');
-
             const assistantMsg: CopilotMessage = {
               id: `ast_${Date.now()}`,
               role: 'assistant',
-              content: `💳 **Itens Reconhecidos e Associados à Fatura com Sucesso!**\n\nAnalisei ${
-                attachmentsList.length > 1 ? `as **${attachmentsList.length} fotos**` : 'a **foto**'
-              } em espaço temporário e vinculei todos os itens detectados diretamente à fatura do **${
-                targetInvoice.bank
-              }** (${targetInvoice.title}), reduzindo o valor não mapeado:\n\n${itemsSummaryText}\n\n📊 **Resumo da Fatura Atualizada:**\n• **Fatura:** ${targetInvoice.title} (Vencimento ${targetInvoice.dueDate.split('-').reverse().join('/')})\n• **Estabelecimento:** ${
-                detectedStore || 'Diversos'
-              }\n• **Total Mapeado por estas fotos:** **${assocResult.allocatedAmount.toLocaleString('pt-BR', {
-                style: 'currency',
-                currency: 'BRL',
-              })}** (${assocResult.itemsCount} itens)\n• **Saldo Restante Não Mapeado:** **${assocResult.newUnanalyzed.toLocaleString(
-                'pt-BR',
-                { style: 'currency', currency: 'BRL' }
-              )}** ${assocResult.newUnanalyzed <= 0.01 ? '🎉 *(Fatura 100% categorizada!)*' : ''}\n• 🔒 **Espaço Temporário Liberado:** Imagens processadas em buffer efêmero e **descartadas imediatamente** (0 bytes mantidos na memória).\n\nOs itens já estão visíveis na fatura com suas respectivas naturezas orçamentárias.`,
+              content: `💳 **${assocResult.itemsCount} itens** de ${detectedStore || 'cupom'} (${assocResult.allocatedAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}) abatidos da fatura **${targetInvoice.bank}**. Não mapeado restante: **${assocResult.newUnanalyzed.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}**.`,
               timestamp: 'Agora',
               actionBadge: 'FATURA CONCILIADA',
-              suggestedFollowUps: ['Ver Faturas', 'Quanto sobrou para gastar no mês?', 'Anexar mais fotos'],
               receiptReconciliation: {
                 id: `rec_${Date.now()}`,
                 store: detectedStore || 'Comprovantes Fiscais',
@@ -3374,94 +3389,10 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             return;
           }
 
-          // 2. Fluxo Regular com opção prioritária de fatura
-          const dynamicOptions: CopilotInteractiveOption[] = [];
-
-          if (targetInvoice) {
-            const unanalyzedVal = targetInvoice.unanalyzedAmount ?? targetInvoice.amount;
-            dynamicOptions.push({
-              id: 'opt_link_invoice',
-              label: `Abater da Fatura ${targetInvoice.bank} (Não Mapeado)`,
-              icon: '💳',
-              badge: `R$ ${unanalyzedVal.toFixed(2).replace('.', ',')} não mapeado`,
-              description: `Associar os itens e abater do valor não mapeado desta fatura`,
-              payload: { action: 'LINK_TO_INVOICE', invoiceId: targetInvoice.id },
-            });
-          }
-
-          dynamicOptions.push(
-            {
-              id: 'opt_ocr_inter',
-              label: 'Conta Inter (Débito / PIX)',
-              icon: '🟠',
-              badge: 'Conta Corrente',
-              description: 'Debitar imediatamente do saldo em caixa',
-              payload: { bank: 'Inter', type: 'PAGAR', category: 'Alimentação & Mercado' },
-            },
-            {
-              id: 'opt_ocr_cash',
-              label: 'Dinheiro em Espécie',
-              icon: '💵',
-              badge: 'Caixa Físico',
-              description: `Registrar saída de ${totalDetectedAmount.toLocaleString('pt-BR', {
-                style: 'currency',
-                currency: 'BRL',
-              })} em dinheiro`,
-              payload: { bank: 'Dinheiro', type: 'PAGAR', category: 'Alimentação & Mercado' },
-            },
-            {
-              id: 'opt_ocr_adjust',
-              label: 'Ajustar / Conciliar Itens',
-              icon: '✏️',
-              badge: 'Personalizar',
-              description: 'Editar valores, vincular rotinas fixas ou alterar fatura',
-              payload: { action: 'ADJUST_AMOUNT', category: 'Alimentação & Mercado' },
-            }
-          );
-
-          const pendingConfirmation: CopilotPendingConfirmation = {
-            step: 'PAYMENT_METHOD',
-            pendingData: {
-              rawTitle: `${detectedStore || 'Compras'}`,
-              amount: totalDetectedAmount,
-              dueDate: detectedDate || new Date().toISOString().split('T')[0],
-              type: 'CARTAO',
-              category: 'Alimentação & Mercado',
-              notes: `Lançamento extraído via Forseti OCR (${attachmentsList.length} ${
-                attachmentsList.length === 1 ? 'foto' : 'fotos'
-              }).`,
-            },
-            question: 'Em qual conta ou fatura você deseja conciliar esta despesa?',
-            options: dynamicOptions,
-          };
-
-          const ocrItemsText =
-            allDetectedItems.length > 0
-              ? `\n• **Itens / Produtos Reconhecidos (${allDetectedItems.length}):**\n` +
-                allDetectedItems
-                  .map(
-                    (it) =>
-                      `  - **${it.detectedName}**: ${it.price.toLocaleString('pt-BR', {
-                        style: 'currency',
-                        currency: 'BRL',
-                      })} → ${it.newCategoryName || 'Alimentação'}`
-                  )
-                  .join('\n')
-              : '';
-
-          const ocrText = `📄 **Interpretação de ${
-            attachmentsList.length > 1
-              ? `${attachmentsList.length} Fotos / Comprovantes`
-              : 'Foto / Comprovante'
-          } (Forseti OCR):**\n\nAnalisei os anexos através da visão determinística do Balder:\n\n• **Tipo de Registro:** Cupom Fiscal / NFC-e\n• **Estabelecimento:** **${
-            detectedStore || 'Identificado'
-          }**\n• **Data:** ${(detectedDate || '').split('-').reverse().join('/')}\n• **Valor Total dos Itens:** **${totalDetectedAmount.toLocaleString(
-            'pt-BR',
-            {
-              style: 'currency',
-              currency: 'BRL',
-            }
-          )}**${ocrItemsText}\n• 🔒 **Espaço Temporário Liberado:** Os arquivos foram processados em buffer efêmero e **descartados imediatamente** da memória (0 bytes retidos no armazenamento).\n\nVocê pode vincular diretamente à fatura para abater do valor não mapeado ou escolher outra forma de conciliação abaixo:`;
+          // 2. Fluxo regular: uma mensagem curta + o card de conciliação (forma de pagamento e fatura ficam nele)
+          const brlTotal = totalDetectedAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+          const itemsLabel = allDetectedItems.length === 1 ? '1 item' : `${allDetectedItems.length} itens`;
+          const ocrText = `📄 **${detectedStore || 'Cupom'}** · ${(detectedDate || '').split('-').reverse().join('/')} · **${brlTotal}** · ${itemsLabel}\n\nConfira e confirme abaixo.`;
 
           const receiptReconciliation: ReceiptReconciliationData = {
             id: `rec_${Date.now()}`,
@@ -3481,13 +3412,6 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             content: ocrText,
             timestamp: 'Agora',
             actionBadge: 'VISÃO COMPUTACIONAL OCR',
-            suggestedFollowUps: [
-              'Abater da Fatura de Cartão',
-              'Debitar da Conta Inter',
-              'Confirmar no Dinheiro',
-              'Anexar mais fotos',
-            ],
-            pendingConfirmation,
             receiptReconciliation,
           };
 
@@ -4264,10 +4188,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const assistantConfirmMsg: CopilotMessage = {
       id: `ast_${Date.now()}`,
       role: 'assistant',
-      content: `✓ **Cupom Conciliado & Aprendizado Registrado!**\n\nLancei o pagamento de **${data.totalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}** no seu fluxo de caixa via **${data.paymentMethod === 'DINHEIRO' ? 'Dinheiro em Espécie' : data.paymentMethod}**.\n\n📊 **Distribuição nos Gastos Fixos:**\n${routineBreakdown || '• Registrado na categoria Alimentação & Mercado'}\n\n🧠 **Memória do Forseti Atualizada:**\n${newlyMappedCount > 0 ? `• ${newlyMappedCount} novos itens foram adicionados ao seu mapeamento com **quantidade 0** (disponíveis para fácil associação futura).\n` : ''}• Todas as associações e variações de preço deste cupom foram memorizadas no Balder. Da próxima vez que esse cupom ou itens semelhantes forem enviados, a identificação será 100% automática!`,
+      content: `✓ Compra de **${data.totalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}** lançada${routineBreakdown ? `:\n${routineBreakdown}` : '.'}${newlyMappedCount > 0 ? `\n${newlyMappedCount} novos itens mapeados (qtd 0).` : ''}`,
       timestamp: 'Agora',
-      actionBadge: 'CONCILIAÇÃO E APRENDIZADO IA',
-      suggestedFollowUps: ['Ver minhas movimentações', 'Ver grid de naturezas e gastos fixos', 'Anexar outro comprovante'],
+      actionBadge: 'CUPOM CONCILIADO',
     };
 
     setChatHistory((prev) =>
