@@ -23667,3 +23667,62 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     color: #f87171;
   }
 }
+
+/* Cabeçalho do mapeamento no celular, versão 2: linha 1 (título) e linha 2 (Itens | Real | Previsto) */
+@media (max-width: 768px) {
+  .mapping-card-mobile-head {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "row1 menu"
+      "stats expand";
+    gap: 10px 8px;
+    align-items: center;
+  }
+
+  .mapping-card-mobile-head .mmh-row-1 {
+    grid-area: row1;
+  }
+
+  .mapping-card-mobile-head .mmh-menu {
+    grid-area: menu;
+  }
+
+  .mapping-card-mobile-head .mmh-stats {
+    grid-area: stats;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .mapping-card-mobile-head .mmh-expand {
+    grid-area: expand;
+    align-self: end;
+    justify-self: end;
+  }
+
+  .mmh-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    padding: 6px 8px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .mmh-stat-label {
+    font-size: 9.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+  }
+
+  .mmh-stat-value {
+    font-family: var(--font-mono, monospace);
+    font-size: 12.5px;
+    white-space: nowrap;
+  }
+}

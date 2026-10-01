@@ -1487,6 +1487,28 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                               );
                             })();
 
+                    // Real | Previsto do mês atual (mesma conta do selo do desktop) para os blocos do celular
+                    const mobileStats = (() => {
+                      const now = new Date();
+                      const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                      const applies =
+                        !mapping.applicableMonths ||
+                        mapping.applicableMonths.length === 0 ||
+                        mapping.applicableMonths.includes(now.getMonth() + 1);
+                      if (!applies) return { applies, real: 0, planned: mappingTotal };
+                      const split = (mapping.items || []).reduce(
+                        (acc, it) => {
+                          const st = resolveMappingItemMonth(it, monthKey);
+                          if (isExcludedState(st.state)) return acc;
+                          return { real: acc.real + st.paid, planned: acc.planned + st.pending };
+                        },
+                        { real: 0, planned: 0 }
+                      );
+                      return { applies, ...split };
+                    })();
+                    const brlMobile = (v: number) =>
+                      v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
+
                     return (
                       <div
                         key={mapping.id}
@@ -1666,42 +1688,50 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                           </div>
                         </div>
 
-                        {/* Celular: linha 1 = emoji, título, itens, palavras-chave e Detalhado/Resumo; linha 2 = Real | Previsto e expandir; ações no menu de 3 pontos */}
+                        {/* Celular: linha 1 = emoji, título, palavras-chave e Detalhado/Resumo; linha 2 = Itens, Real e Previsto; menu de 3 pontos à direita e expandir no canto inferior direito */}
                         <div className="mapping-card-mobile-head">
-                          <div className="mmh-main">
-                            <div className="mmh-row mmh-row-1">
-                              <span className="mmh-emoji" onClick={() => handleOpenEditMapping(mapping)}>
-                                {mapping.icon || '📋'}
-                              </span>
-                              <h5 className="mmh-title">{mapping.name}</h5>
-                              <span className="badge badge-emerald mmh-count" title={`${mapping.items.length} ${mapping.items.length === 1 ? 'item' : 'itens'}`}>
-                                {mapping.items.length} {mapping.items.length === 1 ? 'item' : 'itens'}
-                              </span>
-                              <button
-                                type="button"
-                                className="mmh-icon-btn text-cyan"
-                                onClick={() => setKeywordsModalMapping(mapping)}
-                                title="Gerenciar palavras-chave da IA"
-                                aria-label="Palavras-chave"
-                              >
-                                <Tag size={14} />
-                              </button>
-                              {modeToggle(true)}
+                          <div className="mmh-row mmh-row-1">
+                            <span className="mmh-emoji" onClick={() => handleOpenEditMapping(mapping)}>
+                              {mapping.icon || '📋'}
+                            </span>
+                            <h5 className="mmh-title">{mapping.name}</h5>
+                            <button
+                              type="button"
+                              className="mmh-icon-btn text-cyan"
+                              onClick={() => setKeywordsModalMapping(mapping)}
+                              title="Gerenciar palavras-chave da IA"
+                              aria-label="Palavras-chave"
+                            >
+                              <Tag size={14} />
+                            </button>
+                            {modeToggle(true)}
+                          </div>
+
+                          <div className="mmh-stats">
+                            <div className="mmh-stat">
+                              <strong className="mmh-stat-value">{mapping.items.length}</strong>
+                              <span className="mmh-stat-label">{mapping.items.length === 1 ? 'item' : 'itens'}</span>
                             </div>
-                            <div className="mmh-row mmh-row-2">
-                              <div className="mmh-values">{rpBadge}</div>
-                              <button
-                                type="button"
-                                className="mmh-icon-btn"
-                                style={{ color: isCollapsed ? '#FCD34D' : '#94A3B8' }}
-                                onClick={() => toggleMappingCollapse(mapping.id)}
-                                title={isCollapsed ? 'Expandir itens deste mapeamento' : 'Recolher itens deste mapeamento'}
-                                aria-label={isCollapsed ? 'Expandir' : 'Recolher'}
-                              >
-                                {isCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
-                              </button>
+                            <div className="mmh-stat">
+                              <span className="mmh-stat-label">Real</span>
+                              <strong className="mmh-stat-value text-emerald">{brlMobile(mobileStats.real)}</strong>
+                            </div>
+                            <div className="mmh-stat">
+                              <span className="mmh-stat-label">Previsto</span>
+                              <strong className="mmh-stat-value text-amber">{brlMobile(mobileStats.planned)}</strong>
                             </div>
                           </div>
+
+                          <button
+                            type="button"
+                            className="mmh-icon-btn mmh-expand"
+                            style={{ color: isCollapsed ? '#FCD34D' : '#94A3B8' }}
+                            onClick={() => toggleMappingCollapse(mapping.id)}
+                            title={isCollapsed ? 'Expandir itens deste mapeamento' : 'Recolher itens deste mapeamento'}
+                            aria-label={isCollapsed ? 'Expandir' : 'Recolher'}
+                          >
+                            {isCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                          </button>
 
                           <div className="mmh-menu">
                             <button
