@@ -18,7 +18,7 @@ import { CopilotPage } from './pages/CopilotPage';
 import { GoalsPage } from './pages/GoalsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { NaturezasPage } from './pages/NaturezasPage';
-import { LoansPage } from './pages/LoansPage';
+import { ContractsPage } from './pages/ContractsPage';
 import { SharedPlanningPage } from './pages/SharedPlanningPage';
 import { OpportunitiesPage } from './pages/OpportunitiesPage';
 import { IosInstallFromLink } from './components/IosInstallModal';
@@ -219,7 +219,7 @@ export function AppContent() {
             <NaturezasPage onOpenNewMovementModal={handleOpenNewMovement} />
           )}
 
-          {shownTab === 'EMPRESTIMOS' && <LoansPage />}
+          {shownTab === 'EMPRESTIMOS' && <ContractsPage />}
 
           {shownTab === 'METAS' && <GoalsPage />}
 

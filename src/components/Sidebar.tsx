@@ -5,7 +5,7 @@ import {
   ArrowLeftRight,
   CreditCard,
   Layers,
-  Landmark,
+  FileText,
   Sparkles,
   Target,
   UserCheck,
@@ -250,10 +250,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'EMPRESTIMOS' as TabId,
-      label: 'Empréstimos',
-      subtitle: 'Contratos & Simulador',
-      icon: Landmark,
-      badge: 'Price',
+      label: 'Contratos',
+      subtitle: 'Empréstimos & Financiamentos',
+      icon: FileText,
+      badge: 'Crédito',
     },
     {
       id: 'COPILOT' as TabId,

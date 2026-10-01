@@ -9,7 +9,7 @@ import {
   CreditCard,
   Layers,
   Target,
-  Landmark,
+  FileText,
   BadgePercent,
   Users,
   CheckCircle2,
@@ -497,7 +497,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     { tab: 'FATURAS', label: 'Faturas', icon: CreditCard, status: moduleStatus.faturas },
     { tab: 'NATUREZAS', label: 'Naturezas', icon: Layers, status: moduleStatus.naturezas },
     { tab: 'METAS', label: 'Metas', icon: Target, status: moduleStatus.metas },
-    { tab: 'EMPRESTIMOS', label: 'Empréstimos', icon: Landmark, status: moduleStatus.emprestimos },
+    { tab: 'EMPRESTIMOS', label: 'Contratos', icon: FileText, status: moduleStatus.emprestimos },
     { tab: 'OPORTUNIDADES', label: 'Oportunidades', icon: BadgePercent, status: { text: 'Preços em queda', tone: '' } },
     { tab: 'COMPARTILHADO', label: 'Planejamento conjunto', icon: Users, status: { text: 'Acompanhe com alguém', tone: 'invite' } },
   ];
