@@ -17,7 +17,7 @@ import {
   Check,
   Settings,
   Users,
-  BadgePercent,
+  ShoppingBag,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useFinancial } from '../context/FinancialContext';
@@ -271,9 +271,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'OPORTUNIDADES' as TabId,
-      label: 'Oportunidades',
-      subtitle: 'Preços em queda',
-      icon: BadgePercent,
+      label: 'Compras',
+      subtitle: 'Realizadas & Oportunidades',
+      icon: ShoppingBag,
       badge: 'Novo',
     },
     {

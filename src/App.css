@@ -22802,3 +22802,32 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   text-align: center;
   padding: 18px 0;
 }
+
+/* Tela Compras: ações em cada compra */
+.purchases-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.purchases-actions .icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.purchases-actions .icon-btn:hover {
+  border-color: var(--accent-cyan);
+  color: var(--text-primary);
+}
+
+.purchases-list li {
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+}

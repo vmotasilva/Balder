@@ -20,7 +20,7 @@ import { ProfilePage } from './pages/ProfilePage';
 import { NaturezasPage } from './pages/NaturezasPage';
 import { ContractsPage } from './pages/ContractsPage';
 import { SharedPlanningPage } from './pages/SharedPlanningPage';
-import { OpportunitiesPage } from './pages/OpportunitiesPage';
+import { PurchasesPage } from './pages/PurchasesPage';
 import { IosInstallFromLink } from './components/IosInstallModal';
 import { NewMovementModal } from './components/NewMovementModal';
 import { NewRecordPickerModal, type NewRecordKind } from './components/NewRecordPickerModal';
@@ -240,7 +240,7 @@ export function AppContent() {
 
           {shownTab === 'METAS' && <GoalsPage />}
 
-          {shownTab === 'OPORTUNIDADES' && <OpportunitiesPage onRegisterPurchase={(t, d) => handleOpenNewMovement(t, d, true)} />}
+          {shownTab === 'OPORTUNIDADES' && <PurchasesPage onRegisterPurchase={(t, d) => handleOpenNewMovement(t, d, true)} />}
 
           {shownTab === 'COMPARTILHADO' && <SharedPlanningPage />}
 

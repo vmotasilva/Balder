@@ -10,7 +10,7 @@ import {
   Layers,
   Target,
   FileText,
-  BadgePercent,
+  ShoppingBag,
   Users,
   CheckCircle2,
   ChevronRight,
@@ -520,7 +520,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     { tab: 'NATUREZAS', label: 'Naturezas', icon: Layers, status: moduleStatus.naturezas },
     { tab: 'METAS', label: 'Metas', icon: Target, status: moduleStatus.metas },
     { tab: 'EMPRESTIMOS', label: 'Contratos', icon: FileText, status: moduleStatus.emprestimos },
-    { tab: 'OPORTUNIDADES', label: 'Oportunidades', icon: BadgePercent, status: { text: 'Preços em queda', tone: '' } },
+    { tab: 'OPORTUNIDADES', label: 'Compras', icon: ShoppingBag, status: { text: 'Confira e ache preços', tone: '' } },
     { tab: 'COMPARTILHADO', label: 'Planejamento conjunto', icon: Users, status: { text: 'Acompanhe com alguém', tone: 'invite' } },
   ];
 
