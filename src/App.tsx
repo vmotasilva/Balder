@@ -105,7 +105,6 @@ export function AppContent() {
   const [recordPickerOpen, setRecordPickerOpen] = useState(false);
   const [newInvoiceSignal, setNewInvoiceSignal] = useState(0);
   const [newLoanSignal, setNewLoanSignal] = useState(0);
-  const [purchaseMode, setPurchaseMode] = useState(false);
   const [defaultMovementType, setDefaultMovementType] = useState<MovementType>('PAGAR');
   const [initialMovementData, setInitialMovementData] = useState<Partial<Movement> | undefined>(undefined);
 
@@ -133,10 +132,8 @@ export function AppContent() {
 
   const handleOpenNewMovement = (
     type: MovementType = 'PAGAR',
-    initialData?: Partial<Movement>,
-    purchase = false
+    initialData?: Partial<Movement>
   ) => {
-    setPurchaseMode(purchase);
     setDefaultMovementType(type);
     setInitialMovementData(initialData);
     setNewMovementModalOpen(true);
@@ -146,7 +143,6 @@ export function AppContent() {
   const handleSelectRecordKind = (kind: NewRecordKind) => {
     setRecordPickerOpen(false);
     if (kind === 'PAGAR' || kind === 'RECEBER') handleOpenNewMovement(kind);
-    else if (kind === 'COMPRA') handleOpenNewMovement('PAGAR', undefined, true);
     else if (kind === 'EMPRESTIMO') {
       handleSelectTab('EMPRESTIMOS');
       setNewLoanSignal((n) => n + 1);
@@ -248,7 +244,7 @@ export function AppContent() {
 
           {shownTab === 'METAS' && <GoalsPage />}
 
-          {shownTab === 'OPORTUNIDADES' && <PurchasesPage onRegisterPurchase={(t, d) => handleOpenNewMovement(t, d, true)} />}
+          {shownTab === 'OPORTUNIDADES' && <PurchasesPage onRegisterPurchase={handleOpenNewMovement} />}
 
           {shownTab === 'COMPARTILHADO' && <SharedPlanningPage />}
 
@@ -299,7 +295,6 @@ export function AppContent() {
         }}
         defaultType={defaultMovementType}
         initialData={initialMovementData}
-        purchase={purchaseMode}
       />
 
       <NewRecordPickerModal

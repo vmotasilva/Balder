@@ -7,6 +7,7 @@ import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { useAccountScope } from '../context/AccountScopeContext';
 import type { MovementType, MovementStatus, Movement, InvoiceNatureItemBreakdown } from '../types';
+import { POPULAR_BANKS } from '../utils/bankBranding';
 import { firstInvoiceDueDate, invoiceDueDates } from '../utils/cardPurchase';
 import { Calendar, Split, Repeat } from 'lucide-react';
 
@@ -21,8 +22,6 @@ interface NewMovementModalProps {
   onClose: () => void;
   defaultType?: MovementType;
   initialData?: Partial<Movement>;
-  /** Registro de compra (à vista ou parcelada): mantém só a saída e libera o parcelamento */
-  purchase?: boolean;
 }
 
 export const NewMovementModal: React.FC<NewMovementModalProps> = ({
@@ -30,7 +29,6 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   onClose,
   defaultType = 'PAGAR',
   initialData,
-  purchase = false,
 }) => {
   const { addMovement, updateMovement, addMultipleMovements, accounts, cards, banks, movements, sharedScenario } = useFinancial();
   const { user } = useAuth();
@@ -48,6 +46,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
       const known = names.find((n) => a.name.toLowerCase().includes(n.toLowerCase()));
       add(a.bankName || known || a.name);
     });
+    if (names.length === 0) POPULAR_BANKS.slice(0, 6).forEach((n) => add(n));
     return names.map((name) => ({
       name,
       card: cards.find((c) => (c.bank || '').toLowerCase() === name.toLowerCase()),
@@ -65,7 +64,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   const showResponsible = hasPartner && !viewing;
 
   // Esta tela só registra contas a receber e a pagar; outros tipos viram a pagar
-  const baseType = (t: MovementType): MovementType => (t === 'RECEBER' && !purchase ? 'RECEBER' : 'PAGAR');
+  const baseType = (t: MovementType): MovementType => (t === 'RECEBER' ? 'RECEBER' : 'PAGAR');
   const [type, setType] = useState<MovementType>(baseType(defaultType));
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
@@ -96,10 +95,16 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
         setDueDate(new Date().toISOString().split('T')[0]);
         setBank(accounts[0]?.name || 'Nubank');
         setCategory(defaultType === 'RECEBER' ? 'Receita' : 'Geral');
-        setStatus(purchase || defaultType === 'RECEBER' ? 'REALIZADA' : 'PREVISTA');
+        setStatus(defaultType === 'RECEBER' ? 'REALIZADA' : 'PREVISTA');
         setNotes('');
       }
-      setInstitution(initialData?.bank || (institutions[0]?.name ?? CASH_IN_HAND));
+      setInstitution(
+        initialData?.bank === CASH_IN_HAND
+          ? CASH_IN_HAND
+          : institutions.find((i) => i.name === initialData?.bank || i.account?.name === initialData?.bank)?.name ??
+              institutions[0]?.name ??
+              CASH_IN_HAND
+      );
       setPayMethod('SALDO');
       setIsInstallment(false);
       setIsRecurring(false);
@@ -108,12 +113,14 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
       setInstallmentValueType('TOTAL');
       setFirstInstallmentRealized(true);
     }
-  }, [isOpen, defaultType, initialData, accounts, purchase]);
+  }, [isOpen, defaultType, initialData, accounts]);
 
   // Repetição mensal (mesmo valor nos meses seguintes) — contas a receber e a pagar
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringMonths, setRecurringMonths] = useState(12);
-  const canRepeat = !purchase;
+  // Compra no cartão vira parcelas nas faturas; a repetição mensal é das demais contas
+  const isPay = type === 'PAGAR';
+  const canRepeat = !(isPay && payMethod === 'CARTAO' && institution !== CASH_IN_HAND);
   const repeating = canRepeat && isRecurring;
 
   // Estados de Parcelamento
@@ -179,7 +186,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
 
   // Compra no cartão: cai direto na fatura do banco (e as parcelas nas faturas seguintes)
   const selectedInstitution = institutions.find((i) => i.name === institution);
-  const cardPurchase = purchase && institution !== CASH_IN_HAND && payMethod === 'CARTAO';
+  const cardPurchase = isPay && institution !== CASH_IN_HAND && payMethod === 'CARTAO';
   const installing = cardPurchase && isInstallment;
   const firstInvoiceDue = cardPurchase
     ? firstInvoiceDueDate(dueDate, selectedInstitution?.card?.closingDay, selectedInstitution?.card?.dueDay)
@@ -309,7 +316,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
         type,
         amount: parsedAmount,
         dueDate,
-        bank: purchase ? (selectedInstitution?.account?.name ?? institution) : bank,
+        bank: isPay ? (selectedInstitution?.account?.name ?? institution) : bank,
         status: submitStatus,
         category,
         notes: notes.trim() || undefined,
@@ -330,16 +337,13 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={purchase ? 'Registrar Compra' : 'Conta a Receber / a Pagar'}
-      subtitle={
-        purchase
-          ? 'Compra à vista ou parcelada, lançada nas saídas do seu fluxo'
-          : 'Adicione uma previsão ou registro financeiro ao seu fluxo'
-      }
+      title="Conta a Pagar / a Receber"
+      subtitle="Adicione uma previsão ou registro financeiro ao seu fluxo"
+
     >
       <form onSubmit={handleSubmit} className="movement-form">
         {/* Type Selector Tabs (compra é sempre saída) */}
-        {!purchase && (
+        {(
           <div className="form-type-selector" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
             <button
               type="button"
@@ -410,7 +414,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
           <div className="form-group flex-1">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
               <label htmlFor="mov-date" style={{ marginBottom: 0 }}>
-                {purchase ? 'Data da compra' : 'Data de Vencimento'}
+                {cardPurchase ? 'Data da compra' : 'Data de Vencimento'}
               </label>
               <div style={{ display: 'flex', gap: '4px' }}>
                 <button
@@ -661,8 +665,8 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
           </div>
         )}
 
-        {/* Compra: banco (ou dinheiro) e depois como foi paga */}
-        {purchase && (
+        {/* Conta a pagar: banco (ou dinheiro) e depois como foi paga */}
+        {isPay && (
           <>
             <div className="form-group">
               <label htmlFor="mov-institution">Banco ou dinheiro</label>
@@ -723,7 +727,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
 
         {/* Bank & Category */}
         <div className="form-row">
-          {!purchase && (
+          {!isPay && (
           <div className="form-group flex-1">
             <label htmlFor="mov-bank">Conta / Cartão / Instituição</label>
             <select
@@ -884,7 +888,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
             Cancelar
           </button>
           <button type="submit" className="btn btn-primary">
-            {repeating ? `Salvar ${recurringMonths} meses` : installing ? `Salvar ${count} Parcelas` : purchase ? (cardPurchase ? 'Lançar na Fatura' : 'Salvar Compra') : 'Salvar Movimentação'}
+            {repeating ? `Salvar ${recurringMonths} meses` : installing ? `Salvar ${count} Parcelas` : cardPurchase ? 'Lançar na Fatura' : 'Salvar Movimentação'}
           </button>
         </div>
       </form>
