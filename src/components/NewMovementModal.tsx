@@ -6,7 +6,8 @@ import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { useAccountScope } from '../context/AccountScopeContext';
-import type { MovementType, MovementStatus, Movement } from '../types';
+import type { MovementType, MovementStatus, Movement, InvoiceNatureItemBreakdown } from '../types';
+import { firstInvoiceDueDate, invoiceDueDates } from '../utils/cardPurchase';
 import { Calendar, Split, Repeat } from 'lucide-react';
 
 // Valores digitados aceitam vírgula ou ponto como decimal ("7.073,70", "7073,70", "7073.70")
@@ -31,9 +32,30 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   initialData,
   purchase = false,
 }) => {
-  const { addMovement, addMultipleMovements, accounts, cards, banks, movements, sharedScenario } = useFinancial();
+  const { addMovement, updateMovement, addMultipleMovements, accounts, cards, banks, movements, sharedScenario } = useFinancial();
   const { user } = useAuth();
   const { viewing } = useAccountScope();
+
+  // Instituições para compras: cada banco aparece uma vez, com a conta e o cartão dele
+  const institutions = React.useMemo(() => {
+    const names: string[] = [];
+    const add = (n?: string) => {
+      if (n && !names.some((x) => x.toLowerCase() === n.toLowerCase())) names.push(n);
+    };
+    banks.forEach((b) => add(b.name));
+    cards.forEach((c) => add(c.bank));
+    accounts.forEach((a) => {
+      const known = names.find((n) => a.name.toLowerCase().includes(n.toLowerCase()));
+      add(a.bankName || known || a.name);
+    });
+    return names.map((name) => ({
+      name,
+      card: cards.find((c) => (c.bank || '').toLowerCase() === name.toLowerCase()),
+      account: accounts.find(
+        (a) => (a.bankName || '').toLowerCase() === name.toLowerCase() || a.name.toLowerCase().includes(name.toLowerCase())
+      ),
+    }));
+  }, [banks, cards, accounts]);
 
   // Receitas no planejamento a dois: quem recebe (só essa pessoa confirma o recebimento)
   const [responsibleId, setResponsibleId] = useState('');
@@ -52,6 +74,9 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   const [category, setCategory] = useState('Geral');
   const [status, setStatus] = useState<MovementStatus>('PREVISTA');
   const [notes, setNotes] = useState('');
+  // Compra: primeiro o banco (ou dinheiro em mãos), depois como foi paga
+  const [institution, setInstitution] = useState(CASH_IN_HAND);
+  const [payMethod, setPayMethod] = useState<'SALDO' | 'CARTAO'>('SALDO');
 
   useEffect(() => {
     if (isOpen) {
@@ -71,9 +96,11 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
         setDueDate(new Date().toISOString().split('T')[0]);
         setBank(accounts[0]?.name || 'Nubank');
         setCategory(defaultType === 'RECEBER' ? 'Receita' : 'Geral');
-        setStatus(defaultType === 'RECEBER' && !purchase ? 'REALIZADA' : 'PREVISTA');
+        setStatus(purchase || defaultType === 'RECEBER' ? 'REALIZADA' : 'PREVISTA');
         setNotes('');
       }
+      setInstitution(initialData?.bank || (institutions[0]?.name ?? CASH_IN_HAND));
+      setPayMethod('SALDO');
       setIsInstallment(false);
       setIsRecurring(false);
       setRecurringMonths(12);
@@ -150,7 +177,14 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
     return dates;
   };
 
-  const installmentDates = getInstallmentDates(dueDate, count);
+  // Compra no cartão: cai direto na fatura do banco (e as parcelas nas faturas seguintes)
+  const selectedInstitution = institutions.find((i) => i.name === institution);
+  const cardPurchase = purchase && institution !== CASH_IN_HAND && payMethod === 'CARTAO';
+  const installing = cardPurchase && isInstallment;
+  const firstInvoiceDue = cardPurchase
+    ? firstInvoiceDueDate(dueDate, selectedInstitution?.card?.closingDay, selectedInstitution?.card?.dueDay)
+    : dueDate;
+  const installmentDates = cardPurchase ? invoiceDueDates(firstInvoiceDue, count) : getInstallmentDates(dueDate, count);
   const firstDueDateFormatted = installmentDates[0]?.split('-').reverse().join('/') || dueDate;
   const lastDueDateFormatted = installmentDates[installmentDates.length - 1]?.split('-').reverse().join('/') || dueDate;
 
@@ -167,7 +201,58 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
     const extra: Partial<Movement> = incomeOwner ? { responsibleId: incomeOwner } : {};
     const submitStatus: MovementStatus = confirmableByMe ? status : 'PREVISTA';
 
-    if (repeating && recurringMonths >= 2) {
+    if (cardPurchase) {
+      const n = installing ? count : 1;
+      const dates = invoiceDueDates(firstInvoiceDue, n);
+      const cleanTitle = title.trim();
+      const itemId = `purchase_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+      const total = installing ? totalInstallmentsAmount : parsedAmount;
+      const each = installing ? perInstallment : parsedAmount;
+      dates.forEach((dateStr, idx) => {
+        const item: InvoiceNatureItemBreakdown = {
+          id: `${itemId}_${idx + 1}`,
+          natureId: 'OUTROS',
+          natureName: 'Outros',
+          description: n > 1 ? `${cleanTitle} (${idx + 1}/${n})` : cleanTitle,
+          amount: each,
+          isAnalyzed: true,
+          installments: n,
+          currentInstallment: idx + 1,
+          finalAmount: total,
+        };
+        const target = movements.find(
+          (inv) =>
+            inv.type === 'CARTAO' &&
+            inv.status === 'PREVISTA' &&
+            (inv.bank || '').trim().toLowerCase() === institution.trim().toLowerCase() &&
+            inv.dueDate.startsWith(dateStr.substring(0, 7))
+        );
+        if (target) {
+          // Usa o que a fatura ainda tem sem detalhar; o que passar disso aumenta o total da fatura
+          const free = target.unanalyzedAmount ?? 0;
+          const extra = Math.max(0, Math.round((each - free) * 100) / 100);
+          updateMovement(target.id, {
+            amount: Math.round((target.amount + extra) * 100) / 100,
+            invoiceBreakdown: [...(target.invoiceBreakdown || []), item],
+            unanalyzedAmount: Math.max(0, Math.round((free - each) * 100) / 100),
+          });
+        } else {
+          const monthName = new Date(`${dateStr}T12:00:00`).toLocaleDateString('pt-BR', { month: 'long' });
+          addMovement({
+            title: `Fatura ${institution} (${monthName.charAt(0).toUpperCase()}${monthName.slice(1)})`,
+            type: 'CARTAO',
+            amount: each,
+            dueDate: dateStr,
+            bank: institution,
+            status: 'PREVISTA',
+            category: 'Fatura de Cartão',
+            notes: notes.trim() || undefined,
+            invoiceBreakdown: [item],
+            unanalyzedAmount: 0,
+          });
+        }
+      });
+    } else if (repeating && recurringMonths >= 2) {
       const groupId = `rec_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
       const dates = getInstallmentDates(dueDate, recurringMonths);
       addMultipleMovements(
@@ -185,7 +270,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
           ...extra,
         }))
       );
-    } else if (isInstallment && count >= 2) {
+    } else if (installing && count >= 2) {
       const groupId = `inst_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
 
       const itemsToAdd: Omit<Movement, 'id'>[] = installmentDates.map((dateStr, idx) => {
@@ -224,7 +309,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
         type,
         amount: parsedAmount,
         dueDate,
-        bank,
+        bank: purchase ? (selectedInstitution?.account?.name ?? institution) : bank,
         status: submitStatus,
         category,
         notes: notes.trim() || undefined,
@@ -292,7 +377,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
         <div className="form-row">
           <div className="form-group flex-1">
             <label htmlFor="mov-amount">
-              {isInstallment && installmentValueType === 'PARCELA' ? 'Valor da Parcela (R$)' : 'Valor (R$)'}
+              {installing && installmentValueType === 'PARCELA' ? 'Valor da Parcela (R$)' : 'Valor (R$)'}
             </label>
             <input
               id="mov-amount"
@@ -325,7 +410,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
           <div className="form-group flex-1">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
               <label htmlFor="mov-date" style={{ marginBottom: 0 }}>
-                {isInstallment ? '1º Vencimento' : 'Data de Vencimento'}
+                {purchase ? 'Data da compra' : 'Data de Vencimento'}
               </label>
               <div style={{ display: 'flex', gap: '4px' }}>
                 <button
@@ -374,7 +459,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
         </div>
 
         {/* SEÇÃO DE PARCELAMENTO (só na compra) */}
-        {purchase && (
+        {cardPurchase && (
         <div className="installment-box glass-card">
           <div className="installment-toggle-row">
             <div className="installment-info-header">
@@ -442,7 +527,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
               </div>
 
               {/* Opção para primeira parcela se status for Realizada */}
-              {status === 'REALIZADA' && (
+              {false && (
                 <div className="installment-first-realized-row mt-2">
                   <label className="checkbox-label">
                     <input
@@ -576,8 +661,69 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
           </div>
         )}
 
+        {/* Compra: banco (ou dinheiro) e depois como foi paga */}
+        {purchase && (
+          <>
+            <div className="form-group">
+              <label htmlFor="mov-institution">Banco ou dinheiro</label>
+              <select
+                id="mov-institution"
+                className="form-select"
+                value={institution}
+                onChange={(e) => {
+                  setInstitution(e.target.value);
+                  if (e.target.value === CASH_IN_HAND) {
+                    setPayMethod('SALDO');
+                    setIsInstallment(false);
+                  }
+                }}
+              >
+                <option value={CASH_IN_HAND}>💵 Dinheiro em mãos</option>
+                {institutions.map((i) => (
+                  <option key={i.name} value={i.name}>
+                    🏦 {i.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {institution !== CASH_IN_HAND && (
+              <div className="form-group">
+                <label>Como foi pago?</label>
+                <div className="form-type-selector" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                  <button
+                    type="button"
+                    className={`type-chip ${payMethod === 'SALDO' ? 'active-pagar' : ''}`}
+                    onClick={() => {
+                      setPayMethod('SALDO');
+                      setIsInstallment(false);
+                    }}
+                  >
+                    Saldo da conta (débito / Pix)
+                  </button>
+                  <button
+                    type="button"
+                    className={`type-chip ${payMethod === 'CARTAO' ? 'active-cc' : ''}`}
+                    onClick={() => setPayMethod('CARTAO')}
+                  >
+                    💳 Cartão de crédito
+                  </button>
+                </div>
+                {cardPurchase && (
+                  <small className="form-hint">
+                    Entra na fatura de {institution} com vencimento em{' '}
+                    {firstInvoiceDue.split('-').reverse().join('/')}
+                    {installing ? `; as demais parcelas seguem nas faturas seguintes` : ''}.
+                  </small>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
         {/* Bank & Category */}
         <div className="form-row">
+          {!purchase && (
           <div className="form-group flex-1">
             <label htmlFor="mov-bank">Conta / Cartão / Instituição</label>
             <select
@@ -631,6 +777,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
               )}
             </select>
           </div>
+          )}
 
           <div className="form-group flex-1">
             <label htmlFor="mov-category">Categoria</label>
@@ -688,7 +835,8 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
           </div>
         )}
 
-        {/* Status Toggle */}
+        {/* Status Toggle (compra no cartão fica prevista na fatura) */}
+        {!cardPurchase && (
         <div className="form-group">
           <label>Status Inicial</label>
           <div className="status-radio-group">
@@ -715,6 +863,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
             </label>
           </div>
         </div>
+        )}
 
         {/* Notes */}
         <div className="form-group">
@@ -735,7 +884,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
             Cancelar
           </button>
           <button type="submit" className="btn btn-primary">
-            {repeating ? `Salvar ${recurringMonths} meses` : isInstallment ? `Salvar ${count} Parcelas` : purchase ? 'Salvar Compra' : 'Salvar Movimentação'}
+            {repeating ? `Salvar ${recurringMonths} meses` : installing ? `Salvar ${count} Parcelas` : purchase ? (cardPurchase ? 'Lançar na Fatura' : 'Salvar Compra') : 'Salvar Movimentação'}
           </button>
         </div>
       </form>
