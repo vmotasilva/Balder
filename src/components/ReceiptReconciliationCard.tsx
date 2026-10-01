@@ -311,10 +311,8 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
             <ShoppingBag size={18} />
           </div>
           <div>
-            <h4 className="rec-title">Conciliação Inteligente de Itens da Nota</h4>
-            <span className="rec-subtitle">
-              Relacione os itens comprados aos gastos fixos. Os preços variam a cada compra e o Forseti memoriza suas associações.
-            </span>
+            <h4 className="rec-title">Itens do cupom</h4>
+            <span className="rec-subtitle">Associe os itens aos gastos fixos; o Forseti memoriza.</span>
           </div>
         </div>
 
@@ -324,7 +322,7 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
           onClick={() => setIsEditingHeader(!isEditingHeader)}
         >
           <Edit2 size={13} />
-          <span>{isEditingHeader ? 'Salvar Cabeçalho' : 'Editar Dados Gerais'}</span>
+          <span>{isEditingHeader ? 'Salvar' : 'Editar'}</span>
         </button>
       </div>
 
@@ -414,9 +412,6 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
             <Sparkles size={13} />
             <span>{items.length} Itens Identificados na Nota</span>
           </div>
-          <span className="items-hint-text">
-            Itens sem mapeamento podem ser cadastrados na hora com <strong>quantidade 0</strong> para facilitar compras futuras.
-          </span>
         </div>
 
         <div className="rec-items-table-wrap">
@@ -499,11 +494,8 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
         <div className="reconciliation-invoice-link-card my-3 p-3.5 rounded-xl border border-cyan-500/25 bg-cyan-950/20 flex flex-col gap-2.5">
           <div className="flex items-center gap-2 text-cyan-400 font-semibold text-xs">
             <CreditCard size={15} />
-            <span>Vincular Itens a uma Fatura de Cartão (Consumir Valor Não Mapeado)</span>
+            <span>Foi no cartão? Abater de uma fatura</span>
           </div>
-          <p className="text-[11px] text-muted leading-relaxed">
-            Se essas fotos pertencem a compras na fatura, você pode associar os itens diretamente à fatura aberta, abatendo o total do valor não mapeado e classificando cada produto na natureza correta.
-          </p>
 
           <div className="flex items-center gap-2.5 flex-wrap">
             <select
@@ -528,7 +520,7 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
               disabled={!selectedInvoiceId}
             >
               <Check size={13} />
-              <span>Abater do Não Mapeado desta Fatura</span>
+              <span>Abater desta fatura</span>
             </button>
           </div>
         </div>
@@ -538,19 +530,13 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
       <div className="reconciliation-footer-action">
         <div className="rec-footer-summary">
           <AlertCircle size={15} className="text-cyan" />
-          <span>
-            Ao confirmar, o Forseti criará o lançamento de{' '}
-            <strong>
-              {totalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-            </strong>
-            , atualizará os valores realizados nos seus gastos fixos e aprenderá essas associações para os próximos cupons.
-          </span>
+          <span>Cria o lançamento e memoriza as associações.</span>
         </div>
 
         <button type="button" className="btn btn-primary rec-confirm-btn" onClick={handleConfirm}>
           <Check size={16} />
           <span>
-            Confirmar Conciliação & Mapeamentos (
+            Confirmar (
             {totalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
           </span>
         </button>
