@@ -385,6 +385,12 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   const spendingWhen = isCurrentSpending ? labels.this : labels.that;
   const nextPeriodLabel = period === 'MES' ? 'Próximo mês' : `Próxima ${labels.name.toLowerCase()}`;
 
+  // "Gastos essa semana", "Gastos essa quinzena", "Gastos no mês"; fora do período atual, "na semana"…
+  const CURRENT_SPENDING: Record<TrackingPeriod, string> = { SEMANA: 'essa semana', QUINZENA: 'essa quinzena', MES: 'no mês' };
+  const spendingTitle = isFutureSpending
+    ? `Gastos previstos ${labels.that}`
+    : `Gastos ${isCurrentSpending ? CURRENT_SPENDING[period] : labels.that}`;
+
   const goToSpending = (offset: number) => {
     setSpendingOffset(offset);
     setExpandedItemId(null);
@@ -637,6 +643,25 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
         movements={periodMovements}
       />
 
+      {/* Período: vale para os dois cards */}
+      <div className="home-period-bar">
+        <div className="home-period-switch" role="group" aria-label="Período de acompanhamento">
+          {PERIODS.map((p) => (
+            <button
+              key={p}
+              type="button"
+              className={p === period ? 'is-active' : ''}
+              onClick={() => {
+                setViewPreferences({ trackingPeriod: p });
+                goToSpending(0);
+              }}
+            >
+              {TRACKING_PERIOD_LABELS[p].name}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* No computador, os dois cards ficam lado a lado e cabem na tela */}
       <div className="home-columns" data-pane={homePane}>
       <div className="home-tabs" role="tablist" aria-label="Seções do Início">
@@ -728,22 +753,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
       {/* Como vão os gastos no período? */}
       <section className="home-card home-pane-gastos">
         <div className="home-card-head">
-          <h2>{isFutureSpending ? 'Gastos previstos no período' : 'Gastos no período'}</h2>
-          <div className="home-period-switch" role="group" aria-label="Período de acompanhamento">
-            {PERIODS.map((p) => (
-              <button
-                key={p}
-                type="button"
-                className={p === period ? 'is-active' : ''}
-                onClick={() => {
-                  setViewPreferences({ trackingPeriod: p });
-                  goToSpending(0);
-                }}
-              >
-                {TRACKING_PERIOD_LABELS[p].name}
-              </button>
-            ))}
-          </div>
+          <h2>{spendingTitle}</h2>
         </div>
         <div className="home-period-nav">
           <button

@@ -23100,3 +23100,9 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     max-height: calc(96dvh - 52px) !important;
   }
 }
+
+/* Período (semana, quinzena, mês) numa linha acima dos dois cards */
+.home-period-bar {
+  display: flex;
+  justify-content: flex-start;
+}
