@@ -23870,3 +23870,66 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     margin-top: 0 !important;
   }
 }
+
+/* Detalhes de recebimento no celular: compacto, sem rolagem */
+.mdm-modal .mdm-rcv-short { display: none; }
+
+@media (max-width: 640px) {
+  .mdm-modal .mdm-rcv-long { display: none; }
+  .mdm-modal .mdm-rcv-short { display: inline; }
+
+  .mdm-modal .mdm-receive > div:first-child {
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+  }
+
+  .mdm-modal .mdm-receive > div:first-child > span {
+    font-size: 0.72rem !important;
+    min-width: 0;
+  }
+
+  .mdm-modal .mdm-receive .btn-xs {
+    padding: 2px 8px !important;
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+
+  .mdm-modal .mdm-payslip {
+    padding: 6px 8px !important;
+    gap: 6px !important;
+  }
+
+  .mdm-modal .mdm-payslip-grid {
+    grid-template-columns: 1fr 1fr 1fr !important;
+    gap: 6px !important;
+  }
+
+  .mdm-modal .mdm-payslip-grid label {
+    display: block;
+    font-size: 0.62rem !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mdm-modal .mdm-payslip-grid .form-input {
+    padding: 3px 4px !important;
+    font-size: 0.74rem !important;
+    min-height: 0;
+  }
+
+  .mdm-modal .mdm-payslip .btn-xs {
+    align-self: flex-start;
+  }
+
+  .mdm-modal .mdm-installment-row {
+    margin-top: 0 !important;
+    gap: 6px !important;
+    font-size: 0.72rem !important;
+  }
+
+  .mdm-modal .mdm-installment-row .form-input {
+    width: 56px !important;
+    padding: 3px 6px !important;
+  }
+}
