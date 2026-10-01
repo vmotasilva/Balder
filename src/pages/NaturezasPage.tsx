@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { parseDecimal, parseMoney } from '../utils/parseDecimal';
 import { useFinancial } from '../context/FinancialContext';
+import { userNatures } from '../utils/baseNatures';
 import { isExcludedState, resolveMappingItemMonth } from '../utils/mappingItemState';
 import { getPendingFixedBills, type PendingFixedBill } from '../utils/fixedBillsAlert';
 import type { Movement, MovementType, FixedExpenseMapping, NatureDetailMode } from '../types';
@@ -48,7 +49,7 @@ interface NaturezasPageProps {
 
 export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, onOpenNewMovementModal }) => {
   const {
-    natures,
+    natures: allNatures,
     movements,
     deleteNature,
     updateMapping,
@@ -68,6 +69,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
     addMovement,
     loadSuggestedMappingsForNature,
   } = useFinancial();
+  const natures = useMemo(() => userNatures(allNatures), [allNatures]);
 
   // Confirm Dialog
   const { confirm: confirmAction, dialogProps: confirmDialogProps } = useConfirmDialog();

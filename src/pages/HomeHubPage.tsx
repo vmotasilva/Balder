@@ -31,6 +31,7 @@ import { MappingPaymentModal, type MappingPaymentTarget } from '../components/Ma
 import { RealizationConfirmModal, realizedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
 import type { ForecastEntry } from '../utils/forecastWindow';
 import { displayName } from '../utils/displayName';
+import { userNatures } from '../utils/baseNatures';
 import { PeriodMovementsModal, isMovementIncome, movementDate, movementValue } from '../components/PeriodMovementsModal';
 
 interface HomeHubPageProps {
@@ -501,7 +502,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
         openInvoices.length > 0
           ? { text: `${openInvoices.length} aberta(s) · ${formatBRL(invoicesTotal)}`, tone: '' }
           : { text: 'Cadastre seu cartão', tone: 'invite' },
-      naturezas: natures.length > 0 ? { text: `${natures.length} naturezas`, tone: '' } : { text: 'Organize seus gastos', tone: 'invite' },
+      naturezas: userNatures(natures).length > 0 ? { text: `${userNatures(natures).length} naturezas`, tone: '' } : { text: 'Organize seus gastos', tone: 'invite' },
       metas:
         activeGoals.length > 0
           ? { text: `${activeGoals.length} ativa(s) · ${goalsProgress}%`, tone: '' }
