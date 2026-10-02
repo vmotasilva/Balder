@@ -40,7 +40,7 @@ export const InstallmentPaymentForm: React.FC<InstallmentPaymentFormProps> = ({
   submitLabel = 'Confirmar pagamento',
 }) => {
   const expected = installment.originalAmount ?? installment.amount;
-  const [paymentDate, setPaymentDate] = useState(todayIso());
+  const [paymentDate, setPaymentDate] = useState(installment.dueDate || todayIso());
   const [typedAmount, setTypedAmount] = useState<number | null>(null);
 
   const validDate = /^\d{4}-\d{2}-\d{2}$/.test(paymentDate);
@@ -69,14 +69,24 @@ export const InstallmentPaymentForm: React.FC<InstallmentPaymentFormProps> = ({
       <div className="installment-pay-grid mb-3">
         <div className="form-group">
           <label htmlFor="inst-pay-date">Data do pagamento</label>
-          <input
-            id="inst-pay-date"
-            type="date"
-            className="form-input"
-            value={paymentDate}
-            onChange={(e) => setPaymentDate(e.target.value)}
-            required
-          />
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
+            <input
+              id="inst-pay-date"
+              type="date"
+              className="form-input"
+              value={paymentDate}
+              onChange={(e) => setPaymentDate(e.target.value)}
+              required
+            />
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={() => setPaymentDate(todayIso())}
+              disabled={paymentDate === todayIso()}
+            >
+              Hoje
+            </button>
+          </div>
         </div>
         <div className="form-group">
           <label htmlFor="inst-pay-amount">Valor pago (R$)</label>
