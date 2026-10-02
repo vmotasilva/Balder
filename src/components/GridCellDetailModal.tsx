@@ -17,6 +17,7 @@ import { Ban,
   Maximize2,
   Minimize2,
   AlertTriangle,
+  Trash2,
   Edit3,
   User,
   Plus,
@@ -72,7 +73,15 @@ import {
 } from './CellDetailViews';
 import { MovementDetailModal } from './MovementDetailModal';
 import { InitialBalancePanel } from './InitialBalancePanel';
-import { RecurringChangeDialog, futureRecurringSiblings, type RecurringChangePrompt } from './RecurringChangeDialog';
+import {
+  SalaryRegimeDialog,
+  salaryBaseTitle,
+  salaryPartTitle,
+  salaryOfCompetence,
+  futureSalaryMonths,
+  type SalaryRegimeResult,
+} from './SalaryRegimeDialog';
+import { ReceiptChangeDialog, futureReceiptSiblings, type ReceiptChangeResult } from './ReceiptChangeDialog';
 import { NewMovementModal } from './NewMovementModal';
 import { LoanInstallmentModal } from './LoanInstallmentModal';
 
@@ -1013,6 +1022,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     activeCheckpoint,
     monthlyClosings,
     addMovement,
+    addMultipleMovements,
     updateMovement,
     deleteMovement,
     banks,
@@ -1305,7 +1315,15 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
   };
 
   // Alteração de valor em série mensal: pergunta se vale para os meses seguintes
-  const [recurringPrompt, setRecurringPrompt] = useState<RecurringChangePrompt | null>(null);
+  const [receiptChange, setReceiptChange] = useState<{
+    movementId: string;
+    previousAmount: number;
+    newAmount: number;
+    futureIds: string[];
+    firstFutureDate?: string;
+  } | null>(null);
+  // Exclusão do recebimento: pergunta antes e, se houver meses seguintes, se eles saem juntos
+  const [deleteAsk, setDeleteAsk] = useState(false);
 
   // Salvar alterações do recebimento editado
   const handleSaveReceipt = () => {
@@ -1352,23 +1370,105 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     }
 
     if (previousMovement && !isCanceled && Math.abs(effectiveAmount - previousMovement.amount) > 0.005) {
-      const futures = futureRecurringSiblings(previousMovement, movements);
-      if (futures.length > 0) {
-        setRecurringPrompt({
-          movementId: previousMovement.id,
-          previousAmount: previousMovement.amount,
-          newAmount: effectiveAmount,
-          futureIds: futures.map((f) => f.id),
-          firstFutureDate: futures[0].dueDate,
-        });
-      }
+      const futures = futureReceiptSiblings(previousMovement, movements);
+      setReceiptChange({
+        movementId: previousMovement.id,
+        previousAmount: previousMovement.amount,
+        newAmount: effectiveAmount,
+        futureIds: futures.map((f) => f.id),
+        firstFutureDate: futures[0]?.dueDate,
+      });
     }
 
     setEditingReceipt(null);
   };
 
+  // Resposta do "por que o valor mudou?": aumento/correção mudam a referência; ajuste pontual não
+  const handleReceiptChangeConfirm = (result: ReceiptChangeResult) => {
+    if (!receiptChange) return;
+    const resetsReference = result.kind !== 'ONE_OFF';
+    updateMovement(receiptChange.movementId, {
+      ...(resetsReference ? { originalAmount: receiptChange.newAmount } : {}),
+      ...(result.reason ? { adjustmentReason: result.reason } : {}),
+    });
+    if (result.applyToFuture) {
+      receiptChange.futureIds.forEach((id) =>
+        updateMovement(id, {
+          amount: receiptChange.newAmount,
+          ...(resetsReference ? { originalAmount: receiptChange.newAmount } : {}),
+        })
+      );
+    }
+    setReceiptChange(null);
+  };
+
+  // Modalidade de recebimento do salário (mensal, em partes) e se vale para os meses seguintes
+  const [regimeOpen, setRegimeOpen] = useState(false);
+  const regimeInfo = useMemo(() => {
+    if (!editingReceipt || editingReceipt.category !== 'Salário' || !editingReceipt.receiptMovementId) return null;
+    const base = salaryBaseTitle(editingReceipt.title);
+    const monthKey = editingReceipt.competenceMonthKey;
+    const current = salaryOfCompetence(movements, base, monthKey).sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+    return {
+      base,
+      monthKey,
+      current,
+      futureMonths: futureSalaryMonths(movements, base, monthKey),
+      hasRealized: current.some((m) => m.status === 'REALIZADA'),
+    };
+  }, [editingReceipt, movements]);
+
+  const handleApplyRegime = (result: SalaryRegimeResult) => {
+    if (!regimeInfo || !editingReceipt) return;
+    const months = [
+      ...(regimeInfo.hasRealized ? [] : [regimeInfo.monthKey]),
+      ...(result.applyToFuture ? regimeInfo.futureMonths : []),
+    ];
+    const stamp = Date.now();
+    const created: Omit<Movement, 'id'>[] = [];
+    months.forEach((monthKey) => {
+      const existing = salaryOfCompetence(movements, regimeInfo.base, monthKey).filter((m) => m.status === 'PREVISTA');
+      existing.forEach((m) => deleteMovement(m.id));
+      const bank = existing[0]?.bank || editingReceipt.bank;
+      const [year, month] = monthKey.split('-').map(Number);
+      const daysInMonth = new Date(year, month, 0).getDate();
+      result.parts.forEach((part, i) => {
+        created.push({
+          title: salaryPartTitle(regimeInfo.base, i, result.parts.length, result.weekly),
+          type: 'RECEBER',
+          amount: part.amount,
+          originalAmount: part.amount,
+          dueDate: `${monthKey}-${String(Math.min(part.day, daysInMonth)).padStart(2, '0')}`,
+          bank,
+          status: 'PREVISTA',
+          category: 'Salário',
+          installmentGroupId: `rec_${stamp}_${i}`,
+        });
+      });
+    });
+    if (created.length > 0) addMultipleMovements(created);
+    setRegimeOpen(false);
+    setEditingReceipt(null);
+  };
+
+  // Meses seguintes que acompanham a exclusão
+  const deleteFutureIds = useMemo(() => {
+    const id = editingReceipt?.receiptMovementId;
+    const movement = id ? movements.find((m) => m.id === id) : undefined;
+    return movement ? futureReceiptSiblings(movement, movements).map((m) => m.id) : [];
+  }, [editingReceipt?.receiptMovementId, movements]);
+
+  const handleDeleteReceipt = (withFuture: boolean) => {
+    if (!editingReceipt?.receiptMovementId) return;
+    deleteMovement(editingReceipt.receiptMovementId);
+    if (withFuture) deleteFutureIds.forEach((id) => deleteMovement(id));
+    setDeleteAsk(false);
+    setEditingReceipt(null);
+  };
+
   // Restaurar o valor original do contrato (remover o override)
   const handleResetToContractDefault = () => {
+    setDeleteAsk(false);
     if (!editingReceipt) return;
     if (editingReceipt.receiptMovementId) {
       deleteMovement(editingReceipt.receiptMovementId);
@@ -3945,6 +4045,12 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
               </div>
             )}
 
+            {regimeInfo && (
+              <button type="button" className="btn btn-outline btn-xs" style={{ alignSelf: 'flex-start' }} onClick={() => setRegimeOpen(true)}>
+                Modalidade de recebimento (mensal, quinzenal, semanal…)
+              </button>
+            )}
+
             {/* SELEÇÃO DO STATUS DO RECEBIMENTO */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary, #cbd5e1)' }}>
@@ -4239,8 +4345,37 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             </div>
 
             {/* AÇÕES DE RODAPÉ */}
+            {deleteAsk && editingReceipt.receiptMovementId ? (
+              <div className="receipt-delete-ask">
+                <strong>Excluir este recebimento?</strong>
+                <div className="receipt-delete-ask-actions">
+                  <button type="button" className="btn btn-outline btn-sm" onClick={() => setDeleteAsk(false)}>
+                    Cancelar
+                  </button>
+                  <button type="button" className="btn btn-danger btn-sm" onClick={() => handleDeleteReceipt(false)}>
+                    {deleteFutureIds.length > 0 ? 'Só este mês' : 'Excluir'}
+                  </button>
+                  {deleteFutureIds.length > 0 && (
+                    <button type="button" className="btn btn-danger btn-sm" onClick={() => handleDeleteReceipt(true)}>
+                      Este e os {deleteFutureIds.length} seguintes
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
             <div className="receipt-footer-row">
-              <div>
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                {editingReceipt.receiptMovementId && (
+                  <button
+                    type="button"
+                    onClick={() => setDeleteAsk(true)}
+                    style={{ fontSize: '11px', color: '#f87171', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
+                    title="Exclui este recebimento"
+                  >
+                    <Trash2 size={12} />
+                    <span>Excluir</span>
+                  </button>
+                )}
                 {editingReceipt.receiptMovementId && (
                   <button
                     type="button"
@@ -4271,6 +4406,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                 </button>
               </div>
             </div>
+            )}
           </div>
         </div>,
         document.body
@@ -4285,21 +4421,27 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         />
       )}
 
-      {/* ALTERAÇÃO DE VALOR EM SÉRIE MENSAL */}
-      {recurringPrompt && (
-        <RecurringChangeDialog
-          prompt={recurringPrompt}
-          onApplyToFuture={() => {
-            recurringPrompt.futureIds.forEach((id) => updateMovement(id, { amount: recurringPrompt.newAmount }));
-            setRecurringPrompt(null);
-          }}
-          onThisMonthOnly={(reason) => {
-            updateMovement(recurringPrompt.movementId, {
-              originalAmount: recurringPrompt.previousAmount,
-              ...(reason.trim() ? { adjustmentReason: reason.trim() } : {}),
-            });
-            setRecurringPrompt(null);
-          }}
+      {regimeOpen && regimeInfo && (
+        <SalaryRegimeDialog
+          baseName={regimeInfo.base}
+          currentTotal={regimeInfo.current.reduce((acc, m) => acc + m.amount, 0)}
+          currentParts={regimeInfo.current.map((m) => ({ amount: m.amount, day: Number(m.dueDate.slice(8, 10)) || 5 }))}
+          hasRealizedThisMonth={regimeInfo.hasRealized}
+          futureCount={regimeInfo.futureMonths.length}
+          onApply={handleApplyRegime}
+          onClose={() => setRegimeOpen(false)}
+        />
+      )}
+
+      {/* MOTIVO DA MUDANÇA DE VALOR E MESES SEGUINTES */}
+      {receiptChange && (
+        <ReceiptChangeDialog
+          previousAmount={receiptChange.previousAmount}
+          newAmount={receiptChange.newAmount}
+          futureCount={receiptChange.futureIds.length}
+          firstFutureDate={receiptChange.firstFutureDate}
+          onConfirm={handleReceiptChangeConfirm}
+          onSkip={() => setReceiptChange(null)}
         />
       )}
 

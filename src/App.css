@@ -24015,3 +24015,38 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .loan-sim-card-values { display: flex; justify-content: space-between; gap: 0.75rem; }
 .loan-sim-card-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .loan-sim-card .row-custom-input { width: 100%; max-width: 140px; }
+
+/* Mudança de valor do recebimento: motivo + meses seguintes */
+.receipt-change-kinds { display: flex; flex-direction: column; gap: 8px; }
+.receipt-change-kind {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.receipt-change-kind span { font-size: 12px; color: var(--text-muted); }
+.receipt-change-kind.is-active { border-color: var(--accent-cyan); background: rgba(56, 189, 248, 0.1); }
+.receipt-change-future { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 13px; cursor: pointer; }
+.receipt-delete-ask {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08));
+}
+.receipt-delete-ask-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+
+/* Modalidade de recebimento do salário */
+.salary-regime-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.salary-regime-parts { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.salary-regime-part { display: flex; align-items: center; gap: 8px; width: 100%; }
+.salary-regime-part-label { min-width: 64px; font-size: 12px; color: var(--text-muted); }
+.salary-regime-part .form-input { min-width: 0; }
+.salary-regime-day { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-muted); }
+.salary-regime-day input { width: 56px; }

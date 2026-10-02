@@ -1,0 +1,223 @@
+import React, { useState } from 'react';
+import { Modal } from './Modal';
+import { DecimalInput } from './DecimalInput';
+import { isSalaryMovement, getSalaryCompetenceKey } from '../utils/projectionMath';
+import type { Movement } from '../types';
+
+export interface SalaryPart {
+  amount: number;
+  day: number;
+}
+
+/** Título sem o sufixo da parte ("(adiantamento)", "(2ª parte)", "(2/3)", "(3ª semana)"). */
+export function salaryBaseTitle(title: string): string {
+  return title
+    .replace(/\s*\((adiantamento|\d+ª parte|\d+\/\d+|\d+ª semana)\)\s*$/i, '')
+    .trim();
+}
+
+/** Título de cada parte conforme a quantidade de partes; 2 partes mantém o padrão do cadastro guiado. */
+export function salaryPartTitle(base: string, index: number, total: number, weekly: boolean): string {
+  if (total === 1) return base;
+  if (total === 2) return index === 0 ? `${base} (adiantamento)` : `${base} (2ª parte)`;
+  return weekly ? `${base} (${index + 1}ª semana)` : `${base} (${index + 1}/${total})`;
+}
+
+/** Recebimentos previstos e já realizados da competência que pertencem a este salário. */
+export function salaryOfCompetence(movements: Movement[], base: string, monthKey: string): Movement[] {
+  return movements.filter(
+    (m) => isSalaryMovement(m) && getSalaryCompetenceKey(m) === monthKey && salaryBaseTitle(m.title) === base
+  );
+}
+
+/** Competências seguintes (YYYY-MM) em que o salário ainda tem lançamentos previstos. */
+export function futureSalaryMonths(movements: Movement[], base: string, monthKey: string): string[] {
+  const keys = new Set<string>();
+  movements.forEach((m) => {
+    if (!isSalaryMovement(m) || m.status !== 'PREVISTA' || salaryBaseTitle(m.title) !== base) return;
+    const key = getSalaryCompetenceKey(m);
+    if (key > monthKey) keys.add(key);
+  });
+  return [...keys].sort();
+}
+
+const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+interface Preset {
+  id: string;
+  label: string;
+  weekly?: boolean;
+  /** Divide o total em partes (a última leva o arredondamento). */
+  build: (total: number) => SalaryPart[];
+}
+
+const splitEqual = (total: number, days: number[]): SalaryPart[] => {
+  const each = Math.floor((total / days.length) * 100) / 100;
+  return days.map((day, i) => ({
+    day,
+    amount: i === days.length - 1 ? Math.round((total - each * (days.length - 1)) * 100) / 100 : each,
+  }));
+};
+
+const PRESETS: Preset[] = [
+  { id: 'MONTHLY', label: 'Mensal', build: (t) => [{ amount: t, day: 5 }] },
+  {
+    id: 'BIWEEKLY',
+    label: 'Quinzenal (2 partes)',
+    build: (t) => {
+      const advance = Math.round(t * 0.4 * 100) / 100;
+      return [
+        { amount: advance, day: 15 },
+        { amount: Math.round((t - advance) * 100) / 100, day: 30 },
+      ];
+    },
+  },
+  { id: 'THREE', label: '3 partes', build: (t) => splitEqual(t, [10, 20, 30]) },
+  { id: 'WEEKLY', label: 'Semanal (4 semanas)', weekly: true, build: (t) => splitEqual(t, [7, 14, 21, 28]) },
+];
+
+export interface SalaryRegimeResult {
+  parts: SalaryPart[];
+  weekly: boolean;
+  applyToFuture: boolean;
+}
+
+interface SalaryRegimeDialogProps {
+  baseName: string;
+  /** Soma do que o salário rende na competência hoje. */
+  currentTotal: number;
+  currentParts: SalaryPart[];
+  /** Já existe recebimento realizado nesta competência: a mudança só vale para os meses seguintes. */
+  hasRealizedThisMonth: boolean;
+  futureCount: number;
+  onApply: (result: SalaryRegimeResult) => void;
+  onClose: () => void;
+}
+
+/**
+ * Modalidade de recebimento do salário: mensal, em partes (quinzenal, semanal ou personalizada) e o caminho de volta.
+ * Pergunta se a mudança vale também para os meses seguintes.
+ */
+export const SalaryRegimeDialog: React.FC<SalaryRegimeDialogProps> = ({
+  baseName,
+  currentTotal,
+  currentParts,
+  hasRealizedThisMonth,
+  futureCount,
+  onApply,
+  onClose,
+}) => {
+  const [parts, setParts] = useState<SalaryPart[]>(currentParts.length > 0 ? currentParts : [{ amount: currentTotal, day: 5 }]);
+  const [weekly, setWeekly] = useState(false);
+  const [applyToFuture, setApplyToFuture] = useState(true);
+
+  const total = Math.round(parts.reduce((acc, p) => acc + (Number(p.amount) || 0), 0) * 100) / 100;
+  const valid = parts.length > 0 && parts.every((p) => p.amount > 0 && p.day >= 1 && p.day <= 31);
+  const mustUseFuture = hasRealizedThisMonth;
+  const willApplyFuture = futureCount > 0 && (mustUseFuture || applyToFuture);
+  const nothingToDo = mustUseFuture && futureCount === 0;
+
+  const setPart = (index: number, patch: Partial<SalaryPart>) =>
+    setParts((prev) => prev.map((p, i) => (i === index ? { ...p, ...patch } : p)));
+
+  const addPart = () => {
+    const last = parts[parts.length - 1];
+    setWeekly(false);
+    setParts([...parts, { amount: 0, day: Math.min(31, (last?.day ?? 0) + 5) }]);
+  };
+
+  return (
+    <Modal isOpen onClose={onClose} title="Modalidade de recebimento" subtitle={baseName} maxWidth="480px">
+      <p className="text-xs text-muted mb-3">
+        Escolha como o salário cai na conta. Para voltar a receber de uma vez, use <strong>Mensal</strong>.
+      </p>
+
+      <div className="salary-regime-presets">
+        {PRESETS.map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            className="btn btn-outline btn-xs"
+            onClick={() => {
+              setParts(preset.build(currentTotal > 0 ? currentTotal : total));
+              setWeekly(!!preset.weekly);
+            }}
+          >
+            {preset.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="salary-regime-parts">
+        {parts.map((part, i) => (
+          <div key={i} className="salary-regime-part">
+            <span className="salary-regime-part-label">
+              {parts.length === 1 ? 'Pagamento' : `${i + 1}ª parte`}
+            </span>
+            <DecimalInput
+              className="form-input form-input-sm"
+              value={part.amount}
+              onValueChange={(amount) => setPart(i, { amount })}
+            />
+            <label className="salary-regime-day">
+              dia
+              <input
+                type="number"
+                min={1}
+                max={31}
+                className="form-input form-input-sm"
+                value={part.day}
+                onChange={(e) => setPart(i, { day: Number(e.target.value) })}
+              />
+            </label>
+            {parts.length > 1 && (
+              <button
+                type="button"
+                className="btn btn-outline btn-xs"
+                aria-label="Remover parte"
+                onClick={() => setParts(parts.filter((_, idx) => idx !== i))}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        ))}
+        <button type="button" className="btn btn-outline btn-xs" onClick={addPart}>
+          + Adicionar parte
+        </button>
+      </div>
+
+      <p className="text-xs mt-3" style={{ color: 'var(--text-secondary)' }}>
+        Total do mês: <strong>{formatBRL(total)}</strong>
+        {Math.abs(total - currentTotal) > 0.005 && <> (hoje: {formatBRL(currentTotal)})</>}
+      </p>
+
+      {hasRealizedThisMonth && (
+        <p className="text-xs mt-2" style={{ color: '#fbbf24' }}>
+          Este mês já tem recebimento realizado, então a mudança vale a partir do mês seguinte.
+        </p>
+      )}
+
+      {futureCount > 0 && !mustUseFuture && (
+        <label className="receipt-change-future">
+          <input type="checkbox" checked={applyToFuture} onChange={(e) => setApplyToFuture(e.target.checked)} />
+          <span>Aplicar também {futureCount === 1 ? 'ao mês seguinte' : `aos ${futureCount} meses seguintes`}</span>
+        </label>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
+        <button type="button" className="btn btn-outline btn-sm" onClick={onClose}>
+          Cancelar
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          disabled={!valid || nothingToDo}
+          onClick={() => onApply({ parts, weekly, applyToFuture: willApplyFuture })}
+        >
+          Aplicar
+        </button>
+      </div>
+    </Modal>
+  );
+};
