@@ -294,6 +294,29 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
     setAction(null);
   };
 
+  // Não precisou pagar estas datas: fecha só elas (pagamento zerado, sem cobrança do restante), sem mexer nas demais
+  const handleNoPaymentNeeded = () => {
+    if (!item || selectedDates.length === 0) return;
+    updateMappingItemState(
+      target.natureId,
+      target.mappingId,
+      target.itemId,
+      registerItemPayment(item, target.monthKey, {
+        paidAt,
+        amount: 0,
+        coveredDates: selectedDates,
+        reason: 'Não precisou ser pago',
+        action: 'QUITADO',
+      })
+    );
+    setFeedback(`${selectedDates.map(formatDate).join(', ')}: marcado como não precisou pagar. As demais datas não mudam.`);
+    setSelectedDates([]);
+    setAmountTouched(false);
+    setReason('');
+    setCustomReason('');
+    setAction(null);
+  };
+
   const handleUndo = (paymentId: string, label: string) => {
     if (!item) return;
     confirmAction({
@@ -593,6 +616,15 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                       <button type="button" className="btn btn-outline btn-sm" onClick={onClose}>
                         Fechar
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        onClick={handleNoPaymentNeeded}
+                        disabled={!item || selectedDates.length === 0}
+                        title="Marca as datas selecionadas como dispensadas, sem afetar as demais"
+                      >
+                        Não precisou pagar
                       </button>
                       <button type="button" className="btn btn-primary btn-sm" onClick={handleRegister} disabled={!canRegister}>
                         Registrar pagamento
