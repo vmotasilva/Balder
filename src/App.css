@@ -1918,7 +1918,7 @@
 .copilot-popup-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1200;
+  z-index: 10300;
   background: rgba(15, 23, 42, 0.65);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -3082,16 +3082,13 @@
 }
 
 .profile-dropdown-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  right: 0;
+  position: fixed;
   background: var(--bg-card-elevated);
   border: 1px solid var(--border-highlight);
   border-radius: var(--radius-lg);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 0 1px rgba(255, 255, 255, 0.1);
   padding: 6px;
-  z-index: 50;
+  z-index: 10150;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -3735,7 +3732,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 9999;
+  z-index: 10200;
   padding: 16px;
   overflow-y: auto;
 }
@@ -6891,7 +6888,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   background: rgba(3, 7, 18, 0.78);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  z-index: 10050;
+  z-index: 10200;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -8782,7 +8779,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 120;
+  z-index: 10300;
   padding: 20px;
 }
 
@@ -13059,7 +13056,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1200;
+  z-index: 10300;
   padding: 1rem;
 }
 
@@ -15209,7 +15206,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .onboarding-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 10200;
   background: rgba(4, 7, 18, 0.82);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
@@ -15686,7 +15683,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .balder-hub-overlay {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: 10200;
   background: rgba(4, 7, 18, 0.78);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -20234,7 +20231,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .info-pop-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 10100;
+  z-index: 10400;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -20751,7 +20748,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .mv-sheet-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 10050;
+  z-index: 10200;
   background: rgba(2, 6, 23, 0.55);
   display: flex;
   align-items: center;
@@ -24067,3 +24064,13 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .salary-month-parts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .salary-part-chip { display: inline-flex; gap: 6px; align-items: baseline; padding: 4px 10px; border: 1px solid var(--border-default); border-radius: 999px; background: transparent; color: var(--text-primary); font-size: 12px; cursor: pointer; }
 .salary-register-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+
+/* Camadas: tela < barra de navegação (10002) < menus suspensos (10150) < janelas (10200) < janelas sobre janelas (10300) < avisos e confirmações (10400).
+   Cartões com blur ou transform criam contexto de empilhamento (Safari); o cartão que contém um menu aberto sobe de camada. */
+.glass-card:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-popover),
+.home-card:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-popover),
+section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-popover) {
+  position: relative;
+  z-index: 60;
+}
+.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-popover { z-index: 9000; }

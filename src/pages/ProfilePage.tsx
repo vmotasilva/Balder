@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -159,10 +160,28 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
 
   const [mobileDropdownOpen, setMobileDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownMenuRef = useRef<HTMLDivElement>(null);
+  // O menu vai para o body (position: fixed): nenhum cartão, blur ou overflow da tela o esconde (Safari incluso)
+  const [menuBox, setMenuBox] = useState<{ top: number; left: number; width: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!mobileDropdownOpen) return;
+    const place = () => {
+      const rect = dropdownRef.current?.querySelector('.profile-dropdown-btn')?.getBoundingClientRect();
+      if (rect) setMenuBox({ top: rect.bottom + 6, left: rect.left, width: rect.width });
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [mobileDropdownOpen]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (dropdownRef.current && !dropdownRef.current.contains(target) && !dropdownMenuRef.current?.contains(target)) {
         setMobileDropdownOpen(false);
       }
     };
@@ -289,8 +308,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
               />
             </button>
 
-            {mobileDropdownOpen && (
-              <div className="profile-dropdown-menu animate-fade-in">
+            {mobileDropdownOpen && menuBox && createPortal(
+              <div
+                ref={dropdownMenuRef}
+                className="profile-dropdown-menu animate-fade-in"
+                style={{ top: menuBox.top, left: menuBox.left, width: menuBox.width, right: 'auto' }}
+              >
                 {PROFILE_NAV_ITEMS.map((item) => {
                   const Icon = item.icon;
                   const isSelected = activeSubTab === item.id;
@@ -330,7 +353,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                   </div>
                   <ChevronRight size={14} className="text-cyan shrink-0" />
                 </button>
-              </div>
+              </div>,
+              document.body
             )}
           </div>
 
