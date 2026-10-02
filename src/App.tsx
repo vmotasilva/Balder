@@ -134,6 +134,8 @@ export function AppContent() {
   };
 
   const handleSelectTab = (tab: TabId) => {
+    // O pedido de "novo empréstimo" vale uma vez; ao navegar, não pode reabrir o simulador
+    setNewLoanSignal(0);
     if (tab === 'COPILOT') {
       setIsCopilotOpen(true);
     } else {

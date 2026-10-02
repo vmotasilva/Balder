@@ -35,12 +35,15 @@ export const ContractsPage: React.FC<{ newLoanSignal?: number }> = ({ newLoanSig
     return (
       <>
         <div className="page-container" style={{ paddingBottom: 0 }}>
-          <button type="button" className="btn btn-outline btn-sm" onClick={() => setOpenKind(null)}>
+          <button type="button" className="btn btn-outline btn-sm" onClick={() => {
+              setOpenKind(null);
+              setAutoOpenSim(false);
+            }}>
             <ArrowLeft size={14} />
             <span>Contratos</span>
           </button>
         </div>
-        <LoansPage openSimulatorSignal={newLoanSignal} />
+        <LoansPage openSimulatorSignal={autoOpenSim ? newLoanSignal : 0} />
       </>
     );
   }
@@ -86,7 +89,10 @@ export const ContractsPage: React.FC<{ newLoanSignal?: number }> = ({ newLoanSig
             className="home-module"
             disabled={!m.kind}
             style={m.kind ? undefined : { opacity: 0.55, cursor: 'default' }}
-            onClick={() => m.kind && setOpenKind(m.kind)}
+            onClick={() => {
+              setAutoOpenSim(false);
+              if (m.kind) setOpenKind(m.kind);
+            }}
           >
             <m.icon size={18} aria-hidden="true" />
             <span className="home-module-label">{m.label}</span>
