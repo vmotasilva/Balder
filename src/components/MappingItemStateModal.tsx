@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { parseMoney } from '../utils/parseDecimal';
 import { Ban,
   CheckCircle2,
-  Clock,
   User,
   Users,
   CalendarRange,
@@ -740,38 +739,25 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
               <div>
                 <Question title={`Como fica ${month}?`}>
                   <Choice
-                    active={realized && !skipped}
-                    onClick={() => {
-                      setRealized(true);
-                      setSkipped(false);
-                    }}
-                    icon={<CheckCircle2 size={16} />}
-                    label="Sim, já foi pago"
-                    hint="Sem pagamentos registrados, conta o valor previsto"
-                    tone="emerald"
-                  />
-                  <Choice
-                    active={!realized && !skipped}
-                    onClick={() => {
-                      setRealized(false);
-                      setSkipped(false);
-                    }}
-                    icon={<Clock size={16} />}
-                    label="Ainda não"
-                    hint="Continua previsto a vencer"
-                    tone="amber"
-                  />
-                  <Choice
                     active={skipped}
                     onClick={() => {
-                      setSkipped(true);
+                      setSkipped((v) => !v);
                       setRealized(false);
                     }}
                     icon={<Ban size={16} />}
-                    label="Não vai acontecer"
-                    hint="Esta compra não ocorre: sai dos valores"
+                    label="Desconsiderar o mês"
+                    hint="Esta compra não ocorre: sai dos valores. Toque de novo para voltar"
                   />
                 </Question>
+
+                {realized && !skipped && (
+                  <p className="text-xs text-muted" style={{ margin: '-6px 0 16px' }}>
+                    Este mês estava marcado como pago sem pagamentos registrados.{' '}
+                    <button type="button" className="link-button" onClick={() => setRealized(false)}>
+                      Remover a marca
+                    </button>
+                  </p>
+                )}
 
                 {skipped && (
                   <input
