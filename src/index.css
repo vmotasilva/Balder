@@ -772,3 +772,17 @@ html {
     font-size: 16px !important;
   }
 }
+
+/* Botão de ação destrutiva: fundo sólido em qualquer tema (o texto branco do tema claro dependia dele) */
+.btn-danger {
+  background: #dc2626;
+  border: 1px solid #b91c1c;
+  color: #ffffff;
+}
+.btn-danger:hover {
+  background: #b91c1c;
+}
+[data-theme="light"] .btn-outline.text-rose {
+  color: #b91c1c;
+  border-color: rgba(185, 28, 28, 0.45);
+}
