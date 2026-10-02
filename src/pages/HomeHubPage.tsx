@@ -14,6 +14,7 @@ import { useAccountScope } from '../context/AccountScopeContext';
 import { GuidedSetup } from '../components/GuidedSetup';
 import { NatureBudgetGrid } from '../components/NatureBudgetGrid';
 import { GoalsOverview } from '../components/GoalsOverview';
+import { ForecastBreakdownModal } from '../components/ForecastBreakdownModal';
 import { SalaryOverview } from '../components/SalaryOverview';
 import { MovementDetailModal } from '../components/MovementDetailModal';
 import { ForsetiActivityModal } from '../components/ForsetiActivityModal';
@@ -468,6 +469,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
 
   // ── Movimentações do período (entradas e saídas, previstas e realizadas) ──
   const [showPeriodMovements, setShowPeriodMovements] = useState(false);
+  const [showForecast, setShowForecast] = useState(false);
   const periodRange = trackingPeriodRange(period);
   const periodMovements = useMemo(
     () =>
@@ -566,10 +568,17 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           <span>Saldo hoje</span>
           <strong>{formatBRL(availableBalance)}</strong>
         </div>
-        <div className="home-stat">
+        <button type="button" className="home-stat is-clickable" onClick={() => setShowForecast(true)}>
           <span>Previsto {labels.end}</span>
           <strong className={periodWindow.projectedBalance < 0 ? 'text-rose' : 'text-emerald'}>{formatBRL(periodWindow.projectedBalance)}</strong>
-        </div>
+          <small>Toque para ver o detalhamento</small>
+        </button>
+        <ForecastBreakdownModal
+          isOpen={showForecast}
+          onClose={() => setShowForecast(false)}
+          period={period}
+          onPeriodChange={(p) => p !== 'DIAS_30' && setViewPreferences({ trackingPeriod: p })}
+        />
         <div className="home-stat">
           <span>Próximo recebimento</span>
           <strong>{nextIncome ? shortDate(nextIncome.dueDate) : '—'}</strong>
