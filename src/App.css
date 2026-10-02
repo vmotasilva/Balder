@@ -23983,3 +23983,14 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     padding: 0.5rem 0.6rem;
   }
 }
+
+/* Simulador no celular: só o essencial à vista; o resto abre em pop-up pelo ícone "i" */
+.sim-mobile-only { display: none; }
+.strategy-buttons { display: contents; }
+.strategy-buttons-pop { display: flex; flex-direction: column; gap: 0.5rem; }
+.strategy-buttons-pop .btn { white-space: normal; text-align: left; justify-content: flex-start; }
+@media (max-width: 640px) {
+  .sim-desktop-only { display: none !important; }
+  .sim-mobile-only { display: inline-flex; align-items: center; vertical-align: middle; }
+  .loan-simulator-view .loan-calc-tag { display: none; }
+}

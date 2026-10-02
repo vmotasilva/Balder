@@ -637,6 +637,23 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
                 <div className="form-group">
                   <label>
                     IOS total (R$) <span className="loan-calc-tag">calculado</span>
+                    <span className="sim-mobile-only">
+                      <InfoButton title="Parcela pela taxa do banco">
+                        <p>
+                          Parcela pela taxa do banco:{' '}
+                          <strong>{summary.calculatedInstallmentValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
+                          {effectiveRate?.ok && (
+                            <>
+                              {' '}· taxa efetiva com IOS:{' '}
+                              <strong>
+                                {(effectiveRate.monthlyInterestRate * 100).toLocaleString('pt-BR', { maximumFractionDigits: 5 })}% a.m.
+                              </strong>
+                            </>
+                          )}
+                        </p>
+                        <p>Os descontos por antecipação usam a taxa do banco.</p>
+                      </InfoButton>
+                    </span>
                   </label>
                   <input
                     type="text"
@@ -651,7 +668,7 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
                   />
                 </div>
 
-                <p className="loan-ios-note col-span-2">
+                <p className="loan-ios-note col-span-2 sim-desktop-only">
                   Parcela pela taxa do banco:{' '}
                   <strong>{summary.calculatedInstallmentValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
                   {effectiveRate?.ok && (
@@ -752,7 +769,7 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
                     />
                   </div>
 
-                  <div className="flex flex-col justify-end">
+                  <div className="flex flex-col justify-end sim-desktop-only">
                     <label style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Atalhos rápidos</label>
                     <div className="flex gap-1.5 flex-wrap">
                       {[0, 1, 3, 6, 12]
@@ -965,7 +982,7 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
             </div>
 
             {/* Painel Superior de KPIs Dinâmicos da Simulação Livre */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
               <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800">
                 <span className="text-xs text-muted block">Saldo Acumulado Projetado</span>
                 <div className="flex items-baseline gap-2 mt-0.5">
@@ -980,12 +997,12 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
                     })}
                   </span>
                   {simAnalysis.totalAccumulatedGain !== 0 && (
-                    <span className="text-[11px] font-semibold text-emerald">
+                    <span className="text-[11px] font-semibold text-emerald sim-desktop-only">
                       (+ {simAnalysis.totalAccumulatedGain.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
                     </span>
                   )}
                 </div>
-                <span className="text-[10px] text-slate-400 block mt-1">
+                <span className="text-[10px] text-slate-400 block mt-1 sim-desktop-only">
                   Cenário Base: {simAnalysis.finalBaseAccumulated.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </span>
               </div>
@@ -998,7 +1015,7 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
                     currency: 'BRL',
                   })}
                 </span>
-                <span className="text-[10px] text-slate-400 block mt-1">
+                <span className="text-[10px] text-slate-400 block mt-1 sim-desktop-only">
                   Descontos por antecipação a valor presente
                 </span>
               </div>
@@ -1011,7 +1028,7 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
                     currency: 'BRL',
                   })}
                 </span>
-                <span className="text-[10px] text-slate-400 block mt-1">
+                <span className="text-[10px] text-slate-400 block mt-1 sim-desktop-only">
                   Contratado: {summary.totalCost.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </span>
               </div>
@@ -1021,7 +1038,7 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
                 <span className="text-base font-mono font-bold text-cyan block mt-0.5">
                   {simAnalysis.modifiedCount} de {summary.termMonths}
                 </span>
-                <span className="text-[10px] text-slate-400 block mt-1">
+                <span className="text-[10px] text-slate-400 block mt-1 sim-desktop-only">
                   Linhas com antecipação ou ajuste livre
                 </span>
               </div>
@@ -1030,8 +1047,9 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
             {/* Presets Rápidos de Simulação em 1 Clique */}
             <div className="flex items-center gap-2 mb-3 pb-3 border-b border-border/30 flex-wrap">
               <span className="text-xs text-slate-400 flex items-center gap-1 font-semibold">
-                <Sparkles size={14} className="text-amber" /> Estratégias Rápidas:
+                <Sparkles size={14} className="text-amber" /> <span>Estratégias Rápidas<span className="sim-desktop-only">:</span></span>
               </span>
+              <span className="sim-desktop-only strategy-buttons">
               <button
                 type="button"
                 className="btn btn-primary btn-xs text-xs font-semibold"
@@ -1067,6 +1085,48 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
               >
                 ⏸️ Carência 2 Meses (Pausar)
               </button>
+              </span>
+              <span className="sim-mobile-only">
+                <InfoButton title="Estratégias rápidas">
+                  <div className="strategy-buttons strategy-buttons-pop">
+              <button
+                type="button"
+                className="btn btn-primary btn-xs text-xs font-semibold"
+                onClick={handlePrepayBonusMonth}
+                title="Aproveita o 13º salário de Dezembro/2026 (Mês 3) para abater as 3 últimas parcelas (13, 14 e 15) com desconto máximo de tempo"
+              >
+                🌟 13º Salário: Antecipar 3 Últimas no Mês 3 (Dez/2026)
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline btn-xs text-xs"
+                onClick={() => handlePrepayLastN(1)}
+                title="Simula antecipar a última parcela (Mês 15) hoje no Mês 1 com desconto máximo de juros futuros"
+              >
+                ⚡ Antecipar Parcela 15 no Mês 1
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline btn-xs text-xs"
+                onClick={() => handlePrepayLastN(5)}
+                title="Simula antecipar as 5 últimas parcelas no Mês 1 reduzindo os juros mais longos"
+              >
+                🎯 Antecipar 5 Últimas Parcelas
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline btn-xs text-xs"
+                onClick={() => {
+                  handleSetRowMode(1, 'PAUSAR');
+                  handleSetRowMode(2, 'PAUSAR');
+                }}
+                title="Simula carência nos 2 primeiros meses"
+              >
+                ⏸️ Carência 2 Meses (Pausar)
+              </button>
+                  </div>
+                </InfoButton>
+              </span>
               {simAnalysis.modifiedCount > 0 && (
                 <button
                   type="button"
