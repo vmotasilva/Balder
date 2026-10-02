@@ -7,7 +7,7 @@ export interface LoanSpreadsheetInput {
   contractDate: string;        // 'YYYY-MM-DD', ex: '2026-10-03'
   firstDueDate: string;        // 'YYYY-MM-DD', ex: '2026-10-15'
   simulationDate?: string;     // 'YYYY-MM-DD', default hoje ou data de contratação
-  /** Parcela cobrada pelo banco. A diferença para a parcela pela taxa é o IOS. */
+  /** Parcela cobrada pelo banco. A diferença para a parcela pela taxa é o IOF. */
   installmentValueOverride?: number;
 }
 
@@ -98,14 +98,14 @@ export function calculateLoanSpreadsheet(input: LoanSpreadsheetInput): {
   // PMT = adjustedPrincipal * (i / (1 - (1+i)^-n))
   const discountFactor = 1 - Math.pow(1 + i, -n);
   const calculatedInstallment = discountFactor > 0 ? (adjustedPrincipal * i) / discountFactor : 0;
-  // Parcela efetivamente paga: a cobrada pelo banco, quando informada (inclui o IOS)
+  // Parcela efetivamente paga: a cobrada pelo banco, quando informada (inclui o IOF)
   const override = input.installmentValueOverride;
   const installmentValue = override && override > 0 ? override : calculatedInstallment;
-  // IOS em centavos, como aparece para o usuário (parcela cobrada − parcela pela taxa, ambas arredondadas)
+  // IOF em centavos, como aparece para o usuário (parcela cobrada − parcela pela taxa, ambas arredondadas)
   const iosPerInstallment = Math.round(installmentValue * 100) / 100 - Math.round(calculatedInstallment * 100) / 100;
 
   const totalCost = installmentValue * n;
-  // Juros pela taxa do banco; o IOS fica separado
+  // Juros pela taxa do banco; o IOF fica separado
   const totalInterest = calculatedInstallment * n - principalAmount;
 
   // Linha 0 (Saldo Devedor Inicial)

@@ -102,7 +102,7 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
 
   // Parâmetros do Simulador (default idêntico aos valores do arquivo Simulador Emprestimo.xlsx)
   // Taxa e parcela vêm do banco e são informadas pelo usuário. A diferença entre a parcela cobrada e a
-  // parcela pela taxa é o IOS; as antecipações usam sempre a taxa do banco.
+  // parcela pela taxa é o IOF; as antecipações usam sempre a taxa do banco.
   const [params, setParams] = useState<LoanSpreadsheetInput>({
     principalAmount: 42000,
     monthlyInterestRate: 0.03612, // 3.612% a.m.
@@ -113,7 +113,7 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
     installmentValueOverride: 0,
   });
   const typedInstallment = params.installmentValueOverride || 0;
-  // Taxa efetiva embutida na parcela cobrada (inclui o IOS), só para acompanhamento
+  // Taxa efetiva embutida na parcela cobrada (inclui o IOF), só para acompanhamento
   const effectiveRate = useMemo(
     () => (typedInstallment > 0 ? solveMonthlyRateForInstallment(params, typedInstallment) : null),
     [params, typedInstallment]
@@ -486,7 +486,7 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
         bank: 'Inter',
         status: isPaidPast ? 'REALIZADA' : 'PREVISTA',
         category: 'Empréstimos',
-        notes: `Tabela Price. Taxa ${(params.monthlyInterestRate * 100).toFixed(5)}% a.m. Amortização: R$ ${row.amortizationValue.toFixed(2)} | Juros: R$ ${row.interestValue.toFixed(2)} | IOS: R$ ${summary.iosPerInstallment.toFixed(2)}${isPaidPast ? ' (Quitada anteriormente)' : ''}`,
+        notes: `Tabela Price. Taxa ${(params.monthlyInterestRate * 100).toFixed(5)}% a.m. Amortização: R$ ${row.amortizationValue.toFixed(2)} | Juros: R$ ${row.interestValue.toFixed(2)} | IOF: R$ ${summary.iosPerInstallment.toFixed(2)}${isPaidPast ? ' (Quitada anteriormente)' : ''}`,
         interestRatePercent: params.monthlyInterestRate * 100,
         installmentNumber: row.month,
         installmentsTotal: summary.termMonths,
@@ -619,7 +619,7 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
 
                 <div className="form-group">
                   <label>
-                    IOS por parcela (R$) <span className="loan-calc-tag">calculado</span>
+                    IOF por parcela (R$) <span className="loan-calc-tag">calculado</span>
                   </label>
                   <input
                     type="text"
@@ -636,7 +636,7 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
 
                 <div className="form-group">
                   <label>
-                    IOS total (R$) <span className="loan-calc-tag">calculado</span>
+                    IOF total (R$) <span className="loan-calc-tag">calculado</span>
                     <span className="sim-mobile-only">
                       <InfoButton title="Parcela pela taxa do banco">
                         <p>
@@ -644,7 +644,7 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
                           <strong>{summary.calculatedInstallmentValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
                           {effectiveRate?.ok && (
                             <>
-                              {' '}· taxa efetiva com IOS:{' '}
+                              {' '}· taxa efetiva com IOF:{' '}
                               <strong>
                                 {(effectiveRate.monthlyInterestRate * 100).toLocaleString('pt-BR', { maximumFractionDigits: 5 })}% a.m.
                               </strong>
@@ -664,7 +664,7 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
                         ? summary.iosTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
                         : '—'
                     }
-                    title={`IOS nas ${params.termMonths} parcelas`}
+                    title={`IOF nas ${params.termMonths} parcelas`}
                   />
                 </div>
 
@@ -673,7 +673,7 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
                   <strong>{summary.calculatedInstallmentValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>
                   {effectiveRate?.ok && (
                     <>
-                      {' '}· taxa efetiva com IOS:{' '}
+                      {' '}· taxa efetiva com IOF:{' '}
                       <strong>
                         {(effectiveRate.monthlyInterestRate * 100).toLocaleString('pt-BR', { maximumFractionDigits: 5 })}% a.m.
                       </strong>
@@ -849,7 +849,7 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
                 {typedInstallment > 0 && (
                   <div className="summary-metric-row">
                     <span className="metric-label">
-                      IOS ({params.termMonths}× {summary.iosPerInstallment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}):
+                      IOF ({params.termMonths}× {summary.iosPerInstallment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}):
                     </span>
                     <span className="metric-value text-amber font-semibold">
                       {summary.iosTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
@@ -1138,7 +1138,137 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
               )}
             </div>
 
-            <div className="spreadsheet-table-wrapper">
+            {/* Celular: uma carta por parcela no lugar da grade */}
+            <div className="sim-mobile-block loan-sim-cards">
+              {gridMode === 'CASHFLOW_IMPACT'
+                ? simAnalysis.simulatedRows
+                    .filter((row) => row.month > 0)
+                    .map((row) => {
+                      const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                      const hasAdvances = !!row.advancesInThisMonth && row.advancesInThisMonth.length > 0;
+                      return (
+                        <div
+                          key={row.month}
+                          className={`loan-sim-card ${row.simMode !== 'NORMAL' || row.isPrepaidPrior ? 'is-modified' : ''}`}
+                        >
+                          <div className="loan-sim-card-head">
+                            <strong>Parcela {row.month}</strong>
+                            <span className="text-muted font-mono">{row.dueDate}</span>
+                            <InfoButton title={`Parcela ${row.month} — detalhes`}>
+                              <p>Parcela base: <strong>{row.installmentValue > 0 ? brl(row.installmentValue) : '-'}</strong></p>
+                              <p>Saldo do mês (simulado): <strong>{brl(row.monthNetSimulated)}</strong></p>
+                              <p>Alívio / impacto: <strong>{brl(row.isPrepaidPrior ? row.installmentValue : row.deltaMonthNet)}</strong></p>
+                              <p>Economia de juros: <strong>{row.savings > 0 && !row.isPrepaidPrior ? brl(row.savings) : '-'}</strong></p>
+                            </InfoButton>
+                          </div>
+                          <div className="loan-sim-card-values">
+                            <div>
+                              <span className="text-xs text-muted block">A pagar</span>
+                              {row.isPrepaidPrior ? (
+                                <span className="text-emerald-400 font-bold text-sm">R$ 0,00 (quitada)</span>
+                              ) : row.simMode === 'CUSTOM' && !hasAdvances ? (
+                                <DecimalInput
+                                  className="row-custom-input font-mono"
+                                  value={row.customAmount !== undefined ? row.customAmount : row.installmentValue}
+                                  onValueChange={(v) => handleSetRowMode(row.month, 'CUSTOM', v)}
+                                />
+                              ) : (
+                                <strong className="font-mono text-white">{brl(row.effectivePayment)}</strong>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <span className="text-xs text-muted block">Saldo acumulado</span>
+                              <strong className={`font-mono ${row.accumulatedSimulated < 0 ? 'val-deficit' : 'val-surplus-gold'}`}>
+                                {brl(row.accumulatedSimulated)}
+                              </strong>
+                            </div>
+                          </div>
+                          {row.isPrepaidPrior ? (
+                            <button
+                              type="button"
+                              className="btn btn-outline btn-xs text-rose border-rose/30"
+                              onClick={() => handleCancelPrepay(row.month)}
+                            >
+                              ✕ Reverter quitação (mês {row.prepaidInMonth})
+                            </button>
+                          ) : (
+                            <div className="loan-sim-card-actions">
+                              <button
+                                type="button"
+                                className={`btn-row-sim ${row.simMode === 'NORMAL' && !hasAdvances ? 'active-normal' : ''}`}
+                                onClick={() => handleSetRowMode(row.month, 'NORMAL')}
+                              >
+                                Normal
+                              </button>
+                              <button
+                                type="button"
+                                className={`btn-row-sim ${row.simMode === 'PAUSAR' ? 'active-pausar' : ''}`}
+                                onClick={() => handleSetRowMode(row.month, 'PAUSAR')}
+                              >
+                                ⏸️ Pausar
+                              </button>
+                              <button
+                                type="button"
+                                className={`btn-row-sim ${row.simMode === 'CUSTOM' ? 'active-custom' : ''}`}
+                                onClick={() =>
+                                  handleSetRowMode(
+                                    row.month,
+                                    'CUSTOM',
+                                    row.customAmount !== undefined ? row.customAmount : row.installmentValue
+                                  )
+                                }
+                              >
+                                ✏️ Livre
+                              </button>
+                              {row.month < summary.termMonths && (
+                                <button
+                                  type="button"
+                                  className={`btn-row-sim ${hasAdvances ? 'active-antecipar font-bold' : 'border-emerald/40 text-emerald'}`}
+                                  onClick={() => setPrepayModalMonth(row.month)}
+                                >
+                                  {hasAdvances ? `⚡ +${row.advancesInThisMonth?.length}` : '⚡ Antecipar'}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                : rows
+                    .filter((row) => row.month > 0)
+                    .map((row) => {
+                      const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                      return (
+                        <div key={row.month} className="loan-sim-card">
+                          <div className="loan-sim-card-head">
+                            <strong>Parcela {row.month}</strong>
+                            <span className="text-muted font-mono">{row.dueDate}</span>
+                            <InfoButton title={`Parcela ${row.month} — detalhes`}>
+                              <p>Juros: <strong>{row.interestValue > 0 ? brl(row.interestValue) : '-'}</strong></p>
+                              <p>Amortização: <strong>{row.amortizationValue > 0 ? brl(row.amortizationValue) : '-'}</strong></p>
+                              <p>Valor p/ quitar hoje: <strong>{row.payoffTodayValue > 0 ? brl(row.payoffTodayValue) : '-'}</strong></p>
+                              <p>Economia ao antecipar: <strong>{row.savingsAtAdvance > 0 ? brl(row.savingsAtAdvance) : '-'}</strong></p>
+                              <p>Data da simulação: <strong>{row.simDate || '-'}</strong></p>
+                              <p>N (meses): <strong>{row.monthsDiff !== undefined && row.monthsDiff > 0 ? row.monthsDiff : '-'}</strong></p>
+                              <p>Valor deságio: <strong>{row.discountedPayoff !== undefined && row.discountedPayoff > 0 ? brl(row.discountedPayoff) : '-'}</strong></p>
+                            </InfoButton>
+                          </div>
+                          <div className="loan-sim-card-values">
+                            <div>
+                              <span className="text-xs text-muted block">Parcela</span>
+                              <strong className="font-mono text-white">{row.installmentValue > 0 ? brl(row.installmentValue) : '-'}</strong>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-xs text-muted block">Saldo devedor</span>
+                              <strong className="font-mono text-cyan">{brl(row.balanceRemaining)}</strong>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+            </div>
+
+            <div className="spreadsheet-table-wrapper sim-desktop-only">
               <table className="spreadsheet-table">
                 <thead>
                   {gridMode === 'CASHFLOW_IMPACT' ? (

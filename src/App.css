@@ -23994,3 +23994,24 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   .sim-mobile-only { display: inline-flex; align-items: center; vertical-align: middle; }
   .loan-simulator-view .loan-calc-tag { display: none; }
 }
+
+/* Cartas por parcela do simulador (só no celular) */
+.sim-mobile-block { display: none; }
+@media (max-width: 640px) {
+  .sim-mobile-block { display: flex; flex-direction: column; gap: 0.6rem; }
+}
+.loan-sim-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  background: var(--bg-card);
+}
+.loan-sim-card.is-modified { border-color: var(--accent-cyan); }
+.loan-sim-card-head { display: flex; align-items: center; gap: 0.5rem; }
+.loan-sim-card-head .info-btn { margin-left: auto; }
+.loan-sim-card-values { display: flex; justify-content: space-between; gap: 0.75rem; }
+.loan-sim-card-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.loan-sim-card .row-custom-input { width: 100%; max-width: 140px; }

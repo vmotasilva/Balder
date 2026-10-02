@@ -111,7 +111,7 @@ export interface LoanSpreadsheetSummary {
   installmentValue: number;    // R$ 3.598,88 (parcela cobrada pelo banco, quando informada)
   calculatedInstallmentValue: number; // parcela pela Tabela Price com a taxa do banco
   iosPerInstallment: number;   // parcela cobrada − parcela pela taxa
-  iosTotal: number;            // IOS em todas as parcelas
+  iosTotal: number;            // IOF em todas as parcelas
   totalCost: number;           // R$ 53.983,16
   totalInterest: number;       // R$ 11.983,16
   totalPayoffToday: number;    // R$ 42.000,00
