@@ -23049,7 +23049,8 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   .home-columns:not([data-pane='FAZER']) .home-pane-fazer,
   .home-columns:not([data-pane='GASTOS']) .home-pane-gastos,
   .home-columns:not([data-pane='NATUREZAS']) .home-pane-naturezas,
-  .home-columns:not([data-pane='METAS']) .home-pane-metas {
+  .home-columns:not([data-pane='METAS']) .home-pane-metas,
+  .home-columns:not([data-pane='SALARIO']) .home-pane-salario {
     display: none;
   }
 }
@@ -23070,7 +23071,8 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   }
   .home-columns:not([data-right='GASTOS']) .home-pane-gastos,
   .home-columns:not([data-right='NATUREZAS']) .home-pane-naturezas,
-  .home-columns:not([data-right='METAS']) .home-pane-metas {
+  .home-columns:not([data-right='METAS']) .home-pane-metas,
+  .home-columns:not([data-right='SALARIO']) .home-pane-salario {
     display: none;
   }
 }
@@ -24050,3 +24052,18 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .salary-regime-part .form-input { min-width: 0; }
 .salary-regime-day { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-muted); }
 .salary-regime-day input { width: 56px; }
+
+/* Início: aba de salário */
+.home-tabs { overflow-x: auto; }
+.home-tabs button { white-space: nowrap; }
+.salary-block { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.salary-block-title { font-size: 13px; color: var(--text-secondary); }
+.salary-month-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.salary-month-list > li { padding: 10px 12px; border: 1px solid var(--border-default); border-radius: 12px; background: var(--bg-card); }
+.salary-month-list > li.is-current { border-color: var(--accent-cyan); }
+.salary-month-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.salary-month-head .info-btn { margin-left: auto; align-self: center; }
+.salary-month-name { font-size: 13px; color: var(--text-muted); flex: 1 1 100%; }
+.salary-month-parts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.salary-part-chip { display: inline-flex; gap: 6px; align-items: baseline; padding: 4px 10px; border: 1px solid var(--border-default); border-radius: 999px; background: transparent; color: var(--text-primary); font-size: 12px; cursor: pointer; }
+.salary-register-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
