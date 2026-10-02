@@ -24101,3 +24101,12 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
 
 .nature-grid-header.nature-grid-header-stacked { flex-direction: column !important; align-items: stretch !important; gap: 10px !important; }
 .nature-grid-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+
+/* Salário por referência de valor */
+.salary-block-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.salary-ref-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.salary-ref-table th { text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); padding: 4px 6px; border-bottom: 1px solid var(--border-default); }
+.salary-ref-table td { padding: 6px; border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08)); }
+.salary-ref-table tr.is-current td { font-weight: 600; background: rgba(56, 189, 248, 0.08); }
+.salary-ref-badge { margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: var(--accent-cyan); color: #04202b; font-size: 10px; }
+.salary-ref-badge.is-future { background: transparent; border: 1px solid var(--border-default); color: var(--text-muted); }
