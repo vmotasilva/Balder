@@ -493,7 +493,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   // Últimas solicitações à Forseti: pop-up pelo ícone ao lado da caixa de texto
   const [showActivity, setShowActivity] = useState(false);
   const cutoff = activityCutoffIso();
-  const recentRequests = forsetiActivity.filter((a) => a.at >= cutoff && a.kind !== 'CONVERSA').length;
+  const recentRequests = forsetiActivity.filter((a) => a.at >= cutoff).length;
 
   const submitForseti = (e: React.FormEvent) => {
     e.preventDefault();
