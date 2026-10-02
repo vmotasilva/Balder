@@ -24082,3 +24082,9 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
 .balance-breakdown-title { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 13px; }
 .balance-breakdown-title small, .balance-breakdown-values small { font-size: 11px; color: var(--text-muted); }
 .balance-breakdown-values { display: flex; flex-direction: column; align-items: flex-end; font-size: 13px; }
+
+.balance-opening-btn { width: 100%; background: transparent; border: 0; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+.balance-opening-btn:disabled { cursor: default; }
+.balance-opening-btn strong { display: inline-flex; align-items: center; gap: 6px; }
+.balance-opening-edit { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.balance-opening-edit .form-input { width: 140px; }

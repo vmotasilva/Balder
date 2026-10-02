@@ -570,12 +570,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           <span>Saldo hoje</span>
           <strong>{formatBRL(availableBalance)}</strong>
         </button>
-        <BalanceBreakdownModal
-          isOpen={showBalance}
-          onClose={() => setShowBalance(false)}
-          periodFrom={periodRange.from}
-          periodName={labels.name}
-        />
+        <BalanceBreakdownModal isOpen={showBalance} onClose={() => setShowBalance(false)} />
         <button type="button" className="home-stat is-clickable" onClick={() => setShowForecast(true)}>
           <span>Previsto {labels.end}</span>
           <strong className={periodWindow.projectedBalance < 0 ? 'text-rose' : 'text-emerald'}>{formatBRL(periodWindow.projectedBalance)}</strong>
