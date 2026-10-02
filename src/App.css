@@ -23097,6 +23097,11 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     transform: none !important;
     cursor: pointer;
   }
+  /* No tema claro a barra é clara: o símbolo não pode ficar branco */
+  [data-theme="light"] .mobile-nav-root .mobile-nav-orb-btn,
+  [data-theme="light"] .mobile-nav-root .mobile-nav-orb-btn * {
+    color: #0284c7 !important;
+  }
   .mobile-nav-orb-glow {
     display: none;
   }
