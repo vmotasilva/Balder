@@ -24110,3 +24110,6 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
 .salary-ref-table tr.is-current td { font-weight: 600; background: rgba(56, 189, 248, 0.08); }
 .salary-ref-badge { margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: var(--accent-cyan); color: #04202b; font-size: 10px; }
 .salary-ref-badge.is-future { background: transparent; border: 1px solid var(--border-default); color: var(--text-muted); }
+
+.salary-ref-row { cursor: pointer; }
+.salary-ref-row:hover td { background: rgba(56, 189, 248, 0.12); }

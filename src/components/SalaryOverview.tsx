@@ -267,9 +267,91 @@ const SalaryReferenceDialog: React.FC<{
   );
 };
 
+/** Ajusta ou exclui uma referência; ao excluir, os meses voltam ao valor da referência anterior. */
+const SalaryReferenceEditDialog: React.FC<{
+  reference: SalaryReference;
+  previous?: SalaryReference;
+  onSave: (day: number | 'ULTIMO', amount: number) => void;
+  onDelete: () => void;
+  onClose: () => void;
+}> = ({ reference, previous, onSave, onDelete, onClose }) => {
+  const [amount, setAmount] = useState(reference.amount);
+  const [lastDay, setLastDay] = useState(reference.day === 'ULTIMO');
+  const [day, setDay] = useState(reference.day === 'ULTIMO' ? 30 : reference.day);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const valid = amount > 0 && (lastDay || (day >= 1 && day <= 31));
+
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="Valor de salário"
+      subtitle={`${reference.base} · ${shortMonth(reference.startKey)} a ${shortMonth(reference.endKey)}`}
+      maxWidth="440px"
+    >
+      <div className="form-group">
+        <label>Valor (R$)</label>
+        <DecimalInput className="form-input" value={amount} onValueChange={setAmount} />
+      </div>
+      <div className="salary-register-row">
+        <div className="form-group">
+          <label>Dia do pagamento</label>
+          <input
+            type="number"
+            min={1}
+            max={31}
+            className="form-input"
+            value={day}
+            disabled={lastDay}
+            onChange={(e) => setDay(Number(e.target.value))}
+          />
+        </div>
+        <label className="receipt-change-future" style={{ alignSelf: 'end' }}>
+          <input type="checkbox" checked={lastDay} onChange={(e) => setLastDay(e.target.checked)} />
+          <span>Último dia do mês</span>
+        </label>
+      </div>
+
+      {confirmDelete ? (
+        <div className="receipt-delete-ask">
+          <strong>Excluir este valor?</strong>
+          <p className="text-xs text-muted" style={{ margin: 0 }}>
+            {previous
+              ? `De ${shortMonth(reference.startKey)} a ${shortMonth(reference.endKey)} passa a valer o valor anterior: ${formatBRL(previous.amount)} (${dayLabel(previous.day)}).`
+              : 'Não há valor anterior: os meses previstos desta referência serão removidos.'}
+          </p>
+          <div className="receipt-delete-ask-actions">
+            <button type="button" className="btn btn-outline btn-sm" onClick={() => setConfirmDelete(false)}>
+              Cancelar
+            </button>
+            <button type="button" className="btn btn-danger btn-sm" onClick={onDelete}>
+              Excluir
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', marginTop: '12px' }}>
+          <button type="button" className="btn btn-outline btn-sm text-rose" onClick={() => setConfirmDelete(true)}>
+            Excluir
+          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button type="button" className="btn btn-outline btn-sm" onClick={onClose}>
+              Cancelar
+            </button>
+            <button type="button" className="btn btn-primary btn-sm" disabled={!valid} onClick={() => onSave(lastDay ? 'ULTIMO' : day, amount)}>
+              Salvar
+            </button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+};
+
 /** Salário por referência de valor (dia, valor, início e encerramento), com o detalhe mês a mês logo abaixo. */
 export const SalaryOverview: React.FC = () => {
-  const { movements, banks, addMultipleMovements, deleteMovement } = useFinancial();
+  const { movements, banks, addMultipleMovements, deleteMovement, updateMovement } = useFinancial();
+  const [editRef, setEditRef] = useState<{ reference: SalaryReference; previous?: SalaryReference } | null>(null);
   const [registerOpen, setRegisterOpen] = useState(false);
   const [regimeBase, setRegimeBase] = useState<{ base: string; monthKey: string } | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
@@ -360,6 +442,54 @@ export const SalaryOverview: React.FC = () => {
     setReferenceDraft(null);
   };
 
+  // Lançamentos previstos de uma referência (os já realizados ficam como estão)
+  const runMovements = (ref: SalaryReference) =>
+    movements.filter(
+      (m) =>
+        isSalaryMovement(m) &&
+        m.title === ref.base &&
+        m.status === 'PREVISTA' &&
+        getSalaryCompetenceKey(m) >= ref.startKey &&
+        getSalaryCompetenceKey(m) <= ref.endKey
+    );
+  const dayInMonth = (key: string, day: number | 'ULTIMO') => {
+    const [year, month] = key.split('-').map(Number);
+    const daysInMonth = new Date(year, month, 0).getDate();
+    return String(day === 'ULTIMO' ? daysInMonth : Math.min(day, daysInMonth)).padStart(2, '0');
+  };
+
+  const saveRun = (ref: SalaryReference, day: number | 'ULTIMO', amount: number) => {
+    runMovements(ref).forEach((m) => {
+      const key = getSalaryCompetenceKey(m);
+      updateMovement(m.id, { amount, originalAmount: amount, dueDate: `${key}-${dayInMonth(key, day)}` });
+    });
+    setEditRef(null);
+  };
+
+  // Excluir: os meses da referência voltam ao valor da referência anterior (sem anterior, são removidos)
+  const deleteRun = (ref: SalaryReference, previous?: SalaryReference) => {
+    const own = runMovements(ref);
+    const keys = own.map((m) => getSalaryCompetenceKey(m));
+    const template = own[0];
+    own.forEach((m) => deleteMovement(m.id));
+    if (previous && template) {
+      addMultipleMovements(
+        keys.map((key) => ({
+          title: ref.base,
+          type: 'RECEBER' as const,
+          amount: previous.amount,
+          originalAmount: previous.amount,
+          dueDate: `${key}-${dayInMonth(key, previous.day)}`,
+          bank: template.bank,
+          status: 'PREVISTA' as const,
+          category: 'Salário',
+          installmentGroupId: template.installmentGroupId,
+        }))
+      );
+    }
+    setEditRef(null);
+  };
+
   return (
     <div className="salary-overview">
       <div className="home-card-head">
@@ -410,8 +540,21 @@ export const SalaryOverview: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {references.map((ref) => (
-                    <tr key={`${ref.startKey}-${ref.amount}-${String(ref.day)}`} className={ref.status === 'ATUAL' ? 'is-current' : ''}>
+                  {references.map((ref, refIdx) => (
+                    <tr
+                      key={`${ref.startKey}-${ref.amount}-${String(ref.day)}`}
+                      className={`salary-ref-row ${ref.status === 'ATUAL' ? 'is-current' : ''}`}
+                      tabIndex={0}
+                      role="button"
+                      title="Ajustar ou excluir este valor"
+                      onClick={() => setEditRef({ reference: ref, previous: references[refIdx - 1] })}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setEditRef({ reference: ref, previous: references[refIdx - 1] });
+                        }
+                      }}
+                    >
                       <td>
                         {dayLabel(ref.day)}
                         {ref.status === 'ATUAL' && <small className="salary-ref-badge">atual</small>}
@@ -474,6 +617,15 @@ export const SalaryOverview: React.FC = () => {
         })
       )}
 
+      {editRef && (
+        <SalaryReferenceEditDialog
+          reference={editRef.reference}
+          previous={editRef.previous}
+          onSave={(day, amount) => saveRun(editRef.reference, day, amount)}
+          onDelete={() => deleteRun(editRef.reference, editRef.previous)}
+          onClose={() => setEditRef(null)}
+        />
+      )}
       {registerOpen && <SalaryRegisterModal onClose={() => setRegisterOpen(false)} />}
       {referenceDraft && (
         <SalaryReferenceDialog
