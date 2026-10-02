@@ -23938,3 +23938,48 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     padding: 3px 6px !important;
   }
 }
+
+/* Simulador de empréstimo no celular: campos em 1 coluna, sem corte nas laterais */
+@media (max-width: 640px) {
+  .loan-simulator-view {
+    padding-right: 0 !important;
+    min-width: 0;
+  }
+  .loan-sim-top-grid,
+  .loan-simulator-view .glass-card,
+  .params-inputs-grid > * {
+    min-width: 0;
+  }
+  .loan-simulator-view .glass-card {
+    padding: 1rem;
+  }
+  .params-inputs-grid {
+    grid-template-columns: 1fr;
+  }
+  .params-inputs-grid .col-span-2 {
+    grid-column: auto;
+  }
+  .params-inputs-grid .form-input,
+  .params-inputs-grid input,
+  .params-inputs-grid select {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+  .summary-metric-row {
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .summary-metric-row .metric-value {
+    font-size: 0.9rem;
+    margin-left: auto;
+  }
+  .loan-spreadsheet-grid-card {
+    padding: 0.75rem;
+  }
+  .loan-simulator-view .spreadsheet-table th,
+  .loan-simulator-view .spreadsheet-table td {
+    padding: 0.5rem 0.6rem;
+  }
+}
