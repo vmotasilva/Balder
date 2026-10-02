@@ -39,7 +39,7 @@ const splitItems = (list: CellBreakdownSubItem[]) => {
 };
 
 /** Par Real | Previsto com colunas de largura fixa (alinhadas entre as linhas e com a legenda). */
-const RealPlanned: React.FC<{ real: number; planned: number; formatBRL: FormatBRL }> = ({ real, planned, formatBRL }) => (
+export const RealPlanned: React.FC<{ real: number; planned: number; formatBRL: FormatBRL }> = ({ real, planned, formatBRL }) => (
   <span className="drill-rp">
     <span className="font-mono" title="Real: já pago/recebido">{formatBRL(real)}</span>
     <span className="rp-sep" aria-hidden="true">|</span>
