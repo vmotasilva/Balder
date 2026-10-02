@@ -6,6 +6,7 @@ import { isExcludedState, resolveMappingItemMonth } from '../utils/mappingItemSt
 import { getPendingFixedBills, type PendingFixedBill } from '../utils/fixedBillsAlert';
 import type { Movement, MovementType, FixedExpenseMapping, NatureDetailMode } from '../types';
 import {
+  ArrowLeft,
   Layers,
   Plus,
   Trash2,
@@ -82,6 +83,8 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
     natures[0]?.id || 'nat_alimentacao'
   );
   const [isNatureDropdownOpen, setIsNatureDropdownOpen] = useState(false);
+  // Tela cheia com todas as naturezas antes do detalhe (só na página; embutida no Perfil vai direto ao detalhe)
+  const [showNatureList, setShowNatureList] = useState(!embedded);
   const [justificationText, setJustificationText] = useState('');
 
   // Cards recolhíveis de diagnóstico inteligente (padrão: recolhidos)
@@ -628,8 +631,65 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
         </div>
       )}
 
-      {/* Main Content Area */}
+      {/* Lista de todas as naturezas: o toque em uma abre o detalhe dela */}
+      {showNatureList ? (
+        <div className="naturezas-list-grid" role="list" aria-label="Todas as naturezas">
+          {natures.map((nat) => {
+            const ceil = getNatureCeiling(nat);
+            const spent = getNatureSpent(nat);
+            const isOver = ceil > 0 && spent > ceil;
+            const isFar = ceil > 0 && spent < ceil * 0.75;
+            const pct = ceil > 0 ? Math.round((spent / ceil) * 100) : 0;
+            return (
+              <button
+                key={nat.id}
+                type="button"
+                role="listitem"
+                className="natureza-tab-item"
+                onClick={() => {
+                  setSelectedNatureId(nat.id);
+                  setShowNatureList(false);
+                }}
+                style={{ borderLeftColor: nat.color }}
+                title={`Abrir ${nat.name}`}
+              >
+                <div className="natureza-tab-top">
+                  <span className="natureza-tab-icon">{nat.icon}</span>
+                  <strong className="natureza-tab-name">{nat.name}</strong>
+                </div>
+                <div className="natureza-tab-meta">
+                  <span className="natureza-tab-ceiling">
+                    Teto: {ceil.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} • {pct}%
+                  </span>
+                  {isOver ? (
+                    <span className="badge badge-rose text-xs">TETO EXCEDIDO</span>
+                  ) : isFar ? (
+                    <span className="badge badge-cyan text-xs">LONGE DO TETO</span>
+                  ) : (
+                    <span className="badge badge-emerald text-xs">NO LIMITE</span>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+          {natures.length === 0 && (
+            <p className="text-muted">Nenhuma natureza cadastrada. Use "Nova Natureza" para começar.</p>
+          )}
+        </div>
+      ) : (
+      /* Main Content Area */
       <div className="naturezas-subtab">
+        {!embedded && (
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            style={{ marginBottom: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            onClick={() => setShowNatureList(true)}
+          >
+            <ArrowLeft size={15} />
+            <span>Todas as naturezas</span>
+          </button>
+        )}
         {embedded && (
           <div className="naturezas-header-row">
             <div>
@@ -2554,6 +2614,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
           </div>
         )}
       </div>
+      )}
 
       {/* Modal de Nova ou Edição de Natureza */}
       <NatureModal
