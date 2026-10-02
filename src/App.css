@@ -24143,3 +24143,6 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
     overflow-y: auto;
   }
 }
+
+.home-purchase-list li.is-clickable { cursor: pointer; }
+.home-purchase-list li.is-clickable:hover { background: rgba(56, 189, 248, 0.08); }

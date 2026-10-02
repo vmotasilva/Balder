@@ -254,6 +254,17 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     return null;
   };
 
+  // Compra de item de natureza: abre o pop-up do item (pagamentos feitos, com desfazer; e a situação)
+  const openPurchase = (item: PeriodItem, purchase: PeriodPurchase) => {
+    if (item.movementId || !item.natureId) return;
+    const nat = natures.find((n) => n.id === item.natureId);
+    const mapping = nat?.mappings.find((m) => m.items.some((it) => it.id === item.id));
+    if (!nat || !mapping) return;
+    setItemState({ natureId: nat.id, mappingId: mapping.id, itemId: item.id, monthKey: purchase.date.slice(0, 7), occurrenceDate: purchase.date });
+  };
+  const canOpenPurchase = (item: PeriodItem) =>
+    !item.movementId && !!item.natureId && !!natures.find((n) => n.id === item.natureId)?.mappings.some((m) => m.items.some((it) => it.id === item.id));
+
   const renderTaskAction = (entry: ForecastEntry) => {
     if (entry.source === 'FATURA') {
       return (
@@ -878,6 +889,20 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
                           <span className={`home-purchase-pill is-${only.status.toLowerCase()}`}>{PURCHASE_PILL[only.status]}</span>
                           <ChevronRight size={16} aria-hidden="true" />
                         </button>
+                      ) : canOpenPurchase(item) ? (
+                        <button
+                          type="button"
+                          className="home-task-drill"
+                          onClick={() => openPurchase(item, only)}
+                          title="Ver o lançamento e desfazer, se precisar"
+                        >
+                          <div className="home-task-main">
+                            <span className="home-task-title">{item.title}</span>
+                            <span className="home-task-meta">{describePurchase(only)}</span>
+                          </div>
+                          <span className={`home-purchase-pill is-${only.status.toLowerCase()}`}>{PURCHASE_PILL[only.status]}</span>
+                          <ChevronRight size={16} aria-hidden="true" />
+                        </button>
                       ) : (
                         <>
                           <div className="home-task-main">
@@ -916,7 +941,12 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
                     {expanded && (
                       <ul className="home-purchase-list">
                         {item.purchases.map((p) => (
-                          <li key={p.key}>
+                          <li
+                            key={p.key}
+                            className={canOpenPurchase(item) ? 'is-clickable' : undefined}
+                            onClick={canOpenPurchase(item) ? () => openPurchase(item, p) : undefined}
+                            title={canOpenPurchase(item) ? 'Ver o lançamento e desfazer, se precisar' : undefined}
+                          >
                             <span className="home-purchase-date">{shortDate(p.date)}</span>
                             <span className="home-task-meta">{describePurchase(p)}</span>
                             <span className={`home-purchase-pill is-${p.status.toLowerCase()}`}>{PURCHASE_PILL[p.status]}</span>
