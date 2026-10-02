@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { parseMoney } from '../utils/parseDecimal';
 import { Ban,
   CheckCircle2,
@@ -142,6 +143,56 @@ const Stat: React.FC<{ label: string; value: number; color?: string }> = ({ labe
  *   Se o valor pago difere do esperado, pergunta o motivo e o que fazer (reajustar, pontual, saldo em aberto, quitar).
  * - Situação: realizado, quem paga (eu / outra pessoa, fora dos valores) e se vale para os próximos meses.
  */
+/** Pergunta sobreposta ao pop-up atual: o que fazer com o valor desconsiderado. */
+const SkipAskPopup: React.FC<{
+  value: number;
+  laterCount: number;
+  onCancel: () => void;
+  onChoose: (redistribute: boolean) => void;
+}> = ({ value, laterCount, onCancel, onChoose }) => {
+  useEffect(() => {
+    // Esc fecha só esta pergunta, não o pop-up de baixo
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      onCancel();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onCancel]);
+
+  return createPortal(
+    <div className="info-pop-backdrop" onClick={onCancel}>
+      <div className="info-pop" role="dialog" aria-modal="true" aria-label="Desconsiderar" onClick={(e) => e.stopPropagation()}>
+        <div className="info-pop-head">
+          <strong>O que fazer com {formatBRL(value)} que não foi pago?</strong>
+        </div>
+        <div className="info-pop-body">
+          <p>
+            <strong>Abater do previsto:</strong> o orçamento da competência diminui nesse valor.
+          </p>
+          <p>
+            <strong>Redistribuir:</strong> o valor é somado {laterCount === 1 ? 'à data seguinte' : `às ${laterCount} datas seguintes`} da
+            competência e o orçamento continua o mesmo.
+          </p>
+        </div>
+        <div className="receipt-delete-ask-actions" style={{ marginTop: '12px' }}>
+          <button type="button" className="btn btn-outline btn-sm" onClick={onCancel}>
+            Cancelar
+          </button>
+          <button type="button" className="btn btn-outline btn-sm" onClick={() => onChoose(false)}>
+            Abater do previsto
+          </button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => onChoose(true)}>
+            Redistribuir
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ target, onClose }) => {
   const { natures, updateMappingItemState, addMovement, deleteMovement, movements, banks } = useFinancial();
   const { confirm: confirmAction, dialogProps } = useConfirmDialog();
@@ -655,28 +706,6 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
                       </div>
                     )}
 
-                    {skipAsk && (
-                      <div className="receipt-delete-ask" style={{ marginBottom: '10px' }}>
-                        <strong>O que fazer com {formatBRL(skippedValue)} que não foi pago?</strong>
-                        <p className="text-xs text-muted" style={{ margin: 0 }}>
-                          <strong>Abater do previsto:</strong> o orçamento da competência diminui nesse valor.
-                          <br />
-                          <strong>Redistribuir:</strong> o valor é somado às {laterOpenCount} {laterOpenCount === 1 ? 'data seguinte' : 'datas seguintes'} da
-                          competência e o orçamento continua o mesmo.
-                        </p>
-                        <div className="receipt-delete-ask-actions">
-                          <button type="button" className="btn btn-outline btn-sm" onClick={() => setSkipAsk(false)}>
-                            Cancelar
-                          </button>
-                          <button type="button" className="btn btn-outline btn-sm" onClick={() => registerNoPayment(false)}>
-                            Abater do previsto
-                          </button>
-                          <button type="button" className="btn btn-primary btn-sm" onClick={() => registerNoPayment(true)}>
-                            Redistribuir
-                          </button>
-                        </div>
-                      </div>
-                    )}
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                       <button type="button" className="btn btn-outline btn-sm" onClick={onClose}>
                         Fechar
@@ -818,6 +847,9 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
           </div>
         )}
       </Modal>
+      {skipAsk && (
+        <SkipAskPopup value={skippedValue} laterCount={laterOpenCount} onCancel={() => setSkipAsk(false)} onChoose={registerNoPayment} />
+      )}
       <ConfirmDialog {...dialogProps} />
     </>
   );
