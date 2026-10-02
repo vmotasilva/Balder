@@ -4695,6 +4695,20 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   text-overflow: ellipsis;
 }
 
+/* Lista de todas as naturezas (tela antes do detalhe) */
+.naturezas-list-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 768px) {
+  .naturezas-list-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .naturezas-dropdown-container--mobile {
   display: none;
 }
