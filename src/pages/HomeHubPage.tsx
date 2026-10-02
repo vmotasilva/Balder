@@ -28,6 +28,7 @@ import type { TabId } from '../components/Sidebar';
 import { buildPeriodItems, periodRangeLabel, shiftPeriodDate, trackingPeriodRange, TRACKING_PERIOD_LABELS } from '../utils/periodSpending';
 import type { PeriodItem, PeriodPurchase, TrackingPeriod } from '../utils/periodSpending';
 import { getItemOccurrences } from '../utils/mappingItemState';
+import { MappingItemStateModal, type MappingItemStateTarget } from '../components/MappingItemStateModal';
 import { MappingPaymentModal, type MappingPaymentTarget } from '../components/MappingPaymentModal';
 import { RealizationConfirmModal, realizedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
 import type { ForecastEntry } from '../utils/forecastWindow';
@@ -155,6 +156,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   const [homePane, setHomePane] = useState<'FAZER' | 'GASTOS' | 'NATUREZAS'>('FAZER');
   // Metas e Salário abrem em pop-up, pelos ícones ao lado do período
   const [showGoals, setShowGoals] = useState(false);
+  const [itemState, setItemState] = useState<MappingItemStateTarget | null>(null);
   const [showSalary, setShowSalary] = useState(false);
   // Período corrente (semana, quinzena ou mês) só do início até hoje: o que já aconteceu na competência
   const [monthToDate, setMonthToDate] = useState(false);
@@ -321,9 +323,18 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           </button>
         );
       }
+      // Sem atalho direto: abre o pop-up do item, para dizer como foi tratado (realizado, quem pagou, pular)
       return (
-        <button type="button" className="btn btn-outline btn-xs" onClick={() => onNavigate('NATUREZAS')}>
-          Ver
+        <button
+          type="button"
+          className="btn btn-outline btn-xs"
+          onClick={() =>
+            found
+              ? setItemState({ natureId: found.nat.id, mappingId: found.mapping.id, itemId: found.item.id, monthKey, occurrenceDate: entry.date })
+              : onNavigate('NATUREZAS')
+          }
+        >
+          Lançar
         </button>
       );
     }
@@ -940,6 +951,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           onClose={() => setReviewMovementId(null)}
         />
       )}
+      <MappingItemStateModal target={itemState} onClose={() => setItemState(null)} />
       <MappingPaymentModal target={mappingPayment} onClose={() => setMappingPayment(null)} />
       <RealizationConfirmModal target={realization} onClose={() => setRealization(null)} />
     </div>
