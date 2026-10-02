@@ -4,8 +4,9 @@ import { useFinancial } from '../context/FinancialContext';
 import { groupLoanMovements } from '../utils/loanMath';
 import { LoansPage } from './LoansPage';
 import { InfoButton } from '../components/InfoButton';
+import { InvestmentsPage } from './InvestmentsPage';
 
-type ContractKind = 'EMPRESTIMOS';
+type ContractKind = 'EMPRESTIMOS' | 'INVESTIMENTOS';
 
 interface ContractModality {
   id: string;
@@ -45,6 +46,20 @@ export const ContractsPage: React.FC<{ newLoanSignal?: number }> = ({ newLoanSig
     );
   }
 
+  if (openKind === 'INVESTIMENTOS') {
+    return (
+      <>
+        <div className="page-container" style={{ paddingBottom: 0 }}>
+          <button type="button" className="btn btn-outline btn-sm" onClick={() => setOpenKind(null)}>
+            <ArrowLeft size={14} />
+            <span>Contratos</span>
+          </button>
+        </div>
+        <InvestmentsPage />
+      </>
+    );
+  }
+
   const modalities: ContractModality[] = [
     {
       id: 'EMPRESTIMOS',
@@ -58,7 +73,7 @@ export const ContractsPage: React.FC<{ newLoanSignal?: number }> = ({ newLoanSig
     },
     { id: 'FINANCIAMENTOS', label: 'Financiamentos', icon: Home, status: 'Em breve' },
     { id: 'CONSORCIOS', label: 'Consórcios', icon: Handshake, status: 'Em breve' },
-    { id: 'INVESTIMENTOS', label: 'Investimentos', icon: TrendingUp, status: 'Em breve' },
+    { id: 'INVESTIMENTOS', label: 'Investimentos', icon: TrendingUp, kind: 'INVESTIMENTOS', status: 'Abrir carteira' },
     { id: 'OUTROS', label: 'Outros contratos', icon: FileText, status: 'Em breve' },
   ];
 
@@ -91,7 +106,7 @@ export const ContractsPage: React.FC<{ newLoanSignal?: number }> = ({ newLoanSig
           >
             <m.icon size={18} aria-hidden="true" />
             <span className="home-module-label">{m.label}</span>
-            <span className={`home-module-status ${m.kind && loanSummary.count === 0 ? 'is-invite' : ''}`}>{m.status}</span>
+            <span className={`home-module-status ${m.kind === 'EMPRESTIMOS' && loanSummary.count === 0 ? 'is-invite' : ''}`}>{m.status}</span>
             {m.kind && <ChevronRight size={14} className="home-module-arrow" aria-hidden="true" />}
           </button>
         ))}
