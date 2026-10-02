@@ -4,7 +4,7 @@ import { DecimalInput } from '../components/DecimalInput';
 import { Modal } from '../components/Modal';
 import { InfoButton } from '../components/InfoButton';
 import { INVESTMENT_TYPES, useInvestments } from '../hooks/useInvestments';
-import type { Investment, InvestmentType } from '../hooks/useInvestments';
+import type { Investment, InvestmentType } from '../types';
 
 const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const formatPct = (v: number) => `${v >= 0 ? '+' : ''}${v.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`;
@@ -63,7 +63,7 @@ export const InvestmentsPage: React.FC = () => {
           <h1 className="page-title label-with-info">
             Investimentos
             <InfoButton title="Investimentos">
-              <p>Registre suas aplicações com o valor investido e o valor atual para acompanhar a rentabilidade e a distribuição da carteira. Os dados ficam guardados neste aparelho.</p>
+              <p>Registre suas aplicações com o valor investido e o valor atual para acompanhar a rentabilidade e a distribuição da carteira. Os dados ficam salvos na sua conta e sincronizam entre aparelhos.</p>
             </InfoButton>
           </h1>
         </div>
