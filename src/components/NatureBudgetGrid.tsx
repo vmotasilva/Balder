@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { isExcludedState } from '../utils/mappingItemState';
 import { useFinancial } from '../context/FinancialContext';
 import {
-  Layers,
   Clock,
   Edit3,
   X,
@@ -887,48 +886,6 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
           {filteredRows.length === 0 && (
             <div className="glass-card text-center py-8 text-muted text-xs col-span-full" style={{ width: '100%' }}>
               Nenhuma natureza encontrada para o filtro selecionado.
-            </div>
-          )}
-
-          {/* Card de Totais Consolidados das Naturezas */}
-          {filteredRows.length > 0 && (
-            <div className="nature-consolidated-card">
-              <div className="flex items-center justify-between pb-2 border-b border-border/40">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-primary)' }}>
-                    Total Consolidado ({filteredRows.length} naturezas)
-                  </span>
-                  <span className="text-[10px] text-muted">Competência {currentRow?.competenceLabel}</span>
-                </div>
-                <span className="badge badge-cyan text-[10px] font-bold">{summaryTotals.avgPct}% do teto pago</span>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2 text-center">
-                <div className="p-1.5 rounded-lg bg-black/10 dark:bg-black/20">
-                  <span className="text-[10px] text-muted block uppercase font-semibold">Teto</span>
-                  <span className="font-mono font-bold text-xs" style={{ color: 'var(--text-primary)' }}>{formatBRL(summaryTotals.totalPlanned)}</span>
-                </div>
-                <div className="p-1.5 rounded-lg bg-black/10 dark:bg-black/20">
-                  <span className="text-[10px] text-muted block uppercase font-semibold">Real</span>
-                  <span className="font-mono font-bold text-xs text-emerald">{formatBRL(summaryTotals.totalRealized)}</span>
-                </div>
-                <div className="p-1.5 rounded-lg bg-black/10 dark:bg-black/20">
-                  <span className="text-[10px] text-muted block uppercase font-semibold">Previsto</span>
-                  <span className="font-mono font-bold text-xs text-amber">{formatBRL(summaryTotals.totalPending)}</span>
-                </div>
-                <div className="p-1.5 rounded-lg bg-black/10 dark:bg-black/20">
-                  <span className="text-[10px] text-muted block uppercase font-semibold">Disponível / Estouro</span>
-                  <span className={`font-mono font-bold text-xs ${summaryTotals.totalDiff >= 0 ? 'text-emerald' : 'text-rose'}`}>
-                    {summaryTotals.totalDiff >= 0 ? `+${formatBRL(summaryTotals.totalDiff)}` : `-${formatBRL(Math.abs(summaryTotals.totalDiff))}`}
-                  </span>
-                </div>
-              </div>
-              <div className="mt-2 text-center">
-                <span className="text-[11px] text-muted">
-                  {summaryTotals.overCount > 0
-                    ? `⚠️ ${summaryTotals.overCount} naturezas acima do teto estipulado.`
-                    : '✓ Todas as naturezas estão em estrita conformidade orçamentária.'}
-                </span>
-              </div>
             </div>
           )}
         </div>
