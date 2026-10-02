@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { Modal } from './Modal';
 import { MovementDetailModal } from './MovementDetailModal';
+import { useFinancial } from '../context/FinancialContext';
 import type { Movement } from '../types';
 
 type FlowFilter = 'TODAS' | 'ENTRADAS' | 'SAIDAS';
@@ -40,6 +41,16 @@ export const PeriodMovementsModal: React.FC<PeriodMovementsModalProps> = ({ isOp
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }, []);
+  const { natures } = useFinancial();
+  // Natureza e item do teto ligados à movimentação; sem ligação, cai na categoria bruta
+  const movementLabel = (m: Movement) => {
+    const nature = m.natureId ? natures.find((n) => n.id === m.natureId) : undefined;
+    if (!nature) return m.category;
+    const item = m.mappingItemId
+      ? (nature.mappings || []).flatMap((map) => map.items || []).find((it) => it.id === m.mappingItemId)
+      : undefined;
+    return item?.description ? `${nature.name} › ${item.description}` : nature.name;
+  };
   const hasFuture = movements.some((m) => movementDate(m) > todayIso);
   // Movimentação aberta para ajustar valor, data, parcelamento e demais dados
   const [editing, setEditing] = useState<Movement | null>(null);
@@ -50,7 +61,7 @@ export const PeriodMovementsModal: React.FC<PeriodMovementsModalProps> = ({ isOp
       .filter((m) => (flow === 'TODAS' ? true : flow === 'ENTRADAS' ? isMovementIncome(m) : !isMovementIncome(m)))
       .filter((m) => (status === 'TODAS' ? true : m.status === status))
       .filter((m) => until === 'PERIODO' || movementDate(m) <= todayIso)
-      .filter((m) => !q || `${m.title} ${m.category} ${m.bank}`.toLowerCase().includes(q))
+      .filter((m) => !q || `${m.title} ${m.category} ${movementLabel(m)} ${m.bank}`.toLowerCase().includes(q))
       .sort((a, b) => movementDate(a).localeCompare(movementDate(b)));
   }, [movements, flow, status, query, until, todayIso]);
 
@@ -98,7 +109,7 @@ export const PeriodMovementsModal: React.FC<PeriodMovementsModalProps> = ({ isOp
                   <span className="period-mov-main">
                     <b>{m.title}</b>
                     <small>
-                      {m.category} · {m.bank} · {m.status === 'REALIZADA' ? 'Realizada' : 'Prevista'}
+                      {movementLabel(m)} · {m.bank} · {m.status === 'REALIZADA' ? 'Realizada' : 'Prevista'}
                     </small>
                   </span>
                   <strong className={isIncome ? 'text-emerald' : 'text-rose'}>

@@ -251,6 +251,9 @@ export interface CopilotPendingConfirmation {
     installments?: number;
     /** O que a pessoa pediu à Forseti (para o histórico de solicitações). */
     request?: string;
+    /** Natureza e item do teto sugeridos pela Forseti e confirmados pela pessoa ('' = nenhum; undefined = ainda não sugerido). */
+    natureId?: string;
+    mappingItemId?: string;
   };
   question: string;
   options: CopilotInteractiveOption[];
