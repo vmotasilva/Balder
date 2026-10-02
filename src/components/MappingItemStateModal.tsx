@@ -170,6 +170,8 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
   const [customReason, setCustomReason] = useState('');
   const [action, setAction] = useState<MappingItemPaymentAction | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  // Pergunta de "não precisou pagar": abater do previsto ou redistribuir
+  const [skipAsk, setSkipAsk] = useState(false);
 
   const monthKey = target?.monthKey || '';
   const summary = useMemo(() => (item && monthKey ? resolveMappingItemMonth(item, monthKey) : null), [item, monthKey]);
@@ -296,7 +298,6 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
   };
 
   // Não precisou pagar estas datas: fecha só elas (pagamento zerado) e pergunta se o valor vai para as semanas seguintes
-  const [skipAsk, setSkipAsk] = useState(false);
   const laterOpenCount = (() => {
     if (selectedDates.length === 0) return 0;
     const last = [...selectedDates].sort().pop() as string;
