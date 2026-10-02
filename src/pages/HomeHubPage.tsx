@@ -14,6 +14,7 @@ import { useAccountScope } from '../context/AccountScopeContext';
 import { GuidedSetup } from '../components/GuidedSetup';
 import { NatureBudgetGrid } from '../components/NatureBudgetGrid';
 import { GoalsOverview } from '../components/GoalsOverview';
+import { BalanceBreakdownModal } from '../components/BalanceBreakdownModal';
 import { ForecastBreakdownModal } from '../components/ForecastBreakdownModal';
 import { SalaryOverview } from '../components/SalaryOverview';
 import { MovementDetailModal } from '../components/MovementDetailModal';
@@ -470,6 +471,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   // ── Movimentações do período (entradas e saídas, previstas e realizadas) ──
   const [showPeriodMovements, setShowPeriodMovements] = useState(false);
   const [showForecast, setShowForecast] = useState(false);
+  const [showBalance, setShowBalance] = useState(false);
   const periodRange = trackingPeriodRange(period);
   const periodMovements = useMemo(
     () =>
@@ -564,14 +566,19 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
 
       {/* Como estou? */}
       <div className="home-stats">
-        <div className="home-stat">
+        <button type="button" className="home-stat is-clickable" onClick={() => setShowBalance(true)}>
           <span>Saldo hoje</span>
           <strong>{formatBRL(availableBalance)}</strong>
-        </div>
+        </button>
+        <BalanceBreakdownModal
+          isOpen={showBalance}
+          onClose={() => setShowBalance(false)}
+          periodFrom={periodRange.from}
+          periodName={labels.name}
+        />
         <button type="button" className="home-stat is-clickable" onClick={() => setShowForecast(true)}>
           <span>Previsto {labels.end}</span>
           <strong className={periodWindow.projectedBalance < 0 ? 'text-rose' : 'text-emerald'}>{formatBRL(periodWindow.projectedBalance)}</strong>
-          <small>Toque para ver o detalhamento</small>
         </button>
         <ForecastBreakdownModal
           isOpen={showForecast}

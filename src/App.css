@@ -24074,3 +24074,11 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
   z-index: 60;
 }
 .combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-popover { z-index: 9000; }
+
+/* Detalhamento do saldo de hoje */
+.balance-breakdown-list { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; }
+.balance-breakdown-list li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border-subtle, rgba(255, 255, 255, 0.08)); }
+.balance-breakdown-date { min-width: 40px; font-size: 12px; color: var(--text-muted); }
+.balance-breakdown-title { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 13px; }
+.balance-breakdown-title small, .balance-breakdown-values small { font-size: 11px; color: var(--text-muted); }
+.balance-breakdown-values { display: flex; flex-direction: column; align-items: flex-end; font-size: 13px; }
