@@ -13,6 +13,9 @@ interface ConfirmDialogProps {
   variant?: 'danger' | 'warning';
   onConfirm: () => void;
   onCancel: () => void;
+  /** Segunda ação confirmável (ex.: "Excluir também as repetições futuras"). */
+  alternateLabel?: string;
+  onAlternate?: () => void;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -25,6 +28,7 @@ interface UseConfirmDialogReturn {
     confirmLabel?: string;
     variant?: 'danger' | 'warning';
     onConfirm: () => void;
+    alternate?: { label: string; onConfirm: () => void };
   }) => void;
 }
 
@@ -36,6 +40,7 @@ export function useConfirmDialog(): UseConfirmDialogReturn {
     confirmLabel: string;
     variant: 'danger' | 'warning';
     onConfirm: () => void;
+    alternate?: { label: string; onConfirm: () => void };
   }>({
     isOpen: false,
     title: '',
@@ -51,6 +56,7 @@ export function useConfirmDialog(): UseConfirmDialogReturn {
     confirmLabel?: string;
     variant?: 'danger' | 'warning';
     onConfirm: () => void;
+    alternate?: { label: string; onConfirm: () => void };
   }) => {
     setState({
       isOpen: true,
@@ -59,12 +65,17 @@ export function useConfirmDialog(): UseConfirmDialogReturn {
       confirmLabel: opts.confirmLabel ?? 'Excluir',
       variant: opts.variant ?? 'danger',
       onConfirm: opts.onConfirm,
+      alternate: opts.alternate,
     });
   };
 
   const handleCancel = () => setState((prev) => ({ ...prev, isOpen: false }));
   const handleConfirm = () => {
     state.onConfirm();
+    setState((prev) => ({ ...prev, isOpen: false }));
+  };
+  const handleAlternate = () => {
+    state.alternate?.onConfirm();
     setState((prev) => ({ ...prev, isOpen: false }));
   };
 
@@ -79,6 +90,8 @@ export function useConfirmDialog(): UseConfirmDialogReturn {
       variant: state.variant,
       onConfirm: handleConfirm,
       onCancel: handleCancel,
+      alternateLabel: state.alternate?.label,
+      onAlternate: state.alternate ? handleAlternate : undefined,
     },
   };
 }
@@ -94,6 +107,8 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   variant = 'danger',
   onConfirm,
   onCancel,
+  alternateLabel,
+  onAlternate,
 }) => {
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
 
@@ -219,7 +234,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         </div>
 
         {/* Actions */}
-        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
           <button
             type="button"
             onClick={onCancel}
@@ -245,6 +260,24 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           >
             {cancelLabel}
           </button>
+          {alternateLabel && onAlternate && (
+            <button
+              type="button"
+              onClick={onAlternate}
+              style={{
+                padding: '9px 18px',
+                borderRadius: '10px',
+                border: `1px solid ${accentBorder}`,
+                background: accentBg,
+                color: accentColor,
+                fontSize: '13px',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              {alternateLabel}
+            </button>
+          )}
           <button
             ref={confirmBtnRef}
             type="button"

@@ -30,6 +30,7 @@ import { LoanPrepaymentModal } from '../components/LoanPrepaymentModal';
 import { MovementDetailModal } from '../components/MovementDetailModal';
 import { ImmediateActionsModal } from '../components/ImmediateActionsModal';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
+import { futureReceiptSiblings } from '../components/ReceiptChangeDialog';
 import { RealizationConfirmModal, realizedMovementUpdates, reopenConfirmOptions, reopenedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
 import { getPendingFixedBills, type PendingFixedBill } from '../utils/fixedBillsAlert';
 
@@ -577,11 +578,25 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
               className="delete-action-btn"
               onClick={(e) => {
                 e.stopPropagation();
+                const futures = futureReceiptSiblings(item, movements);
                 confirmAction({
                   title: 'Excluir Movimentação',
-                  message: `Deseja excluir a movimentação "${item.notes}"? Esta ação não pode ser desfeita.`,
-                  confirmLabel: 'Excluir',
+                  message:
+                    futures.length > 0
+                      ? `Deseja excluir a movimentação "${item.notes}"? Ela se repete: há ${futures.length} ${futures.length === 1 ? 'repetição futura' : 'repetições futuras'}. Esta ação não pode ser desfeita.`
+                      : `Deseja excluir a movimentação "${item.notes}"? Esta ação não pode ser desfeita.`,
+                  confirmLabel: futures.length > 0 ? 'Só esta' : 'Excluir',
                   onConfirm: () => deleteMovement(item.id),
+                  alternate:
+                    futures.length > 0
+                      ? {
+                          label: `Esta e as ${futures.length} futuras`,
+                          onConfirm: () => {
+                            deleteMovement(item.id);
+                            futures.forEach((f) => deleteMovement(f.id));
+                          },
+                        }
+                      : undefined,
                 });
               }}
               title="Excluir movimentação"

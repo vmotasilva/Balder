@@ -24,6 +24,7 @@ import { InstallmentPlanner } from './InstallmentPlanner';
 import { normalizeBankKey } from '../utils/cardUtils';
 import { itemUnitPrice } from '../utils/mappingItemState';
 import { getBankBranding } from '../utils/bankBranding';
+import { futureReceiptSiblings } from './ReceiptChangeDialog';
 import { RecurringChangeDialog, futureRecurringSiblings, type RecurringChangePrompt } from './RecurringChangeDialog';
 import type { Movement, MovementStatus, InvoiceNatureItemBreakdown } from '../types';
 
@@ -819,14 +820,29 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
   };
 
   const handleDelete = () => {
+    const futures = futureReceiptSiblings(movement, movements);
     confirmAction({
       title: 'Excluir Movimentação',
-      message: `Deseja realmente excluir a movimentação "${movement.title}"? Esta ação não pode ser desfeita.`,
-      confirmLabel: 'Excluir',
+      message:
+        futures.length > 0
+          ? `Deseja realmente excluir a movimentação "${movement.title}"? Ela se repete: há ${futures.length} ${futures.length === 1 ? 'repetição futura' : 'repetições futuras'}. Esta ação não pode ser desfeita.`
+          : `Deseja realmente excluir a movimentação "${movement.title}"? Esta ação não pode ser desfeita.`,
+      confirmLabel: futures.length > 0 ? 'Só esta' : 'Excluir',
       onConfirm: () => {
         deleteMovement(movement.id);
         onClose();
       },
+      alternate:
+        futures.length > 0
+          ? {
+              label: `Esta e as ${futures.length} futuras`,
+              onConfirm: () => {
+                deleteMovement(movement.id);
+                futures.forEach((f) => deleteMovement(f.id));
+                onClose();
+              },
+            }
+          : undefined,
     });
   };
 
