@@ -494,6 +494,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
       </div>
 
       {/* Visualização em Cards */}
+        <div className="nature-cards-scroll">
         <div className="nature-cards-grid-view">
           {filteredRows.map((row) => (
             <div
@@ -597,6 +598,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
               Nenhuma natureza encontrada para o filtro selecionado.
             </div>
           )}
+        </div>
         </div>
 
       {/* Modal Inline Rápido para Editar Observação */}

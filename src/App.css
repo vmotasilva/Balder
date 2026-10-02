@@ -24113,3 +24113,33 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
 
 .salary-ref-row { cursor: pointer; }
 .salary-ref-row:hover td { background: rgba(56, 189, 248, 0.12); }
+
+/* Cards do Início no computador: cabeçalho congelado, só o conteúdo rola */
+@media (min-width: 1100px) {
+  .home-hub .home-pane-fazer,
+  .home-hub .home-pane-gastos,
+  .home-hub .home-pane-naturezas {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden !important;
+    min-height: 0;
+  }
+  .home-hub .home-card-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .home-hub .home-pane-naturezas .nature-budget-grid-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    margin: 0 !important;
+    overflow: hidden;
+  }
+  .home-hub .home-pane-naturezas .nature-cards-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+}

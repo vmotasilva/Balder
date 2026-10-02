@@ -667,6 +667,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
               : `${levelTasks.length} ${labels.this} · ${formatBRL(levelTasks.reduce((acc, e) => acc + e.amount, 0))}`}
           </span>
         </div>
+        <div className="home-card-scroll">
         {openNature && (
           <nav className="home-task-trail" aria-label="Nível da lista">
             <button type="button" onClick={() => setDrill(openMapping ? { natureId: openNature.id } : null)} aria-label="Voltar um nível">
@@ -731,11 +732,13 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
             {showAllTasks ? 'Mostrar menos' : `Ver todas (${taskRows.length})`}
           </button>
         )}
+        </div>
       </section>
 
       <div className="home-right">
       {/* Como vão os gastos no período? */}
       <section className="home-card home-pane-gastos">
+        <div className="home-card-frozen">
         <div className="home-card-head">
           <h2>{spendingTitle}</h2>
         </div>
@@ -778,6 +781,8 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
             <ChevronRight size={16} />
           </button>
         </div>
+        </div>
+        <div className="home-card-scroll">
         {periodItems.length === 0 ? (
           <p className="home-empty">
             {isFutureSpending ? `Nenhuma compra prevista ${labels.that}.` : `Nenhuma compra prevista ou registrada ${spendingWhen}.`}
@@ -919,6 +924,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
             )}
           </>
         )}
+        </div>
       </section>
 
       <section className="home-card home-pane-naturezas">
