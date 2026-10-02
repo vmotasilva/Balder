@@ -143,7 +143,7 @@ const Stat: React.FC<{ label: string; value: number; color?: string }> = ({ labe
  * - Situação: realizado, quem paga (eu / outra pessoa, fora dos valores) e se vale para os próximos meses.
  */
 export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ target, onClose }) => {
-  const { natures, updateMappingItemState } = useFinancial();
+  const { natures, updateMappingItemState, addMovement, deleteMovement, movements, banks } = useFinancial();
   const { confirm: confirmAction, dialogProps } = useConfirmDialog();
 
   const nature = target ? natures.find((n) => n.id === target.natureId) : undefined;
@@ -307,19 +307,37 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
 
   const registerNoPayment = (redistribute: boolean) => {
     if (!item || selectedDates.length === 0) return;
-    updateMappingItemState(
-      target.natureId,
-      target.mappingId,
-      target.itemId,
-      registerItemPayment(item, target.monthKey, {
-        paidAt,
-        amount: 0,
-        coveredDates: selectedDates,
-        reason: 'Não precisou ser pago',
-        action: 'QUITADO',
-        redistribute,
-      })
-    );
+    const patch = registerItemPayment(item, target.monthKey, {
+      paidAt,
+      amount: 0,
+      coveredDates: selectedDates,
+      reason: 'Não precisou ser pago',
+      action: 'QUITADO',
+      redistribute,
+    });
+    updateMappingItemState(target.natureId, target.mappingId, target.itemId, patch);
+    // Aparece em Movimentações com valor 0 (o previsto fica em "valor original"); o vínculo permite remover ao desfazer
+    const created = (patch.payments?.[target.monthKey] || []).find((p) => p.reason === 'Não precisou ser pago' && selectedDates.every((d) => p.coveredDates.includes(d)) && p.coveredDates.length === selectedDates.length && !(item.payments?.[target.monthKey] || []).some((old) => old.id === p.id));
+    if (created) {
+      selectedDates.forEach((date) => {
+        const planned = occurrences.find((o) => o.date === date)?.value ?? occurrenceValue;
+        addMovement({
+          title: item.description,
+          type: 'PAGAR',
+          amount: 0,
+          originalAmount: planned,
+          actualAmount: 0,
+          status: 'REALIZADA',
+          dueDate: date,
+          paymentDate: paidAt,
+          bank: banks[0]?.name || 'Conta Corrente',
+          category: mapping?.name || nature?.name || 'Outros',
+          adjustmentReason: 'Não precisou ser pago',
+          notes: `Previsto de ${formatBRL(planned)} que não precisou ser pago`,
+          installmentGroupId: `skip_${created.id}`,
+        });
+      });
+    }
     setFeedback(
       `${selectedDates.map(formatDate).join(', ')}: não precisou pagar.` +
         (redistribute
@@ -348,6 +366,8 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
       variant: 'warning',
       onConfirm: () => {
         updateMappingItemState(target.natureId, target.mappingId, target.itemId, removeItemPayment(item, target.monthKey, paymentId));
+        // Remove da lista de movimentações o registro de valor 0 criado por "não precisou pagar"
+        movements.filter((m) => m.installmentGroupId === `skip_${paymentId}`).forEach((m) => deleteMovement(m.id));
         setFeedback(null);
       },
     });

@@ -325,6 +325,8 @@ export function buildPeriodItems(params: {
   // Contas a pagar do período: previstas pelo vencimento, pagas pela data do pagamento
   movements.forEach((m) => {
     if (m.type !== 'PAGAR' || m.category === 'Cartões' || m.category === 'Empréstimos') return;
+    // Registro de valor 0 de "não precisou pagar": aparece em Movimentações; o próprio item já mostra a dispensa
+    if (m.installmentGroupId?.startsWith('skip_')) return;
     // Já ligado a um item de mapeamento: o próprio item mostra a compra
     if (m.mappingItemId && natures.some((n) => n.mappings.some((mp) => mp.items.some((it) => it.id === m.mappingItemId)))) return;
     const paid = m.status === 'REALIZADA';
