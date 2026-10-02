@@ -22996,12 +22996,13 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   }
   .home-columns {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 14px;
     flex: 1;
     min-height: 0;
   }
-  .home-columns > .home-card {
+  .home-columns > .home-card,
+  .home-right > .home-card {
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -23045,9 +23046,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   }
   .home-columns:not([data-pane='FAZER']) .home-pane-fazer,
   .home-columns:not([data-pane='GASTOS']) .home-pane-gastos,
-  .home-columns:not([data-pane='NATUREZAS']) .home-pane-naturezas,
-  .home-columns:not([data-pane='METAS']) .home-pane-metas,
-  .home-columns:not([data-pane='SALARIO']) .home-pane-salario {
+  .home-columns:not([data-pane='NATUREZAS']) .home-pane-naturezas {
     display: none;
   }
 }
@@ -23055,22 +23054,9 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   .home-tabs-mobile {
     display: none;
   }
+  /* Os três cards ficam lado a lado: o contêiner da direita deixa de existir como caixa */
   .home-right {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    min-height: 0;
-  }
-  .home-right > .home-card {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-  }
-  .home-columns:not([data-right='GASTOS']) .home-pane-gastos,
-  .home-columns:not([data-right='NATUREZAS']) .home-pane-naturezas,
-  .home-columns:not([data-right='METAS']) .home-pane-metas,
-  .home-columns:not([data-right='SALARIO']) .home-pane-salario {
-    display: none;
+    display: contents;
   }
 }
 
@@ -24088,3 +24074,7 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
 .balance-opening-btn strong { display: inline-flex; align-items: center; gap: 6px; }
 .balance-opening-edit { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .balance-opening-edit .form-input { width: 140px; }
+
+/* Ícones de Metas e Salário ao lado do período */
+.home-period-bar { display: flex; align-items: center; gap: 8px; }
+.home-period-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border-default); background: var(--bg-card); color: var(--accent-cyan); cursor: pointer; }

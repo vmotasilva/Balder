@@ -7,6 +7,8 @@ import {
   CheckCircle2,
   ChevronRight,
   ChevronLeft,
+  Target,
+  Wallet,
 } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
@@ -16,6 +18,7 @@ import { NatureBudgetGrid } from '../components/NatureBudgetGrid';
 import { GoalsOverview } from '../components/GoalsOverview';
 import { BalanceBreakdownModal } from '../components/BalanceBreakdownModal';
 import { ForecastBreakdownModal } from '../components/ForecastBreakdownModal';
+import { Modal } from '../components/Modal';
 import { SalaryOverview } from '../components/SalaryOverview';
 import { MovementDetailModal } from '../components/MovementDetailModal';
 import { ForsetiActivityModal } from '../components/ForsetiActivityModal';
@@ -149,9 +152,10 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [showAllSpending, setShowAllSpending] = useState(false);
   // No celular, "Em aberto" e "Gastos no período" dividem o mesmo espaço, em abas
-  const [homePane, setHomePane] = useState<'FAZER' | 'GASTOS' | 'NATUREZAS' | 'METAS' | 'SALARIO'>('FAZER');
-  // No computador "Em aberto" fica à esquerda; à direita alternam Gastos, Naturezas e Metas
-  const rightPane = homePane === 'FAZER' ? 'GASTOS' : homePane;
+  const [homePane, setHomePane] = useState<'FAZER' | 'GASTOS' | 'NATUREZAS'>('FAZER');
+  // Metas e Salário abrem em pop-up, pelos ícones ao lado do período
+  const [showGoals, setShowGoals] = useState(false);
+  const [showSalary, setShowSalary] = useState(false);
   // Período corrente (semana, quinzena ou mês) só do início até hoje: o que já aconteceu na competência
   const [monthToDate, setMonthToDate] = useState(false);
   // Conta avulsa aberta para revisar natureza, mapeamento e item
@@ -619,17 +623,32 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
             </button>
           ))}
         </div>
+        <button type="button" className="home-period-icon" onClick={() => setShowGoals(true)} aria-label="Metas" title="Metas">
+          <Target size={16} />
+        </button>
+        <button type="button" className="home-period-icon" onClick={() => setShowSalary(true)} aria-label="Salário" title="Salário">
+          <Wallet size={16} />
+        </button>
       </div>
+      <Modal isOpen={showGoals} onClose={() => setShowGoals(false)} title="Metas" maxWidth="640px">
+        <GoalsOverview
+          onNavigateToGoals={() => {
+            setShowGoals(false);
+            onNavigate('METAS');
+          }}
+        />
+      </Modal>
+      <Modal isOpen={showSalary} onClose={() => setShowSalary(false)} title="Salário" maxWidth="640px">
+        <SalaryOverview />
+      </Modal>
 
-      {/* No computador, os dois cards ficam lado a lado e cabem na tela */}
-      <div className="home-columns" data-pane={homePane} data-right={rightPane}>
+      {/* No computador, os três cards ficam lado a lado e cabem na tela */}
+      <div className="home-columns" data-pane={homePane}>
       <div className="home-tabs home-tabs-mobile" role="tablist" aria-label="Seções do Início">
         {([
           ['FAZER', `Em aberto${tasks.length > 0 ? ` · ${tasks.length}` : ''}`],
           ['GASTOS', 'Previstos'],
           ['NATUREZAS', 'Naturezas'],
-          ['METAS', 'Metas'],
-          ['SALARIO', 'Salário'],
         ] as const).map(([id, label]) => (
           <button key={id} type="button" role="tab" aria-selected={homePane === id} className={homePane === id ? 'is-active' : ''} onClick={() => setHomePane(id)}>
             {label}
@@ -715,18 +734,6 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
       </section>
 
       <div className="home-right">
-      <div className="home-tabs home-tabs-desktop" role="tablist" aria-label="Gastos, naturezas e metas">
-        {([
-          ['GASTOS', spendingTitle],
-          ['NATUREZAS', 'Naturezas'],
-          ['METAS', 'Metas'],
-          ['SALARIO', 'Salário'],
-        ] as const).map(([id, label]) => (
-          <button key={id} type="button" role="tab" aria-selected={rightPane === id} className={rightPane === id ? 'is-active' : ''} onClick={() => setHomePane(id)}>
-            {label}
-          </button>
-        ))}
-      </div>
       {/* Como vão os gastos no período? */}
       <section className="home-card home-pane-gastos">
         <div className="home-card-head">
@@ -916,14 +923,6 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
 
       <section className="home-card home-pane-naturezas">
         <NatureBudgetGrid onNavigateToNatures={() => onNavigate('NATUREZAS')} />
-      </section>
-
-      <section className="home-card home-pane-metas">
-        <GoalsOverview onNavigateToGoals={() => onNavigate('METAS')} />
-      </section>
-
-      <section className="home-card home-pane-salario">
-        <SalaryOverview />
       </section>
       </div>
       </div>
