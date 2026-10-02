@@ -211,7 +211,8 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
     setAction(null);
   };
 
-  const expected = Math.round(selectedDates.length * occurrenceValue * 100) / 100;
+  // Cada data vale o previsto mais o que foi redistribuído para ela
+  const expected = Math.round(selectedDates.reduce((acc, d) => acc + (occurrences.find((o) => o.date === d)?.value ?? occurrenceValue), 0) * 100) / 100;
 
   // Enquanto o usuário não digitar, o valor pago acompanha o esperado das datas selecionadas
   useEffect(() => {
@@ -294,8 +295,16 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
     setAction(null);
   };
 
-  // Não precisou pagar estas datas: fecha só elas (pagamento zerado, sem cobrança do restante), sem mexer nas demais
-  const handleNoPaymentNeeded = () => {
+  // Não precisou pagar estas datas: fecha só elas (pagamento zerado) e pergunta se o valor vai para as semanas seguintes
+  const [skipAsk, setSkipAsk] = useState(false);
+  const laterOpenCount = (() => {
+    if (selectedDates.length === 0) return 0;
+    const last = [...selectedDates].sort().pop() as string;
+    return openOccurrences.filter((o) => o.date > last && !selectedDates.includes(o.date)).length;
+  })();
+  const skippedValue = occurrences.filter((o) => selectedDates.includes(o.date)).reduce((acc, o) => acc + o.value, 0);
+
+  const registerNoPayment = (redistribute: boolean) => {
     if (!item || selectedDates.length === 0) return;
     updateMappingItemState(
       target.natureId,
@@ -307,14 +316,24 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
         coveredDates: selectedDates,
         reason: 'Não precisou ser pago',
         action: 'QUITADO',
+        redistribute,
       })
     );
-    setFeedback(`${selectedDates.map(formatDate).join(', ')}: marcado como não precisou pagar. As demais datas não mudam.`);
+    setFeedback(
+      `${selectedDates.map(formatDate).join(', ')}: não precisou pagar.` +
+        (redistribute ? ` ${formatBRL(skippedValue)} foi redistribuído para as ${laterOpenCount} datas seguintes.` : ' As demais datas não mudam.')
+    );
+    setSkipAsk(false);
     setSelectedDates([]);
     setAmountTouched(false);
     setReason('');
     setCustomReason('');
     setAction(null);
+  };
+
+  const handleNoPaymentNeeded = () => {
+    if (laterOpenCount > 0) setSkipAsk(true);
+    else registerNoPayment(false);
   };
 
   const handleUndo = (paymentId: string, label: string) => {
@@ -613,6 +632,26 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
                       </div>
                     )}
 
+                    {skipAsk && (
+                      <div className="receipt-delete-ask" style={{ marginBottom: '10px' }}>
+                        <strong>Redistribuir o que não foi pago?</strong>
+                        <p className="text-xs text-muted" style={{ margin: 0 }}>
+                          {formatBRL(skippedValue)} deixa de ser pago agora. Quer somar esse valor às {laterOpenCount} datas seguintes
+                          da competência ou só dispensar?
+                        </p>
+                        <div className="receipt-delete-ask-actions">
+                          <button type="button" className="btn btn-outline btn-sm" onClick={() => setSkipAsk(false)}>
+                            Cancelar
+                          </button>
+                          <button type="button" className="btn btn-outline btn-sm" onClick={() => registerNoPayment(false)}>
+                            Só dispensar
+                          </button>
+                          <button type="button" className="btn btn-primary btn-sm" onClick={() => registerNoPayment(true)}>
+                            Redistribuir
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
                       <button type="button" className="btn btn-outline btn-sm" onClick={onClose}>
                         Fechar

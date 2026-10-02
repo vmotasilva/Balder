@@ -67,6 +67,15 @@ export interface ItemOccurrence {
   value: number; // valor previsto desta ocorrência
 }
 
+/** Acréscimo por data vindo de valores não pagos redistribuídos para as ocorrências seguintes. */
+export function carryExtras(item: MappingItem, monthKey: string): Map<string, number> {
+  const extras = new Map<string, number>();
+  (item.payments?.[monthKey] || []).forEach((p) =>
+    Object.entries(p.carryTo || {}).forEach(([date, extra]) => extras.set(date, round2((extras.get(date) || 0) + extra)))
+  );
+  return extras;
+}
+
 /** Ocorrências (datas) do item na competência, com o valor previsto de cada uma. */
 export function getItemOccurrences(item: MappingItem, monthKey: string): ItemOccurrence[] {
   const [y, m] = monthKey.split('-').map(Number);
@@ -75,9 +84,13 @@ export function getItemOccurrences(item: MappingItem, monthKey: string): ItemOcc
   const daysInMonth = new Date(y, m, 0).getDate();
   const value = round3((item.quantity || 1) * itemUnitPrice(item, monthKey));
   const padM = String(m).padStart(2, '0');
+  const extras = carryExtras(item, monthKey);
   return Array.from(new Set(days.map((d) => Math.min(Math.max(1, d), daysInMonth))))
     .sort((a, b) => a - b)
-    .map((d) => ({ date: `${y}-${padM}-${String(d).padStart(2, '0')}`, value }));
+    .map((d) => {
+      const date = `${y}-${padM}-${String(d).padStart(2, '0')}`;
+      return { date, value: round3(value + (extras.get(date) || 0)) };
+    });
 }
 
 export interface MappingItemMonthSummary {
@@ -115,7 +128,11 @@ export function resolveMappingItemMonth(item: MappingItem, monthKey: string): Ma
   const occurrenceValue = (item.quantity || 1) * itemUnitPrice(item, monthKey);
   // Partes de pagamentos do mapeamento (modo Resumo) abatem do previsto sem cobrir datas
   const mappingShares = payments.filter((p) => p.mappingPaymentId).reduce((acc, p) => acc + p.amount, 0);
-  const pendingUncovered = state.realized ? 0 : Math.max(0, base - coveredDates.size * occurrenceValue - mappingShares);
+  const extras = carryExtras(item, monthKey);
+  const totalCarry = [...extras.values()].reduce((acc, v) => acc + v, 0);
+  // Redistribuído de uma data dispensada: o planejado cresce nas seguintes e cai na dispensada, fechando no mesmo total
+  const coveredValue = [...coveredDates.keys()].reduce((acc, d) => acc + occurrenceValue + (extras.get(d) || 0), 0);
+  const pendingUncovered = state.realized ? 0 : Math.max(0, base + totalCarry - coveredValue - mappingShares);
   const openBalance = payments
     .filter((p) => p.action === 'SALDO_ABERTO')
     .reduce((acc, p) => acc + Math.max(0, p.expectedAmount - p.amount), 0);
@@ -182,6 +199,8 @@ export interface ItemPaymentInput {
   coveredDates: string[];
   reason?: string;
   action?: MappingItemPaymentAction;
+  /** O que não foi pago é redistribuído para as ocorrências seguintes ainda abertas da competência. */
+  redistribute?: boolean;
 }
 
 /**
@@ -200,7 +219,10 @@ export function registerItemPayment(
   if (coveredDates.length === 0) return {};
 
   const qty = item.quantity || 1;
-  const expectedAmount = round2(coveredDates.length * qty * itemUnitPrice(item, monthKey));
+  const extras = carryExtras(item, monthKey);
+  const expectedAmount = round2(
+    coveredDates.reduce((acc, d) => acc + qty * itemUnitPrice(item, monthKey) + (extras.get(d) || 0), 0)
+  );
   const payment: MappingItemPayment = {
     id: `pay_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     paidAt: input.paidAt,
@@ -210,6 +232,20 @@ export function registerItemPayment(
     ...(input.reason ? { reason: input.reason } : {}),
     ...(input.action && Math.abs(input.amount - expectedAmount) >= 0.01 ? { action: input.action } : {}),
   };
+
+  if (input.redistribute && expectedAmount - payment.amount > 0.005) {
+    const lastCovered = coveredDates[coveredDates.length - 1];
+    const later = getItemOccurrences(item, monthKey)
+      .map((o) => o.date)
+      .filter((d) => d > lastCovered && !alreadyCovered.has(d) && !coveredDates.includes(d));
+    if (later.length > 0) {
+      const carry = round2(expectedAmount - payment.amount);
+      const share = Math.floor((carry / later.length) * 100) / 100;
+      payment.carryTo = Object.fromEntries(
+        later.map((d, i) => [d, i === later.length - 1 ? round2(carry - share * (later.length - 1)) : share])
+      );
+    }
+  }
 
   const patch: Partial<MappingItem> = {
     payments: { ...(item.payments || {}), [monthKey]: [...existing, payment] },

@@ -448,6 +448,8 @@ export interface MappingItemPayment {
    * na proporção do previsto dele no mês. Todas as partes do mesmo pagamento têm o mesmo id.
    */
   mappingPaymentId?: string;
+  /** Valor não pago que foi redistribuído para ocorrências seguintes da competência (data -> acréscimo). */
+  carryTo?: Record<string, number>;
   /** Movimentação que originou o pagamento (evita contar duas vezes ao reconfirmar). */
   movementId?: string;
 }
