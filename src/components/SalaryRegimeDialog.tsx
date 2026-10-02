@@ -76,6 +76,118 @@ const PRESETS: Preset[] = [
   { id: 'WEEKLY', label: 'Semanal (4 semanas)', weekly: true, build: (t) => splitEqual(t, [7, 14, 21, 28]) },
 ];
 
+interface SalaryPartsEditorProps {
+  parts: SalaryPart[];
+  /** Total que os atalhos (quinzenal, semanal…) dividem. */
+  referenceTotal: number;
+  onChange: (parts: SalaryPart[], weekly: boolean) => void;
+}
+
+/** Atalhos de modalidade e edição de valor e dia de cada parte do pagamento. */
+export const SalaryPartsEditor: React.FC<SalaryPartsEditorProps> = ({ parts, referenceTotal, onChange }) => {
+  const setPart = (index: number, patch: Partial<SalaryPart>) =>
+    onChange(parts.map((p, i) => (i === index ? { ...p, ...patch } : p)), false);
+
+  const addPart = () => {
+    const last = parts[parts.length - 1];
+    onChange([...parts, { amount: 0, day: Math.min(31, (last?.day ?? 0) + 5) }], false);
+  };
+
+  return (
+    <>
+      <div className="salary-regime-presets">
+        {PRESETS.map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            className="btn btn-outline btn-xs"
+            onClick={() => {
+              onChange(preset.build(referenceTotal), !!preset.weekly);
+            }}
+          >
+            {preset.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="salary-regime-parts">
+        {parts.map((part, i) => (
+          <div key={i} className="salary-regime-part">
+            <span className="salary-regime-part-label">
+              {parts.length === 1 ? 'Pagamento' : `${i + 1}ª parte`}
+            </span>
+            <DecimalInput
+              className="form-input form-input-sm"
+              value={part.amount}
+              onValueChange={(amount) => setPart(i, { amount })}
+            />
+            <label className="salary-regime-day">
+              dia
+              <input
+                type="number"
+                min={1}
+                max={31}
+                className="form-input form-input-sm"
+                value={part.day}
+                onChange={(e) => setPart(i, { day: Number(e.target.value) })}
+              />
+            </label>
+            {parts.length > 1 && (
+              <button
+                type="button"
+                className="btn btn-outline btn-xs"
+                aria-label="Remover parte"
+                onClick={() => onChange(parts.filter((_, idx) => idx !== i), false)}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        ))}
+        <button type="button" className="btn btn-outline btn-xs" onClick={addPart}>
+          + Adicionar parte
+        </button>
+      </div>
+
+    </>
+  );
+};
+
+/** Lançamentos a apagar e a criar para aplicar uma modalidade nas competências indicadas (só os previstos são trocados). */
+export function planSalaryRegime(
+  movements: Movement[],
+  base: string,
+  monthKeys: string[],
+  parts: SalaryPart[],
+  weekly: boolean,
+  fallbackBank: string
+): { deleteIds: string[]; created: Omit<Movement, 'id'>[] } {
+  const stamp = Date.now();
+  const deleteIds: string[] = [];
+  const created: Omit<Movement, 'id'>[] = [];
+  monthKeys.forEach((monthKey) => {
+    const existing = salaryOfCompetence(movements, base, monthKey).filter((m) => m.status === 'PREVISTA');
+    existing.forEach((m) => deleteIds.push(m.id));
+    const bank = existing[0]?.bank || fallbackBank;
+    const [year, month] = monthKey.split('-').map(Number);
+    const daysInMonth = new Date(year, month, 0).getDate();
+    parts.forEach((part, i) => {
+      created.push({
+        title: salaryPartTitle(base, i, parts.length, weekly),
+        type: 'RECEBER',
+        amount: part.amount,
+        originalAmount: part.amount,
+        dueDate: `${monthKey}-${String(Math.min(part.day, daysInMonth)).padStart(2, '0')}`,
+        bank,
+        status: 'PREVISTA',
+        category: 'Salário',
+        installmentGroupId: `rec_${stamp}_${i}`,
+      });
+    });
+  });
+  return { deleteIds, created };
+}
+
 export interface SalaryRegimeResult {
   parts: SalaryPart[];
   weekly: boolean;
@@ -117,75 +229,20 @@ export const SalaryRegimeDialog: React.FC<SalaryRegimeDialogProps> = ({
   const willApplyFuture = futureCount > 0 && (mustUseFuture || applyToFuture);
   const nothingToDo = mustUseFuture && futureCount === 0;
 
-  const setPart = (index: number, patch: Partial<SalaryPart>) =>
-    setParts((prev) => prev.map((p, i) => (i === index ? { ...p, ...patch } : p)));
-
-  const addPart = () => {
-    const last = parts[parts.length - 1];
-    setWeekly(false);
-    setParts([...parts, { amount: 0, day: Math.min(31, (last?.day ?? 0) + 5) }]);
-  };
-
   return (
     <Modal isOpen onClose={onClose} title="Modalidade de recebimento" subtitle={baseName} maxWidth="480px">
       <p className="text-xs text-muted mb-3">
         Escolha como o salário cai na conta. Para voltar a receber de uma vez, use <strong>Mensal</strong>.
       </p>
 
-      <div className="salary-regime-presets">
-        {PRESETS.map((preset) => (
-          <button
-            key={preset.id}
-            type="button"
-            className="btn btn-outline btn-xs"
-            onClick={() => {
-              setParts(preset.build(currentTotal > 0 ? currentTotal : total));
-              setWeekly(!!preset.weekly);
-            }}
-          >
-            {preset.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="salary-regime-parts">
-        {parts.map((part, i) => (
-          <div key={i} className="salary-regime-part">
-            <span className="salary-regime-part-label">
-              {parts.length === 1 ? 'Pagamento' : `${i + 1}ª parte`}
-            </span>
-            <DecimalInput
-              className="form-input form-input-sm"
-              value={part.amount}
-              onValueChange={(amount) => setPart(i, { amount })}
-            />
-            <label className="salary-regime-day">
-              dia
-              <input
-                type="number"
-                min={1}
-                max={31}
-                className="form-input form-input-sm"
-                value={part.day}
-                onChange={(e) => setPart(i, { day: Number(e.target.value) })}
-              />
-            </label>
-            {parts.length > 1 && (
-              <button
-                type="button"
-                className="btn btn-outline btn-xs"
-                aria-label="Remover parte"
-                onClick={() => setParts(parts.filter((_, idx) => idx !== i))}
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        ))}
-        <button type="button" className="btn btn-outline btn-xs" onClick={addPart}>
-          + Adicionar parte
-        </button>
-      </div>
+      <SalaryPartsEditor
+        parts={parts}
+        referenceTotal={currentTotal > 0 ? currentTotal : total}
+        onChange={(next, isWeekly) => {
+          setParts(next);
+          setWeekly(isWeekly);
+        }}
+      />
 
       <p className="text-xs mt-3" style={{ color: 'var(--text-secondary)' }}>
         Total do mês: <strong>{formatBRL(total)}</strong>

@@ -76,7 +76,7 @@ import { InitialBalancePanel } from './InitialBalancePanel';
 import {
   SalaryRegimeDialog,
   salaryBaseTitle,
-  salaryPartTitle,
+  planSalaryRegime,
   salaryOfCompetence,
   futureSalaryMonths,
   type SalaryRegimeResult,
@@ -1424,28 +1424,15 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
       ...(regimeInfo.hasRealized ? [] : [regimeInfo.monthKey]),
       ...(result.applyToFuture ? regimeInfo.futureMonths : []),
     ];
-    const stamp = Date.now();
-    const created: Omit<Movement, 'id'>[] = [];
-    months.forEach((monthKey) => {
-      const existing = salaryOfCompetence(movements, regimeInfo.base, monthKey).filter((m) => m.status === 'PREVISTA');
-      existing.forEach((m) => deleteMovement(m.id));
-      const bank = existing[0]?.bank || editingReceipt.bank;
-      const [year, month] = monthKey.split('-').map(Number);
-      const daysInMonth = new Date(year, month, 0).getDate();
-      result.parts.forEach((part, i) => {
-        created.push({
-          title: salaryPartTitle(regimeInfo.base, i, result.parts.length, result.weekly),
-          type: 'RECEBER',
-          amount: part.amount,
-          originalAmount: part.amount,
-          dueDate: `${monthKey}-${String(Math.min(part.day, daysInMonth)).padStart(2, '0')}`,
-          bank,
-          status: 'PREVISTA',
-          category: 'Salário',
-          installmentGroupId: `rec_${stamp}_${i}`,
-        });
-      });
-    });
+    const { deleteIds, created } = planSalaryRegime(
+      movements,
+      regimeInfo.base,
+      months,
+      result.parts,
+      result.weekly,
+      editingReceipt.bank
+    );
+    deleteIds.forEach((id) => deleteMovement(id));
     if (created.length > 0) addMultipleMovements(created);
     setRegimeOpen(false);
     setEditingReceipt(null);

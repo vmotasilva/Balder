@@ -1,51 +1,15 @@
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { useFinancial } from '../context/FinancialContext';
-import {
-  TrendingUp,
-  ShieldAlert,
-  Sparkles,
-  CheckCircle2,
-  MapPin,
-  Calendar,
-  Users,
-  UserCheck,
-} from 'lucide-react';
-import type { MonthlyGridProjectionRow, SimulationPresetId } from '../types';
-import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
-import { FORECAST_PERIOD_OPTIONS, type ForecastPeriod } from '../utils/forecastWindow';
+import { Sparkles, MapPin, Users, UserCheck } from 'lucide-react';
+import type { SimulationPresetId } from '../types';
 
 export type DashboardTab = 'PROJECAO_MES' | 'PROJECAO_TOTAL';
 import { MonthlyProjectionGrid } from '../components/MonthlyProjectionGrid';
 import { CheckpointSetupModal } from '../components/CheckpointSetupModal';
 import { QuickActionsDropdown } from '../components/QuickActionsDropdown';
-import { GridCellDetailModal, type GridCellSelection } from '../components/GridCellDetailModal';
-import {
-  ForecastBreakdownModal,
-  ForecastPeriodPills,
-  ddmm,
-  formatBRL,
-  useForecastPeriod,
-} from '../components/ForecastBreakdownModal';
-
-/** Filtro do card de previsão: "Atual" é a competência em aberto; os demais contam de hoje até o fim do período. */
-type DashboardPeriod = 'ATUAL' | ForecastPeriod;
-const DASHBOARD_PERIODS: { id: DashboardPeriod; label: string }[] = [{ id: 'ATUAL', label: 'Atual' }, ...FORECAST_PERIOD_OPTIONS];
-const DASHBOARD_PERIOD_IDS = DASHBOARD_PERIODS.map((p) => p.id);
-
-const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-/** "2026-10" → "Outubro/2026" */
-const competenceName = (monthKey: string) => `${MONTH_NAMES[Number(monthKey.slice(5, 7)) - 1]}/${monthKey.slice(0, 4)}`;
-/** Último dia da competência: "2026-10" → "2026-10-31" */
-const competenceEnd = (monthKey: string) =>
-  `${monthKey}-${String(new Date(Number(monthKey.slice(0, 4)), Number(monthKey.slice(5, 7)), 0).getDate()).padStart(2, '0')}`;
-
-// Mesmos totais das colunas Entrada e Saída da Projeção
-const rowIncome = (r?: MonthlyGridProjectionRow) => (r ? r.salary + r.extrasTotal + r.loanReceived : 0);
-const rowExpense = (r?: MonthlyGridProjectionRow) =>
-  r ? r.creditCardTotal + r.fixedCostMapped + r.variableCost + r.loanPayment : 0;
 
 interface DashboardPageProps {
-  onNavigateToMovements: () => void;
+  onNavigateToMovements?: () => void;
   onNavigateToGoals: () => void;
   onNavigateToCopilot: () => void;
   onNavigateToLoans?: () => void;
@@ -57,7 +21,6 @@ interface DashboardPageProps {
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({
-  onNavigateToMovements,
   onNavigateToCopilot,
   onNavigateToLoans,
   onNavigateToShared,
@@ -67,12 +30,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 }) => {
   const {
     isDataReady,
-    forecasts,
-    movements,
-    natures,
-    monthlyClosings,
-    projectionHorizonMonths,
-    nextCriticalEvent,
     activeCheckpoint,
     activeTrackingScope,
     defaultTrackingScope,
@@ -80,57 +37,6 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
   } = useFinancial();
 
   const [isCheckpointModalOpen, setIsCheckpointModalOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState<DashboardTab>('PROJECAO_MES');
-  const [period, setPeriod] = useForecastPeriod<DashboardPeriod>('ATUAL', DASHBOARD_PERIOD_IDS);
-  const [isForecastDetailOpen, setIsForecastDetailOpen] = useState(false);
-  const [cellSelection, setCellSelection] = useState<GridCellSelection | null>(null);
-  const isCurrentCompetence = period === 'ATUAL';
-  const forecastPeriod: ForecastPeriod = period === 'ATUAL' ? 'MES' : period;
-  const forecast = forecasts[forecastPeriod];
-  const forecastOverdue = forecast.entries.filter((e) => e.overdue).length;
-
-  // Competência atual = a primeira em aberto a partir do mês de hoje (um mês já fechado passa a vez ao seguinte),
-  // com os mesmos números da Projeção
-  const initialBalance = activeCheckpoint ? activeCheckpoint.initialBalance : 0;
-  const competence = useMemo(() => {
-    if (!isCurrentCompetence) return null;
-    const options = { startDate: activeCheckpoint?.startDate, horizonMonths: projectionHorizonMonths };
-    const rows = buildMonthlyProjectionGrid(movements, natures, initialBalance, monthlyClosings, 'PROJETADO', options);
-    const now = new Date();
-    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const row = rows.find((r) => r.monthKey >= todayKey && !r.isClosed) || rows.find((r) => r.monthKey === todayKey);
-    if (!row) return null;
-    const realized = buildMonthlyProjectionGrid(movements, natures, initialBalance, monthlyClosings, 'REALIZADO', options).find(
-      (r) => r.monthKey === row.monthKey
-    );
-    return { row, realIn: rowIncome(realized), realOut: rowExpense(realized) };
-  }, [isCurrentCompetence, movements, natures, initialBalance, monthlyClosings, activeCheckpoint?.startDate, projectionHorizonMonths]);
-
-  // Mesmo detalhamento aberto pela Projeção ao tocar em Entrada, Saída, Saldo ou Saldo acumulado
-  const openCompetenceCell = (columnKey: GridCellSelection['columnKey'], columnTitle: string, totalValue: number) => {
-    if (!competence) return;
-    const { row } = competence;
-    setCellSelection({
-      columnKey,
-      columnTitle,
-      competenceLabel: row.competenceLabel,
-      formattedCompetence: row.formattedCompetence,
-      totalValue,
-      row,
-      viewMode: 'PROJETADO',
-    });
-  };
-  const competenceCol = (open: () => void) => ({
-    role: 'button' as const,
-    tabIndex: 0,
-    onClick: open,
-    onKeyDown: (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        open();
-      }
-    },
-  });
 
   // Aguarda os dados do Supabase antes de renderizar para evitar flash de dados demo
   if (!isDataReady) {
@@ -231,242 +137,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       </div>
 
       {/* ============================================================== */}
-      {/* SELETOR PRINCIPAL DE SEÇÕES (TABS INTERATIVAS)                 */}
-      {/* ============================================================== */}
-      <div className="dashboard-tabs-container">
-        <div className="dashboard-tabs-nav" role="tablist" aria-label="Seções do Dashboard">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeSection === 'PROJECAO_MES'}
-            className={`dashboard-tab-btn ${activeSection === 'PROJECAO_MES' ? 'active' : ''}`}
-            onClick={() => setActiveSection('PROJECAO_MES')}
-          >
-            <Calendar size={18} />
-            <span>Atual</span>
-          </button>
-
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeSection === 'PROJECAO_TOTAL'}
-            className={`dashboard-tab-btn ${activeSection === 'PROJECAO_TOTAL' ? 'active' : ''}`}
-            onClick={() => setActiveSection('PROJECAO_TOTAL')}
-          >
-            <TrendingUp size={18} />
-            <span className="tab-label-full">Projeção</span>
-            <span className="tab-label-short">Projeção</span>
-          </button>
-
-        </div>
-      </div>
-
-      {/* ============================================================== */}
-      {/* CONTEÚDO 1: PROJEÇÃO DO MÊS (30 DIAS + EVENTO CRÍTICO)         */}
-      {/* ============================================================== */}
-      {activeSection === 'PROJECAO_MES' && (
-        <div key="projecao-mes" className="dashboard-tab-content animate-fade-in">
-          {/* Seção O Que Vai Acontecer (30 Dias) */}
-          <section className="dashboard-section">
-            <div className="section-title-row forecast-title-row">
-              <div className="section-title-left">
-                <ForecastPeriodPills value={period} onChange={setPeriod} options={DASHBOARD_PERIODS} />
-              </div>
-              <button className="link-button" onClick={onNavigateToMovements}>
-                Ver movimentações →
-              </button>
-            </div>
-
-            {isCurrentCompetence && competence ? (
-              <div className="cashflow-projection-card glass-card">
-                <div className="projection-grid-4">
-                  <div
-                    className="projection-col projection-col-clickable"
-                    {...competenceCol(() => openCompetenceCell('totalIncome', 'Entradas do mês', rowIncome(competence.row)))}
-                    title="Ver as entradas da competência por natureza"
-                  >
-                    <div className="proj-label-row">
-                      <span className="proj-icon text-emerald">↓</span>
-                      <span className="proj-label">A RECEBER</span>
-                    </div>
-                    <span className="proj-value text-emerald">+{formatBRL(rowIncome(competence.row))}</span>
-                    <span className="proj-subtext">
-                      Entradas de {competenceName(competence.row.monthKey)}
-                      {competence.realIn > 0.005 ? ` · ${formatBRL(competence.realIn)} já recebido` : ''}
-                    </span>
-                  </div>
-
-                  <div
-                    className="projection-col projection-col-clickable"
-                    {...competenceCol(() => openCompetenceCell('totalExpense', 'Saídas do mês', rowExpense(competence.row)))}
-                    title="Ver as saídas da competência por natureza"
-                  >
-                    <div className="proj-label-row">
-                      <span className="proj-icon text-rose">↑</span>
-                      <span className="proj-label">A PAGAR</span>
-                    </div>
-                    <span className="proj-value text-rose">-{formatBRL(rowExpense(competence.row))}</span>
-                    <span className="proj-subtext">
-                      Saídas de {competenceName(competence.row.monthKey)}
-                      {competence.realOut > 0.005 ? ` · ${formatBRL(competence.realOut)} já pago` : ''}
-                    </span>
-                  </div>
-
-                  <div
-                    className="projection-col projection-col-clickable"
-                    {...competenceCol(() =>
-                      openCompetenceCell('monthNet', 'Resultado Líquido do Mês (Entradas - Saídas)', competence.row.monthNet)
-                    )}
-                  >
-                    <div className="proj-label-row">
-                      <span className="proj-icon text-cyan">±</span>
-                      <span className="proj-label">RESULTADO</span>
-                    </div>
-                    <span className={`proj-value ${competence.row.monthNet >= 0 ? 'text-cyan' : 'text-rose'}`}>
-                      {competence.row.monthNet >= 0 ? '+' : ''}
-                      {formatBRL(competence.row.monthNet)}
-                    </span>
-                    <span className="proj-subtext">Entradas menos saídas da competência</span>
-                  </div>
-
-                  <div
-                    className="projection-col highlighted-col projection-col-clickable"
-                    {...competenceCol(() =>
-                      openCompetenceCell('accumulated', 'Saldo Acumulado Projetado', competence.row.accumulatedBalance)
-                    )}
-                  >
-                    <div className="proj-label-row">
-                      <span className="proj-icon text-amber">🏛️</span>
-                      <span className="proj-label">SALDO EM {ddmm(competenceEnd(competence.row.monthKey))}</span>
-                    </div>
-                    <span className="proj-value text-white font-bold">{formatBRL(competence.row.accumulatedBalance)}</span>
-                    <span className="proj-subtext">Saldo acumulado no fim da competência</span>
-                  </div>
-                </div>
-                <span className="forecast-card-hint">Toque em um valor para ver o detalhamento</span>
-              </div>
-            ) : (
-              <div
-                className="cashflow-projection-card glass-card forecast-card-clickable"
-                role="button"
-                tabIndex={0}
-                onClick={() => setIsForecastDetailOpen(true)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setIsForecastDetailOpen(true);
-                  }
-                }}
-                title="Ver o que compõe estes valores"
-              >
-                <div className="projection-grid-4">
-                  <div className="projection-col">
-                    <div className="proj-label-row">
-                      <span className="proj-icon text-emerald">↓</span>
-                      <span className="proj-label">A RECEBER</span>
-                    </div>
-                    <span className="proj-value text-emerald">+{formatBRL(forecast.income)}</span>
-                    <span className="proj-subtext">Entradas previstas até {ddmm(forecast.toDate)}</span>
-                  </div>
-
-                  <div className="projection-col">
-                    <div className="proj-label-row">
-                      <span className="proj-icon text-rose">↑</span>
-                      <span className="proj-label">A PAGAR</span>
-                    </div>
-                    <span className="proj-value text-rose">-{formatBRL(forecast.expenses)}</span>
-                    <span className="proj-subtext">Contas, faturas, parcelas e naturezas</span>
-                  </div>
-
-                  <div className="projection-col">
-                    <div className="proj-label-row">
-                      <span className="proj-icon text-cyan">±</span>
-                      <span className="proj-label">RESULTADO</span>
-                    </div>
-                    <span className={`proj-value ${forecast.net >= 0 ? 'text-cyan' : 'text-rose'}`}>
-                      {forecast.net >= 0 ? '+' : ''}
-                      {formatBRL(forecast.net)}
-                    </span>
-                    <span className="proj-subtext">
-                      {forecastOverdue > 0 ? `Inclui ${forecastOverdue} item(ns) em atraso` : 'Entradas menos saídas no período'}
-                    </span>
-                  </div>
-
-                  <div className="projection-col highlighted-col">
-                    <div className="proj-label-row">
-                      <span className="proj-icon text-amber">🏛️</span>
-                      <span className="proj-label">SALDO EM {ddmm(forecast.toDate)}</span>
-                    </div>
-                    <span className="proj-value text-white font-bold">{formatBRL(forecast.projectedBalance)}</span>
-                    <span className="proj-subtext">Saldo em caixa hoje + resultado</span>
-                  </div>
-                </div>
-                <span className="forecast-card-hint">Ver detalhamento →</span>
-              </div>
-            )}
-          </section>
-
-          <ForecastBreakdownModal
-            isOpen={isForecastDetailOpen}
-            onClose={() => setIsForecastDetailOpen(false)}
-            period={forecastPeriod}
-            onPeriodChange={setPeriod}
-          />
-
-          <GridCellDetailModal isOpen={!!cellSelection} onClose={() => setCellSelection(null)} selection={cellSelection} />
-
-          {/* Seção Próximo Evento Crítico */}
-          <section className="dashboard-section">
-            <div className="section-title-row">
-              <div className="section-title-left">
-                <span className="badge badge-rose">ATENÇÃO IMEDIATA</span>
-                <h2 className="section-heading">Próximo Evento Crítico</h2>
-              </div>
-            </div>
-
-            {nextCriticalEvent ? (
-              <div className="critical-card glass-card">
-                <div className="critical-header">
-                  <div className="critical-alert-icon">
-                    <ShieldAlert size={22} className="text-rose" />
-                  </div>
-                  <div className="critical-details">
-                    <h3 className="critical-title">{nextCriticalEvent.title}</h3>
-                    <span className="critical-entity">Entidade: {nextCriticalEvent.relatedEntity || 'Bancário'}</span>
-                  </div>
-                  <div className="countdown-pill">
-                    <span className="countdown-num">{nextCriticalEvent.daysRemaining}</span>
-                    <span className="countdown-label">dias restantes</span>
-                  </div>
-                </div>
-
-                <div className="critical-amount-row">
-                  <span className="critical-amount-label">Valor do Evento:</span>
-                  <span className="critical-amount-val text-rose">
-                    {nextCriticalEvent.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                  </span>
-                </div>
-
-                <div className="critical-action-box">
-                  <span className="action-tag">AÇÃO RECOMENDADA:</span>
-                  <p className="action-desc">{nextCriticalEvent.recommendedAction}</p>
-                </div>
-              </div>
-            ) : (
-              <div className="glass-card safe-state-card">
-                <CheckCircle2 size={28} className="text-emerald" />
-                <h4>Nenhum risco financeiro detectado para os próximos 15 dias.</h4>
-                <p>Seu fluxo de caixa está perfeitamente equilibrado.</p>
-              </div>
-            )}
-          </section>
-        </div>
-      )}
-
-      {/* ============================================================== */}
       {/* CONTEÚDO 2: PROJEÇÃO TOTAL (GRID ORÇAMENTÁRIA MÊS A MÊS)       */}
       {/* ============================================================== */}
-      {activeSection === 'PROJECAO_TOTAL' && (
+      {(
         <div key="projecao-total" className="dashboard-tab-content animate-fade-in">
           <section className="dashboard-section">
             <MonthlyProjectionGrid />
