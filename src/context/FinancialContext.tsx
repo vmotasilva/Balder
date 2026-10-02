@@ -4094,8 +4094,14 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       isIncome && pending.rawTitle === 'Recebimento' ? 'Recebimento' : `${isIncome ? 'Recebimento' : 'Despesa'}: ${pending.rawTitle}`;
 
     // Despesa: liga ao item do mapeamento (natureza → mapeamento → item) que o nome indica, ex.: "Neon.tech"
-    const itemLink = isIncome ? null : findMappingItemForTitle(pending.rawTitle, userNatures(natures));
-    const natureLink: Partial<Movement> = itemLink
+    // Se a pessoa já confirmou/ajustou a sugestão no resumo, vale a escolha dela (inclusive "nenhuma")
+    const confirmedLink = isIncome || pending.natureId === undefined ? null : pending.natureId;
+    const itemLink = isIncome || confirmedLink !== null ? null : findMappingItemForTitle(pending.rawTitle, userNatures(natures));
+    const natureLink: Partial<Movement> = confirmedLink !== null
+      ? confirmedLink
+        ? { natureId: confirmedLink, ...(pending.mappingItemId ? { mappingItemId: pending.mappingItemId } : {}) }
+        : {}
+      : itemLink
       ? { natureId: itemLink.natureId, mappingItemId: itemLink.itemId }
       : isIncome
       ? {}

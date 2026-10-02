@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import { listPaymentInstitutions } from '../utils/paymentInstitutions';
 import { getBankBranding } from '../utils/bankBranding';
 import { parseMoney } from '../utils/parseDecimal';
+import { findMappingItemForTitle } from '../utils/mappingMatch';
+import { userNatures } from '../utils/baseNatures';
+import { matchNatureForTransaction } from '../services/invoiceFileParser';
 import type { CopilotPendingConfirmation, PaymentWizardState } from '../types';
 
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -19,7 +22,7 @@ interface Props {
  * banco ou dinheiro → banco → débito ou crédito → parcelas → resumo editável.
  */
 export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) => {
-  const { accounts, cards, banks, updatePaymentWizard, confirmPaymentWizard, cancelPaymentWizard } = useFinancial();
+  const { accounts, cards, banks, natures, updatePaymentWizard, confirmPaymentWizard, cancelPaymentWizard } = useFinancial();
   const wizard = pending.wizard as PaymentWizardState;
   const data = pending.pendingData;
   const isIncome = data.type === 'RECEBER';
@@ -32,6 +35,22 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
   const institutions = isIncome
     ? accounts.map((a) => ({ name: a.name, color: getBankBranding(a.bankName || a.name).primaryColor }))
     : listPaymentInstitutions(accounts, cards, banks).map((i) => ({ name: i.name, color: i.color }));
+
+  // Despesa: a Forseti sugere natureza e item do teto pelo nome; a pessoa confirma ou troca no resumo
+  const ownNatures = userNatures(natures);
+  useEffect(() => {
+    if (isIncome || wizard.step !== 'SUMMARY' || data.natureId !== undefined) return;
+    const item = findMappingItemForTitle(data.rawTitle, ownNatures);
+    if (item) {
+      updatePaymentWizard(messageId, undefined, { natureId: item.natureId, mappingItemId: item.itemId });
+      return;
+    }
+    const m = matchNatureForTransaction(data.rawTitle, undefined, ownNatures);
+    updatePaymentWizard(messageId, undefined, { natureId: m.natureId !== 'OUTROS' && m.confidence >= 0.9 ? m.natureId : '', mappingItemId: '' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wizard.step]);
+  const chosenNature = ownNatures.find((n) => n.id === data.natureId);
+  const natureItems = (chosenNature?.mappings || []).flatMap((mp) => (mp.items || []).map((it) => ({ id: it.id, label: `${mp.name} › ${it.description}` })));
 
   const back = () => {
     if (wizard.step === 'BANK') go({ step: 'WHERE', where: undefined });
@@ -164,6 +183,40 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
             <dd>
               <input type="date" value={data.dueDate} onChange={(e) => e.target.value && updatePaymentWizard(messageId, undefined, { dueDate: e.target.value })} />
             </dd>
+            {!isIncome && (
+              <>
+                <dt>Natureza</dt>
+                <dd>
+                  <select
+                    value={data.natureId || ''}
+                    onChange={(e) => updatePaymentWizard(messageId, undefined, { natureId: e.target.value, mappingItemId: '' })}
+                    aria-label="Natureza do gasto"
+                  >
+                    <option value="">Sem natureza</option>
+                    {ownNatures.map((n) => (
+                      <option key={n.id} value={n.id}>{n.name}</option>
+                    ))}
+                  </select>
+                </dd>
+                {natureItems.length > 0 && (
+                  <>
+                    <dt>Item do teto</dt>
+                    <dd>
+                      <select
+                        value={data.mappingItemId || ''}
+                        onChange={(e) => updatePaymentWizard(messageId, undefined, { mappingItemId: e.target.value })}
+                        aria-label="Item do teto"
+                      >
+                        <option value="">Sem item</option>
+                        {natureItems.map((it) => (
+                          <option key={it.id} value={it.id}>{it.label}</option>
+                        ))}
+                      </select>
+                    </dd>
+                  </>
+                )}
+              </>
+            )}
             <dt>{isIncome ? 'Conta' : 'Pago com'}</dt>
             <dd className="pay-wizard-edit-row">
               <span>{payLabel}</span>
