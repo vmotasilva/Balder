@@ -3,14 +3,10 @@ import { isExcludedState } from '../utils/mappingItemState';
 import { useFinancial } from '../context/FinancialContext';
 import {
   Layers,
-  Search,
   Clock,
-  ExternalLink,
   Edit3,
   X,
   AlertTriangle,
-  LayoutGrid,
-  Table,
 } from 'lucide-react';
 import type { ExpenseNature, MonthlyGridProjectionRow, MappingItem } from '../types';
 import { buildMonthlyProjectionGrid, movementCompetenceDate } from '../utils/projectionMath';
@@ -51,7 +47,7 @@ interface NatureBudgetGridProps {
   onNavigateToNatures?: () => void;
 }
 
-export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateToNatures }) => {
+export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
   const {
     movements,
     natures,
@@ -67,11 +63,11 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
   // Termo de busca rápida para filtrar naturezas
-  const [searchTerm, setSearchTerm] = useState<string>('');
+  const searchTerm = '';
   // Filtro de status: ALL, OVER (Acima do teto), WITHIN (Dentro do teto)
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'OVER' | 'WITHIN'>('ALL');
   // Modo de exibição: CARDS (padrão otimizado) ou TABLE
-  const [viewMode, setViewMode] = useState<'CARDS' | 'TABLE'>('CARDS');
+  const viewMode = 'CARDS' as 'CARDS' | 'TABLE';
   // Estado para abrir modal de edição de observação da natureza
   const [editingNatureId, setEditingNatureId] = useState<string | null>(null);
   const [editingObservationText, setEditingObservationText] = useState<string>('');
@@ -444,19 +440,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
     <div className="nature-budget-grid-container glass-card animate-fade-in">
       {/* Cabeçalho da Seção */}
       <div className="nature-grid-header">
-        <div className="nature-grid-title-area hide-on-mobile">
-          <div className="flex items-center gap-2">
-            <span className="badge badge-cyan text-xs font-semibold">ORÇAMENTO & NATUREZAS</span>
-            <span className="text-xs text-muted">Acompanhamento Mensal</span>
-          </div>
-          <h2 className="text-lg font-bold flex items-center gap-2 mt-1" style={{ color: 'var(--text-primary)' }}>
-            <Layers size={20} className="text-cyan-400" />
-            Naturezas do Mês: Teto, Real e Previsto
-          </h2>
-          <p className="text-xs text-muted mt-0.5">
-            Quanto já foi pago (Real) e quanto ainda falta pagar (Previsto) em cada natureza, frente ao teto.
-          </p>
-        </div>
+        <h2 className="nature-grid-title">Naturezas</h2>
 
         {/* Controles: Seletor de Mês e Busca */}
         <div className="nature-grid-controls flex items-center gap-2 flex-wrap">
@@ -516,71 +500,6 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = ({ onNavigateTo
               ✓ No Teto ({summaryTotals.withinCount})
             </button>
           </div>
-
-          {/* Campo de Busca de Natureza */}
-          <div className="nature-search-wrap" style={{ width: '180px' }}>
-            <Search size={14} className="nature-search-icon" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar natureza..."
-              className="nature-search-input"
-            />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => setSearchTerm('')}
-                className="nature-search-clear"
-                title="Limpar busca"
-              >
-                <X size={12} />
-              </button>
-            )}
-          </div>
-
-          {/* Seletor de Modo de Visualização: Cards vs Tabela */}
-          <div className="flex items-center p-0.5 rounded-lg border border-border/50 text-xs" style={{ background: 'var(--bg-app)' }}>
-            <button
-              type="button"
-              onClick={() => setViewMode('CARDS')}
-              className={`px-2.5 py-1 rounded font-medium flex items-center gap-1.5 transition cursor-pointer ${
-                viewMode === 'CARDS'
-                  ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 font-bold'
-                  : 'text-muted hover:text-primary'
-              }`}
-              title="Exibir Naturezas como Cards (Otimizado para Espaço)"
-            >
-              <LayoutGrid size={13} />
-              <span>Cards</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('TABLE')}
-              className={`px-2.5 py-1 rounded font-medium flex items-center gap-1.5 transition cursor-pointer ${
-                viewMode === 'TABLE'
-                  ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 font-bold'
-                  : 'text-muted hover:text-primary'
-              }`}
-              title="Exibir Naturezas como Tabela Tradicional"
-            >
-              <Table size={13} />
-              <span>Tabela</span>
-            </button>
-          </div>
-
-          {/* Atalho para Gerenciar Naturezas */}
-          {onNavigateToNatures && (
-            <button
-              type="button"
-              onClick={onNavigateToNatures}
-              className="btn btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5 flex-shrink-0"
-              title="Ajustar Tetos e Mapeamentos de Gastos"
-            >
-              <ExternalLink size={13} />
-              <span>Gerenciar Tetos</span>
-            </button>
-          )}
         </div>
       </div>
 

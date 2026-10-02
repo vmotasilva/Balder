@@ -24096,3 +24096,5 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
 /* Ícones de Metas e Salário ao lado do período */
 .home-period-bar { display: flex; align-items: center; gap: 8px; }
 .home-period-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border-default); background: var(--bg-card); color: var(--accent-cyan); cursor: pointer; }
+
+.nature-grid-title { font-size: 1.05rem; font-weight: 700; margin: 0; color: var(--text-primary); }
