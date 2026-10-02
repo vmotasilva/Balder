@@ -62,11 +62,9 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
   // Termo de busca rápida para filtrar naturezas
-  const searchTerm = '';
   // Filtro de status: ALL, OVER (Acima do teto), WITHIN (Dentro do teto)
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'OVER' | 'WITHIN'>('ALL');
   // Modo de exibição: CARDS (padrão otimizado) ou TABLE
-  const viewMode = 'CARDS' as 'CARDS' | 'TABLE';
   // Estado para abrir modal de edição de observação da natureza
   const [editingNatureId, setEditingNatureId] = useState<string | null>(null);
   const [editingObservationText, setEditingObservationText] = useState<string>('');
@@ -360,24 +358,17 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
     });
   }, [currentRow, natures, movements, selectedMonthKey, getNatureCeiling]);
 
-  // Filtragem por busca e por status
+  // Filtragem por status do teto
   const filteredRows = useMemo(() => {
     return natureRows.filter((r) => {
-      // Filtro de texto
-      const matchesSearch =
-        !searchTerm.trim() ||
-        r.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.observations.toLowerCase().includes(searchTerm.toLowerCase());
-
       // Filtro de status
       let matchesStatus = true;
       if (statusFilter === 'OVER') matchesStatus = r.isOverCeiling;
       if (statusFilter === 'WITHIN') matchesStatus = !r.isOverCeiling;
 
-      return matchesSearch && matchesStatus;
+      return matchesStatus;
     });
-  }, [natureRows, searchTerm, statusFilter]);
+  }, [natureRows, statusFilter]);
 
   // Totais consolidados do grid de naturezas
   const summaryTotals = useMemo(() => {
@@ -531,260 +522,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
         </div>
       </div>
 
-      {viewMode === 'TABLE' ? (
-        /* Visualização em Tabela Tradicional */
-        <div className="nature-table-wrapper">
-          <table className="nature-budget-table">
-          <thead>
-            <tr>
-              <th style={{ width: '22%', minWidth: '190px' }}>Natureza</th>
-              <th style={{ width: '11%', minWidth: '100px', textAlign: 'right' }}>Teto</th>
-              <th style={{ width: '11%', minWidth: '100px', textAlign: 'right' }}>Real</th>
-              <th style={{ width: '11%', minWidth: '100px', textAlign: 'right' }}>Previsto</th>
-              <th style={{ width: '13%', minWidth: '120px', textAlign: 'right' }}>Disponível</th>
-              <th style={{ width: '22%', minWidth: '220px' }}>Observações</th>
-              <th style={{ width: '14%', minWidth: '160px', textAlign: 'right' }}>Última transação</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredRows.map((row) => (
-              <tr
-                key={row.natureId}
-                className={`nature-table-row cursor-pointer ${
-                  row.hasAttentionPoint
-                    ? row.attentionType === 'OVER_CEILING'
-                      ? 'row-attention-rose'
-                      : 'row-attention-amber'
-                    : ''
-                }`}
-                onClick={() => handleNatureClick(row)}
-                title="Clique para ver o detalhamento completo dos lançamentos desta natureza"
-              >
-                {/* Coluna 1: Natureza */}
-                <td>
-                  <div className="flex items-center gap-2.5">
-                    <div
-                      className="nature-color-dot flex-shrink-0"
-                      style={{
-                        backgroundColor: row.color || '#38BDF8',
-                        width: '10px',
-                        height: '10px',
-                        borderRadius: '50%',
-                        boxShadow: `0 0 6px ${row.color || '#38BDF8'}66`,
-                      }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <strong
-                          className="text-xs font-bold truncate max-w-[170px]"
-                          style={{ color: 'var(--text-primary)' }}
-                        >
-                          {row.name}
-                        </strong>
-                        <span className="badge badge-pill text-[9px] uppercase tracking-wider flex-shrink-0">
-                          {row.type}
-                        </span>
-                        {row.hasAttentionPoint && (
-                          <span
-                            className={`nature-attention-badge ${
-                              row.attentionType === 'OVER_CEILING' ? 'rose' : 'amber'
-                            }`}
-                            title={
-                              row.attentionType === 'OVER_CEILING'
-                                ? 'Ponto de Atenção: Teto orçado excedido!'
-                                : 'Ponto de Atenção: Gasto atípico identificado!'
-                            }
-                          >
-                            <AlertTriangle size={10} className="flex-shrink-0" />
-                            {row.attentionType === 'OVER_CEILING' ? 'Atenção: Teto' : 'Atenção: Atípico'}
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-[11px] text-muted block truncate max-w-[190px]">
-                        {row.routinesCount} rotinas • {row.itemsCount} itens
-                      </span>
-                    </div>
-                  </div>
-                </td>
-
-                {/* Coluna 2: Previsto (R$) */}
-                <td style={{ textAlign: 'right' }}>
-                  <div className="font-mono font-bold text-xs" style={{ color: 'var(--text-primary)' }}>
-                    {formatBRL(row.plannedAmount)}
-                  </div>
-                  <span className="text-[10px] text-muted block">Teto mensal</span>
-                </td>
-
-                {/* Coluna 3: Realizado (R$) */}
-                <td style={{ textAlign: 'right' }}>
-                  <div className="font-mono font-bold text-xs" style={{ color: 'var(--text-primary)' }}>
-                    {formatBRL(row.realizedAmount)}
-                  </div>
-                  <span className="text-[10px] text-muted block">
-                    {row.realizedAmount > 0 ? `${row.percentUsed}% do teto` : 'Nada pago'}
-                  </span>
-                </td>
-
-                {/* Coluna: Previsto (ainda a pagar) */}
-                <td style={{ textAlign: 'right' }}>
-                  <div className="font-mono font-bold text-xs text-amber">{formatBRL(row.pendingAmount)}</div>
-                  <span className="text-[10px] text-muted block">A pagar</span>
-                </td>
-
-                {/* Coluna 4: Diferença */}
-                <td style={{ textAlign: 'right' }}>
-                  <div className="flex flex-col items-end">
-                    <span
-                      className={`font-mono font-bold text-xs ${
-                        row.diffAmount >= 0 ? 'text-emerald' : 'text-rose'
-                      }`}
-                    >
-                      {row.diffAmount >= 0
-                        ? `+${formatBRL(row.diffAmount)}`
-                        : `-${formatBRL(Math.abs(row.diffAmount))}`}
-                    </span>
-                    <span
-                      className={`text-[10px] font-semibold mt-0.5 px-1.5 py-0.2 rounded inline-block ${
-                        row.isOverCeiling
-                          ? 'bg-rose-500/15 text-rose'
-                          : 'bg-emerald-500/15 text-emerald'
-                      }`}
-                    >
-                      {row.isOverCeiling ? '⚠️ Acima do Teto' : '✓ Dentro do Teto'}
-                    </span>
-                  </div>
-                </td>
-
-                {/* Coluna 5: Observações (Insights acionáveis sobre gastos atípicos ou ofensores) */}
-                <td>
-                  <div className="flex items-start justify-between gap-2 group/obs">
-                    {row.hasAttentionPoint && row.observations !== '-' ? (
-                      <div
-                        className={`obs-attention-chip ${
-                          row.attentionType === 'OVER_CEILING' ? 'rose' : 'amber'
-                        }`}
-                        title={row.observations}
-                      >
-                        <div className="obs-attention-chip-header">
-                          <AlertTriangle size={11} className="flex-shrink-0" />
-                          <span className="obs-attention-chip-label">
-                            {row.attentionType === 'OVER_CEILING'
-                              ? 'Ponto de Atenção • Estouro'
-                              : 'Ponto de Atenção • Atípico'}
-                          </span>
-                        </div>
-                        <p className="obs-attention-chip-text">
-                          {row.observations}
-                        </p>
-                      </div>
-                    ) : (
-                      <p
-                        className="text-[11px] leading-relaxed line-clamp-2 text-muted/40 font-mono text-center w-full"
-                        style={{ color: 'var(--text-muted)', opacity: 0.35 }}
-                      >
-                        —
-                      </p>
-                    )}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingNatureId(row.natureId);
-                        setEditingObservationText(row.customNotes || '');
-                      }}
-                      className="opacity-0 group-hover/obs:opacity-100 p-1 text-muted hover:text-cyan-400 rounded transition flex-shrink-0 mt-0.5"
-                      title="Editar observação personalizada"
-                    >
-                      <Edit3 size={12} />
-                    </button>
-                  </div>
-                </td>
-
-                {/* Coluna 6: Última transação */}
-                <td style={{ textAlign: 'right' }}>
-                  {row.lastTransaction ? (
-                    <div className="flex flex-col items-end">
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs font-mono font-semibold" style={{ color: 'var(--text-primary)' }}>
-                          {row.lastTransaction.dateFormatted}
-                        </span>
-                        {row.lastTransaction.cardName && (
-                          <span className="badge badge-cyan text-[9px] truncate max-w-[80px]">
-                            {row.lastTransaction.cardName.split(' ')[0]}
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-[11px] text-muted truncate max-w-[150px] block" title={row.lastTransaction.description}>
-                        {row.lastTransaction.description}
-                      </span>
-                      <span className="text-[10px] font-mono font-bold" style={{ color: 'var(--accent-emerald)' }}>
-                        {formatBRL(row.lastTransaction.amount)}
-                      </span>
-                    </div>
-                  ) : (
-                    <span className="text-xs text-muted italic">-</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-
-            {filteredRows.length === 0 && (
-              <tr>
-                <td colSpan={7} className="text-center py-8 text-muted text-xs">
-                  Nenhuma natureza encontrada para o filtro selecionado.
-                </td>
-              </tr>
-            )}
-          </tbody>
-
-          {/* Rodapé com Totais Consolidados */}
-          <tfoot>
-            <tr className="nature-table-tfoot">
-              <th>
-                <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-primary)' }}>
-                  Total Consolidado ({filteredRows.length} naturezas)
-                </span>
-              </th>
-              <th style={{ textAlign: 'right' }}>
-                <span className="font-mono font-bold text-xs" style={{ color: 'var(--text-primary)' }}>
-                  {formatBRL(summaryTotals.totalPlanned)}
-                </span>
-              </th>
-              <th style={{ textAlign: 'right' }}>
-                <span className="font-mono font-bold text-xs" style={{ color: 'var(--text-primary)' }}>
-                  {formatBRL(summaryTotals.totalRealized)}
-                </span>
-              </th>
-              <th style={{ textAlign: 'right' }}>
-                <span className="font-mono font-bold text-xs text-amber">{formatBRL(summaryTotals.totalPending)}</span>
-              </th>
-              <th style={{ textAlign: 'right' }}>
-                <span
-                  className={`font-mono font-bold text-xs ${
-                    summaryTotals.totalDiff >= 0 ? 'text-emerald' : 'text-rose'
-                  }`}
-                >
-                  {summaryTotals.totalDiff >= 0
-                    ? `+${formatBRL(summaryTotals.totalDiff)}`
-                    : `-${formatBRL(Math.abs(summaryTotals.totalDiff))}`}
-                </span>
-              </th>
-              <th>
-                <span className="text-[11px] font-medium text-muted block">
-                  {summaryTotals.overCount > 0
-                    ? `${summaryTotals.overCount} naturezas acima do teto estipulado.`
-                    : 'Todas as naturezas estão em estrita conformidade orçamentária.'}
-                </span>
-              </th>
-              <th style={{ textAlign: 'right' }}>
-                <span className="text-[10px] text-muted">Competência {currentRow?.competenceLabel}</span>
-              </th>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-      ) : (
-        /* Visualização em Cards Otimizada para Espaço (Desktop e Mobile) */
+      {/* Visualização em Cards */}
         <div className="nature-cards-grid-view">
           {filteredRows.map((row) => (
             <div
@@ -889,7 +627,6 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
             </div>
           )}
         </div>
-      )}
 
       {/* Modal Inline Rápido para Editar Observação */}
       {editingNatureId && (
