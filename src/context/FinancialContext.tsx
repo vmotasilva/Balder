@@ -4119,7 +4119,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           bank: finalBank,
           status: idx === 0 ? finalStatus : 'PREVISTA',
           category: finalCategory,
-          notes: `Confirmado via Forseti: ${option.label} (${option.badge}). Parcela ${idx + 1}/${count} • Total: ${brl(pending.amount)}`,
+          notes: `Confirmado via Forseti: ${option.label}${option.badge ? ` (${option.badge})` : ''}. Parcela ${idx + 1}/${count} • Total: ${brl(pending.amount)}`,
           installmentNumber: idx + 1,
           installmentsTotal: count,
           installmentGroupId: groupId,
@@ -4135,7 +4135,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         bank: finalBank,
         status: finalStatus,
         category: finalCategory,
-        notes: `Confirmado via Forseti: ${option.label} (${option.badge}).`,
+        notes: `Confirmado via Forseti: ${option.label}${option.badge ? ` (${option.badge})` : ''}.`,
         ...natureLink,
         // Na conta de outra pessoa, a receita lançada é de quem lançou: só essa pessoa confirma
         ...(viewing && finalType === 'RECEBER' ? { responsibleId: authUser?.$id } : {}),
