@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ChevronRight, FileText, Handshake, Home, Landmark } from 'lucide-react';
+import { ArrowLeft, ChevronRight, FileText, Handshake, Home, Landmark, TrendingUp } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import { groupLoanMovements } from '../utils/loanMath';
 import { LoansPage } from './LoansPage';
@@ -58,6 +58,7 @@ export const ContractsPage: React.FC<{ newLoanSignal?: number }> = ({ newLoanSig
     },
     { id: 'FINANCIAMENTOS', label: 'Financiamentos', icon: Home, status: 'Em breve' },
     { id: 'CONSORCIOS', label: 'Consórcios', icon: Handshake, status: 'Em breve' },
+    { id: 'INVESTIMENTOS', label: 'Investimentos', icon: TrendingUp, status: 'Em breve' },
     { id: 'OUTROS', label: 'Outros contratos', icon: FileText, status: 'Em breve' },
   ];
 
