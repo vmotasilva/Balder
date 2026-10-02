@@ -67,6 +67,7 @@ import {
   CalendarView,
   WeekGroupedView,
   DateGroupedView,
+  RealPlanned,
   type DetailViewStyle,
   type DetailViewGroup,
   type WeekLayer,
@@ -3029,6 +3030,13 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             ) : null}
           </div>
 
+          {sub.isMappingSummary && (
+            <div className="detail-item-secondary flex items-center gap-1.5 flex-wrap">
+              <span>Real | Previsto:</span>
+              <RealPlanned real={sub.paidAmount || 0} planned={sub.pendingAmount || 0} formatBRL={formatBRL} />
+            </div>
+          )}
+
           {!sub.isMappingSummary && (
           <div className="detail-item-secondary flex items-center gap-1.5 flex-wrap">
             {sub.quantity > 1 ? (
@@ -3124,35 +3132,6 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                 : sub.totalValue || sub.quantity * sub.price * (sub.multiplierWeeks || 1)
             )}
           </div>
-          )}
-
-          {isNatureItem && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                e.preventDefault();
-                openItemState();
-              }}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '5px 12px',
-                borderRadius: '8px',
-                background: 'rgba(56, 189, 248, 0.12)',
-                color: '#38bdf8',
-                border: '1px solid rgba(56, 189, 248, 0.35)',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                flexShrink: 0,
-              }}
-              title="Definir se já foi realizado e quem pagou"
-            >
-              <Edit3 size={13} style={{ color: '#38bdf8' }} />
-              <span>Situação</span>
-            </button>
           )}
 
           {isReceipt && (
