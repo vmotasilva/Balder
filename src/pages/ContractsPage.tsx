@@ -22,8 +22,13 @@ const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', 
 export const ContractsPage: React.FC<{ newLoanSignal?: number }> = ({ newLoanSignal = 0 }) => {
   const { movements, archivedLoanGroups } = useFinancial();
   const [openKind, setOpenKind] = useState<ContractKind | null>(newLoanSignal > 0 ? 'EMPRESTIMOS' : null);
+  // O simulador só abre sozinho quando veio do "+"; voltar ou entrar de novo pelos cartões não o reabre
+  const [autoOpenSim, setAutoOpenSim] = useState(newLoanSignal > 0);
   useEffect(() => {
-    if (newLoanSignal > 0) setOpenKind('EMPRESTIMOS');
+    if (newLoanSignal > 0) {
+      setOpenKind('EMPRESTIMOS');
+      setAutoOpenSim(true);
+    }
   }, [newLoanSignal]);
 
   const loanSummary = useMemo(() => {
