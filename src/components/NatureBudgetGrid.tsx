@@ -429,96 +429,67 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
   return (
     <div className="nature-budget-grid-container glass-card animate-fade-in">
       {/* Cabeçalho da Seção */}
-      <div className="nature-grid-header">
-        <h2 className="nature-grid-title">Naturezas</h2>
+      <div className="nature-grid-header nature-grid-header-stacked">
+        {/* Linha 1: título e período */}
+        <div className="nature-grid-row">
+          <h2 className="nature-grid-title">Naturezas</h2>
+        {/* Seletor de Competência */}
+        <div className="flex items-center gap-1.5 bg-slate-900/60 dark:bg-slate-900/80 px-2.5 py-1.5 rounded-lg border border-border/50">
+          <Clock size={14} className="text-cyan-400 flex-shrink-0" />
+          <span className="text-xs text-muted font-medium">Mês:</span>
+          <select
+            value={selectedMonthKey}
+            onChange={(e) => setSelectedMonthKey(e.target.value)}
+            className="nature-month-select text-xs font-semibold bg-transparent border-none outline-none cursor-pointer"
+            style={{ color: 'var(--text-primary)' }}
+          >
+            {availableMonths.map((m) => (
+              <option key={m.key} value={m.key} className="bg-slate-900 text-slate-100">
+                {m.label} ({m.formatted})
+              </option>
+            ))}
+          </select>
+        </div>
+        </div>
 
-        {/* Controles: Seletor de Mês e Busca */}
-        <div className="nature-grid-controls flex items-center gap-2 flex-wrap">
-          {/* Seletor de Competência */}
-          <div className="flex items-center gap-1.5 bg-slate-900/60 dark:bg-slate-900/80 px-2.5 py-1.5 rounded-lg border border-border/50">
-            <Clock size={14} className="text-cyan-400 flex-shrink-0" />
-            <span className="text-xs text-muted font-medium">Mês:</span>
-            <select
-              value={selectedMonthKey}
-              onChange={(e) => setSelectedMonthKey(e.target.value)}
-              className="nature-month-select text-xs font-semibold bg-transparent border-none outline-none cursor-pointer"
-              style={{ color: 'var(--text-primary)' }}
-            >
-              {availableMonths.map((m) => (
-                <option key={m.key} value={m.key} className="bg-slate-900 text-slate-100">
-                  {m.label} ({m.formatted})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Filtro de Status de Teto */}
-          <div className="flex items-center gap-1 p-0.5 rounded-lg border border-border/50 text-xs" style={{ background: 'var(--bg-app)' }}>
+        {/* Linha 2: filtro do teto */}
+        {/* Filtro de Status de Teto */}
+        <div className="flex items-center gap-1 p-0.5 rounded-lg border border-border/50 text-xs" style={{ background: 'var(--bg-app)' }}>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('ALL')}
+            className={`px-2 py-1 rounded font-medium transition cursor-pointer ${
+              statusFilter === 'ALL'
+                ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30'
+                : 'text-muted hover:text-primary'
+            }`}
+          >
+            Todas ({natureRows.length})
+          </button>
+          {summaryTotals.overCount > 0 && (
             <button
               type="button"
-              onClick={() => setStatusFilter('ALL')}
+              onClick={() => setStatusFilter('OVER')}
               className={`px-2 py-1 rounded font-medium transition cursor-pointer ${
-                statusFilter === 'ALL'
-                  ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30'
-                  : 'text-muted hover:text-primary'
+                statusFilter === 'OVER'
+                  ? 'bg-rose-500/20 text-rose border border-rose-500/30 font-bold'
+                  : 'text-muted hover:text-rose'
               }`}
             >
-              Todas ({natureRows.length})
+              ⚠️ Acima ({summaryTotals.overCount})
             </button>
-            {summaryTotals.overCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setStatusFilter('OVER')}
-                className={`px-2 py-1 rounded font-medium transition cursor-pointer ${
-                  statusFilter === 'OVER'
-                    ? 'bg-rose-500/20 text-rose border border-rose-500/30 font-bold'
-                    : 'text-muted hover:text-rose'
-                }`}
-              >
-                ⚠️ Acima ({summaryTotals.overCount})
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setStatusFilter('WITHIN')}
-              className={`px-2 py-1 rounded font-medium transition cursor-pointer ${
-                statusFilter === 'WITHIN'
-                  ? 'bg-emerald-500/20 text-emerald border border-emerald-500/30 font-bold'
-                  : 'text-muted hover:text-emerald'
-              }`}
-            >
-              ✓ No Teto ({summaryTotals.withinCount})
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Indicadores do topo: Teto | Real | Previsto | Disponível */}
-      <div className="nature-grid-kpis-bar">
-        <div className="nature-kpi-chip">
-          <span className="nature-kpi-chip-label">Teto:</span>
-          <span className="nature-kpi-chip-val font-mono font-bold" style={{ color: 'var(--text-primary)' }}>
-            {formatBRL(summaryTotals.totalPlanned)}
-          </span>
-        </div>
-        <div className="nature-kpi-chip">
-          <span className="nature-kpi-chip-label">Real:</span>
-          <span className="nature-kpi-chip-val font-mono font-bold text-emerald">{formatBRL(summaryTotals.totalRealized)}</span>
-        </div>
-        <div className="nature-kpi-chip">
-          <span className="nature-kpi-chip-label">Previsto:</span>
-          <span className="nature-kpi-chip-val font-mono font-bold text-amber">{formatBRL(summaryTotals.totalPending)}</span>
-        </div>
-        <div className="nature-kpi-chip">
-          <span className="nature-kpi-chip-label">{summaryTotals.totalDiff >= 0 ? 'Disponível:' : 'Estouro:'}</span>
-          <span className={`nature-kpi-chip-val font-mono font-bold ${summaryTotals.totalDiff >= 0 ? 'text-emerald' : 'text-rose'}`}>
-            {formatBRL(Math.abs(summaryTotals.totalDiff))}
-          </span>
-        </div>
-        <div className="nature-kpi-chip">
-          <span className="nature-kpi-chip-val font-bold text-xs" style={{ color: 'var(--text-primary)' }}>
-            {summaryTotals.withinCount} de {natureRows.length} no teto
-          </span>
+          )}
+          <button
+            type="button"
+            onClick={() => setStatusFilter('WITHIN')}
+            className={`px-2 py-1 rounded font-medium transition cursor-pointer ${
+              statusFilter === 'WITHIN'
+                ? 'bg-emerald-500/20 text-emerald border border-emerald-500/30 font-bold'
+                : 'text-muted hover:text-emerald'
+            }`}
+          >
+            ✓ No Teto ({summaryTotals.withinCount})
+          </button>
         </div>
       </div>
 

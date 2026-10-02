@@ -24098,3 +24098,6 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
 .home-period-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--border-default); background: var(--bg-card); color: var(--accent-cyan); cursor: pointer; }
 
 .nature-grid-title { font-size: 1.05rem; font-weight: 700; margin: 0; color: var(--text-primary); }
+
+.nature-grid-header.nature-grid-header-stacked { flex-direction: column !important; align-items: stretch !important; gap: 10px !important; }
+.nature-grid-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
