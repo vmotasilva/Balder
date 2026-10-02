@@ -170,7 +170,7 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
   const [customReason, setCustomReason] = useState('');
   const [action, setAction] = useState<MappingItemPaymentAction | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
-  // Pergunta de "não precisou pagar": abater do previsto ou redistribuir
+  // Pergunta de "Desconsiderar": abater do previsto ou redistribuir
   const [skipAsk, setSkipAsk] = useState(false);
 
   const monthKey = target?.monthKey || '';
@@ -297,7 +297,7 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
     setAction(null);
   };
 
-  // Não precisou pagar estas datas: fecha só elas (pagamento zerado) e pergunta se o valor vai para as semanas seguintes
+  // Desconsiderar estas datas: fecha só elas (pagamento zerado) e pergunta se o valor vai para as semanas seguintes
   const laterOpenCount = (() => {
     if (selectedDates.length === 0) return 0;
     const last = [...selectedDates].sort().pop() as string;
@@ -311,13 +311,13 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
       paidAt,
       amount: 0,
       coveredDates: selectedDates,
-      reason: 'Não precisou ser pago',
+      reason: 'Desconsiderado',
       action: 'QUITADO',
       redistribute,
     });
     updateMappingItemState(target.natureId, target.mappingId, target.itemId, patch);
     // Aparece em Movimentações com valor 0 (o previsto fica em "valor original"); o vínculo permite remover ao desfazer
-    const created = (patch.payments?.[target.monthKey] || []).find((p) => p.reason === 'Não precisou ser pago' && selectedDates.every((d) => p.coveredDates.includes(d)) && p.coveredDates.length === selectedDates.length && !(item.payments?.[target.monthKey] || []).some((old) => old.id === p.id));
+    const created = (patch.payments?.[target.monthKey] || []).find((p) => p.reason === 'Desconsiderado' && selectedDates.every((d) => p.coveredDates.includes(d)) && p.coveredDates.length === selectedDates.length && !(item.payments?.[target.monthKey] || []).some((old) => old.id === p.id));
     if (created) {
       selectedDates.forEach((date) => {
         const planned = occurrences.find((o) => o.date === date)?.value ?? occurrenceValue;
@@ -332,14 +332,14 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
           paymentDate: paidAt,
           bank: banks[0]?.name || 'Conta Corrente',
           category: mapping?.name || nature?.name || 'Outros',
-          adjustmentReason: 'Não precisou ser pago',
-          notes: `Previsto de ${formatBRL(planned)} que não precisou ser pago`,
+          adjustmentReason: 'Desconsiderado',
+          notes: `Previsto de ${formatBRL(planned)} desconsiderado`,
           installmentGroupId: `skip_${created.id}`,
         });
       });
     }
     setFeedback(
-      `${selectedDates.map(formatDate).join(', ')}: não precisou pagar.` +
+      `${selectedDates.map(formatDate).join(', ')}: desconsiderado.` +
         (redistribute
         ? ` ${formatBRL(skippedValue)} foi redistribuído para as ${laterOpenCount} datas seguintes; o orçamento não muda.`
         : ` ${formatBRL(skippedValue)} foi abatido do previsto da competência; as demais datas não mudam.`)
@@ -366,7 +366,7 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
       variant: 'warning',
       onConfirm: () => {
         updateMappingItemState(target.natureId, target.mappingId, target.itemId, removeItemPayment(item, target.monthKey, paymentId));
-        // Remove da lista de movimentações o registro de valor 0 criado por "não precisou pagar"
+        // Remove da lista de movimentações o registro de valor 0 criado por "Desconsiderar"
         movements.filter((m) => m.installmentGroupId === `skip_${paymentId}`).forEach((m) => deleteMovement(m.id));
         setFeedback(null);
       },
@@ -688,7 +688,7 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
                         disabled={!item || selectedDates.length === 0}
                         title="Marca as datas selecionadas como dispensadas, sem afetar as demais"
                       >
-                        Não precisou pagar
+                        Desconsiderar
                       </button>
                       <button type="button" className="btn btn-primary btn-sm" onClick={handleRegister} disabled={!canRegister}>
                         Registrar pagamento
