@@ -321,7 +321,9 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
     );
     setFeedback(
       `${selectedDates.map(formatDate).join(', ')}: não precisou pagar.` +
-        (redistribute ? ` ${formatBRL(skippedValue)} foi redistribuído para as ${laterOpenCount} datas seguintes.` : ' As demais datas não mudam.')
+        (redistribute
+        ? ` ${formatBRL(skippedValue)} foi redistribuído para as ${laterOpenCount} datas seguintes; o orçamento não muda.`
+        : ` ${formatBRL(skippedValue)} foi abatido do previsto da competência; as demais datas não mudam.`)
     );
     setSkipAsk(false);
     setSelectedDates([]);
@@ -634,17 +636,19 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
 
                     {skipAsk && (
                       <div className="receipt-delete-ask" style={{ marginBottom: '10px' }}>
-                        <strong>Redistribuir o que não foi pago?</strong>
+                        <strong>O que fazer com {formatBRL(skippedValue)} que não foi pago?</strong>
                         <p className="text-xs text-muted" style={{ margin: 0 }}>
-                          {formatBRL(skippedValue)} deixa de ser pago agora. Quer somar esse valor às {laterOpenCount} datas seguintes
-                          da competência ou só dispensar?
+                          <strong>Abater do previsto:</strong> o orçamento da competência diminui nesse valor.
+                          <br />
+                          <strong>Redistribuir:</strong> o valor é somado às {laterOpenCount} {laterOpenCount === 1 ? 'data seguinte' : 'datas seguintes'} da
+                          competência e o orçamento continua o mesmo.
                         </p>
                         <div className="receipt-delete-ask-actions">
                           <button type="button" className="btn btn-outline btn-sm" onClick={() => setSkipAsk(false)}>
                             Cancelar
                           </button>
                           <button type="button" className="btn btn-outline btn-sm" onClick={() => registerNoPayment(false)}>
-                            Só dispensar
+                            Abater do previsto
                           </button>
                           <button type="button" className="btn btn-primary btn-sm" onClick={() => registerNoPayment(true)}>
                             Redistribuir
