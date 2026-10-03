@@ -3044,7 +3044,61 @@
   border: 1px solid rgba(56, 189, 248, 0.25);
 }
 
-/* Profile Mobile Dropdown Navigation */
+/* Profile Mobile Navigation (lista de botões) */
+.profile-mobile-nav-list,
+.profile-mobile-back-btn {
+  display: none;
+}
+
+.profile-mobile-nav-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.profile-mobile-nav-btn:active {
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.25);
+}
+
+.profile-mobile-nav-btn-left,
+.profile-mobile-nav-btn-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.profile-mobile-nav-btn-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.profile-mobile-back-btn {
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-default);
+  color: var(--accent-cyan);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Profile Mobile Dropdown Navigation (legado) */
 .profile-mobile-dropdown-wrapper {
   display: none;
   flex-direction: column;
@@ -5423,8 +5477,23 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     display: none !important;
   }
 
-  .profile-mobile-dropdown-wrapper {
+  .profile-mobile-nav-list {
     display: flex !important;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .profile-mobile-back-btn {
+    display: inline-flex !important;
+  }
+
+  /* Lista de botões OU conteúdo da seção, nunca os dois */
+  .profile-layout-grid.section-list .profile-content-card {
+    display: none !important;
+  }
+
+  .profile-layout-grid.section-open .profile-nav-card {
+    display: none !important;
   }
 
   .profile-content-card {
@@ -10216,6 +10285,12 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 [data-theme="light"] .profile-nav-item.active {
   background: rgba(2, 132, 199, 0.08);
   color: #0284C7;
+}
+
+[data-theme="light"] .profile-mobile-nav-btn {
+  background: #FFFFFF;
+  border-color: #CBD5E1;
+  color: #0F172A;
 }
 
 [data-theme="light"] .profile-dropdown-btn {

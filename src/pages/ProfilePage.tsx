@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState, useMemo } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -16,7 +15,7 @@ import {
   Download,
   CheckCircle2,
   ChevronRight,
-  ChevronDown,
+  ArrowLeft,
   Layers,
   Plus,
   Trash2,
@@ -158,48 +157,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
     { id: 'FORMATAR' as const, label: 'Formatar Dados', icon: Eraser, count: null },
   ];
 
-  const [mobileDropdownOpen, setMobileDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const dropdownMenuRef = useRef<HTMLDivElement>(null);
-  // O menu vai para o body (position: fixed): nenhum cartão, blur ou overflow da tela o esconde (Safari incluso)
-  const [menuBox, setMenuBox] = useState<{ top: number; left: number; width: number } | null>(null);
-  useLayoutEffect(() => {
-    if (!mobileDropdownOpen) return;
-    const place = () => {
-      const rect = dropdownRef.current?.querySelector('.profile-dropdown-btn')?.getBoundingClientRect();
-      if (rect) setMenuBox({ top: rect.bottom + 6, left: rect.left, width: rect.width });
-    };
-    place();
-    window.addEventListener('resize', place);
-    window.addEventListener('scroll', place, true);
-    return () => {
-      window.removeEventListener('resize', place);
-      window.removeEventListener('scroll', place, true);
-    };
-  }, [mobileDropdownOpen]);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (dropdownRef.current && !dropdownRef.current.contains(target) && !dropdownMenuRef.current?.contains(target)) {
-        setMobileDropdownOpen(false);
-      }
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setMobileDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, []);
-
-  const currentNavItem = PROFILE_NAV_ITEMS.find((item) => item.id === activeSubTab) || PROFILE_NAV_ITEMS[0];
-  const CurrentNavIcon = currentNavItem.icon;
+  // No mobile o perfil é uma lista de botões; tocar em um abre o conteúdo da seção (com botão de voltar)
+  const [mobileSectionOpen, setMobileSectionOpen] = useState(false);
+  const selectSection = (id: typeof activeSubTab) => {
+    setActiveSubTab(id);
+    setMobileSectionOpen(true);
+    window.scrollTo({ top: 0 });
+  };
 
   return (
     <div className="page-container animate-fade-in">
@@ -219,7 +183,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
       </div>
 
       {/* Profile Layout with Nav Tabs */}
-      <div className="profile-layout-grid">
+      <div className={`profile-layout-grid ${mobileSectionOpen ? 'section-open' : 'section-list'}`}>
         {/* Left Side Menu / Mobile Header Card */}
         <div className="profile-nav-card glass-card">
           <div className="profile-user-summary">
@@ -232,7 +196,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
               <button
                 type="button"
                 className="badge badge-emerald mt-1 profile-beta-badge flex items-center gap-1 cursor-pointer"
-                onClick={() => setActiveSubTab('ASSINATURA')}
+                onClick={() => selectSection('ASSINATURA')}
                 title="Clique para gerenciar sua assinatura e faturamento"
               >
                 <Crown size={12} className="text-amber" />
@@ -287,75 +251,39 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
             </div>
           )}
 
-          {/* Botão Drop-Down Móvel com os itens do card principal */}
-          <div className="profile-mobile-dropdown-wrapper" ref={dropdownRef}>
-            <label className="profile-dropdown-label">Seção do Perfil:</label>
+          {/* Lista de botões (mobile): cada item abre o conteúdo da seção */}
+          <div className="profile-mobile-nav-list">
+            {PROFILE_NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="profile-mobile-nav-btn"
+                  onClick={() => selectSection(item.id)}
+                >
+                  <span className="profile-mobile-nav-btn-left">
+                    <Icon size={18} className="text-cyan shrink-0" />
+                    <span className="profile-mobile-nav-btn-title">{item.label}</span>
+                  </span>
+                  <span className="profile-mobile-nav-btn-right">
+                    {item.count !== null && <span className="profile-mobile-nav-btn-count">{item.count}</span>}
+                    <ChevronRight size={16} className="text-muted shrink-0" />
+                  </span>
+                </button>
+              );
+            })}
             <button
               type="button"
-              className={`profile-dropdown-btn ${mobileDropdownOpen ? 'active' : ''}`}
-              onClick={() => setMobileDropdownOpen(!mobileDropdownOpen)}
-              aria-label="Selecionar seção do perfil"
+              className="profile-mobile-nav-btn"
+              onClick={() => setAdvancedModalOpen(true)}
             >
-              <div className="profile-dropdown-btn-left">
-                <CurrentNavIcon size={18} className="text-cyan shrink-0" />
-                <span className="profile-dropdown-btn-text">
-                  {currentNavItem.label} {currentNavItem.count !== null ? `(${currentNavItem.count})` : ''}
-                </span>
-              </div>
-              <ChevronDown
-                size={18}
-                className={`profile-dropdown-chevron ${mobileDropdownOpen ? 'rotate-180' : ''}`}
-              />
+              <span className="profile-mobile-nav-btn-left">
+                <Layers size={18} className="text-cyan shrink-0" />
+                <span className="profile-mobile-nav-btn-title">Ferramentas Avançadas</span>
+              </span>
+              <ChevronRight size={16} className="text-muted shrink-0" />
             </button>
-
-            {mobileDropdownOpen && menuBox && createPortal(
-              <div
-                ref={dropdownMenuRef}
-                className="profile-dropdown-menu animate-fade-in"
-                style={{ top: menuBox.top, left: menuBox.left, width: menuBox.width, right: 'auto' }}
-              >
-                {PROFILE_NAV_ITEMS.map((item) => {
-                  const Icon = item.icon;
-                  const isSelected = activeSubTab === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      className={`profile-dropdown-menu-item ${isSelected ? 'active' : ''}`}
-                      onClick={() => {
-                        setActiveSubTab(item.id);
-                        setMobileDropdownOpen(false);
-                      }}
-                    >
-                      <div className="profile-dropdown-menu-item-left">
-                        <Icon size={17} className={isSelected ? 'text-cyan' : 'text-muted'} />
-                        <span className="profile-dropdown-menu-item-title">
-                          {item.label} {item.count !== null ? `(${item.count})` : ''}
-                        </span>
-                      </div>
-                      {isSelected && <Check size={16} className="text-cyan shrink-0" />}
-                    </button>
-                  );
-                })}
-
-                <div className="profile-dropdown-divider" />
-                <button
-                  type="button"
-                  className="profile-dropdown-menu-item text-cyan font-medium"
-                  onClick={() => {
-                    setMobileDropdownOpen(false);
-                    setAdvancedModalOpen(true);
-                  }}
-                >
-                  <div className="profile-dropdown-menu-item-left">
-                    <Layers size={17} className="text-cyan" />
-                    <span>Ferramentas Avançadas</span>
-                  </div>
-                  <ChevronRight size={14} className="text-cyan shrink-0" />
-                </button>
-              </div>,
-              document.body
-            )}
           </div>
 
           {/* Desktop Nav List (Oculto em telas mobile) */}
@@ -393,6 +321,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
 
         {/* Right Side Content Panel */}
         <div className="profile-content-card glass-card">
+          <button type="button" className="profile-mobile-back-btn" onClick={() => setMobileSectionOpen(false)}>
+            <ArrowLeft size={16} />
+            <span>Perfil</span>
+          </button>
           {activeSubTab === 'PERFIL' && (
             <div className="subtab-content">
               <h3 className="label-with-info">
@@ -444,7 +376,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
                   <button
                     type="button"
                     className="btn btn-primary btn-sm flex items-center gap-1.5"
-                    onClick={() => setActiveSubTab('ASSINATURA')}
+                    onClick={() => selectSection('ASSINATURA')}
                   >
                     <span>Gerenciar Assinatura</span>
                     <ChevronRight size={14} />
