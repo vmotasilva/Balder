@@ -592,7 +592,8 @@ const pct = (part: number, total: number) => (total > 0 ? Math.round((part / tot
 const entryLine = (e: ForecastEntry) => `• ${ddmm(e.date)} · ${e.title}: **${brl(e.amount)}**`;
 const MORE = [CHIP_DUVIDA, CHIP_PAGAR];
 const NO_NATURE = 'Sem natureza';
-const hasNoNature = (m: Movement) => !m.natureId || m.natureId.toLowerCase() === 'outros' || /^outros$/i.test(m.category || '');
+// Vale a natureza vinculada: a categoria "Outros" de um lançamento que já tem natureza não o torna "sem natureza"
+const hasNoNature = (m: Movement) => !m.natureId || m.natureId.toLowerCase() === 'outros';
 /** Parte do valor de uma saída em cada natureza (a fatura se divide pelo detalhamento; o resto fica sem natureza). */
 function natureShares(m: Movement, value: number, nameOf: (id?: string) => string): [string, number][] {
   const items = (m.invoiceBreakdown || []).filter((b) => b.isAnalyzed && b.natureId && b.natureId.toLowerCase() !== 'outros');
@@ -769,7 +770,16 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
         rows.set(name, r);
       };
       paid.forEach((m) => natureShares(m, outflowValue(m), nameOf).forEach(([name, v]) => add(name, 'paid', v)));
-      pending.forEach((e) => add(e.natureId ? nameOf(e.natureId) || NO_NATURE : 'Contas e faturas', 'planned', e.amount));
+      // A pagar: itens das naturezas vão para a natureza; contas, faturas e parcelas seguem a mesma classificação
+      // do que já foi pago (um empréstimo é "Empréstimos" nos dois lados, nunca "Sem natureza")
+      const byId = new Map(d.movements.map((m) => [m.id, m]));
+      const bySource: Record<string, string> = { PARCELA: 'Empréstimos', FATURA: 'Faturas de cartão (sem detalhamento)', CONTA: 'Contas a pagar' };
+      pending.forEach((e) => {
+        if (e.source === 'NATUREZA') return add(nameOf(e.natureId) || NO_NATURE, 'planned', e.amount);
+        const mov = byId.get(e.id);
+        if (mov) return natureShares(mov, e.amount, nameOf).forEach(([name, v]) => add(name, 'planned', v));
+        add(bySource[e.source] || 'Outras saídas', 'planned', e.amount);
+      });
       const top = [...rows.entries()].sort((a, b) => b[1].paid + b[1].planned - (a[1].paid + a[1].planned)).slice(0, 8);
       const parts = [
         heading,
