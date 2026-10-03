@@ -2136,6 +2136,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                             className="btn btn-ghost btn-xs text-indigo-400 hover:text-indigo-300 p-0.5 ml-1 transition-all"
                                             style={{ padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                                             title="Gerenciar palavras-chave da IA para este item"
+                                            aria-label="Palavras-chave"
                                             onClick={() => {
                                               setKeywordModalData({
                                                 natureId: selectedNature.id,
@@ -2146,13 +2147,9 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                             }}
                                           >
                                             <Tag size={12} />
-                                            {item.keywords && item.keywords.length > 0 ? (
+                                            {item.keywords && item.keywords.length > 0 && (
                                               <span className="text-[10px] font-mono font-bold text-indigo-300">
                                                 {item.keywords.length}
-                                              </span>
-                                            ) : (
-                                              <span className="text-[10px] text-indigo-400/80 hover:underline">
-                                                + palavras-chave
                                               </span>
                                             )}
                                           </button>
