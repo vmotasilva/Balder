@@ -21028,6 +21028,19 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   flex-shrink: 0;
 }
 
+.home-forseti-icon.is-listening,
+.chat-plus-btn.is-listening {
+  color: #fff;
+  background: #ef4444;
+  border-color: #ef4444;
+  animation: forseti-listening 1.2s ease-in-out infinite;
+}
+
+@keyframes forseti-listening {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+  50% { box-shadow: 0 0 0 7px rgba(239, 68, 68, 0); }
+}
+
 .home-forseti-icon.is-send {
   background: var(--accent-cyan);
   border-color: var(--accent-cyan);

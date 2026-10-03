@@ -4,6 +4,7 @@ import {
   Camera,
   History,
   Image as ImageIcon,
+  Mic,
   CheckCircle2,
   ChevronRight,
   ChevronLeft,
@@ -33,6 +34,7 @@ import { MappingPaymentModal, type MappingPaymentTarget } from '../components/Ma
 import { RealizationConfirmModal, realizedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
 import type { ForecastEntry } from '../utils/forecastWindow';
 import { displayName } from '../utils/displayName';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { PeriodMovementsModal, isMovementIncome, movementDate, movementValue } from '../components/PeriodMovementsModal';
 
 interface HomeHubPageProps {
@@ -556,6 +558,16 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     onOpenForseti();
   };
 
+  // Voz: o que for dito vai direto para a Forseti e o chat abre
+  const voice = useSpeechRecognition({
+    onInterim: setForsetiText,
+    onFinal: (text) => {
+      sendMessageToCopilot(text);
+      setForsetiText('');
+      onOpenForseti();
+    },
+  });
+
   if (!isDataReady) {
     return <div className="home-hub"><p className="text-sm text-muted">Carregando…</p></div>;
   }
@@ -609,6 +621,17 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           <History size={18} />
           {recentRequests > 0 && <span className="home-forseti-count">{recentRequests}</span>}
         </button>
+        {voice.supported && (
+          <button
+            type="button"
+            className={`home-forseti-icon ${voice.listening ? 'is-listening' : ''}`}
+            onClick={voice.toggle}
+            aria-label={voice.listening ? 'Parar de ouvir' : 'Falar com a Forseti'}
+            title={voice.listening ? 'Ouvindo… toque para parar' : 'Falar com a Forseti'}
+          >
+            <Mic size={18} />
+          </button>
+        )}
         <button
           type="button"
           className="home-forseti-icon"
@@ -619,6 +642,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           <Camera size={18} />
         </button>
       </form>
+      {voice.error && <p className="text-xs text-rose" role="alert">{voice.error}</p>}
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoPicked} style={{ display: 'none' }} />
       <input ref={galleryInputRef} type="file" accept="image/*" multiple onChange={handlePhotoPicked} style={{ display: 'none' }} />
       <Modal isOpen={showPhotoChoice} onClose={() => setShowPhotoChoice(false)} title="Enviar foto do cupom" maxWidth="420px">

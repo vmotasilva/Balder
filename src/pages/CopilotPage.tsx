@@ -3,7 +3,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { useAccountScope } from '../context/AccountScopeContext';
 import { ReceiptReconciliationCard } from '../components/ReceiptReconciliationCard';
-import { Send, Sparkles, User, Image as ImageIcon, X, Paperclip, UploadCloud, Info, Plus, ArrowLeft, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Send, Sparkles, User, Image as ImageIcon, X, Paperclip, UploadCloud, Info, Plus, ArrowLeft, ArrowRight, ShieldCheck, Mic } from 'lucide-react';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import type { TabId } from '../components/Sidebar';
 import type { CopilotAttachment } from '../types';
 import { MAIN_CHIPS } from '../utils/forsetiAssistant';
@@ -46,6 +47,14 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const plusMenuRef = useRef<HTMLDivElement>(null);
   const textInputRef = useRef<HTMLInputElement>(null);
+  // Voz: o texto falado vai para o campo, para revisar e enviar
+  const voice = useSpeechRecognition({
+    onInterim: setInputQuery,
+    onFinal: (text) => {
+      setInputQuery(text);
+      textInputRef.current?.focus();
+    },
+  });
 
   // Ao abrir o pop-up, o cursor já fica no campo de escrita
   useEffect(() => {
@@ -640,6 +649,18 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
               value={inputQuery}
               onChange={(e) => setInputQuery(e.target.value)}
             />
+
+            {voice.supported && (
+              <button
+                type="button"
+                className={`chat-plus-btn ${voice.listening ? 'active is-listening' : ''}`}
+                onClick={voice.toggle}
+                title={voice.listening ? 'Ouvindo… toque para parar' : 'Falar com a Forseti'}
+                aria-label={voice.listening ? 'Parar de ouvir' : 'Falar com a Forseti'}
+              >
+                <Mic size={18} />
+              </button>
+            )}
 
             <button
               type="submit"
