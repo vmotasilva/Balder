@@ -24,8 +24,10 @@ Escolha a intenção que melhor representa o que a pessoa quer VER ou SABER. Int
 - PREVISTO_REAL: o que estava previsto e não foi registrado/pago, ou foi pago a menos que o previsto
 - SEM_NATUREZA: o que há dentro de "Outros" / gastos sem natureza
 - DESCONHECIDO: qualquer outra coisa, ou registrar/lançar algo, ou conversa fora do tema.
-Se vier "contexto" (assunto da resposta anterior), frases curtas ou incompletas continuam esse assunto
+Se vier "contexto" (assunto da resposta anterior), frases curtas ou incompletas, SEM assunto próprio, continuam esse assunto
 (ex.: contexto GASTOS_PERIODO e a frase "me mostre os dessa semana" → GASTOS_PERIODO com period SEMANA).
+Se a frase trouxer um assunto novo (salário, metas, fatura, empréstimo, registrar algo…), IGNORE o contexto e classifique só a frase.
+Na dúvida entre continuar e mudar de assunto, responda DESCONHECIDO: é melhor perguntar do que adivinhar.
 Nunca responda à pessoa; apenas classifique.`;
 
 export async function POST(request: Request): Promise<Response> {

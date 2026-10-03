@@ -113,6 +113,7 @@ import {
   describeAction,
   resolveFollowUp,
   spendPeriodFrom,
+  TOPIC_TTL_MS,
   type ForsetiTopic,
   detectDoubt,
   type DoubtId,
@@ -3253,6 +3254,11 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     if (!trimmed && attachmentsList.length === 0) return;
 
+    // O assunto só continua se esta mensagem for uma continuação: tudo o mais (registro, ação, foto, "não entendi")
+    // o apaga, e só uma resposta de assunto o grava de novo. Assim a Forseti não segue um assunto que já mudou.
+    const topicBefore = lastTopicRef.current && Date.now() - lastTopicRef.current.at <= TOPIC_TTL_MS ? lastTopicRef.current : null;
+    lastTopicRef.current = null;
+
     const userMessage: CopilotMessage = {
       id: `usr_${Date.now()}`,
       role: 'user',
@@ -3883,7 +3889,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
 
         // 2b. Continuação do assunto anterior ("me mostre os dessa semana" depois de "gastos por natureza")
-        const follow = resolveFollowUp(trimmed, lastTopicRef.current);
+        const follow = resolveFollowUp(trimmed, topicBefore);
         if (follow) {
           answerIntent(follow.intent, follow.period, follow.note);
           return;
@@ -3893,8 +3899,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         // sem chave, offline ou sem certeza, segue para a pergunta de confirmação / resposta padrão
         const wordCount = trimmed.split(/\s+/).length;
         if (wordCount >= 3) {
-          const topic = lastTopicRef.current && Date.now() - lastTopicRef.current.at <= 15 * 60 * 1000 ? lastTopicRef.current : null;
-          classifyIntent(trimmed, topic ? { intent: topic.intent, period: topic.period, previous: topic.text } : undefined).then((found) => {
+          classifyIntent(trimmed, topicBefore ? { intent: topicBefore.intent, period: topicBefore.period, previous: topicBefore.text } : undefined).then((found) => {
             if (found) answerIntent(found.intent, found.period);
             else reply(detectAmbiguity(trimmed) || FALLBACK_REPLY);
           });
