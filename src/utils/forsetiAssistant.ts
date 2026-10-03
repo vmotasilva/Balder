@@ -1300,6 +1300,16 @@ export interface ForsetiTopic {
 
 export const TOPIC_TTL_MS = 15 * 60 * 1000;
 
+/** Palavras que não trazem assunto novo: ligações, verbos de "mostrar", o período e o vocabulário de gastos. */
+const CONTINUATION_WORDS = new Set([
+  'me', 'mostre', 'mostra', 'mostrar', 'veja', 'ver', 'quero', 'tambem', 'agora', 'apenas', 'somente', 'mesmo', 'mesma',
+  'os', 'as', 'uns', 'umas', 'dos', 'das', 'dessa', 'desta', 'deste', 'desse', 'nesta', 'neste', 'essa', 'esse', 'esta', 'este',
+  'para', 'pra', 'por', 'com', 'que', 'sem', 'ate', 'so', 'ja',
+  'semana', 'hoje', 'quinzena', 'mes', 'mensal', 'periodo',
+  'gasto', 'gastos', 'despesa', 'despesas', 'saida', 'saidas', 'compra', 'compras', 'natureza', 'naturezas', 'origem', 'origens',
+  'categoria', 'categorias', 'lancamento', 'lancamentos', 'movimentacao', 'movimentacoes',
+]);
+
 const TOPIC_LABEL: Partial<Record<DoubtId, string>> = {
   GASTOS_PERIODO: 'gastos por origem',
   SEM_NATUREZA: 'gastos sem natureza',
@@ -1319,8 +1329,14 @@ export function resolveFollowUp(
   if (!last || now - last.at > TOPIC_TTL_MS) return null;
   const period = spendPeriodFrom(text);
   if (!period) return null;
-  const words = text.trim().split(/\s+/).length;
-  if (words > 8) return null; // frase longa traz o assunto dela mesma
+  const t = stripAccents(text);
+  // Períodos que não sabemos responder ("semana passada", "mês anterior", "próxima semana"): melhor não adivinhar
+  if (/passad|anterior|proxim|ultim|seguinte|ontem|amanha/.test(t)) return null;
+  // Assunto novo na frase ("salário dessa semana", "metas deste mês"): não é continuação
+  const words = t.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+  if (words.length > 8) return null; // frase longa traz o assunto dela mesma
+  const newSubject = words.some((w) => w.length >= 3 && !CONTINUATION_WORDS.has(w));
+  if (newSubject) return null;
   // Gastos do mês e últimas saídas continuam como gastos do período; os demais assuntos não têm período
   const intent: DoubtId | null =
     last.intent === 'GASTOS_PERIODO' || last.intent === 'SEM_NATUREZA'
