@@ -45,6 +45,12 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const plusMenuRef = useRef<HTMLDivElement>(null);
+  const textInputRef = useRef<HTMLInputElement>(null);
+
+  // Ao abrir o pop-up, o cursor já fica no campo de escrita
+  useEffect(() => {
+    if (isPopup) textInputRef.current?.focus();
+  }, [isPopup]);
 
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -623,6 +629,7 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
             </div>
 
             <input
+              ref={textInputRef}
               type="text"
               className="chat-text-input"
               placeholder={
