@@ -92,6 +92,7 @@ import { getBankBranding } from '../utils/bankBranding';
 import { ForsetiActivityService } from '../services/forsetiActivityService';
 import { ForsetiTranscriptService } from '../services/forsetiTranscriptService';
 import { defaultClosingDay } from '../utils/setupCatalog';
+import { firstInvoiceDueDate } from '../utils/cardPurchase';
 import { getItemOccurrences, isExcludedState, mappingItemBaseValue, registerItemPayment, removeItemPayment, resolveMappingItemState } from '../utils/mappingItemState';
 import { buildForecastWindow, FORECAST_PERIODS, type ForecastPeriod, type ForecastWindow } from '../utils/forecastWindow';
 import { buildMonthlyProjectionGrid, movementCompetenceDate } from '../utils/projectionMath';
@@ -3740,7 +3741,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             result: `Cartão ${newCard.name} cadastrado · fecha dia ${closingDay}, vence dia ${dueDay}`,
             cardName: newCard.name,
           });
-          const saved = `✓ Cartão **${newCard.name}** cadastrado: fecha dia **${closingDay}** e vence dia **${dueDay}**. O limite você ajusta em **Cartões**.`;
+          const saved = `✓ Cartão **${newCard.name}** cadastrado: fecha dia **${closingDay}**${unknown ? ' *(estimado)*' : ''} e vence dia **${dueDay}**. ${unknown ? 'Confira o fechamento real no app do banco e ajuste em **Cartões**: ele define em qual fatura cada compra cai. ' : ''}O limite você ajusta em **Cartões**.`;
           if (!purchase) {
             reply({ text: saved, badge: 'CARTÃO CADASTRADO', chips: MAIN_CHIPS });
             return;
@@ -4008,8 +4009,13 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const plan = w.installments >= 2 ? { count: w.installments, total: pending.amount } : undefined;
       const card = inst?.card;
       const cardOpt = card ? paymentOptions([], [card], category, plan).find((o) => o.payload.type === 'CARTAO') : undefined;
-      option = cardOpt
-        ? { ...cardOpt, label: `${w.institution} (crédito)` }
+      // A fatura sai da data da compra editada no resumo, não de hoje
+      option = cardOpt && card
+        ? {
+            ...cardOpt,
+            label: `${w.institution} (crédito)`,
+            payload: { ...cardOpt.payload, dueDate: firstInvoiceDueDate(pending.dueDate, card.closingDay, card.dueDay) },
+          }
         : { id: 'opt_wizard_card', label: `Cadastrar o cartão ${w.institution}`, payload: { action: OPTION_REGISTER_CARD, cardName: w.institution || '' } };
     } else {
       const bank = inst?.account?.name ?? w.institution ?? 'Geral';
