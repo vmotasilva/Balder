@@ -1,9 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Sparkles,
   Camera,
   History,
-  Send,
+  Image as ImageIcon,
   CheckCircle2,
   ChevronRight,
   ChevronLeft,
@@ -533,6 +533,29 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     onOpenForseti();
   };
 
+  // Câmera: pergunta se tira a foto agora ou usa uma imagem existente e já envia à Forseti
+  const [showPhotoChoice, setShowPhotoChoice] = useState(false);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePhotoPicked = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []).filter((f) => f.type.startsWith('image/'));
+    e.target.value = '';
+    if (files.length === 0) return;
+    const attachments = files.map((file) => {
+      const url = URL.createObjectURL(file);
+      return {
+        url,
+        name: file.name || 'comprovante.jpg',
+        size: file.size > 1024 * 1024 ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` : `${Math.round(file.size / 1024)} KB`,
+        revoke: () => URL.revokeObjectURL(url),
+      };
+    });
+    sendMessageToCopilot(forsetiText.trim(), attachments);
+    setForsetiText('');
+    onOpenForseti();
+  };
+
   if (!isDataReady) {
     return <div className="home-hub"><p className="text-sm text-muted">Carregando…</p></div>;
   }
@@ -586,13 +609,42 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           <History size={18} />
           {recentRequests > 0 && <span className="home-forseti-count">{recentRequests}</span>}
         </button>
-        <button type="button" className="home-forseti-icon" onClick={onOpenForseti} aria-label="Enviar foto do cupom" title="Enviar foto do cupom">
+        <button
+          type="button"
+          className="home-forseti-icon"
+          onClick={() => setShowPhotoChoice(true)}
+          aria-label="Enviar foto do cupom"
+          title="Enviar foto do cupom"
+        >
           <Camera size={18} />
         </button>
-        <button type="submit" className="home-forseti-icon is-send" aria-label="Enviar">
-          <Send size={16} />
-        </button>
       </form>
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoPicked} style={{ display: 'none' }} />
+      <input ref={galleryInputRef} type="file" accept="image/*" multiple onChange={handlePhotoPicked} style={{ display: 'none' }} />
+      <Modal isOpen={showPhotoChoice} onClose={() => setShowPhotoChoice(false)} title="Enviar foto do cupom" maxWidth="420px">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              setShowPhotoChoice(false);
+              cameraInputRef.current?.click();
+            }}
+          >
+            <Camera size={16} /> Tirar foto agora
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline"
+            onClick={() => {
+              setShowPhotoChoice(false);
+              galleryInputRef.current?.click();
+            }}
+          >
+            <ImageIcon size={16} /> Escolher imagem existente
+          </button>
+        </div>
+      </Modal>
       <ForsetiActivityModal isOpen={showActivity} onClose={() => setShowActivity(false)} />
 
       {/* Como estou? */}
