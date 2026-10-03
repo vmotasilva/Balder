@@ -568,6 +568,11 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
         <input
           value={forsetiText}
           onChange={(e) => setForsetiText(e.target.value)}
+          // Tocar na caixa abre o chat da Forseti; sai do foco para não reabrir ao fechar o pop-up
+          onFocus={(e) => {
+            e.currentTarget.blur();
+            onOpenForseti();
+          }}
           placeholder='Conte à Forseti o que aconteceu: "paguei 50 no mercado"'
           aria-label="Mensagem para a Forseti"
         />
