@@ -39,7 +39,8 @@ import { PeriodMovementsModal, isMovementIncome, movementDate, movementValue } f
 
 interface HomeHubPageProps {
   onNavigate: (tab: TabId) => void;
-  onOpenForseti: () => void;
+  /** Abre o chat da Forseti; `draft` já vem escrito no campo de mensagem (ex.: texto ditado). */
+  onOpenForseti: (draft?: string) => void;
   onOpenOnboarding: (step?: number) => void;
   onPlanWithOthers: () => void;
 }
@@ -558,10 +559,13 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     onOpenForseti();
   };
 
-  // Voz: o que for dito só preenche a caixa; tocar na caixa envia o texto e abre o chat
+  // Voz: a caixa acompanha o que é dito; ao terminar, o chat abre com o texto no campo de escrita
   const voice = useSpeechRecognition({
     onInterim: setForsetiText,
-    onFinal: setForsetiText,
+    onFinal: (text) => {
+      setForsetiText('');
+      onOpenForseti(text);
+    },
   });
 
   if (!isDataReady) {
@@ -599,14 +603,9 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
         <input
           value={forsetiText}
           onChange={(e) => setForsetiText(e.target.value)}
-          // Tocar na caixa abre o chat da Forseti (enviando o que foi ditado, se houver); sai do foco
-          // para não reabrir ao fechar o pop-up
+          // Tocar na caixa abre o chat da Forseti; sai do foco para não reabrir ao fechar o pop-up
           onFocus={(e) => {
             e.currentTarget.blur();
-            if (forsetiText.trim()) {
-              sendMessageToCopilot(forsetiText.trim());
-              setForsetiText('');
-            }
             onOpenForseti();
           }}
           placeholder='Conte à Forseti o que aconteceu: "paguei 50 no mercado"'
