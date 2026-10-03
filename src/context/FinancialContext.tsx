@@ -3490,7 +3490,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const reply = (r: ForsetiReply, extra?: Partial<CopilotMessage>) => {
         logForsetiActivity({ kind: 'CONVERSA', request: trimmed, result: r.text });
         setChatHistory((prev) => [
-          ...prev,
+          ...(r.pendingAction ? prev.map((m) => (m.pendingAction ? { ...m, pendingAction: undefined } : m)) : prev),
           {
             id: `ast_${Date.now()}`,
             role: 'assistant',
@@ -3499,6 +3499,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             actionBadge: r.badge,
             suggestedFollowUps: r.chips,
             ...(r.choices ? { choices: r.choices } : {}),
+            ...(r.pendingAction ? { pendingAction: r.pendingAction } : {}),
             ...extra,
           },
         ]);
@@ -3839,7 +3840,20 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           const init = activeCheckpoint ? activeCheckpoint.initialBalance : 0;
           const monthRow = (mode: 'PROJETADO' | 'REALIZADO') =>
             buildMonthlyProjectionGrid(movements, natures, init, monthlyClosings, mode, opts).find((r) => r.monthKey === key);
+          // Sem natureza: sugere a natureza provável de cada despesa (palavras-chave e nomes, como nas faturas)
+          const natureSuggestions: Record<string, { natureId: string; natureName: string }> = {};
+          if (doubt === 'SEM_NATUREZA') {
+            movements
+              .filter((m) => m.type === 'PAGAR' && (!m.natureId || m.natureId.toLowerCase() === 'outros'))
+              .forEach((m) => {
+                const match = matchNatureForTransaction(m.title, m.category, natures);
+                if (match.natureId && match.natureId.toLowerCase() !== 'outros' && match.confidence >= 0.8) {
+                  natureSuggestions[m.id] = { natureId: match.natureId, natureName: match.natureName };
+                }
+              });
+          }
           const data: ForsetiData = {
+            natureSuggestions,
             natures: natures.map((n) => ({ id: n.id, name: n.name })),
             availableBalance,
             forecasts,
@@ -3996,6 +4010,26 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (action.kind === 'NAVIGATE') {
       say(`Abrindo **${action.label}**…`, [], 'TELA ABERTA');
       forsetiNavigatorRef.current?.(action.tab);
+      return;
+    }
+
+    if (action.kind === 'ASSIGN_NATURES') {
+      if (forsetiBlockedInShared('associo despesas a naturezas', undefined, ['REGISTRAR_PAGAMENTOS'])) return;
+      const done: string[] = [];
+      action.assignments.forEach((a) => {
+        const mov = movements.find((m) => m.id === a.movementId);
+        if (!mov || (mov.natureId && mov.natureId.toLowerCase() !== 'outros')) return; // já mudou desde a proposta
+        if (!natures.some((n) => n.id === a.natureId)) return;
+        updateMovement(a.movementId, { natureId: a.natureId });
+        done.push(`• ${a.title} → **${a.natureName}**`);
+      });
+      say(
+        done.length > 0
+          ? `✅ Associei ${done.length} ${done.length === 1 ? 'despesa' : 'despesas'}:\n\n${done.join('\n')}\n\nElas passam a contar nos tetos dessas naturezas.`
+          : 'Nada a associar: essas despesas já foram ligadas a uma natureza ou não existem mais.',
+        ['Gastos por natureza', 'Gastos sem natureza'],
+        done.length > 0 ? 'DESPESAS ASSOCIADAS' : 'NÃO FEITO'
+      );
       return;
     }
 

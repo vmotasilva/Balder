@@ -1,4 +1,4 @@
-import type { BankAccount, CopilotInteractiveOption, CopilotPendingConfirmation, CreditCardItem, ForsetiActivity, Goal, MonthlyGridProjectionRow, Movement } from '../types';
+import type { BankAccount, CopilotInteractiveOption, ForsetiPendingAction, CopilotPendingConfirmation, CreditCardItem, ForsetiActivity, Goal, MonthlyGridProjectionRow, Movement } from '../types';
 import type { ForecastEntry, ForecastPeriod, ForecastWindow } from './forecastWindow';
 import { CASH_IN_HAND } from './cashInHand';
 import { trackingPeriodRange } from './periodSpending';
@@ -565,11 +565,15 @@ export interface ForsetiReply {
   chips: string[];
   /** Opções que a pessoa escolhe com um toque; `send` é a frase enviada à Forseti ao escolher. */
   choices?: { label: string; send: string }[];
+  /** Ação proposta junto da resposta (botões Confirmar / Cancelar). */
+  pendingAction?: ForsetiPendingAction;
 }
 
 export interface ForsetiData {
   /** Naturezas do planejamento (para mostrar gastos por natureza). */
   natures?: { id: string; name: string }[];
+  /** Natureza sugerida (por palavras-chave e nomes) para cada lançamento sem natureza, por id do lançamento. */
+  natureSuggestions?: Record<string, { natureId: string; natureName: string }>;
   availableBalance: number;
   forecasts: Record<ForecastPeriod, ForecastWindow>;
   monthProjected?: MonthlyGridProjectionRow;
@@ -599,6 +603,8 @@ function natureShares(m: Movement, value: number, nameOf: (id?: string) => strin
     const rest = Math.max(0, value - used);
     return [...byName.entries(), ...(rest > 0.005 ? ([[NO_NATURE, rest]] as [string, number][]) : [])];
   }
+  if (m.type === 'EMPRESTIMO') return [['Empréstimos', value]];
+  if (m.type === 'CARTAO') return [['Faturas de cartão (sem detalhamento)', value]];
   return [[hasNoNature(m) ? NO_NATURE : nameOf(m.natureId) || m.category || NO_NATURE, value]];
 }
 const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -782,22 +788,60 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
     }
 
     case 'SEM_NATUREZA': {
-      const monthStart = `${isoDay(new Date()).slice(0, 7)}-01`;
+      const period = opts?.period || spendPeriodFrom(text) || 'MES';
+      const today = new Date();
+      const range = period === 'HOJE' ? { from: isoDay(today), to: isoDay(today) } : trackingPeriodRange(period, today);
+      const label = { HOJE: 'hoje', SEMANA: 'desta semana', QUINZENA: 'desta quinzena', MES: 'deste mês' }[period];
+      // Só despesas avulsas: parcelas de empréstimo e faturas têm tratamento próprio (não são "sem natureza")
       const list = d.movements
-        .filter((m) => !isIncomeMovement(m) && m.status !== 'CANCELADA' && hasNoNature(m) && (m.invoiceBreakdown || []).length === 0 && outflowDate(m) >= monthStart)
-        .sort((a, b) => outflowValue(b) - outflowValue(a));
-      const explain =
-        '**Sem natureza** (ou "Outros") são os lançamentos que ainda não foram ligados a uma natureza do seu planejamento (Alimentação, Saúde…). Eles somam nos seus gastos, mas não aparecem nos tetos de nenhuma natureza.';
+        .filter((m) => m.type === 'PAGAR' && m.status !== 'CANCELADA' && hasNoNature(m) && outflowDate(m) >= range.from && outflowDate(m) <= range.to)
+        .sort((a, b) => outflowDate(b).localeCompare(outflowDate(a)) || outflowValue(b) - outflowValue(a));
+      const heading = `**Gastos sem natureza ${label}** (${period === 'HOJE' ? ddmm(range.from) : `${ddmm(range.from)} a ${ddmm(range.to)}`})`;
       if (list.length === 0) {
-        return { text: `${explain}\n\nNeste mês não há lançamentos nessa situação. 👏`, badge: 'SEM NATUREZA', chips: ['Gastos desta semana', CHIP_DUVIDA] };
+        return {
+          text: `${heading}\n\nNenhuma despesa está sem natureza neste período. 👏`,
+          badge: 'SEM NATUREZA',
+          chips: ['Gastos por natureza', 'Últimas compras', CHIP_DUVIDA],
+        };
       }
       const total = list.reduce((acc, m) => acc + outflowValue(m), 0);
-      const shown = list.slice(0, 8);
-      const lines = shown.map((m) => `• ${ddmm(outflowDate(m))} · ${m.title} — **${brl(outflowValue(m))}**${m.status === 'REALIZADA' ? '' : ' _(previsto)_'}`);
+      const shown = list.slice(0, 10);
+      const suggestion = (m: Movement) => d.natureSuggestions?.[m.id];
+      const lines = shown.map((m) => {
+        const sug = suggestion(m);
+        return `• ${ddmm(outflowDate(m))} · ${m.title} — **${brl(outflowValue(m))}**${m.status === 'REALIZADA' ? '' : ' _(previsto)_'}${sug ? `\n   ↳ sugestão: **${sug.natureName}**` : ''}`;
+      });
+      const assignments = list
+        .filter((m) => suggestion(m))
+        .slice(0, 20)
+        .map((m) => ({ movementId: m.id, title: m.title, natureId: suggestion(m)!.natureId, natureName: suggestion(m)!.natureName }));
+      const noSuggestion = list.length - list.filter((m) => suggestion(m)).length;
+      const parts = [
+        `${heading}\n${list.length} ${list.length === 1 ? 'despesa' : 'despesas'}, **${brl(total)}**:`,
+        lines.join('\n'),
+      ];
+      if (list.length > shown.length) parts.push(`…e mais ${list.length - shown.length}.`);
+      if (assignments.length > 0) {
+        parts.push(`Encontrei a natureza provável de **${assignments.length}** ${assignments.length === 1 ? 'despesa' : 'despesas'} pelo nome e pelas palavras-chave. Quer associar agora?`);
+      }
+      if (noSuggestion > 0) {
+        parts.push(`${noSuggestion} sem sugestão: abra o lançamento em *Lançamentos* e escolha a natureza (ou cadastre palavras-chave na natureza para eu reconhecer da próxima vez).`);
+      }
       return {
-        text: `${explain}\n\nNeste mês são **${list.length}** lançamento${list.length > 1 ? 's' : ''}, **${brl(total)}**:\n\n${lines.join('\n')}${list.length > shown.length ? `\n…e mais ${list.length - shown.length}.` : ''}\n\nPara organizar, abra o lançamento em *Lançamentos* e escolha a natureza.`,
+        text: parts.join('\n\n'),
         badge: 'SEM NATUREZA',
-        chips: ['Gastos desta semana', 'Últimas compras', CHIP_DUVIDA],
+        chips: ['Gastos por natureza', 'Últimas compras'],
+        ...(assignments.length > 0
+          ? {
+              pendingAction: {
+                kind: 'ASSIGN_NATURES' as const,
+                request: text,
+                title: `Associar ${assignments.length} ${assignments.length === 1 ? 'despesa' : 'despesas'} às naturezas sugeridas?`,
+                details: [],
+                assignments,
+              },
+            }
+          : {}),
       };
     }
 

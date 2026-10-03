@@ -341,6 +341,7 @@ export type ForsetiPendingAction = {
   | { kind: 'NAVIGATE'; tab: string; label: string }
   | { kind: 'CREATE_NATURE'; name: string }
   | { kind: 'CREATE_MAPPING'; name: string; natureId: string; natureName: string }
+  | { kind: 'ASSIGN_NATURES'; assignments: { movementId: string; title: string; natureId: string; natureName: string }[] }
 );
 
 export interface CopilotMessage {
