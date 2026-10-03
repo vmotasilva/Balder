@@ -92,6 +92,7 @@ import { getBankBranding } from '../utils/bankBranding';
 import { ForsetiActivityService } from '../services/forsetiActivityService';
 import { ForsetiTranscriptService } from '../services/forsetiTranscriptService';
 import { defaultClosingDay } from '../utils/setupCatalog';
+import { firstInvoiceDueDate } from '../utils/cardPurchase';
 import { getItemOccurrences, isExcludedState, mappingItemBaseValue, registerItemPayment, removeItemPayment, resolveMappingItemState } from '../utils/mappingItemState';
 import { buildForecastWindow, FORECAST_PERIODS, type ForecastPeriod, type ForecastWindow } from '../utils/forecastWindow';
 import { buildMonthlyProjectionGrid, movementCompetenceDate } from '../utils/projectionMath';
@@ -3610,7 +3611,13 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (cat) return askPaymentMethod(title || cat.title, amount, cat.category, ctx);
         if (title) return askPaymentMethod(title, amount, 'Outros', ctx);
         forsetiFlowRef.current = { kind: 'PAGAR', step: 'CATEGORIA', amount, ...ctx };
-        reply({ text: `**${brl(amount)}**. **Com o que foi esse gasto?**`, badge: 'CATEGORIA DO GASTO', chips: EXPENSE_CATEGORY_CHIPS });
+        // Sugestões = naturezas cadastradas pelo usuário; sem nenhuma, vale a lista padrão
+        const ownNames = userNatures(natures).map((n) => n.name);
+        reply({
+          text: `**${brl(amount)}**. **Com o que foi esse gasto?**`,
+          badge: 'CATEGORIA DO GASTO',
+          chips: ownNames.length > 0 ? [...ownNames.slice(0, 10), 'Outro'] : EXPENSE_CATEGORY_CHIPS,
+        });
       };
       // "em 6x de 295,87" sem o total: o total é parcela × vezes
       const readPurchase = (text: string) => {
@@ -3734,7 +3741,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             result: `Cartão ${newCard.name} cadastrado · fecha dia ${closingDay}, vence dia ${dueDay}`,
             cardName: newCard.name,
           });
-          const saved = `✓ Cartão **${newCard.name}** cadastrado: fecha dia **${closingDay}** e vence dia **${dueDay}**. O limite você ajusta em **Cartões**.`;
+          const saved = `✓ Cartão **${newCard.name}** cadastrado: fecha dia **${closingDay}**${unknown ? ' *(estimado)*' : ''} e vence dia **${dueDay}**. ${unknown ? 'Confira o fechamento real no app do banco e ajuste em **Cartões**: ele define em qual fatura cada compra cai. ' : ''}O limite você ajusta em **Cartões**.`;
           if (!purchase) {
             reply({ text: saved, badge: 'CARTÃO CADASTRADO', chips: MAIN_CHIPS });
             return;
@@ -3800,7 +3807,10 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             reply({ text: 'O que foi? Escreva uma descrição curta (ex.: *presente*, *barbeiro*).', badge: 'DESCRIÇÃO', chips: [] });
             return;
           }
-          const cat = categoryFromChip(trimmed) || inferExpenseCategory(trimmed);
+          const ownNature = userNatures(natures).find((n) => n.name.trim().toLowerCase() === trimmed.toLowerCase());
+          const cat = ownNature
+            ? { title: ownNature.name, category: ownNature.name }
+            : categoryFromChip(trimmed) || inferExpenseCategory(trimmed);
           askPaymentMethod(cat ? cat.title : trimmed, flow.amount || 0, cat ? cat.category : 'Outros', flow);
           return;
         } else {
@@ -3999,8 +4009,13 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const plan = w.installments >= 2 ? { count: w.installments, total: pending.amount } : undefined;
       const card = inst?.card;
       const cardOpt = card ? paymentOptions([], [card], category, plan).find((o) => o.payload.type === 'CARTAO') : undefined;
-      option = cardOpt
-        ? { ...cardOpt, label: `${w.institution} (crédito)` }
+      // A fatura sai da data da compra editada no resumo, não de hoje
+      option = cardOpt && card
+        ? {
+            ...cardOpt,
+            label: `${w.institution} (crédito)`,
+            payload: { ...cardOpt.payload, dueDate: firstInvoiceDueDate(pending.dueDate, card.closingDay, card.dueDay) },
+          }
         : { id: 'opt_wizard_card', label: `Cadastrar o cartão ${w.institution}`, payload: { action: OPTION_REGISTER_CARD, cardName: w.institution || '' } };
     } else {
       const bank = inst?.account?.name ?? w.institution ?? 'Geral';

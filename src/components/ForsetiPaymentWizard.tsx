@@ -4,6 +4,7 @@ import { useFinancial } from '../context/FinancialContext';
 import { listPaymentInstitutions } from '../utils/paymentInstitutions';
 import { getBankBranding } from '../utils/bankBranding';
 import { parseMoney } from '../utils/parseDecimal';
+import { firstInvoiceDueDate } from '../utils/cardPurchase';
 import { findMappingItemForTitle } from '../utils/mappingMatch';
 import { userNatures } from '../utils/baseNatures';
 import { matchNatureForTransaction } from '../services/invoiceFileParser';
@@ -60,6 +61,8 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
   };
 
   const credit = wizard.method === 'CREDITO';
+  const invoiceCard = credit ? listPaymentInstitutions(accounts, cards, banks).find((i) => i.name === wizard.institution)?.card : undefined;
+  const invoiceDue = invoiceCard ? firstInvoiceDueDate(data.dueDate, invoiceCard.closingDay, invoiceCard.dueDay) : '';
   const perInstallment = wizard.installments > 1 ? Math.round((data.amount / wizard.installments) * 100) / 100 : data.amount;
   const payLabel =
     wizard.where === 'CASH'
@@ -224,6 +227,14 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
                 Alterar
               </button>
             </dd>
+            {credit && invoiceCard && (
+              <>
+                <dt>Fatura</dt>
+                <dd>
+                  Fecha dia {invoiceCard.closingDay} · vence {invoiceDue.slice(8, 10)}/{invoiceDue.slice(5, 7)}
+                </dd>
+              </>
+            )}
             {credit && (
               <>
                 <dt>Parcelas</dt>

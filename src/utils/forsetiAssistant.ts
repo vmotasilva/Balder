@@ -1,3 +1,4 @@
+import { firstInvoiceDueDate } from './cardPurchase';
 import type { BankAccount, CopilotInteractiveOption, ExpenseNature, ForsetiPendingAction, CopilotPendingConfirmation, CreditCardItem, ForsetiActivity, Goal, MonthlyGridProjectionRow, Movement } from '../types';
 import type { ForecastEntry, ForecastPeriod, ForecastWindow } from './forecastWindow';
 import { CASH_IN_HAND } from './cashInHand';
@@ -212,15 +213,9 @@ export function categoryFromChip(text: string): { title: string; category: strin
   return found ? { title: found.title, category: found.category } : null;
 }
 
-/** Vencimento da fatura em que uma compra de hoje cai (fecha no closingDay, vence no dueDay). */
+/** Vencimento da fatura em que uma compra feita em `today` cai (mesma regra do lançamento manual). */
 export function nextCardDueDate(closingDay: number, dueDay: number, today: Date = new Date()): string {
-  const base = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const clamp = (y: number, m: number, day: number) => new Date(y, m, Math.min(day, new Date(y, m + 1, 0).getDate()));
-  let closing = clamp(base.getFullYear(), base.getMonth(), closingDay);
-  if (base > closing) closing = clamp(base.getFullYear(), base.getMonth() + 1, closingDay);
-  let due = clamp(closing.getFullYear(), closing.getMonth(), dueDay);
-  if (due <= closing) due = clamp(closing.getFullYear(), closing.getMonth() + 1, dueDay);
-  return isoOf(due);
+  return firstInvoiceDueDate(isoOf(today), closingDay, dueDay);
 }
 
 // ── Contas para escolher ──────────────────────────────────────────────────────
