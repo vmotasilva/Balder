@@ -3805,6 +3805,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           const monthRow = (mode: 'PROJETADO' | 'REALIZADO') =>
             buildMonthlyProjectionGrid(movements, natures, init, monthlyClosings, mode, opts).find((r) => r.monthKey === key);
           const data: ForsetiData = {
+            natures: natures.map((n) => ({ id: n.id, name: n.name })),
             availableBalance,
             forecasts,
             monthProjected: withMonth ? monthRow('PROJETADO') : undefined,

@@ -21,6 +21,8 @@ Escolha a intenção que melhor representa o que a pessoa quer VER ou SABER. Int
 - GLOSSARIO: significado de um termo (natureza, mapeamento, competência...)
 - ULTIMAS: últimas compras/gastos/saídas feitas
 - GASTOS_PERIODO: gastos de um período (informe period: HOJE, SEMANA, QUINZENA ou MES)
+- PREVISTO_REAL: o que estava previsto e não foi registrado/pago, ou foi pago a menos que o previsto
+- SEM_NATUREZA: o que há dentro de "Outros" / gastos sem natureza
 - DESCONHECIDO: qualquer outra coisa, ou registrar/lançar algo, ou conversa fora do tema.
 Nunca responda à pessoa; apenas classifique.`;
 

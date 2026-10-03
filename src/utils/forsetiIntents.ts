@@ -17,6 +17,8 @@ export const FORSETI_INTENTS = [
   'GLOSSARIO',
   'ULTIMAS',
   'GASTOS_PERIODO',
+  'PREVISTO_REAL',
+  'SEM_NATUREZA',
 ] as const;
 
 export type ForsetiIntent = (typeof FORSETI_INTENTS)[number];
