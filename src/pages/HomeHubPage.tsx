@@ -558,14 +558,10 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     onOpenForseti();
   };
 
-  // Voz: o que for dito vai direto para a Forseti e o chat abre
+  // Voz: o que for dito só preenche a caixa; tocar na caixa envia o texto e abre o chat
   const voice = useSpeechRecognition({
     onInterim: setForsetiText,
-    onFinal: (text) => {
-      sendMessageToCopilot(text);
-      setForsetiText('');
-      onOpenForseti();
-    },
+    onFinal: setForsetiText,
   });
 
   if (!isDataReady) {
@@ -603,9 +599,14 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
         <input
           value={forsetiText}
           onChange={(e) => setForsetiText(e.target.value)}
-          // Tocar na caixa abre o chat da Forseti; sai do foco para não reabrir ao fechar o pop-up
+          // Tocar na caixa abre o chat da Forseti (enviando o que foi ditado, se houver); sai do foco
+          // para não reabrir ao fechar o pop-up
           onFocus={(e) => {
             e.currentTarget.blur();
+            if (forsetiText.trim()) {
+              sendMessageToCopilot(forsetiText.trim());
+              setForsetiText('');
+            }
             onOpenForseti();
           }}
           placeholder='Conte à Forseti o que aconteceu: "paguei 50 no mercado"'
