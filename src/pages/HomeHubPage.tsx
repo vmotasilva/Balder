@@ -394,14 +394,16 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
 
   // ── Compras do período, item a item (o atual, um anterior ou a previsão de um futuro, escolhido nas setas) ──
   const toDateView = monthToDate && spendingOffset === 0;
+  // Último dia do período: o prazo das compras previstas (mesmo no modo "até hoje")
+  const spendingDeadline = trackingPeriodRange(period, shiftPeriodDate(period, new Date(), spendingOffset)).to;
   const spendingRange = useMemo(() => {
     const range = trackingPeriodRange(period, shiftPeriodDate(period, new Date(), spendingOffset));
     return toDateView ? { ...range, to: todayIso } : range;
   }, [period, spendingOffset, toDateView, todayIso]);
   const { tense: spendingTense, items: periodItems } = useMemo(
     () =>
-      buildPeriodItems({ natures, movements, range: spendingRange, startDate: activeCheckpoint?.startDate, natureDetailModes }),
-    [natures, movements, spendingRange, activeCheckpoint?.startDate, natureDetailModes]
+      buildPeriodItems({ natures, movements, range: spendingRange, startDate: activeCheckpoint?.startDate, natureDetailModes, deadline: spendingDeadline }),
+    [natures, movements, spendingRange, activeCheckpoint?.startDate, natureDetailModes, spendingDeadline]
   );
   // Antes do marco não há o que mostrar: a seta para trás para no período em que o marco começa
   const atSpendingStart = !!activeCheckpoint?.startDate && spendingRange.from <= activeCheckpoint.startDate;
@@ -473,13 +475,14 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     if (p.status === 'ATRASADA') {
       return (
         <span className="text-rose">
-          Venceu {shortDate(p.date)} {p.paidAmount ? 'sem quitar' : 'sem registro'} · {formatBRL(p.plannedAmount)}
+          {p.deadline ? `Prazo venceu ${shortDate(p.deadline)}` : `Venceu ${shortDate(p.date)}`} {p.paidAmount ? 'sem quitar' : 'sem registro'} · {formatBRL(p.plannedAmount)}
           {partial}
         </span>
       );
     }
     if (p.status === 'NAO_VAI') return `Não vai acontecer${p.note ? `: ${p.note}` : ''}`;
     if (p.status === 'TERCEIROS') return `Paga por ${p.note || 'outra pessoa'}`;
+    if (p.deadline) return `Prazo até ${whenLabel({ date: p.deadline, overdue: false })} · ${formatBRL(p.plannedAmount)}${partial}`;
     return `Prevista para ${whenLabel({ date: p.date, overdue: false })} · ${formatBRL(p.plannedAmount)}${partial}`;
   };
 
@@ -943,7 +946,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
                           <span className="home-task-title">{row.title}</span>
                           <span className="home-task-meta">
                             {groupSummary(t)}
-                            {t.nextDate && ` · próxima ${whenLabel({ date: t.nextDate, overdue: false })}`}
+                            {t.nextDate && ` · até ${whenLabel({ date: t.nextDate, overdue: false })}`}
                           </span>
                         </div>
                         <ChevronRight size={16} aria-hidden="true" />
@@ -1011,7 +1014,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
                         <span className="home-task-title">{item.title}</span>
                         <span className="home-task-meta">
                           {groupSummary(sumItems([item]))}
-                          {item.nextDate && ` · próxima ${whenLabel({ date: item.nextDate, overdue: false })}`}
+                          {item.nextDate && ` · até ${whenLabel({ date: item.nextDate, overdue: false })}`}
                         </span>
                       </div>
                       <span className={`home-purchase-pill ${itemPill}`}>

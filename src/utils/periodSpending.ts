@@ -90,6 +90,8 @@ export interface PeriodPurchase {
   paidAt?: string;
   paidAmount?: number;
   note?: string; // quem pagou ou por que não vai acontecer
+  /** Prazo da compra prevista de uma natureza: o último dia do período (só atrasa depois dele). */
+  deadline?: string;
 }
 
 /** Um item de natureza (ou uma conta avulsa) com as compras dele no período. */
@@ -123,7 +125,7 @@ function finishItem(base: Omit<PeriodItem, 'planned' | 'spent' | 'done' | 'total
     spent: round2(purchases.reduce((acc, p) => acc + (p.paidAmount || 0), 0)),
     done: purchases.filter((p) => p.status === 'FEITA').length,
     total: valid.length,
-    nextDate: open[0]?.date,
+    nextDate: open[0] ? open[0].deadline ?? open[0].date : undefined,
     overdue: open.some((p) => p.status === 'ATRASADA'),
   };
 }
@@ -136,7 +138,7 @@ function finishItem(base: Omit<PeriodItem, 'planned' | 'spent' | 'done' | 'total
 function summarizedMappingPurchases(
   mappingItems: MappingItem[],
   monthKey: string,
-  openStatus: (date: string) => PurchaseStatus
+  openStatus: () => PurchaseStatus
 ): { itemCount: number; purchases: Omit<PeriodPurchase, 'key'>[] } {
   const byDate = new Map<string, { planned: number; paid: number; need: number; paidAt?: string }>();
   const pool = new Map<string, { paidAt: string; amount: number }>();
@@ -205,7 +207,7 @@ function summarizedMappingPurchases(
       const d = byDate.get(date)!;
       const base = { date, plannedAmount: round2(d.planned) };
       if (d.need <= 0.005) return { ...base, status: 'FEITA' as const, paidAt: d.paidAt, paidAmount: round2(d.paid) };
-      return { ...base, status: openStatus(date), ...(d.paid > 0.005 ? { paidAmount: round2(d.paid) } : {}) };
+      return { ...base, status: openStatus(), ...(d.paid > 0.005 ? { paidAmount: round2(d.paid) } : {}) };
     }),
   };
 }
@@ -223,12 +225,20 @@ export function buildPeriodItems(params: {
   today?: Date;
   /** Exibição padrão de cada natureza ('MAPEAMENTOS' = Resumo); o mapeamento pode ter a sua. */
   natureDetailModes?: Record<string, 'ITENS' | 'MAPEAMENTOS'>;
+  /** Último dia do período (prazo das compras previstas); padrão: o fim do intervalo mostrado. */
+  deadline?: string;
 }): { tense: PeriodTense; items: PeriodItem[] } {
   const { natures, movements, range, startDate = '0000-01-01', natureDetailModes = {} } = params;
+  const periodEnd = params.deadline || range.to;
   const todayIso = isoOf(params.today || new Date());
   const tense: PeriodTense = range.to < todayIso ? 'PASSADO' : range.from > todayIso ? 'FUTURO' : 'ATUAL';
   const inRange = (date?: string) => !!date && date >= range.from && date <= range.to && date >= startDate;
-  const openStatus = (date: string): PurchaseStatus => (date < todayIso ? 'ATRASADA' : 'PREVISTA');
+  // Compras previstas das naturezas: o prazo é o último dia do período (só atrasam depois dele).
+  // Contas a pagar com vencimento próprio continuam atrasando na data do vencimento.
+  const openStatus = (): PurchaseStatus => (periodEnd < todayIso ? 'ATRASADA' : 'PREVISTA');
+  const billStatus = (date: string): PurchaseStatus => (date < todayIso ? 'ATRASADA' : 'PREVISTA');
+  const withDeadline = <T extends { status: PurchaseStatus }>(p: T): T =>
+    p.status === 'PREVISTA' || p.status === 'ATRASADA' ? { ...p, deadline: periodEnd } : p;
 
   const monthKeys: string[] = [];
   const [fy, fm] = range.from.split('-').map(Number);
@@ -251,7 +261,7 @@ export function buildPeriodItems(params: {
           }
           const found = summarizedMappingPurchases(mapping.items, monthKey, openStatus);
           itemCount = Math.max(itemCount, found.itemCount);
-          purchases.push(...found.purchases.filter((p) => inRange(p.date)).map((p) => ({ ...p, key: `${mapping.id}_${p.date}` })));
+          purchases.push(...found.purchases.filter((p) => inRange(p.date)).map((p) => withDeadline({ ...p, key: `${mapping.id}_${p.date}` })));
         });
         if (purchases.length === 0) return;
         items.push(
@@ -301,7 +311,7 @@ export function buildPeriodItems(params: {
               purchases.push({ ...base, status: 'FEITA', paidAmount: base.plannedAmount });
               return;
             }
-            purchases.push({ ...base, status: openStatus(o.date) });
+            purchases.push(withDeadline({ ...base, status: openStatus() }));
           });
         });
         if (purchases.length === 0) return;
@@ -328,7 +338,7 @@ export function buildPeriodItems(params: {
           paidAt: m.paymentDate || m.dueDate,
           paidAmount: round2(m.actualAmount ?? m.amount),
         }
-      : { key: m.id, date: m.dueDate, status: openStatus(m.dueDate), plannedAmount: round2(m.amount) };
+      : { key: m.id, date: m.dueDate, status: billStatus(m.dueDate), plannedAmount: round2(m.amount) };
     items.push(finishItem({ id: m.id, title: m.title, detail: m.category || undefined, natureId: movementNatureId(m, natures), movementId: m.id, purchases: [purchase] }));
   });
 
