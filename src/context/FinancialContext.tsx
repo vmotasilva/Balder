@@ -4027,7 +4027,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         done.length > 0
           ? `✅ Associei ${done.length} ${done.length === 1 ? 'despesa' : 'despesas'}:\n\n${done.join('\n')}\n\nElas passam a contar nos tetos dessas naturezas.`
           : 'Nada a associar: essas despesas já foram ligadas a uma natureza ou não existem mais.',
-        ['Gastos por natureza', 'Gastos sem natureza'],
+        ['Gastos por origem', 'Gastos sem natureza'],
         done.length > 0 ? 'DESPESAS ASSOCIADAS' : 'NÃO FEITO'
       );
       return;
