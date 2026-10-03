@@ -1287,3 +1287,48 @@ export function describeAction(a: Exclude<ForsetiActionRequest, { kind: 'NEED_IN
       };
   }
 }
+
+
+// ── Contexto da conversa: frases curtas que continuam o assunto anterior ─────
+/** Último assunto respondido (para entender "e dessa semana?", "me mostre os de hoje"). */
+export interface ForsetiTopic {
+  intent: DoubtId;
+  period?: SpendPeriod;
+  text: string; // frase que originou o assunto
+  at: number; // quando foi respondido (ms)
+}
+
+export const TOPIC_TTL_MS = 15 * 60 * 1000;
+
+const TOPIC_LABEL: Partial<Record<DoubtId, string>> = {
+  GASTOS_PERIODO: 'gastos por origem',
+  SEM_NATUREZA: 'gastos sem natureza',
+  GASTEI: 'gastos do mês',
+  ULTIMAS: 'últimas saídas',
+};
+
+/**
+ * Frase curta com um período ("me mostre os dessa semana", "e hoje?", "só da quinzena") depois de um assunto de
+ * gastos: continua o assunto com o período novo. Devolve null quando não dá para ligar ao assunto anterior.
+ */
+export function resolveFollowUp(
+  text: string,
+  last: ForsetiTopic | null | undefined,
+  now: number = Date.now()
+): { intent: DoubtId; period: SpendPeriod; note: string } | null {
+  if (!last || now - last.at > TOPIC_TTL_MS) return null;
+  const period = spendPeriodFrom(text);
+  if (!period) return null;
+  const words = text.trim().split(/\s+/).length;
+  if (words > 8) return null; // frase longa traz o assunto dela mesma
+  // Gastos do mês e últimas saídas continuam como gastos do período; os demais assuntos não têm período
+  const intent: DoubtId | null =
+    last.intent === 'GASTOS_PERIODO' || last.intent === 'SEM_NATUREZA'
+      ? last.intent
+      : last.intent === 'GASTEI' || last.intent === 'ULTIMAS'
+      ? 'GASTOS_PERIODO'
+      : null;
+  if (!intent) return null;
+  const label = { HOJE: 'de hoje', SEMANA: 'desta semana', QUINZENA: 'desta quinzena', MES: 'deste mês' }[period];
+  return { intent, period, note: `*Continuando em ${TOPIC_LABEL[intent] || 'gastos'}, agora ${label}.*` };
+}

@@ -24,6 +24,8 @@ Escolha a intenção que melhor representa o que a pessoa quer VER ou SABER. Int
 - PREVISTO_REAL: o que estava previsto e não foi registrado/pago, ou foi pago a menos que o previsto
 - SEM_NATUREZA: o que há dentro de "Outros" / gastos sem natureza
 - DESCONHECIDO: qualquer outra coisa, ou registrar/lançar algo, ou conversa fora do tema.
+Se vier "contexto" (assunto da resposta anterior), frases curtas ou incompletas continuam esse assunto
+(ex.: contexto GASTOS_PERIODO e a frase "me mostre os dessa semana" → GASTOS_PERIODO com period SEMANA).
 Nunca responda à pessoa; apenas classifique.`;
 
 export async function POST(request: Request): Promise<Response> {
@@ -31,8 +33,15 @@ export async function POST(request: Request): Promise<Response> {
   if (!key) return Response.json({ error: 'sem chave' }, { status: 501 });
 
   let text = '';
+  let context = '';
   try {
-    text = String((await request.json()).text || '').slice(0, 300).trim();
+    const body = await request.json();
+    text = String(body.text || '').slice(0, 300).trim();
+    const c = body.context;
+    // Só o assunto anterior (intenção, período e a frase que o originou): nenhum dado financeiro
+    if (c && typeof c === 'object' && isForsetiIntent(c.intent)) {
+      context = JSON.stringify({ intent: c.intent, period: isSpendPeriod(c.period) ? c.period : undefined, previous: String(c.previous || '').slice(0, 200) });
+    }
   } catch {
     return Response.json({ error: 'corpo inválido' }, { status: 400 });
   }
@@ -60,7 +69,7 @@ export async function POST(request: Request): Promise<Response> {
         },
       ],
       tool_choice: { type: 'tool', name: 'classificar' },
-      messages: [{ role: 'user', content: text }],
+      messages: [{ role: 'user', content: context ? `contexto: ${context}\nfrase: ${text}` : text }],
     }),
   });
   if (!res.ok) return Response.json({ error: 'falha na IA' }, { status: 502 });

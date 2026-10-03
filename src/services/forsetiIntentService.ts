@@ -9,14 +9,21 @@ export interface ClassifiedIntent {
  * Pede à IA (api/forseti-intent) a intenção de uma frase que as regras não entenderam.
  * Só o texto da mensagem sai do aparelho. Devolve null sem chave configurada, offline, lento ou sem intenção.
  */
-export async function classifyIntent(text: string): Promise<ClassifiedIntent | null> {
+export interface IntentContext {
+  /** Assunto da resposta anterior (intenção e período) e a frase que o originou. */
+  intent?: string;
+  period?: string;
+  previous?: string;
+}
+
+export async function classifyIntent(text: string, context?: IntentContext): Promise<ClassifiedIntent | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 6000);
   try {
     const res = await fetch('/api/forseti-intent', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, context }),
       signal: controller.signal,
     });
     if (!res.ok) return null;
