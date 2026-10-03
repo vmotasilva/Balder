@@ -1,6 +1,8 @@
 import type { BankAccount, CopilotInteractiveOption, CopilotPendingConfirmation, CreditCardItem, ForsetiActivity, Goal, MonthlyGridProjectionRow, Movement } from '../types';
 import type { ForecastEntry, ForecastPeriod, ForecastWindow } from './forecastWindow';
 import { CASH_IN_HAND } from './cashInHand';
+import { trackingPeriodRange } from './periodSpending';
+import type { SpendPeriod } from './forsetiIntents';
 
 /**
  * Conversa guiada da Forseti: sugestões rápidas, registro passo a passo (valor → data/categoria → conta)
@@ -500,7 +502,19 @@ export type DoubtId =
   | 'QUITAR'
   | 'COMO_FUNCIONA'
   | 'GLOSSARIO'
-  | 'ONDE_VER';
+  | 'ONDE_VER'
+  | 'ULTIMAS'
+  | 'GASTOS_PERIODO';
+
+/** Período citado numa pergunta de gastos ("hoje", "esta semana", "na quinzena", "este mês"). */
+export function spendPeriodFrom(text: string): SpendPeriod | null {
+  const t = stripAccents(text);
+  if (/\bhoje\b/.test(t)) return 'HOJE';
+  if (/semana/.test(t)) return 'SEMANA';
+  if (/quinzena/.test(t)) return 'QUINZENA';
+  if (/\b(mes|mensal)\b/.test(t)) return 'MES';
+  return null;
+}
 
 /** Reconhece uma dúvida no texto (antes de tentar ler como gasto/recebimento: "quanto já gastei" não é um gasto). */
 export function detectDoubt(text: string): DoubtId | null {
@@ -510,7 +524,11 @@ export function detectDoubt(text: string): DoubtId | null {
   if (/quando (entra|recebo|cai|vou receber)|proximo recebimento|proxima entrada|quando o salario/.test(t)) return 'PROXIMO_RECEB';
   if (/quanto (ainda )?(posso|consigo) gastar|sobrou|sobra |quanto (me )?sobra|livre para gastar/.test(t)) return 'SOBRA';
   if (/vence|vencimento|a pagar essa semana|contas? (atrasad|em atraso)|proximos dias/.test(t)) return 'VENCE';
-  if (/quanto (ja )?gastei|ja gastei|meus gastos|gastos d[eo] mes|gastei (esse|este|no) mes/.test(t)) return 'GASTEI';
+  if (/ultim[oa]s? (compras?|gastos?|saidas?|despesas?|pagamentos?|lancamentos?|movimentac)|(compras?|gastos?) recentes?|o que (eu )?(comprei|gastei|paguei) (recentemente|ultimamente)/.test(t)) return 'ULTIMAS';
+  // "Este mês" segue para a resposta do mês (GASTEI), que traz a projeção completa
+  const spendPeriod = spendPeriodFrom(t);
+  if (spendPeriod && spendPeriod !== 'MES' && /gastos?|despesas?|saidas?|gastei|paguei|quanto sai/.test(t)) return 'GASTOS_PERIODO';
+  if (/quanto (ja )?gastei|ja gastei|meus gastos|gastos (d[eo]|d?este|d?esse|no) mes|gastei (esse|este|no) mes/.test(t)) return 'GASTEI';
   if (/(por ?que|porque).*(caiu|diminuiu|baixou|negativo|saldo)/.test(t)) return 'CAIU';
   if (t.includes('reserva')) return 'RESERVA';
   if (/\bmetas?\b/.test(t)) return 'METAS';
@@ -546,6 +564,12 @@ const months1 = (v: number) => v.toLocaleString('pt-BR', { maximumFractionDigits
 const pct = (part: number, total: number) => (total > 0 ? Math.round((part / total) * 100) : 0);
 const entryLine = (e: ForecastEntry) => `• ${ddmm(e.date)} · ${e.title}: **${brl(e.amount)}**`;
 const MORE = [CHIP_DUVIDA, CHIP_PAGAR];
+const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+/** Recebimentos (inclusive empréstimo recebido) não são gasto. */
+const isIncomeMovement = (m: Movement) => m.type === 'RECEBER' || (m.type === 'EMPRESTIMO' && m.category === 'Recebimento');
+/** Dia em que a saída conta: o pagamento, se já aconteceu; senão o vencimento. */
+const outflowDate = (m: Movement) => (m.status === 'REALIZADA' && m.paymentDate ? m.paymentDate : m.dueDate);
+const outflowValue = (m: Movement) => (m.status === 'REALIZADA' ? m.actualAmount ?? m.amount : m.amount);
 
 const GLOSSARY: { keys: string[]; text: string }[] = [
   {
@@ -574,7 +598,7 @@ const GLOSSARY: { keys: string[]; text: string }[] = [
   },
 ];
 
-export function answerDoubt(id: DoubtId, text: string, d: ForsetiData): ForsetiReply {
+export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { period?: SpendPeriod }): ForsetiReply {
   const month = d.forecasts.MES;
   switch (id) {
     case 'MENU':
@@ -649,6 +673,67 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData): ForsetiR
         text: `${parts.join('\n\n')}${rest > 0 ? `\n\n…e mais ${rest} item(ns). A lista completa está no Início, em "Em aberto".` : ''}\n\nSe algum já foi pago, é só me contar (ex.: "paguei a energia") para o saldo ficar certo.`,
         badge: 'VENCIMENTOS',
         chips: [CHIP_PAGAR, 'Quanto ainda posso gastar este mês?', CHIP_DUVIDA],
+      };
+    }
+
+    case 'ULTIMAS': {
+      const paid = d.movements
+        .filter((m) => m.status === 'REALIZADA' && !isIncomeMovement(m))
+        .sort((a, b) => outflowDate(b).localeCompare(outflowDate(a)))
+        .slice(0, 8);
+      if (paid.length === 0) {
+        return {
+          text: 'Ainda não há saídas confirmadas para mostrar. Quando você registrar ou confirmar um pagamento, ele aparece aqui.',
+          badge: 'ÚLTIMAS SAÍDAS',
+          chips: [CHIP_PAGAR, CHIP_ANEXAR, CHIP_DUVIDA],
+        };
+      }
+      const lines = paid.map((m) => `• ${ddmm(outflowDate(m))} · ${m.title} — **${brl(outflowValue(m))}**${m.category ? ` _(${m.category})_` : ''}`);
+      const total = paid.reduce((acc, m) => acc + outflowValue(m), 0);
+      return {
+        text: `${paid.length === 1 ? 'Sua **última saída** já paga' : `Suas **últimas ${paid.length} saídas** já pagas`}:\n\n${lines.join('\n')}${paid.length > 1 ? `\n\nJuntas, somam **${brl(total)}**.` : ''}`,
+        badge: 'ÚLTIMAS SAÍDAS',
+        chips: ['Quanto já gastei este mês?', 'Gastos desta semana', CHIP_PAGAR],
+      };
+    }
+
+    case 'GASTOS_PERIODO': {
+      const period = opts?.period || spendPeriodFrom(text) || 'SEMANA';
+      const today = new Date();
+      const range =
+        period === 'HOJE'
+          ? { from: isoDay(today), to: isoDay(today) }
+          : trackingPeriodRange(period, today);
+      const label = { HOJE: 'hoje', SEMANA: 'desta semana', QUINZENA: 'desta quinzena', MES: 'deste mês' }[period];
+      const inRange = (date: string) => date >= range.from && date <= range.to;
+      const outs = d.movements.filter((m) => !isIncomeMovement(m) && m.status !== 'CANCELADA');
+      const paid = outs.filter((m) => m.status === 'REALIZADA' && inRange(outflowDate(m)));
+      const planned = outs.filter((m) => m.status !== 'REALIZADA' && inRange(m.dueDate));
+      const paidTotal = paid.reduce((acc, m) => acc + outflowValue(m), 0);
+      const plannedTotal = planned.reduce((acc, m) => acc + m.amount, 0);
+      const heading = `**Gastos ${label}** (${period === 'HOJE' ? ddmm(range.from) : `${ddmm(range.from)} a ${ddmm(range.to)}`})`;
+      if (paid.length === 0 && planned.length === 0) {
+        return {
+          text: `${heading}\n\nNão há saídas pagas nem previstas neste período.`,
+          badge: 'GASTOS DO PERÍODO',
+          chips: [CHIP_PAGAR, 'Quanto já gastei este mês?', CHIP_DUVIDA],
+        };
+      }
+      const byCategory = new Map<string, number>();
+      paid.forEach((m) => byCategory.set(m.category || 'Outros', (byCategory.get(m.category || 'Outros') || 0) + outflowValue(m)));
+      const top = [...byCategory.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+      const parts = [
+        heading,
+        `• Já pago: **${brl(paidTotal)}** (${paid.length} ${paid.length === 1 ? 'saída' : 'saídas'})`,
+        `• Ainda previsto: **${brl(plannedTotal)}** (${planned.length} ${planned.length === 1 ? 'conta' : 'contas'})`,
+      ];
+      if (top.length > 0) {
+        parts.push(`\nOnde mais saiu:\n${top.map(([cat, v]) => `• ${cat}: **${brl(v)}** (${pct(v, paidTotal)}%)`).join('\n')}`);
+      }
+      return {
+        text: parts.join('\n'),
+        badge: 'GASTOS DO PERÍODO',
+        chips: ['Últimas compras', 'O que vence nos próximos dias?', CHIP_DUVIDA],
       };
     }
 

@@ -94,6 +94,8 @@ import { defaultClosingDay } from '../utils/setupCatalog';
 import { getItemOccurrences, isExcludedState, mappingItemBaseValue, registerItemPayment, removeItemPayment, resolveMappingItemState } from '../utils/mappingItemState';
 import { buildForecastWindow, FORECAST_PERIODS, type ForecastPeriod, type ForecastWindow } from '../utils/forecastWindow';
 import { buildMonthlyProjectionGrid, movementCompetenceDate } from '../utils/projectionMath';
+import { classifyIntent } from '../services/forsetiIntentService';
+import type { SpendPeriod } from '../utils/forsetiIntents';
 import {
   CHIP_PAGAR,
   CHIP_RECEBER,
@@ -107,6 +109,7 @@ import {
   categoryFromChip,
   detectAmbiguity,
   detectDoubt,
+  type DoubtId,
   inferExpenseCategory,
   isPastReceive,
   registrationKind,
@@ -3794,8 +3797,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
 
         // 2. Dúvidas respondidas com os números do planejamento
-        const doubt = detectDoubt(trimmed);
-        if (doubt) {
+        const answerIntent = (doubt: DoubtId, period?: SpendPeriod) => {
           const withMonth = doubt === 'GASTEI';
           const key = todayIso.slice(0, 7);
           const opts = { startDate: activeCheckpoint?.startDate, horizonMonths: projectionHorizonMonths };
@@ -3813,12 +3815,27 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             emergencyReserveMonths,
             monthlyFreeCashflow,
           };
-          const answer = answerDoubt(doubt, trimmed, data);
-          reply(answer);
+          reply(answerDoubt(doubt, trimmed, data, { period }));
+        };
+
+        const doubt = detectDoubt(trimmed);
+        if (doubt) {
+          answerIntent(doubt);
           return;
         }
 
-        // 3. Palavra solta que pode querer dizer mais de uma coisa: pergunta qual (A, B ou C)
+        // 3. Frase que as regras não entenderam: a IA só escolhe a intenção (sem enviar seus dados);
+        // sem chave, offline ou sem certeza, segue para a pergunta de confirmação / resposta padrão
+        const wordCount = trimmed.split(/\s+/).length;
+        if (wordCount >= 3) {
+          classifyIntent(trimmed).then((found) => {
+            if (found) answerIntent(found.intent, found.period);
+            else reply(detectAmbiguity(trimmed) || FALLBACK_REPLY);
+          });
+          return;
+        }
+
+        // 4. Palavra solta que pode querer dizer mais de uma coisa: pergunta qual (A, B ou C)
         reply(detectAmbiguity(trimmed) || FALLBACK_REPLY);
         return;
       }
