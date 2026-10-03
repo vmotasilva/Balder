@@ -542,6 +542,8 @@ export function detectDoubt(text: string): DoubtId | null {
   if (isPlannedVsReal(t)) return 'PREVISTO_REAL';
   if (isOthersQuestion(t)) return 'SEM_NATUREZA';
   if (/ultim[oa]s? (compras?|gastos?|saidas?|despesas?|pagamentos?|lancamentos?|movimentac)|(compras?|gastos?) recentes?|o que (eu )?(comprei|gastei|paguei) (recentemente|ultimamente)/.test(t)) return 'ULTIMAS';
+  // "Gastos por natureza / categoria" (com ou sem período): quebra dos gastos por natureza
+  if (/(gastos?|despesas?|saidas?|gastei)/.test(t) && /(por|de cada|em cada|em quais) (natureza|categoria)/.test(t)) return 'GASTOS_PERIODO';
   // "Este mês" segue para a resposta do mês (GASTEI), que traz a projeção completa
   const spendPeriod = spendPeriodFrom(t);
   if (spendPeriod && spendPeriod !== 'MES' && /gastos?|despesas?|saidas?|gastei|paguei|quanto sai/.test(t)) return 'GASTOS_PERIODO';
@@ -561,6 +563,8 @@ export interface ForsetiReply {
   text: string;
   badge: string;
   chips: string[];
+  /** Opções que a pessoa escolhe com um toque; `send` é a frase enviada à Forseti ao escolher. */
+  choices?: { label: string; send: string }[];
 }
 
 export interface ForsetiData {
@@ -731,7 +735,7 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
     }
 
     case 'GASTOS_PERIODO': {
-      const period = opts?.period || spendPeriodFrom(text) || 'SEMANA';
+      const period = opts?.period || spendPeriodFrom(text) || 'MES';
       const today = new Date();
       const todayIso = isoDay(today);
       const range = period === 'HOJE' ? { from: todayIso, to: todayIso } : trackingPeriodRange(period, today);
@@ -1073,11 +1077,11 @@ export function detectAmbiguity(text: string): ForsetiReply | null {
   const found = AMBIGUOUS.find((a) => a.keys.test(t));
   if (!found) return null;
   const letters = ['A', 'B', 'C', 'D'];
-  const list = found.options.map((o, i) => `**${letters[i]})** ${o.meaning}`).join('\n');
   return {
-    text: `${found.question}\n\n${list}\n\nToque na opção ou escreva de outro jeito.`,
+    text: `${found.question}\n\nToque na opção ou escreva de outro jeito.`,
     badge: 'SÓ PARA CONFIRMAR',
-    chips: found.options.map((o) => o.chip),
+    chips: [],
+    choices: found.options.map((o, i) => ({ label: `${letters[i]}) ${o.meaning}`, send: o.chip })),
   };
 }
 

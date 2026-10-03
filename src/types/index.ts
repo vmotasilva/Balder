@@ -359,6 +359,8 @@ export interface CopilotMessage {
   pendingConfirmation?: CopilotPendingConfirmation;
   /** Ação proposta pela Forseti que só acontece depois do "Confirmar" da pessoa. */
   pendingAction?: ForsetiPendingAction;
+  /** Opções de um toque (ex.: A/B/C quando a Forseti precisa confirmar o que a pessoa quer). */
+  choices?: { label: string; send: string }[];
   receiptReconciliation?: ReceiptReconciliationData;
 }
 
