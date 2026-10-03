@@ -543,7 +543,7 @@ export function detectDoubt(text: string): DoubtId | null {
   if (isOthersQuestion(t)) return 'SEM_NATUREZA';
   if (/ultim[oa]s? (compras?|gastos?|saidas?|despesas?|pagamentos?|lancamentos?|movimentac)|(compras?|gastos?) recentes?|o que (eu )?(comprei|gastei|paguei) (recentemente|ultimamente)/.test(t)) return 'ULTIMAS';
   // "Gastos por natureza / categoria" (com ou sem período): quebra dos gastos por natureza
-  if (/(gastos?|despesas?|saidas?|gastei)/.test(t) && /(por|de cada|em cada|em quais) (natureza|categoria)/.test(t)) return 'GASTOS_PERIODO';
+  if (/(gastos?|despesas?|saidas?|gastei)/.test(t) && /(por|de cada|em cada|em quais) (natureza|categoria|origem)/.test(t)) return 'GASTOS_PERIODO';
   // "Este mês" segue para a resposta do mês (GASTEI), que traz a projeção completa
   const spendPeriod = spendPeriodFrom(t);
   if (spendPeriod && spendPeriod !== 'MES' && /gastos?|despesas?|saidas?|gastei|paguei|quanto sai/.test(t)) return 'GASTOS_PERIODO';
@@ -594,20 +594,6 @@ const MORE = [CHIP_DUVIDA, CHIP_PAGAR];
 const NO_NATURE = 'Sem natureza';
 // Vale a natureza vinculada: a categoria "Outros" de um lançamento que já tem natureza não o torna "sem natureza"
 const hasNoNature = (m: Movement) => !m.natureId || m.natureId.toLowerCase() === 'outros';
-/** Parte do valor de uma saída em cada natureza (a fatura se divide pelo detalhamento; o resto fica sem natureza). */
-function natureShares(m: Movement, value: number, nameOf: (id?: string) => string): [string, number][] {
-  const items = (m.invoiceBreakdown || []).filter((b) => b.isAnalyzed && b.natureId && b.natureId.toLowerCase() !== 'outros');
-  if (items.length > 0) {
-    const byName = new Map<string, number>();
-    items.forEach((b) => byName.set(nameOf(b.natureId) || b.natureName, (byName.get(nameOf(b.natureId) || b.natureName) || 0) + b.amount));
-    const used = [...byName.values()].reduce((a, v) => a + v, 0);
-    const rest = Math.max(0, value - used);
-    return [...byName.entries(), ...(rest > 0.005 ? ([[NO_NATURE, rest]] as [string, number][]) : [])];
-  }
-  if (m.type === 'EMPRESTIMO') return [['Empréstimos', value]];
-  if (m.type === 'CARTAO') return [['Faturas de cartão (sem detalhamento)', value]];
-  return [[hasNoNature(m) ? NO_NATURE : nameOf(m.natureId) || m.category || NO_NATURE, value]];
-}
 const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 /** Recebimentos (inclusive empréstimo recebido) não são gasto. */
 const isIncomeMovement = (m: Movement) => m.type === 'RECEBER' || (m.type === 'EMPRESTIMO' && m.category === 'Recebimento');
@@ -763,37 +749,70 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
           chips: [CHIP_PAGAR, 'Quanto já gastei este mês?', CHIP_DUVIDA],
         };
       }
-      const rows = new Map<string, { paid: number; planned: number }>();
-      const add = (name: string, key: 'paid' | 'planned', v: number) => {
-        const r = rows.get(name) || { paid: 0, planned: 0 };
+      // Origens do gasto: naturezas (planejamento), contratos (empréstimos) e faturas de cartão
+      type Origin = 'NATUREZA' | 'CONTRATO' | 'FATURA';
+      const ORIGINS: { id: Origin; label: string }[] = [
+        { id: 'NATUREZA', label: 'Naturezas' },
+        { id: 'CONTRATO', label: 'Contratos (empréstimos)' },
+        { id: 'FATURA', label: 'Faturas de cartão' },
+      ];
+      const groups = new Map<Origin, Map<string, { paid: number; planned: number; detail?: string }>>();
+      const add = (origin: Origin, name: string, key: 'paid' | 'planned', v: number, detail?: string) => {
+        const g = groups.get(origin) || new Map();
+        const r = g.get(name) || { paid: 0, planned: 0 };
         r[key] += v;
-        rows.set(name, r);
+        if (detail) r.detail = detail;
+        g.set(name, r);
+        groups.set(origin, g);
       };
-      paid.forEach((m) => natureShares(m, outflowValue(m), nameOf).forEach(([name, v]) => add(name, 'paid', v)));
-      // A pagar: itens das naturezas vão para a natureza; contas, faturas e parcelas seguem a mesma classificação
-      // do que já foi pago (um empréstimo é "Empréstimos" nos dois lados, nunca "Sem natureza")
+      const contractName = (title: string) => title.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim() || title;
+      // Fatura: o total vai para a fatura; o que já foi analisado por natureza vira só um detalhe
+      const invoiceDetail = (m: Movement) => {
+        const items = (m.invoiceBreakdown || []).filter((b) => b.isAnalyzed && b.natureId && b.natureId.toLowerCase() !== 'outros');
+        if (items.length === 0) return undefined;
+        const byName = new Map<string, number>();
+        items.forEach((b) => byName.set(nameOf(b.natureId) || b.natureName, (byName.get(nameOf(b.natureId) || b.natureName) || 0) + b.amount));
+        const top = [...byName.entries()].sort((x, y) => y[1] - x[1]).slice(0, 3);
+        return top.map(([n, v]) => `${n} ${brl(v)}`).join(' · ');
+      };
+      const place = (m: Movement, key: 'paid' | 'planned', v: number) => {
+        if (m.type === 'EMPRESTIMO') return add('CONTRATO', contractName(m.title), key, v);
+        if (m.type === 'CARTAO') return add('FATURA', m.title, key, v, invoiceDetail(m));
+        add('NATUREZA', hasNoNature(m) ? NO_NATURE : nameOf(m.natureId) || m.category || NO_NATURE, key, v);
+      };
       const byId = new Map(d.movements.map((m) => [m.id, m]));
-      const bySource: Record<string, string> = { PARCELA: 'Empréstimos', FATURA: 'Faturas de cartão (sem detalhamento)', CONTA: 'Contas a pagar' };
+      paid.forEach((m) => place(m, 'paid', outflowValue(m)));
       pending.forEach((e) => {
-        if (e.source === 'NATUREZA') return add(nameOf(e.natureId) || NO_NATURE, 'planned', e.amount);
+        if (e.source === 'NATUREZA') return add('NATUREZA', nameOf(e.natureId) || NO_NATURE, 'planned', e.amount);
         const mov = byId.get(e.id);
-        if (mov) return natureShares(mov, e.amount, nameOf).forEach(([name, v]) => add(name, 'planned', v));
-        add(bySource[e.source] || 'Outras saídas', 'planned', e.amount);
+        if (mov) return place(mov, 'planned', e.amount);
+        if (e.source === 'PARCELA') return add('CONTRATO', contractName(e.title), 'planned', e.amount);
+        if (e.source === 'FATURA') return add('FATURA', e.title, 'planned', e.amount);
+        add('NATUREZA', NO_NATURE, 'planned', e.amount);
       });
-      const top = [...rows.entries()].sort((a, b) => b[1].paid + b[1].planned - (a[1].paid + a[1].planned)).slice(0, 8);
+      const money = (v: { paid: number; planned: number }) =>
+        [v.paid > 0 ? `pago **${brl(v.paid)}**` : '', v.planned > 0 ? `a pagar **${brl(v.planned)}**` : ''].filter(Boolean).join(' · ');
+      const sections = ORIGINS.flatMap(({ id, label }) => {
+        const g = groups.get(id);
+        if (!g) return [];
+        const entries = [...g.entries()].sort((x, y) => y[1].paid + y[1].planned - (x[1].paid + x[1].planned));
+        const sum = entries.reduce((acc, [, v]) => ({ paid: acc.paid + v.paid, planned: acc.planned + v.planned }), { paid: 0, planned: 0 });
+        const shown = entries.slice(0, 6);
+        const lines = shown.map(([name, v]) => `• ${name}: ${money(v)}${v.detail ? `\n   ↳ já detalhado por natureza: ${v.detail}` : ''}`);
+        if (entries.length > shown.length) lines.push(`…e mais ${entries.length - shown.length}.`);
+        return [`**${label}** — ${money(sum)}\n${lines.join('\n')}`];
+      });
       const parts = [
         heading,
         `• Já pago: **${brl(paidTotal)}** (${paid.length} ${paid.length === 1 ? 'saída' : 'saídas'})`,
         `• Ainda a pagar: **${brl(plannedTotal)}** (${pending.length} ${pending.length === 1 ? 'item' : 'itens'})`,
-        `\n**Por natureza:**\n${top
-          .map(([name, v]) => `• ${name}: ${[v.paid > 0 ? `pago **${brl(v.paid)}**` : '', v.planned > 0 ? `a pagar **${brl(v.planned)}**` : ''].filter(Boolean).join(' · ')}`)
-          .join('\n')}`,
+        `\n**Por origem do gasto:**\n\n${sections.join('\n\n')}`,
       ];
-      const hasOthers = rows.has(NO_NATURE);
+      const hasOthers = groups.get('NATUREZA')?.has(NO_NATURE);
       return {
         text: parts.join('\n'),
         badge: 'GASTOS DO PERÍODO',
-        chips: [...(hasOthers ? ['O que é "Sem natureza"?'] : []), 'Últimas compras', 'O que vence nos próximos dias?'],
+        chips: [...(hasOthers ? ['Gastos sem natureza'] : []), 'Últimas compras', 'O que vence nos próximos dias?'],
       };
     }
 
@@ -811,7 +830,7 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
         return {
           text: `${heading}\n\nNenhuma despesa está sem natureza neste período. 👏`,
           badge: 'SEM NATUREZA',
-          chips: ['Gastos por natureza', 'Últimas compras', CHIP_DUVIDA],
+          chips: ['Gastos por origem', 'Últimas compras', CHIP_DUVIDA],
         };
       }
       const total = list.reduce((acc, m) => acc + outflowValue(m), 0);
@@ -840,7 +859,7 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
       return {
         text: parts.join('\n\n'),
         badge: 'SEM NATUREZA',
-        chips: ['Gastos por natureza', 'Últimas compras'],
+        chips: ['Gastos por origem', 'Últimas compras'],
         ...(assignments.length > 0
           ? {
               pendingAction: {
