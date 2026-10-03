@@ -10,6 +10,8 @@ import {
   Linking,
   Image,
   AppState,
+  PermissionsAndroid,
+  type Permission,
 } from 'react-native';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
 import { StatusBar } from 'expo-status-bar';
@@ -21,6 +23,25 @@ const APP_URL = 'https://balder-one.vercel.app';
 const CHROME_USER_AGENT =
   'Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36';
 
+// Permissões que o app web usa (voz da Forseti, foto de comprovante/fatura, avisos).
+// O WebView só libera microfone/câmera para a página se o app já tiver a permissão do Android.
+const requestAndroidPermissions = async () => {
+  if (Platform.OS !== 'android') return;
+  const wanted: Permission[] = [
+    PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+    PermissionsAndroid.PERMISSIONS.CAMERA,
+  ];
+  if (Number(Platform.Version) >= 33) {
+    wanted.push(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS);
+    wanted.push(PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES);
+  }
+  try {
+    await PermissionsAndroid.requestMultiple(wanted);
+  } catch {
+    // o usuário pode negar; a página mostra o aviso próprio
+  }
+};
+
 export default function App() {
   // react-native-webview 13.17–15.x declara `WebView<P = undefined>`, o que torna as props
   // `WebViewProps & undefined` (never); passar `{}` explicitamente restaura a tipagem correta.
@@ -28,6 +49,10 @@ export default function App() {
   const [canGoBack, setCanGoBack] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    requestAndroidPermissions();
+  }, []);
 
   // Hardware Back Button handling on Android
   useEffect(() => {
@@ -122,6 +147,8 @@ export default function App() {
                 setIsLoading(false);
                 setHasError(true);
               }}
+              mediaPlaybackRequiresUserAction={false}
+              allowsInlineMediaPlayback={true}
               javaScriptEnabled={true}
               domStorageEnabled={true}
               allowFileAccess={true}
