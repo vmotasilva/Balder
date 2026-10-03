@@ -13,6 +13,7 @@ export interface CopilotPageProps {
   onBack?: () => void;
   activeScreen?: TabId;
   isPopup?: boolean;
+  initialDraft?: string; // texto que já abre escrito no campo de mensagem
   onOpenOnboarding?: (stepIndex?: number) => void;
 }
 
@@ -34,11 +35,12 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
   onBack,
   activeScreen = 'DASHBOARD',
   isPopup = false,
+  initialDraft = '',
   onOpenOnboarding,
 }) => {
   const { chatHistory, sendMessageToCopilot, respondToCopilotOption, reconcileReceiptData, natures, activeCheckpoint, movements } = useFinancial();
   const { viewing } = useAccountScope();
-  const [inputQuery, setInputQuery] = useState('');
+  const [inputQuery, setInputQuery] = useState(initialDraft);
   const [attachedImages, setAttachedImages] = useState<CopilotAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [showRolesModal, setShowRolesModal] = useState(false);

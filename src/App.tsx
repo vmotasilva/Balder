@@ -94,6 +94,8 @@ export function AppContent() {
   const planningOnly = viewing?.scope === 'PLANEJAMENTO';
   const shownTab: TabId = planningOnly ? 'COMPARTILHADO' : activeTab;
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  // Texto que já abre escrito no campo do chat da Forseti (ex.: ditado na Início)
+  const [forsetiDraft, setForsetiDraft] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isNavMenuOpen, setIsNavMenuOpen] = useState(false);
 
@@ -251,7 +253,10 @@ export function AppContent() {
           {shownTab === 'INICIO' && (
             <HomeHubPage
               onNavigate={handleSelectTab}
-              onOpenForseti={() => setIsCopilotOpen(true)}
+              onOpenForseti={(draft) => {
+                setForsetiDraft(draft || '');
+                setIsCopilotOpen(true);
+              }}
               onOpenOnboarding={handleOpenOnboarding}
               onPlanWithOthers={() => {
                 setActiveTab('COMPARTILHADO');
@@ -317,6 +322,7 @@ export function AppContent() {
               onBack={() => setIsCopilotOpen(false)}
               activeScreen={activeTab === 'COPILOT' ? 'DASHBOARD' : activeTab}
               isPopup={true}
+              initialDraft={forsetiDraft}
               onOpenOnboarding={handleOpenOnboarding}
             />
           </div>
