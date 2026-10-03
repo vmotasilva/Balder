@@ -758,11 +758,15 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
         { id: 'CONTRATO', label: 'Contratos (empréstimos)' },
         { id: 'FATURA', label: 'Faturas de cartão' },
       ];
-      const groups = new Map<Origin, Map<string, { paid: number; planned: number; detail?: string }>>();
-      const add = (origin: Origin, name: string, key: 'paid' | 'planned', v: number, detail?: string) => {
-        const g = groups.get(origin) || new Map();
-        const r = g.get(name) || { paid: 0, planned: 0 };
-        r[key] += v;
+      // real = o que já foi pago; previsto = o esperado no período (o que estava previsto nos pagos + o que ainda falta pagar)
+      type Row = { real: number; plan: number; count: number; detail?: string };
+      const groups = new Map<Origin, Map<string, Row>>();
+      const add = (origin: Origin, name: string, v: { real: number; plan: number }, detail?: string) => {
+        const g = groups.get(origin) || new Map<string, Row>();
+        const r = g.get(name) || { real: 0, plan: 0, count: 0 };
+        r.real += v.real;
+        r.plan += v.plan;
+        r.count += 1;
         if (detail) r.detail = detail;
         g.set(name, r);
         groups.set(origin, g);
@@ -777,38 +781,42 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
         const top = [...byName.entries()].sort((x, y) => y[1] - x[1]).slice(0, 3);
         return top.map(([n, v]) => `${n} ${brl(v)}`).join(' · ');
       };
-      const place = (m: Movement, key: 'paid' | 'planned', v: number) => {
-        if (m.type === 'EMPRESTIMO') return add('CONTRATO', contractName(m.title), key, v);
-        if (m.type === 'CARTAO') return add('FATURA', m.title, key, v, invoiceDetail(m));
-        add('NATUREZA', nameOf(natureIdOf(m, d.natures)) || NO_NATURE, key, v);
+      const place = (m: Movement, v: { real: number; plan: number }) => {
+        if (m.type === 'EMPRESTIMO') return add('CONTRATO', contractName(m.title), v);
+        if (m.type === 'CARTAO') return add('FATURA', m.title, v, invoiceDetail(m));
+        add('NATUREZA', nameOf(natureIdOf(m, d.natures)) || NO_NATURE, v);
       };
       const byId = new Map(d.movements.map((m) => [m.id, m]));
-      paid.forEach((m) => place(m, 'paid', outflowValue(m)));
+      paid.forEach((m) => place(m, { real: outflowValue(m), plan: m.amount }));
       pending.forEach((e) => {
-        if (e.source === 'NATUREZA') return add('NATUREZA', nameOf(e.natureId) || NO_NATURE, 'planned', e.amount);
+        const v = { real: 0, plan: e.amount };
+        if (e.source === 'NATUREZA') return add('NATUREZA', nameOf(e.natureId) || NO_NATURE, v);
         const mov = byId.get(e.id);
-        if (mov) return place(mov, 'planned', e.amount);
-        if (e.source === 'PARCELA') return add('CONTRATO', contractName(e.title), 'planned', e.amount);
-        if (e.source === 'FATURA') return add('FATURA', e.title, 'planned', e.amount);
-        add('NATUREZA', NO_NATURE, 'planned', e.amount);
+        if (mov) return place(mov, v);
+        if (e.source === 'PARCELA') return add('CONTRATO', contractName(e.title), v);
+        if (e.source === 'FATURA') return add('FATURA', e.title, v);
+        add('NATUREZA', NO_NATURE, v);
       });
-      const money = (v: { paid: number; planned: number }) =>
-        [v.paid > 0 ? `pago **${brl(v.paid)}**` : '', v.planned > 0 ? `a pagar **${brl(v.planned)}**` : ''].filter(Boolean).join(' · ');
+      // Real / Previsto: real verde dentro do previsto, vermelho quando passou
+      const realVsPlan = (real: number, plan: number) => `{${real <= plan + 0.005 ? 'ok' : 'bad'}|${brl(real)}} / ${brl(plan)}`;
+      const itemsLabel = (n: number) => `${n} ${n === 1 ? 'item' : 'itens'}`;
       const sections = ORIGINS.flatMap(({ id, label }) => {
         const g = groups.get(id);
         if (!g) return [];
-        const entries = [...g.entries()].sort((x, y) => y[1].paid + y[1].planned - (x[1].paid + x[1].planned));
-        const sum = entries.reduce((acc, [, v]) => ({ paid: acc.paid + v.paid, planned: acc.planned + v.planned }), { paid: 0, planned: 0 });
+        const entries = [...g.entries()].sort((x, y) => y[1].plan + y[1].real - (x[1].plan + x[1].real));
+        const sum = entries.reduce((acc, [, v]) => ({ real: acc.real + v.real, plan: acc.plan + v.plan, count: acc.count + v.count }), { real: 0, plan: 0, count: 0 });
         const shown = entries.slice(0, 6);
-        const lines = shown.map(([name, v]) => `• ${name}: ${money(v)}${v.detail ? `\n   ↳ já detalhado por natureza: ${v.detail}` : ''}`);
+        const lines = shown.map(
+          ([name, v]) => `• **${name}:** ${itemsLabel(v.count)}\n   ${realVsPlan(v.real, v.plan)}${v.detail ? `\n   ↳ já detalhado por natureza: ${v.detail}` : ''}`
+        );
         if (entries.length > shown.length) lines.push(`…e mais ${entries.length - shown.length}.`);
-        return [`**${label}** — ${money(sum)}\n${lines.join('\n')}`];
+        return [`**${label}:** ${itemsLabel(sum.count)}\n${realVsPlan(sum.real, sum.plan)}\n${lines.join('\n')}`];
       });
       const parts = [
         heading,
         `• Já pago: **${brl(paidTotal)}** (${paid.length} ${paid.length === 1 ? 'saída' : 'saídas'})`,
         `• Ainda a pagar: **${brl(plannedTotal)}** (${pending.length} ${pending.length === 1 ? 'item' : 'itens'})`,
-        `\n**Por origem do gasto:**\n\n${sections.join('\n\n')}`,
+        `\n**Por origem do gasto** *(real / previsto: verde dentro do previsto, vermelho acima)*:\n\n${sections.join('\n\n')}`,
       ];
       const hasOthers = groups.get('NATUREZA')?.has(NO_NATURE);
       return {
@@ -1175,7 +1183,7 @@ export const canUndoActivity = (a: ForsetiActivity) =>
 export const plainSummary = (text: string) =>
   text
     .split('\n')
-    .map((l) => l.replace(/[*_#>]/g, '').trim())
+    .map((l) => l.replace(/\{(?:ok|bad)\|([^}]*)\}/g, '$1').replace(/[*_#>]/g, '').trim())
     .filter(Boolean)[0] || '';
 
 

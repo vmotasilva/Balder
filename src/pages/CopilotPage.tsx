@@ -402,10 +402,19 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
                   <div className="message-text">
                     {msg.content.split('\n').map((line, i) => {
                       // Renderizar negrito (**texto**) e itálico (*exemplo*) básicos com segurança
-                      const parts = line.split(/(\*\*.*?\*\*|\*[^*\s][^*]*?\*)/g);
+                      const parts = line.split(/(\{(?:ok|bad)\|[^}]*\}|\*\*.*?\*\*|\*[^*\s][^*]*?\*)/g);
                       return (
                         <p key={i}>
                           {parts.map((part, pIdx) => {
+                            // {ok|R$ 10,00} verde (dentro do previsto) · {bad|R$ 10,00} vermelho (acima)
+                            const tone = part.match(/^\{(ok|bad)\|([^}]*)\}$/);
+                            if (tone) {
+                              return (
+                                <strong key={pIdx} className={tone[1] === 'ok' ? 'text-emerald' : 'text-rose'}>
+                                  {tone[2]}
+                                </strong>
+                              );
+                            }
                             if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
                               return <strong key={pIdx} className="text-white">{part.slice(2, -2)}</strong>;
                             }
