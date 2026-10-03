@@ -3610,7 +3610,13 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         if (cat) return askPaymentMethod(title || cat.title, amount, cat.category, ctx);
         if (title) return askPaymentMethod(title, amount, 'Outros', ctx);
         forsetiFlowRef.current = { kind: 'PAGAR', step: 'CATEGORIA', amount, ...ctx };
-        reply({ text: `**${brl(amount)}**. **Com o que foi esse gasto?**`, badge: 'CATEGORIA DO GASTO', chips: EXPENSE_CATEGORY_CHIPS });
+        // Sugestões = naturezas cadastradas pelo usuário; sem nenhuma, vale a lista padrão
+        const ownNames = userNatures(natures).map((n) => n.name);
+        reply({
+          text: `**${brl(amount)}**. **Com o que foi esse gasto?**`,
+          badge: 'CATEGORIA DO GASTO',
+          chips: ownNames.length > 0 ? [...ownNames.slice(0, 10), 'Outro'] : EXPENSE_CATEGORY_CHIPS,
+        });
       };
       // "em 6x de 295,87" sem o total: o total é parcela × vezes
       const readPurchase = (text: string) => {
@@ -3800,7 +3806,10 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             reply({ text: 'O que foi? Escreva uma descrição curta (ex.: *presente*, *barbeiro*).', badge: 'DESCRIÇÃO', chips: [] });
             return;
           }
-          const cat = categoryFromChip(trimmed) || inferExpenseCategory(trimmed);
+          const ownNature = userNatures(natures).find((n) => n.name.trim().toLowerCase() === trimmed.toLowerCase());
+          const cat = ownNature
+            ? { title: ownNature.name, category: ownNature.name }
+            : categoryFromChip(trimmed) || inferExpenseCategory(trimmed);
           askPaymentMethod(cat ? cat.title : trimmed, flow.amount || 0, cat ? cat.category : 'Outros', flow);
           return;
         } else {
