@@ -1,5 +1,6 @@
 import type { ExpenseNature, MappingItem, Movement } from '../types';
 import { getItemOccurrences, isExcludedState, resolveMappingItemMonth } from './mappingItemState';
+import { resolveMovementNatureId } from './movementNature';
 
 /** Período em que o usuário gosta de acompanhar as finanças. */
 export type TrackingPeriod = 'SEMANA' | 'QUINZENA' | 'MES';
@@ -71,20 +72,7 @@ export function periodRangeLabel(period: TrackingPeriod, range: PeriodRange, tod
   return `${d1} de ${monthName(from)}${y1 !== y2 ? year(from) : ''} a ${d2} de ${monthName(to)}${year(to)}`;
 }
 
-const normalize = (s: string) =>
-  s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .trim();
-
-/** A natureza de um lançamento: vínculo direto ou categoria com o mesmo nome. */
-function movementNatureId(m: Movement, natures: ExpenseNature[]): string | undefined {
-  if (m.natureId && natures.some((n) => n.id === m.natureId)) return m.natureId;
-  const cat = normalize(m.category || '');
-  if (!cat) return undefined;
-  return natures.find((n) => normalize(n.name) === cat)?.id;
-}
+const movementNatureId = resolveMovementNatureId;
 
 export type PeriodTense = 'PASSADO' | 'ATUAL' | 'FUTURO';
 
