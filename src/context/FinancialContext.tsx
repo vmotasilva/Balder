@@ -111,6 +111,9 @@ import {
   detectAmbiguity,
   detectAction,
   describeAction,
+  resolveFollowUp,
+  spendPeriodFrom,
+  type ForsetiTopic,
   detectDoubt,
   type DoubtId,
   inferExpenseCategory,
@@ -1713,6 +1716,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   // Uma conversa vai do primeiro pedido até o desfecho (lançamento feito); depois começa outra
   const conversationIdRef = useRef<string>(crypto.randomUUID());
+  // Último assunto respondido: dá contexto a frases curtas ("e dessa semana?") e à IA de reserva
+  const lastTopicRef = useRef<ForsetiTopic | null>(null);
   const saveActivity = (activity: ForsetiActivity) => {
     if (!activityUserId) return;
     ForsetiActivityService.save(activityUserId, activityGuest, activity).catch(console.error);
@@ -3834,7 +3839,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
 
         // 2. Dúvidas respondidas com os números do planejamento
-        const answerIntent = (doubt: DoubtId, period?: SpendPeriod) => {
+        const answerIntent = (doubt: DoubtId, period?: SpendPeriod, note?: string) => {
           const withMonth = doubt === 'GASTEI';
           const key = todayIso.slice(0, 7);
           const opts = { startDate: activeCheckpoint?.startDate, horizonMonths: projectionHorizonMonths };
@@ -3866,7 +3871,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             emergencyReserveMonths,
             monthlyFreeCashflow,
           };
-          reply(answerDoubt(doubt, trimmed, data, { period }));
+          const answer = answerDoubt(doubt, trimmed, data, { period });
+          lastTopicRef.current = { intent: doubt, period: period ?? spendPeriodFrom(trimmed) ?? undefined, text: trimmed, at: Date.now() };
+          reply(note ? { ...answer, text: `${note}\n\n${answer.text}` } : answer);
         };
 
         const doubt = detectDoubt(trimmed);
@@ -3875,11 +3882,19 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           return;
         }
 
+        // 2b. Continuação do assunto anterior ("me mostre os dessa semana" depois de "gastos por natureza")
+        const follow = resolveFollowUp(trimmed, lastTopicRef.current);
+        if (follow) {
+          answerIntent(follow.intent, follow.period, follow.note);
+          return;
+        }
+
         // 3. Frase que as regras não entenderam: a IA só escolhe a intenção (sem enviar seus dados);
         // sem chave, offline ou sem certeza, segue para a pergunta de confirmação / resposta padrão
         const wordCount = trimmed.split(/\s+/).length;
         if (wordCount >= 3) {
-          classifyIntent(trimmed).then((found) => {
+          const topic = lastTopicRef.current && Date.now() - lastTopicRef.current.at <= 15 * 60 * 1000 ? lastTopicRef.current : null;
+          classifyIntent(trimmed, topic ? { intent: topic.intent, period: topic.period, previous: topic.text } : undefined).then((found) => {
             if (found) answerIntent(found.intent, found.period);
             else reply(detectAmbiguity(trimmed) || FALLBACK_REPLY);
           });
