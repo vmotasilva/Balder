@@ -1,0 +1,205 @@
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useAuth } from './AuthContext';
+import { useAccountScope } from './AccountScopeContext';
+import { PlansService, setActivePlan, type CreatePlanError, type PlanItem } from '../services/supabaseService';
+
+/**
+ * Planejamentos próprios: além do principal, a pessoa pode ter outros totalmente independentes
+ * (ex.: um pequeno negócio). Cada um tem seus lançamentos, naturezas, contas, marcos e configurações.
+ */
+export type Plan = PlanItem;
+
+interface PlanScopeContextType {
+  /** Planejamentos extras (o principal não entra). */
+  plans: Plan[];
+  /** Planejamento em uso (null = o principal). Em conta compartilhada vale sempre o do dono. */
+  activePlanId: string | null;
+  activePlan: Plan | null;
+  createPlan: (name: string, icon?: string) => Promise<{ ok: true; plan: Plan } | { ok: false; error: CreatePlanError | 'NOME' | 'LIMITE' }>;
+  renamePlan: (id: string, name: string) => Promise<void>;
+  deletePlan: (id: string) => Promise<boolean>;
+  /** Troca de planejamento (null = o principal). A tela é recriada com os dados do escolhido. */
+  switchPlan: (id: string | null) => void;
+}
+
+const PlanScopeContext = createContext<PlanScopeContextType | undefined>(undefined);
+
+export const MAX_EXTRA_PLANS = 5;
+const listKey = (userId: string) => `balder_plans_${userId}`;
+const activeKey = (userId: string) => `balder_active_plan_${userId}`;
+
+const readPlans = (userId?: string): Plan[] => {
+  if (!userId) return [];
+  try {
+    const raw = JSON.parse(localStorage.getItem(listKey(userId)) || '[]');
+    return Array.isArray(raw) ? raw : [];
+  } catch {
+    return [];
+  }
+};
+
+const readActive = (userId: string | undefined, plans: Plan[]): string | null => {
+  if (!userId) return null;
+  try {
+    const id = localStorage.getItem(activeKey(userId));
+    return id && plans.some((p) => p.id === id) ? id : null;
+  } catch {
+    return null;
+  }
+};
+
+/** Remove os caches locais de um planejamento (as chaves terminam em `${usuário}__${plano}`). */
+export const clearPlanLocalData = (userId: string, planId: string) => {
+  try {
+    const suffix = `_${userId}__${planId}`;
+    Object.keys(localStorage)
+      .filter((k) => k.endsWith(suffix) || k.includes(`${suffix}_`))
+      .forEach((k) => localStorage.removeItem(k));
+  } catch {
+    // armazenamento indisponível
+  }
+};
+
+/** Id usado nos caches locais: o do usuário no principal, `usuário__plano` nos extras. */
+export const scopedUserId = (userId: string, planId: string | null): string => (planId ? `${userId}__${planId}` : userId);
+
+export const PlanScopeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
+  const { viewing } = useAccountScope();
+  const userId = user && !user.isGuest ? user.$id : undefined;
+
+  // O escopo precisa estar definido antes do primeiro carregamento dos dados (como o dono da conta compartilhada)
+  const [plans, setPlans] = useState<Plan[]>(() => readPlans(userId));
+  const [activePlanId, setActivePlanId] = useState<string | null>(() => {
+    const id = readActive(userId, readPlans(userId));
+    setActivePlan(id, readPlans(userId).length > 0);
+    return id;
+  });
+
+  // Atualiza a lista com a da nuvem (outro aparelho pode ter criado ou apagado planejamentos)
+  useEffect(() => {
+    if (!userId) return;
+    let alive = true;
+    void PlansService.list().then((cloud) => {
+      if (!alive || !cloud) return;
+      setPlans(cloud);
+      try {
+        localStorage.setItem(listKey(userId), JSON.stringify(cloud));
+      } catch {
+        // sem armazenamento local
+      }
+      setActivePlanId((current) => {
+        const next = current && cloud.some((p) => p.id === current) ? current : null;
+        setActivePlan(next, cloud.length > 0);
+        return next;
+      });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [userId]);
+
+  const persistPlans = useCallback(
+    async (next: Plan[]) => {
+      setPlans(next);
+      if (userId) {
+        try {
+          localStorage.setItem(listKey(userId), JSON.stringify(next));
+        } catch {
+          // sem armazenamento local
+        }
+      }
+      await PlansService.save(next);
+    },
+    [userId]
+  );
+
+  /** Ativa um planejamento (ou o principal). `count` é quantos planejamentos extras existem depois da mudança. */
+  const activate = useCallback(
+    (next: string | null, count: number) => {
+      if (!userId) return;
+      setActivePlan(next, count > 0);
+      try {
+        if (next) localStorage.setItem(activeKey(userId), next);
+        else localStorage.removeItem(activeKey(userId));
+      } catch {
+        // sem armazenamento local
+      }
+      setActivePlanId(next);
+      window.scrollTo({ top: 0 });
+    },
+    [userId]
+  );
+
+  const switchPlan = useCallback(
+    (id: string | null) => activate(id && plans.some((p) => p.id === id) ? id : null, plans.length),
+    [activate, plans]
+  );
+
+  const createPlan = useCallback<PlanScopeContextType['createPlan']>(
+    async (name, icon) => {
+      const clean = name.trim().slice(0, 40);
+      if (clean.length < 2) return { ok: false, error: 'NOME' };
+      if (plans.length >= MAX_EXTRA_PLANS) return { ok: false, error: 'LIMITE' };
+      // Sem a coluna plan_id nas tabelas os dados do novo planejamento se misturariam com os do principal
+      if (!(await PlansService.isReady())) return { ok: false, error: 'SQL_PENDENTE' };
+      const plan: Plan = { id: crypto.randomUUID().replace(/-/g, '').slice(0, 12), name: clean, icon: icon || '🏢', createdAt: new Date().toISOString() };
+      await persistPlans([...plans, plan]);
+      // Já abre no planejamento novo (a lista de `plans` ainda é a anterior neste ponto)
+      activate(plan.id, plans.length + 1);
+      return { ok: true, plan };
+    },
+    [plans, persistPlans, activate]
+  );
+
+  const renamePlan = useCallback(
+    async (id: string, name: string) => {
+      const clean = name.trim().slice(0, 40);
+      if (clean.length < 2) return;
+      await persistPlans(plans.map((p) => (p.id === id ? { ...p, name: clean } : p)));
+    },
+    [plans, persistPlans]
+  );
+
+  const deletePlan = useCallback(
+    async (id: string) => {
+      if (!userId || !plans.some((p) => p.id === id)) return false;
+      // Sai do planejamento antes de apagá-lo
+      if (activePlanId === id) switchPlan(null);
+      const ok = await PlansService.deleteData(id);
+      if (!ok) return false;
+      clearPlanLocalData(userId, id);
+      const remaining = plans.filter((p) => p.id !== id);
+      await persistPlans(remaining);
+      setActivePlan(activePlanId === id ? null : activePlanId, remaining.length > 0);
+      return true;
+    },
+    [userId, plans, activePlanId, switchPlan, persistPlans]
+  );
+
+  // Em conta compartilhada vale o planejamento do dono, nunca um extra do visitante
+  const effectiveActiveId = viewing ? null : activePlanId;
+  const value = useMemo<PlanScopeContextType>(
+    () => ({
+      plans,
+      activePlanId: effectiveActiveId,
+      activePlan: plans.find((p) => p.id === effectiveActiveId) || null,
+      createPlan,
+      renamePlan,
+      deletePlan,
+      switchPlan,
+    }),
+    [plans, effectiveActiveId, createPlan, renamePlan, deletePlan, switchPlan]
+  );
+
+  return <PlanScopeContext.Provider value={value}>{children}</PlanScopeContext.Provider>;
+};
+
+export const usePlans = (): PlanScopeContextType => {
+  const ctx = useContext(PlanScopeContext);
+  if (!ctx) {
+    // Fora do provedor (ex.: testes): só o planejamento principal
+    return { plans: [], activePlanId: null, activePlan: null, createPlan: async () => ({ ok: false, error: 'ERRO' }), renamePlan: async () => {}, deletePlan: async () => false, switchPlan: () => {} };
+  }
+  return ctx;
+};

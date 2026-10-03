@@ -3,6 +3,7 @@ import { ArrowLeft, Check, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { DecimalInput } from './DecimalInput';
 import { useFinancial, buildSuggestedMappingsForNature } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
+import { usePlans, scopedUserId } from '../context/PlanScopeContext';
 import { SupabaseService } from '../services/supabaseService';
 import { POPULAR_BANKS, getBankBranding } from '../utils/bankBranding';
 import { normalizeBankKey } from '../utils/cardUtils';
@@ -1139,6 +1140,7 @@ interface ForsetiTopicSetupProps {
  */
 export const ForsetiTopicSetup: React.FC<ForsetiTopicSetupProps> = ({ initialTopic, onFinished, finishLabel = 'Ir para o Início', holdHomeScreen }) => {
   const { user } = useAuth();
+  const { activePlanId } = usePlans();
   const { activeCheckpoint, accounts, banks, movements, cards, natures, viewPreferences, setViewPreferences } = useFinancial();
   const [heldHomeScreen, setHeldHomeScreen] = useState<'INICIO' | 'PAINEL' | null>(null);
   const [turns, setTurns] = useState<{ question: string; answer: string }[]>([]);
@@ -1173,7 +1175,7 @@ export const ForsetiTopicSetup: React.FC<ForsetiTopicSetupProps> = ({ initialTop
 
   const completeSetup = () => {
     if (user && !user.isGuest) {
-      localStorage.setItem(`balder_onboarding_completed_${user.$id}`, 'true');
+      localStorage.setItem(`balder_onboarding_completed_${scopedUserId(user.$id, activePlanId)}`, 'true');
       SupabaseService.saveUserProfileSettings({ onboardingCompleted: true }).catch(console.error);
     } else {
       localStorage.setItem('balder_onboarding_completed_guest', 'true');

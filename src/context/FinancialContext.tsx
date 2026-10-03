@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useRef } from 'react';
 import { useAccountScope, type ViewingAccount } from './AccountScopeContext';
+import { usePlans, scopedUserId } from './PlanScopeContext';
 import { isBaseCategoryName, natureCoveringCategory, userNatures } from '../utils/baseNatures';
 import { isCashInHand } from '../utils/cashInHand';
 import { SupabaseService, msSinceProfileSave } from '../services/supabaseService';
@@ -646,14 +647,18 @@ function restrictForSharedAccess<T extends Record<string, unknown>>(
 export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user: authUser } = useAuth();
   const { viewing } = useAccountScope();
+  const { activePlanId } = usePlans();
   // Conta em uso: ao abrir uma conta compartilhada, os dados e os caches locais passam a ser os do dono
   // Só a troca de conta recarrega os dados (papel, permissões e conta principal não)
   const viewingOwnerId = viewing?.ownerId;
   const viewingOwnerName = viewing?.ownerName;
-  const user = useMemo(
-    () => (authUser && viewingOwnerId ? { ...authUser, $id: viewingOwnerId, name: viewingOwnerName || authUser.name } : authUser),
-    [authUser, viewingOwnerId, viewingOwnerName]
-  );
+  // Planejamento próprio extra: os caches locais passam a ser os dele (`usuário__plano`); no servidor o user_id
+  // continua sendo o do usuário e o plano é filtrado pelo supabaseService.
+  const user = useMemo(() => {
+    if (authUser && viewingOwnerId) return { ...authUser, $id: viewingOwnerId, name: viewingOwnerName || authUser.name };
+    if (authUser && !authUser.isGuest && activePlanId) return { ...authUser, $id: scopedUserId(authUser.$id, activePlanId) };
+    return authUser;
+  }, [authUser, viewingOwnerId, viewingOwnerName, activePlanId]);
 
   // Se o usuário está autenticado na nuvem via Supabase, a fonte de verdade é a sua conta real
   const isCloudUser = !!user && !user.isGuest;

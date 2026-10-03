@@ -4,6 +4,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { FinancialProvider, useFinancial } from './context/FinancialContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AccountScopeProvider, useAccountScope } from './context/AccountScopeContext';
+import { PlanScopeProvider, usePlans } from './context/PlanScopeContext';
 import { SharedAccountBanner } from './components/SharedAccountBanner';
 import { PENDING_TAB_KEY } from './components/PlanningSwitcher';
 import { InviteAcceptDialog, captureInviteFromUrl } from './components/InviteAcceptDialog';
@@ -51,16 +52,19 @@ export function ProtectedApp() {
   // evitando o flash de dados DEMO para usuários autenticados.
   return (
     <AccountScopeProvider>
-      <ScopedFinancialApp />
+      <PlanScopeProvider>
+        <ScopedFinancialApp />
+      </PlanScopeProvider>
     </AccountScopeProvider>
   );
 }
 
-/** Recria o contexto financeiro ao trocar entre a própria conta e uma conta compartilhada. */
+/** Recria o contexto financeiro ao trocar entre a própria conta, uma conta compartilhada e os planejamentos próprios. */
 function ScopedFinancialApp() {
   const { viewing } = useAccountScope();
+  const { activePlanId } = usePlans();
   return (
-    <FinancialProvider key={viewing?.ownerId || 'own'}>
+    <FinancialProvider key={viewing?.ownerId ? `v:${viewing.ownerId}` : activePlanId ? `p:${activePlanId}` : 'own'}>
       <AppContent />
     </FinancialProvider>
   );
