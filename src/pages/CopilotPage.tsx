@@ -465,6 +465,22 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
                     </div>
                   )}
 
+                  {/* Opções de um toque (A/B/C): a pessoa escolhe em vez de reescrever */}
+                  {msg.choices && msg.choices.length > 0 && (
+                    <div className="copilot-interactive-options-card animate-fade-in">
+                      <div className="interactive-options-grid">
+                        {msg.choices.map((choice) => (
+                          <button key={choice.label} type="button" className="interactive-option-btn" onClick={() => handleChipClick(choice.send)}>
+                            <span className="option-icon">👉</span>
+                            <div className="option-text-col">
+                              <span className="option-label">{choice.label}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Ação proposta pela Forseti: só acontece depois do Confirmar */}
                   {msg.pendingAction && (
                     <div className="copilot-interactive-options-card animate-fade-in">

@@ -3498,6 +3498,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             timestamp: 'Agora',
             actionBadge: r.badge,
             suggestedFollowUps: r.chips,
+            ...(r.choices ? { choices: r.choices } : {}),
             ...extra,
           },
         ]);
