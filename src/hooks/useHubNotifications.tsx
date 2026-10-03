@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { AlertTriangle, BadgePercent, CalendarClock, Flag, HandCoins, TrendingDown } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
+import { usePlans, scopedUserId } from '../context/PlanScopeContext';
 import { useOpportunities } from './useOpportunities';
 import { OPPORTUNITY_LABEL, watchStats } from '../utils/opportunity';
 
@@ -50,9 +51,10 @@ const signature = (parts: string[]) => {
  */
 export function useHubNotifications(actions: HubNotificationActions) {
   const { user } = useAuth();
+  const { activePlanId } = usePlans();
   const { activeCheckpoint, forecasts, isDataReady } = useFinancial();
   const { watches } = useOpportunities();
-  const storageKey = `balder_notifications_${user && !user.isGuest ? user.$id : 'guest'}`;
+  const storageKey = `balder_notifications_${user && !user.isGuest ? scopedUserId(user.$id, activePlanId) : 'guest'}`;
 
   const [stored, setStored] = useState<StoredState>(() => {
     try {

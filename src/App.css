@@ -24216,3 +24216,66 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
   opacity: 0.65;
   text-decoration: line-through;
 }
+
+/* Planejamentos próprios no seletor */
+.planning-switch-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.planning-switch-row .planning-switch-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.planning-switch-mini {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.planning-switch-mini:hover {
+  border-color: var(--border-default);
+  color: var(--text-primary);
+}
+
+.planning-switch-mini.is-danger:hover {
+  color: var(--accent-rose);
+  border-color: var(--accent-rose);
+}
+
+.planning-switch-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.planning-switch-form input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.planning-switch-form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.planning-switch-error {
+  color: var(--accent-rose);
+  line-height: 1.35;
+}

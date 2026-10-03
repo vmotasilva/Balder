@@ -3,6 +3,7 @@ import { ArrowLeft, Plus, Trash2, Check } from 'lucide-react';
 import { DecimalInput } from './DecimalInput';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
+import { usePlans, scopedUserId } from '../context/PlanScopeContext';
 import { SupabaseService } from '../services/supabaseService';
 import { POPULAR_BANKS, getBankBranding } from '../utils/bankBranding';
 import { BILL_GROUPS, COMMON_BILLS, clampDay, defaultClosingDay, formatBRL, isoOf, nextDateForDay } from '../utils/setupCatalog';
@@ -61,6 +62,7 @@ interface GuidedSetupProps {
  */
 export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onFinished }) => {
   const { user } = useAuth();
+  const { activePlanId } = usePlans();
   const {
     addCheckpoint,
     addBank,
@@ -297,7 +299,7 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onFinished }) => {
       // 6. Preferências e conclusão da configuração
       setViewPreferences({ experienceMode: 'GUIADO', homeScreen: 'INICIO', trackingPeriod: period });
       if (user && !user.isGuest) {
-        localStorage.setItem(`balder_onboarding_completed_${user.$id}`, 'true');
+        localStorage.setItem(`balder_onboarding_completed_${scopedUserId(user.$id, activePlanId)}`, 'true');
         SupabaseService.saveUserProfileSettings({ onboardingCompleted: true }).catch(console.error);
       } else {
         localStorage.setItem('balder_onboarding_completed_guest', 'true');

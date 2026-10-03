@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
+import { usePlans, scopedUserId } from '../context/PlanScopeContext';
 import { useAccountScope } from '../context/AccountScopeContext';
 import { GuidedSetup } from '../components/GuidedSetup';
 import { NatureBudgetGrid } from '../components/NatureBudgetGrid';
@@ -125,6 +126,7 @@ const PURCHASE_PILL: Record<PeriodPurchase['status'], string> = {
  */
 export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenForseti, onPlanWithOthers }) => {
   const { user } = useAuth();
+  const { activePlanId, activePlan } = usePlans();
   const {
     isDataReady,
     activeCheckpoint,
@@ -174,7 +176,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
 
   const onboardingDone = (() => {
     try {
-      return localStorage.getItem(user && !user.isGuest ? `balder_onboarding_completed_${user.$id}` : 'balder_onboarding_completed_guest') === 'true';
+      return localStorage.getItem(user && !user.isGuest ? `balder_onboarding_completed_${scopedUserId(user.$id, activePlanId)}` : 'balder_onboarding_completed_guest') === 'true';
     } catch {
       return false;
     }
@@ -578,9 +580,17 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   if (needsSetup) {
     return (
       <div className="home-hub">
-        <header className="home-hub-header">
-          <h1>{firstName ? `Bem-vindo, ${firstName}` : 'Bem-vindo ao Balder'}</h1>
-          <p>Leva uns 3 minutos. Você pode mudar tudo depois.</p>
+        <header className={`home-hub-header ${activePlanId ? 'has-switch' : ''}`}>
+          <div>
+            <h1>{firstName ? `Bem-vindo, ${firstName}` : 'Bem-vindo ao Balder'}</h1>
+            <p>
+              {activePlan
+                ? `Vamos começar o planejamento "${activePlan.name}", separado do seu principal. Leva uns 3 minutos.`
+                : 'Leva uns 3 minutos. Você pode mudar tudo depois.'}
+            </p>
+          </div>
+          {/* Num planejamento extra novo é preciso poder voltar ao principal sem terminar o início */}
+          {activePlanId && <PlanningSwitcher onPlanWithOthers={onPlanWithOthers} />}
         </header>
         <GuidedSetup onFinished={() => setFinishedSetup(true)} />
       </div>

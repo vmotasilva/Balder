@@ -24,6 +24,50 @@ export function getDataOwner(): string | null {
   return dataOwnerId;
 }
 
+/**
+ * Planejamento próprio em uso (null = o principal). Cada planejamento tem seus dados separados:
+ * as linhas das tabelas levam o plan_id e o bloco de configurações do perfil é um por planejamento.
+ * Em conta compartilhada o planejamento não se aplica (vale o do dono).
+ */
+let activePlanId: string | null = null;
+/** Há planejamentos além do principal: só então o principal passa a filtrar por plan_id vazio (sem a coluna ainda criada, nada muda). */
+let hasExtraPlans = false;
+
+export function setActivePlan(planId: string | null, extraPlans: boolean) {
+  activePlanId = planId;
+  hasExtraPlans = extraPlans;
+}
+
+export function getActivePlan(): string | null {
+  return dataOwnerId ? null : activePlanId;
+}
+
+/** Filtro de planejamento para consultas já filtradas por user_id: `.filter(...planFilter(userId))`. */
+function planFilter(userId: string): [string, string, unknown] {
+  if (dataOwnerId) return ['user_id', 'eq', userId]; // conta compartilhada: o filtro duplicado não altera nada
+  if (activePlanId) return ['plan_id', 'eq', activePlanId];
+  return hasExtraPlans ? ['plan_id', 'is', null] : ['user_id', 'eq', userId];
+}
+
+/**
+ * Tabelas com chave de texto definida pelo app (naturezas, contas, marcos, meios de pagamento): dois planejamentos
+ * podem gerar o mesmo id (ex.: as naturezas-base). No servidor o id leva o prefixo do planejamento; o app só vê o id sem ele.
+ */
+const planPrefix = () => (!dataOwnerId && activePlanId ? `${activePlanId}~` : '');
+const toServerId = (id: string): string => {
+  const prefix = planPrefix();
+  return prefix && !id.startsWith(prefix) ? `${prefix}${id}` : id;
+};
+const fromServerId = (id: string): string => {
+  const prefix = planPrefix();
+  return prefix && id.startsWith(prefix) ? id.slice(prefix.length) : id;
+};
+
+/** Colunas de planejamento para gravar uma linha nova (o principal não grava nada). */
+function planColumns(): { plan_id?: string } {
+  return !dataOwnerId && activePlanId ? { plan_id: activePlanId } : {};
+}
+
 /** Última gravação das configurações do perfil (evita que uma releitura desfaça uma mudança ainda em envio). */
 let lastProfileSaveAt = 0;
 export const msSinceProfileSave = () => Date.now() - lastProfileSaveAt;
@@ -61,6 +105,7 @@ export const SupabaseService = {
         .from(TABLES.MOVEMENTS)
         .select('*')
         .eq('user_id', userId)
+        .filter(...planFilter(userId))
         .order('due_date', { ascending: false })
         .limit(5000);
 
@@ -108,6 +153,7 @@ export const SupabaseService = {
     try {
       const payload: Record<string, any> = {
         user_id: userId,
+        ...planColumns(),
         title: movement.title,
         type: movement.type,
         amount: movement.amount,
@@ -230,6 +276,7 @@ export const SupabaseService = {
         .from(TABLES.MOVEMENTS)
         .delete()
         .eq('user_id', userId)
+        .filter(...planFilter(userId))
         .in('type', types);
       if (error) {
         console.error('[SupabaseService] Erro ao formatar movimentações:', error.message);
@@ -248,7 +295,7 @@ export const SupabaseService = {
     const userId = await getCurrentUserId();
     if (!userId) return false;
     try {
-      const { error } = await supabase.from(table).delete().eq('user_id', userId);
+      const { error } = await supabase.from(table).delete().eq('user_id', userId).filter(...planFilter(userId));
       if (error) {
         console.error(`[SupabaseService] Erro ao formatar ${table}:`, error.message);
         return false;
@@ -273,6 +320,7 @@ export const SupabaseService = {
         .from(TABLES.NATURES)
         .select('*')
         .eq('user_id', userId)
+        .filter(...planFilter(userId))
         .order('name');
 
       if (error) {
@@ -281,7 +329,7 @@ export const SupabaseService = {
       }
 
       return (data || []).map((row: any) => ({
-        id: String(row.id),
+        id: fromServerId(String(row.id)),
         name: row.name,
         color: row.color,
         icon: row.icon,
@@ -306,8 +354,9 @@ export const SupabaseService = {
 
     try {
       const payload: Record<string, any> = {
-        id: nature.id || `nat_${Date.now()}`,
+        id: toServerId(nature.id || `nat_${Date.now()}`),
         user_id: userId,
+        ...planColumns(),
         name: nature.name,
         color: nature.color,
         icon: nature.icon,
@@ -346,7 +395,7 @@ export const SupabaseService = {
       const data = insertResult.data;
       return {
         ...nature,
-        id: String(data.id),
+        id: fromServerId(String(data.id)),
       };
     } catch (e) {
       console.error('[SupabaseService] Exceção ao salvar natureza:', e);
@@ -375,7 +424,7 @@ export const SupabaseService = {
       let updateResult = await supabase
         .from(TABLES.NATURES)
         .update(payload)
-        .eq('id', id);
+        .eq('id', toServerId(id));
 
       // Fallback gracioso caso a coluna 'keywords' ainda não exista no schema do Supabase do usuário
       if (updateResult.error && (updateResult.error.message?.includes('keywords') || (updateResult.error as any).code === '42703')) {
@@ -385,7 +434,7 @@ export const SupabaseService = {
         updateResult = await supabase
           .from(TABLES.NATURES)
           .update(payloadNoKeywords)
-          .eq('id', id);
+          .eq('id', toServerId(id));
       }
 
       if (updateResult.error) {
@@ -405,7 +454,7 @@ export const SupabaseService = {
       const { error } = await supabase
         .from(TABLES.NATURES)
         .delete()
-        .eq('id', id);
+        .eq('id', toServerId(id));
 
       if (error) {
         console.error('[SupabaseService] Erro ao excluir natureza:', error.message);
@@ -431,6 +480,7 @@ export const SupabaseService = {
         .from(TABLES.GOALS)
         .select('*')
         .eq('user_id', userId)
+        .filter(...planFilter(userId))
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -463,6 +513,7 @@ export const SupabaseService = {
     try {
       const payload: Record<string, any> = {
         user_id: userId,
+        ...planColumns(),
         title: goal.title,
         category: goal.category,
         current_amount: goal.currentAmount,
@@ -555,6 +606,7 @@ export const SupabaseService = {
         .from(TABLES.ACCOUNTS)
         .select('*')
         .eq('user_id', userId)
+        .filter(...planFilter(userId))
         .order('name');
 
       if (error) {
@@ -563,7 +615,7 @@ export const SupabaseService = {
       }
 
       return (data || []).map((row: any) => ({
-        id: String(row.id),
+        id: fromServerId(String(row.id)),
         name: row.name,
         bankName: row.bank || row.name,
         type: row.type || 'CORRENTE',
@@ -584,8 +636,9 @@ export const SupabaseService = {
 
     try {
       const payload: Record<string, any> = {
-        id: account.id,
+        id: toServerId(account.id),
         user_id: userId,
+        ...planColumns(),
         name: account.name,
         bank: account.bankName || account.name,
         type: account.type,
@@ -615,7 +668,7 @@ export const SupabaseService = {
       const { error } = await supabase
         .from(TABLES.ACCOUNTS)
         .delete()
-        .eq('id', id);
+        .eq('id', toServerId(id));
 
       if (error) {
         console.error('[SupabaseService] Erro ao excluir conta:', error.message);
@@ -641,6 +694,7 @@ export const SupabaseService = {
         .from(TABLES.CHECKPOINTS)
         .select('*')
         .eq('user_id', userId)
+        .filter(...planFilter(userId))
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -649,7 +703,7 @@ export const SupabaseService = {
       }
 
       return (data || []).map((row: any) => ({
-        id: String(row.id),
+        id: fromServerId(String(row.id)),
         createdAt: row.created_at,
         startDate: row.start_date,
         initialBalance: Number(row.initial_balance) || 0,
@@ -677,8 +731,9 @@ export const SupabaseService = {
 
     try {
       const payload: Record<string, any> = {
-        id: cp.id,
+        id: toServerId(cp.id),
         user_id: userId,
+        ...planColumns(),
         start_date: cp.startDate,
         initial_balance: cp.initialBalance,
         credit_card_debt: cp.creditCardDebt ?? 0,
@@ -714,7 +769,7 @@ export const SupabaseService = {
       const { error } = await supabase
         .from(TABLES.CHECKPOINTS)
         .delete()
-        .eq('id', id);
+        .eq('id', toServerId(id));
 
       if (error) {
         console.error('[SupabaseService] Erro ao excluir checkpoint:', error.message);
@@ -740,6 +795,7 @@ export const SupabaseService = {
         .from(TABLES.PAYMENT_METHODS)
         .select('*')
         .eq('user_id', userId)
+        .filter(...planFilter(userId))
         .order('name');
 
       if (error) {
@@ -748,7 +804,7 @@ export const SupabaseService = {
       }
 
       return (data || []).map((row: any) => ({
-        id: String(row.id),
+        id: fromServerId(String(row.id)),
         name: row.name,
         type: row.type,
         linkedAccountId: row.linked_account_id || undefined,
@@ -772,8 +828,9 @@ export const SupabaseService = {
 
     try {
       const payload: Record<string, any> = {
-        id: method.id,
+        id: toServerId(method.id),
         user_id: userId,
+        ...planColumns(),
         name: method.name,
         type: method.type,
         linked_account_id: method.linkedAccountId ?? null,
@@ -806,7 +863,7 @@ export const SupabaseService = {
       const { error } = await supabase
         .from(TABLES.PAYMENT_METHODS)
         .delete()
-        .eq('id', id);
+        .eq('id', toServerId(id));
 
       if (error) {
         console.error('[SupabaseService] Erro ao excluir método de pagamento:', error.message);
@@ -828,6 +885,11 @@ export const SupabaseService = {
       if (dataOwnerId) return this.getSharedOwnerSettings(dataOwnerId);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
+      // Planejamento próprio extra: as configurações dele ficam em um bloco à parte, sem tocar nas do principal
+      if (activePlanId) {
+        const byPlan = (user.user_metadata?.balder_plan_settings || {}) as Record<string, UserProfileSettings>;
+        return byPlan[activePlanId] || null;
+      }
       const own = (user.user_metadata?.balder_settings as UserProfileSettings) || null;
       // Acertos do planejamento compartilhado: a fonte é a tabela que o convidado também grava,
       // para quem compartilhou e quem foi convidado verem sempre os mesmos registros
@@ -866,6 +928,14 @@ export const SupabaseService = {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return false;
+      if (activePlanId) {
+        // Planejamento extra: grava só no bloco dele; nada é espelhado para o compartilhamento (que vale para o principal)
+        const byPlan = { ...((user.user_metadata?.balder_plan_settings || {}) as Record<string, UserProfileSettings>) };
+        byPlan[activePlanId] = { ...(byPlan[activePlanId] || {}), ...settings };
+        const { error } = await supabase.auth.updateUser({ data: { balder_plan_settings: byPlan } });
+        if (error) console.error('[SupabaseService] Erro ao salvar configurações do planejamento:', error.message);
+        return !error;
+      }
       const current = (user.user_metadata?.balder_settings as UserProfileSettings) || {};
       const updated = {
         ...current,
@@ -942,6 +1012,75 @@ export const SupabaseService = {
     } catch (e) {
       console.error('[SupabaseService] Erro ao ler a conta compartilhada:', e);
       return null;
+    }
+  },
+};
+
+
+// ============================================================================
+// PLANEJAMENTOS PRÓPRIOS (vários planejamentos independentes na mesma conta)
+// ============================================================================
+export interface PlanItem {
+  id: string;
+  name: string;
+  icon?: string;
+  createdAt: string;
+}
+
+export type CreatePlanError = 'SQL_PENDENTE' | 'ERRO';
+
+export const PlansService = {
+  /** Planejamentos extras do usuário logado (o principal não entra na lista). */
+  async list(): Promise<PlanItem[] | null> {
+    if (!isSupabaseConfigured) return null;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const list = user.user_metadata?.balder_plans;
+      return Array.isArray(list) ? (list as PlanItem[]) : [];
+    } catch {
+      return null;
+    }
+  },
+
+  async save(plans: PlanItem[]): Promise<boolean> {
+    if (!isSupabaseConfigured) return false;
+    try {
+      const { error } = await supabase.auth.updateUser({ data: { balder_plans: plans } });
+      if (error) console.error('[PlansService] Erro ao salvar planejamentos:', error.message);
+      return !error;
+    } catch {
+      return false;
+    }
+  },
+
+  /** Confere se as tabelas já têm a coluna plan_id (script supabase/plans.sql rodado). */
+  async isReady(): Promise<boolean> {
+    if (!isSupabaseConfigured) return false;
+    const { error } = await supabase.from(TABLES.MOVEMENTS).select('plan_id').limit(1);
+    return !error;
+  },
+
+  /** Apaga do servidor todos os dados de um planejamento extra e as configurações dele. */
+  async deleteData(planId: string): Promise<boolean> {
+    if (!isSupabaseConfigured) return false;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return false;
+      let ok = true;
+      for (const table of Object.values(TABLES)) {
+        const { error } = await supabase.from(table).delete().eq('user_id', user.id).eq('plan_id', planId);
+        if (error) {
+          console.error(`[PlansService] Erro ao apagar ${table} do planejamento:`, error.message);
+          ok = false;
+        }
+      }
+      const byPlan = { ...((user.user_metadata?.balder_plan_settings || {}) as Record<string, unknown>) };
+      delete byPlan[planId];
+      await supabase.auth.updateUser({ data: { balder_plan_settings: byPlan } });
+      return ok;
+    } catch {
+      return false;
     }
   },
 };
