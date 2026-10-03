@@ -95,6 +95,7 @@ import { getItemOccurrences, isExcludedState, mappingItemBaseValue, registerItem
 import { buildForecastWindow, FORECAST_PERIODS, type ForecastPeriod, type ForecastWindow } from '../utils/forecastWindow';
 import { buildMonthlyProjectionGrid, movementCompetenceDate } from '../utils/projectionMath';
 import { classifyIntent } from '../services/forsetiIntentService';
+import { resolveMovementNatureId } from '../utils/movementNature';
 import type { SpendPeriod } from '../utils/forsetiIntents';
 import {
   CHIP_PAGAR,
@@ -3844,7 +3845,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           const natureSuggestions: Record<string, { natureId: string; natureName: string }> = {};
           if (doubt === 'SEM_NATUREZA') {
             movements
-              .filter((m) => m.type === 'PAGAR' && (!m.natureId || m.natureId.toLowerCase() === 'outros'))
+              .filter((m) => m.type === 'PAGAR' && !resolveMovementNatureId(m, natures))
               .forEach((m) => {
                 const match = matchNatureForTransaction(m.title, m.category, natures);
                 if (match.natureId && match.natureId.toLowerCase() !== 'outros' && match.confidence >= 0.8) {
@@ -3854,7 +3855,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           }
           const data: ForsetiData = {
             natureSuggestions,
-            natures: natures.map((n) => ({ id: n.id, name: n.name })),
+            natures,
             availableBalance,
             forecasts,
             monthProjected: withMonth ? monthRow('PROJETADO') : undefined,
@@ -4018,7 +4019,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const done: string[] = [];
       action.assignments.forEach((a) => {
         const mov = movements.find((m) => m.id === a.movementId);
-        if (!mov || (mov.natureId && mov.natureId.toLowerCase() !== 'outros')) return; // já mudou desde a proposta
+        if (!mov || resolveMovementNatureId(mov, natures)) return; // já mudou desde a proposta
         if (!natures.some((n) => n.id === a.natureId)) return;
         updateMovement(a.movementId, { natureId: a.natureId });
         done.push(`• ${a.title} → **${a.natureName}**`);
@@ -4265,7 +4266,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       : isIncome
       ? {}
       : (() => {
-          const m = matchNatureForTransaction(pending.rawTitle, undefined, userNatures(natures));
+          // Título e categoria escolhida ('Saúde' ↔ 'Saúde & Cuidados'): a natureza fica gravada já no lançamento
+          const m = matchNatureForTransaction(pending.rawTitle, finalCategory, userNatures(natures));
           return m.natureId !== 'OUTROS' && m.confidence >= 0.9 ? { natureId: m.natureId } : {};
         })();
 

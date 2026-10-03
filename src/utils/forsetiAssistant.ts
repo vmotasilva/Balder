@@ -1,7 +1,8 @@
-import type { BankAccount, CopilotInteractiveOption, ForsetiPendingAction, CopilotPendingConfirmation, CreditCardItem, ForsetiActivity, Goal, MonthlyGridProjectionRow, Movement } from '../types';
+import type { BankAccount, CopilotInteractiveOption, ExpenseNature, ForsetiPendingAction, CopilotPendingConfirmation, CreditCardItem, ForsetiActivity, Goal, MonthlyGridProjectionRow, Movement } from '../types';
 import type { ForecastEntry, ForecastPeriod, ForecastWindow } from './forecastWindow';
 import { CASH_IN_HAND } from './cashInHand';
 import { trackingPeriodRange } from './periodSpending';
+import { resolveMovementNatureId } from './movementNature';
 import type { SpendPeriod } from './forsetiIntents';
 
 /**
@@ -571,7 +572,7 @@ export interface ForsetiReply {
 
 export interface ForsetiData {
   /** Naturezas do planejamento (para mostrar gastos por natureza). */
-  natures?: { id: string; name: string }[];
+  natures?: ExpenseNature[];
   /** Natureza sugerida (por palavras-chave e nomes) para cada lançamento sem natureza, por id do lançamento. */
   natureSuggestions?: Record<string, { natureId: string; natureName: string }>;
   availableBalance: number;
@@ -592,8 +593,9 @@ const pct = (part: number, total: number) => (total > 0 ? Math.round((part / tot
 const entryLine = (e: ForecastEntry) => `• ${ddmm(e.date)} · ${e.title}: **${brl(e.amount)}**`;
 const MORE = [CHIP_DUVIDA, CHIP_PAGAR];
 const NO_NATURE = 'Sem natureza';
-// Vale a natureza vinculada: a categoria "Outros" de um lançamento que já tem natureza não o torna "sem natureza"
-const hasNoNature = (m: Movement) => !m.natureId || m.natureId.toLowerCase() === 'outros';
+// "Sem natureza" segue a mesma regra do resto do app (vínculo direto, mapeamento/item ou categoria com o nome da natureza)
+const natureIdOf = (m: Movement, natures?: ExpenseNature[]): string | undefined =>
+  natures ? resolveMovementNatureId(m, natures) : m.natureId && m.natureId.toLowerCase() !== 'outros' ? m.natureId : undefined;
 const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 /** Recebimentos (inclusive empréstimo recebido) não são gasto. */
 const isIncomeMovement = (m: Movement) => m.type === 'RECEBER' || (m.type === 'EMPRESTIMO' && m.category === 'Recebimento');
@@ -735,7 +737,7 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
       const label = { HOJE: 'hoje', SEMANA: 'desta semana', QUINZENA: 'desta quinzena', MES: 'deste mês' }[period];
       const nameOf = (id?: string) => d.natures?.find((n) => n.id === id)?.name || '';
       const inRange = (date: string) => date >= range.from && date <= range.to;
-      const paid = d.movements.filter((m) => !isIncomeMovement(m) && m.status === 'REALIZADA' && inRange(outflowDate(m)));
+      const paid = d.movements.filter((m) => !isIncomeMovement(m) && m.status === 'REALIZADA' && outflowValue(m) > 0.004 && inRange(outflowDate(m)));
       // A pagar no período: o que a projeção ainda espera (contas, faturas e itens das naturezas, inclusive vencidos)
       const window = d.forecasts[period === 'HOJE' ? 'SEMANA' : period];
       const pending = (window?.entries || []).filter((e) => e.kind === 'SAIDA' && (period !== 'HOJE' || e.date <= todayIso));
@@ -778,7 +780,7 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
       const place = (m: Movement, key: 'paid' | 'planned', v: number) => {
         if (m.type === 'EMPRESTIMO') return add('CONTRATO', contractName(m.title), key, v);
         if (m.type === 'CARTAO') return add('FATURA', m.title, key, v, invoiceDetail(m));
-        add('NATUREZA', hasNoNature(m) ? NO_NATURE : nameOf(m.natureId) || m.category || NO_NATURE, key, v);
+        add('NATUREZA', nameOf(natureIdOf(m, d.natures)) || NO_NATURE, key, v);
       };
       const byId = new Map(d.movements.map((m) => [m.id, m]));
       paid.forEach((m) => place(m, 'paid', outflowValue(m)));
@@ -823,7 +825,7 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
       const label = { HOJE: 'hoje', SEMANA: 'desta semana', QUINZENA: 'desta quinzena', MES: 'deste mês' }[period];
       // Só despesas avulsas: parcelas de empréstimo e faturas têm tratamento próprio (não são "sem natureza")
       const list = d.movements
-        .filter((m) => m.type === 'PAGAR' && m.status !== 'CANCELADA' && hasNoNature(m) && outflowDate(m) >= range.from && outflowDate(m) <= range.to)
+        .filter((m) => m.type === 'PAGAR' && m.status !== 'CANCELADA' && outflowValue(m) > 0.004 && !natureIdOf(m, d.natures) && outflowDate(m) >= range.from && outflowDate(m) <= range.to)
         .sort((a, b) => outflowDate(b).localeCompare(outflowDate(a)) || outflowValue(b) - outflowValue(a));
       const heading = `**Gastos sem natureza ${label}** (${period === 'HOJE' ? ddmm(range.from) : `${ddmm(range.from)} a ${ddmm(range.to)}`})`;
       if (list.length === 0) {
