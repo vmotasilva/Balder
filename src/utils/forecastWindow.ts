@@ -72,6 +72,12 @@ export interface ForecastWindow {
 }
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
+/** Último dia (domingo) da semana, de segunda a domingo, que contém a data. */
+const weekEndIso = (iso: string) => {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() + ((7 - d.getDay()) % 7));
+  return isoOf(d);
+};
 const isoOf = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -180,17 +186,18 @@ export function buildForecastWindow(params: {
           const add = (date: string, amount: number) => {
             if (amount <= 0) return;
             if (date > toDate || date < startDate) return;
-            const overdue = date < fromDate;
             // Ocorrências vencidas só contam dentro da competência atual
-            if (overdue && monthKey !== currentMonthKey) return;
-            // Resumo: uma linha só por mapeamento (em atraso se alguma parte já venceu)
-            const key = summarized ? 'all' : overdue ? 'overdue' : 'upcoming';
+            if (date < fromDate && monthKey !== currentMonthKey) return;
+            // Resumo: uma linha por semana do mapeamento, vencendo no último dia da semana (domingo)
+            const dueDate = summarized ? weekEndIso(date) : date;
+            const overdue = dueDate < fromDate;
+            const key = summarized ? dueDate : overdue ? 'overdue' : 'upcoming';
             if (summarized) mappingItemIds.add(item.id);
-            const bucket = buckets.get(key) || { amount: 0, count: 0, first: date, overdue };
+            const bucket = buckets.get(key) || { amount: 0, count: 0, first: dueDate, overdue };
             bucket.overdue = bucket.overdue || overdue;
             bucket.amount += amount;
             bucket.count += 1;
-            if (date < bucket.first) bucket.first = date;
+            if (dueDate < bucket.first) bucket.first = dueDate;
             buckets.set(key, bucket);
           };
 
