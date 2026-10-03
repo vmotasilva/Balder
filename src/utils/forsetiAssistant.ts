@@ -62,7 +62,7 @@ const isQuestion = (text: string) =>
 
 /** Frase de registro ("paguei 50 no mercado", "vou receber 1.200 dia 10"); perguntas nunca contam. */
 export function registrationKind(text: string): 'RECEBER' | 'PAGAR' | null {
-  if (isQuestion(text)) return null;
+  if (isQuestion(text) || isPlannedVsReal(text)) return null;
   const t = stripAccents(text);
   if (/\b(receberei|vou receber|recebi|ganhei|vou ganhar|vai entrar|entrou|caiu na conta)\b/.test(t)) return 'RECEBER';
   if (/\b(paguei|gastei|comprei)\b/.test(t)) return 'PAGAR';
@@ -504,7 +504,9 @@ export type DoubtId =
   | 'GLOSSARIO'
   | 'ONDE_VER'
   | 'ULTIMAS'
-  | 'GASTOS_PERIODO';
+  | 'GASTOS_PERIODO'
+  | 'PREVISTO_REAL'
+  | 'SEM_NATUREZA';
 
 /** Período citado numa pergunta de gastos ("hoje", "esta semana", "na quinzena", "este mês"). */
 export function spendPeriodFrom(text: string): SpendPeriod | null {
@@ -516,6 +518,19 @@ export function spendPeriodFrom(text: string): SpendPeriod | null {
   return null;
 }
 
+/** Pergunta sobre previsto x realizado: "previsto que não foi registrado", "previsto e pagamos menos". */
+export function isPlannedVsReal(text: string): boolean {
+  const t = stripAccents(text);
+  if (!/previst|planejad|orcad/.test(t)) return false;
+  return /(nao|n)\s+(foi|fo[ir]am|ser[aã]o)?\s*(gast|pag|registr|realiz|lanc|confirm)|sem (registro|lancar|pagar|confirmar)|(pag|gast)(amos|uei|ou|aram)\s+(a )?menos|a menos|menos (do )?que|abaixo do previst|economi|sobrou do previst/.test(t);
+}
+
+/** "O que é esse gasto da natureza Outros": quer ver o que há em "Outros", não a definição de natureza. */
+export function isOthersQuestion(text: string): boolean {
+  const t = stripAccents(text);
+  return (/\boutros\b/.test(t) && /(natureza|categoria|gasto|valor|item|itens|lancamento)/.test(t)) || /sem natureza/.test(t);
+}
+
 /** Reconhece uma dúvida no texto (antes de tentar ler como gasto/recebimento: "quanto já gastei" não é um gasto). */
 export function detectDoubt(text: string): DoubtId | null {
   const t = stripAccents(text);
@@ -524,6 +539,8 @@ export function detectDoubt(text: string): DoubtId | null {
   if (/quando (entra|recebo|cai|vou receber)|proximo recebimento|proxima entrada|quando o salario/.test(t)) return 'PROXIMO_RECEB';
   if (/quanto (ainda )?(posso|consigo) gastar|sobrou|sobra |quanto (me )?sobra|livre para gastar/.test(t)) return 'SOBRA';
   if (/vence|vencimento|a pagar essa semana|contas? (atrasad|em atraso)|proximos dias/.test(t)) return 'VENCE';
+  if (isPlannedVsReal(t)) return 'PREVISTO_REAL';
+  if (isOthersQuestion(t)) return 'SEM_NATUREZA';
   if (/ultim[oa]s? (compras?|gastos?|saidas?|despesas?|pagamentos?|lancamentos?|movimentac)|(compras?|gastos?) recentes?|o que (eu )?(comprei|gastei|paguei) (recentemente|ultimamente)/.test(t)) return 'ULTIMAS';
   // "Este mês" segue para a resposta do mês (GASTEI), que traz a projeção completa
   const spendPeriod = spendPeriodFrom(t);
@@ -547,6 +564,8 @@ export interface ForsetiReply {
 }
 
 export interface ForsetiData {
+  /** Naturezas do planejamento (para mostrar gastos por natureza). */
+  natures?: { id: string; name: string }[];
   availableBalance: number;
   forecasts: Record<ForecastPeriod, ForecastWindow>;
   monthProjected?: MonthlyGridProjectionRow;
@@ -564,6 +583,20 @@ const months1 = (v: number) => v.toLocaleString('pt-BR', { maximumFractionDigits
 const pct = (part: number, total: number) => (total > 0 ? Math.round((part / total) * 100) : 0);
 const entryLine = (e: ForecastEntry) => `• ${ddmm(e.date)} · ${e.title}: **${brl(e.amount)}**`;
 const MORE = [CHIP_DUVIDA, CHIP_PAGAR];
+const NO_NATURE = 'Sem natureza';
+const hasNoNature = (m: Movement) => !m.natureId || m.natureId.toLowerCase() === 'outros' || /^outros$/i.test(m.category || '');
+/** Parte do valor de uma saída em cada natureza (a fatura se divide pelo detalhamento; o resto fica sem natureza). */
+function natureShares(m: Movement, value: number, nameOf: (id?: string) => string): [string, number][] {
+  const items = (m.invoiceBreakdown || []).filter((b) => b.isAnalyzed && b.natureId && b.natureId.toLowerCase() !== 'outros');
+  if (items.length > 0) {
+    const byName = new Map<string, number>();
+    items.forEach((b) => byName.set(nameOf(b.natureId) || b.natureName, (byName.get(nameOf(b.natureId) || b.natureName) || 0) + b.amount));
+    const used = [...byName.values()].reduce((a, v) => a + v, 0);
+    const rest = Math.max(0, value - used);
+    return [...byName.entries(), ...(rest > 0.005 ? ([[NO_NATURE, rest]] as [string, number][]) : [])];
+  }
+  return [[hasNoNature(m) ? NO_NATURE : nameOf(m.natureId) || m.category || NO_NATURE, value]];
+}
 const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 /** Recebimentos (inclusive empréstimo recebido) não são gasto. */
 const isIncomeMovement = (m: Movement) => m.type === 'RECEBER' || (m.type === 'EMPRESTIMO' && m.category === 'Recebimento');
@@ -700,40 +733,111 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
     case 'GASTOS_PERIODO': {
       const period = opts?.period || spendPeriodFrom(text) || 'SEMANA';
       const today = new Date();
-      const range =
-        period === 'HOJE'
-          ? { from: isoDay(today), to: isoDay(today) }
-          : trackingPeriodRange(period, today);
+      const todayIso = isoDay(today);
+      const range = period === 'HOJE' ? { from: todayIso, to: todayIso } : trackingPeriodRange(period, today);
       const label = { HOJE: 'hoje', SEMANA: 'desta semana', QUINZENA: 'desta quinzena', MES: 'deste mês' }[period];
+      const nameOf = (id?: string) => d.natures?.find((n) => n.id === id)?.name || '';
       const inRange = (date: string) => date >= range.from && date <= range.to;
-      const outs = d.movements.filter((m) => !isIncomeMovement(m) && m.status !== 'CANCELADA');
-      const paid = outs.filter((m) => m.status === 'REALIZADA' && inRange(outflowDate(m)));
-      const planned = outs.filter((m) => m.status !== 'REALIZADA' && inRange(m.dueDate));
+      const paid = d.movements.filter((m) => !isIncomeMovement(m) && m.status === 'REALIZADA' && inRange(outflowDate(m)));
+      // A pagar no período: o que a projeção ainda espera (contas, faturas e itens das naturezas, inclusive vencidos)
+      const window = d.forecasts[period === 'HOJE' ? 'SEMANA' : period];
+      const pending = (window?.entries || []).filter((e) => e.kind === 'SAIDA' && (period !== 'HOJE' || e.date <= todayIso));
       const paidTotal = paid.reduce((acc, m) => acc + outflowValue(m), 0);
-      const plannedTotal = planned.reduce((acc, m) => acc + m.amount, 0);
+      const plannedTotal = pending.reduce((acc, e) => acc + e.amount, 0);
       const heading = `**Gastos ${label}** (${period === 'HOJE' ? ddmm(range.from) : `${ddmm(range.from)} a ${ddmm(range.to)}`})`;
-      if (paid.length === 0 && planned.length === 0) {
+      if (paid.length === 0 && pending.length === 0) {
         return {
           text: `${heading}\n\nNão há saídas pagas nem previstas neste período.`,
           badge: 'GASTOS DO PERÍODO',
           chips: [CHIP_PAGAR, 'Quanto já gastei este mês?', CHIP_DUVIDA],
         };
       }
-      const byCategory = new Map<string, number>();
-      paid.forEach((m) => byCategory.set(m.category || 'Outros', (byCategory.get(m.category || 'Outros') || 0) + outflowValue(m)));
-      const top = [...byCategory.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+      const rows = new Map<string, { paid: number; planned: number }>();
+      const add = (name: string, key: 'paid' | 'planned', v: number) => {
+        const r = rows.get(name) || { paid: 0, planned: 0 };
+        r[key] += v;
+        rows.set(name, r);
+      };
+      paid.forEach((m) => natureShares(m, outflowValue(m), nameOf).forEach(([name, v]) => add(name, 'paid', v)));
+      pending.forEach((e) => add(e.natureId ? nameOf(e.natureId) || NO_NATURE : 'Contas e faturas', 'planned', e.amount));
+      const top = [...rows.entries()].sort((a, b) => b[1].paid + b[1].planned - (a[1].paid + a[1].planned)).slice(0, 8);
       const parts = [
         heading,
         `• Já pago: **${brl(paidTotal)}** (${paid.length} ${paid.length === 1 ? 'saída' : 'saídas'})`,
-        `• Ainda previsto: **${brl(plannedTotal)}** (${planned.length} ${planned.length === 1 ? 'conta' : 'contas'})`,
+        `• Ainda a pagar: **${brl(plannedTotal)}** (${pending.length} ${pending.length === 1 ? 'item' : 'itens'})`,
+        `\n**Por natureza:**\n${top
+          .map(([name, v]) => `• ${name}: ${[v.paid > 0 ? `pago **${brl(v.paid)}**` : '', v.planned > 0 ? `a pagar **${brl(v.planned)}**` : ''].filter(Boolean).join(' · ')}`)
+          .join('\n')}`,
       ];
-      if (top.length > 0) {
-        parts.push(`\nOnde mais saiu:\n${top.map(([cat, v]) => `• ${cat}: **${brl(v)}** (${pct(v, paidTotal)}%)`).join('\n')}`);
-      }
+      const hasOthers = rows.has(NO_NATURE);
       return {
         text: parts.join('\n'),
         badge: 'GASTOS DO PERÍODO',
-        chips: ['Últimas compras', 'O que vence nos próximos dias?', CHIP_DUVIDA],
+        chips: [...(hasOthers ? ['O que é "Sem natureza"?'] : []), 'Últimas compras', 'O que vence nos próximos dias?'],
+      };
+    }
+
+    case 'SEM_NATUREZA': {
+      const monthStart = `${isoDay(new Date()).slice(0, 7)}-01`;
+      const list = d.movements
+        .filter((m) => !isIncomeMovement(m) && m.status !== 'CANCELADA' && hasNoNature(m) && (m.invoiceBreakdown || []).length === 0 && outflowDate(m) >= monthStart)
+        .sort((a, b) => outflowValue(b) - outflowValue(a));
+      const explain =
+        '**Sem natureza** (ou "Outros") são os lançamentos que ainda não foram ligados a uma natureza do seu planejamento (Alimentação, Saúde…). Eles somam nos seus gastos, mas não aparecem nos tetos de nenhuma natureza.';
+      if (list.length === 0) {
+        return { text: `${explain}\n\nNeste mês não há lançamentos nessa situação. 👏`, badge: 'SEM NATUREZA', chips: ['Gastos desta semana', CHIP_DUVIDA] };
+      }
+      const total = list.reduce((acc, m) => acc + outflowValue(m), 0);
+      const shown = list.slice(0, 8);
+      const lines = shown.map((m) => `• ${ddmm(outflowDate(m))} · ${m.title} — **${brl(outflowValue(m))}**${m.status === 'REALIZADA' ? '' : ' _(previsto)_'}`);
+      return {
+        text: `${explain}\n\nNeste mês são **${list.length}** lançamento${list.length > 1 ? 's' : ''}, **${brl(total)}**:\n\n${lines.join('\n')}${list.length > shown.length ? `\n…e mais ${list.length - shown.length}.` : ''}\n\nPara organizar, abra o lançamento em *Lançamentos* e escolha a natureza.`,
+        badge: 'SEM NATUREZA',
+        chips: ['Gastos desta semana', 'Últimas compras', CHIP_DUVIDA],
+      };
+    }
+
+    case 'PREVISTO_REAL': {
+      const monthStart = `${isoDay(new Date()).slice(0, 7)}-01`;
+      const less = d.movements
+        .filter(
+          (m) =>
+            !isIncomeMovement(m) &&
+            m.status === 'REALIZADA' &&
+            outflowDate(m) >= monthStart &&
+            m.actualAmount !== undefined &&
+            m.actualAmount < m.amount - 0.005
+        )
+        .sort((a, b) => b.amount - b.actualAmount! - (a.amount - a.actualAmount!));
+      const overdue = (d.forecasts.MES?.entries || []).filter((e) => e.kind === 'SAIDA' && e.overdue).sort((a, b) => b.amount - a.amount);
+      if (less.length === 0 && overdue.length === 0) {
+        return {
+          text: 'Tudo o que estava previsto até agora foi registrado, e nenhum pagamento saiu abaixo do previsto neste mês. ✅',
+          badge: 'PREVISTO x REAL',
+          chips: ['Quanto já gastei este mês?', 'O que vence nos próximos dias?', CHIP_DUVIDA],
+        };
+      }
+      const parts: string[] = [];
+      if (overdue.length > 0) {
+        const total = overdue.reduce((acc, e) => acc + e.amount, 0);
+        const shown = overdue.slice(0, 8);
+        parts.push(
+          `**Previstos que venceram e ainda não foram registrados** — ${overdue.length} ${overdue.length === 1 ? 'item' : 'itens'}, **${brl(total)}**:\n${shown.map(entryLine).join('\n')}${overdue.length > shown.length ? `\n…e mais ${overdue.length - shown.length}.` : ''}\nSe já pagou algum, me conte (ex.: *"paguei a energia"*) para o saldo ficar certo.`
+        );
+      }
+      if (less.length > 0) {
+        const saved = less.reduce((acc, m) => acc + (m.amount - m.actualAmount!), 0);
+        const shown = less.slice(0, 8);
+        parts.push(
+          `**Pagos por menos que o previsto** — economia de **${brl(saved)}**:\n${shown
+            .map((m) => `• ${ddmm(outflowDate(m))} · ${m.title}: previsto ${brl(m.amount)} → pago **${brl(m.actualAmount!)}**`)
+            .join('\n')}${less.length > shown.length ? `\n…e mais ${less.length - shown.length}.` : ''}`
+        );
+      }
+      return {
+        text: parts.join('\n\n'),
+        badge: 'PREVISTO x REAL',
+        chips: ['O que vence nos próximos dias?', 'Quanto já gastei este mês?', CHIP_PAGAR],
       };
     }
 
