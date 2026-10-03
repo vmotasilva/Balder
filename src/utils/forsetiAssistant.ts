@@ -1098,3 +1098,105 @@ export const plainSummary = (text: string) =>
     .split('\n')
     .map((l) => l.replace(/[*_#>]/g, '').trim())
     .filter(Boolean)[0] || '';
+
+
+// ── Ações com confirmação (abrir telas, criar natureza e mapeamento) ─────────
+export type ForsetiActionRequest =
+  | { kind: 'NAVIGATE'; tab: string; label: string }
+  | { kind: 'CREATE_NATURE'; name: string }
+  | { kind: 'CREATE_MAPPING'; name: string; natureId: string; natureName: string }
+  | { kind: 'NEED_INFO'; reply: ForsetiReply };
+
+const SCREENS: { re: RegExp; tab: string; label: string }[] = [
+  { re: /\bnaturezas?\b|\btetos?\b/, tab: 'NATUREZAS', label: 'Naturezas & Tetos' },
+  { re: /\bmetas?\b/, tab: 'METAS', label: 'Metas' },
+  { re: /\bfaturas?\b|\bcartoes\b/, tab: 'FATURAS', label: 'Faturas de Cartão' },
+  { re: /movimentac|lancamentos?|\bextrato\b/, tab: 'MOVIMENTACOES', label: 'Lançamentos & Movimentações' },
+  { re: /emprestimos?/, tab: 'EMPRESTIMOS', label: 'Empréstimos' },
+  { re: /\bpainel\b|dashboard|projecao/, tab: 'DASHBOARD', label: 'Painel (Meu Dinheiro)' },
+  { re: /\binicio\b|\bhome\b/, tab: 'INICIO', label: 'Início' },
+  { re: /\bperfil\b|configurac|ajustes/, tab: 'PERFIL', label: 'Perfil & Configurações' },
+  { re: /oportunidades/, tab: 'OPORTUNIDADES', label: 'Oportunidades de Compra' },
+  { re: /compartilhad/, tab: 'COMPARTILHADO', label: 'Planejamento Compartilhado' },
+];
+
+const CREATE_VERB = /\b(cri(a|ar|e)|adicion(a|ar|e)|cadastr(a|ar|e)|nova|novo|incluir|inclua)\b/;
+const OPEN_VERB = /\b(abr(a|e|ir)|ir (para|pra|a)|va (para|pra)|vai (para|pra)|me (leva|leve)|navegue|acesse|acessar)\b/;
+
+const cleanName = (raw: string): string => {
+  const name = raw
+    .replace(/\s+(por favor|pra mim|para mim|ok)\s*$/i, '')
+    .replace(/^["“'\s]+|["”'\s.!?]+$/g, '')
+    .trim()
+    .slice(0, 40);
+  return name.length < 2 ? '' : name.charAt(0).toUpperCase() + name.slice(1);
+};
+
+/**
+ * Pedido de ação: abrir uma tela, criar natureza ou criar mapeamento. Nada é feito aqui: a conversa propõe
+ * e só executa depois do "Confirmar". `NEED_INFO` pede o que falta (nome, natureza).
+ */
+export function detectAction(text: string, natures: { id: string; name: string }[]): ForsetiActionRequest | null {
+  const t = stripAccents(text);
+  if (isQuestion(text)) return null;
+
+  // Criar mapeamento: "criar mapeamento Ração na natureza Pets"
+  if (CREATE_VERB.test(t) && /\bmapeamentos?\b/.test(t)) {
+    const m = text.match(/mapeamento\s+(?:chamad[oa]\s+|de nome\s+|:\s*)?["“']?(.+?)["”']?\s+(?:na|em|para|dentro d[aeo]s?)\s+(?:a\s+)?(?:natureza\s+)?["“']?(.+?)["”']?\s*[.!?]*$/i);
+    const mappingName = cleanName(m ? m[1] : text.replace(/^.*mapeamento\s+(?:chamad[oa]\s+|de nome\s+)?/i, ''));
+    if (!mappingName || mappingName.length > 40 || /^(na|em|para)\b/i.test(mappingName)) {
+      return { kind: 'NEED_INFO', reply: { text: 'Qual o nome do novo mapeamento e em qual natureza? Ex.: *criar mapeamento Ração na natureza Pets*.', badge: 'CRIAR MAPEAMENTO', chips: [] } };
+    }
+    const wanted = m ? stripAccents(m[2]).trim() : '';
+    const match =
+      natures.find((n) => stripAccents(n.name) === wanted) ||
+      (wanted ? natures.filter((n) => stripAccents(n.name).includes(wanted) || wanted.includes(stripAccents(n.name))) : []).find(Boolean);
+    if (!match) {
+      const options = natures.slice(0, 6);
+      return {
+        kind: 'NEED_INFO',
+        reply: {
+          text: `Em qual natureza devo criar o mapeamento **${mappingName}**?${wanted ? ` Não encontrei uma natureza chamada "${m![2].trim()}".` : ''}`,
+          badge: 'CRIAR MAPEAMENTO',
+          chips: options.map((n) => `Criar mapeamento ${mappingName} na natureza ${n.name}`),
+        },
+      };
+    }
+    return { kind: 'CREATE_MAPPING', name: mappingName, natureId: match.id, natureName: match.name };
+  }
+
+  // Criar natureza: "criar natureza Pets"
+  if (CREATE_VERB.test(t) && /\bnaturezas?\b/.test(t)) {
+    const m = text.match(/natureza\s+(?:chamad[oa]\s+|de nome\s+|com (?:o )?nome(?: de)?\s+|:\s*)?["“']?([^"”'\n,.;]{2,40})/i);
+    const name = m ? cleanName(m[1]) : '';
+    if (!name || /^(nova|de gastos|para)\b/i.test(name)) {
+      return { kind: 'NEED_INFO', reply: { text: 'Qual o nome da nova natureza? Ex.: *criar natureza Pets*.', badge: 'CRIAR NATUREZA', chips: [] } };
+    }
+    return { kind: 'CREATE_NATURE', name };
+  }
+
+  // Abrir tela: "abrir naturezas", "ir para metas"
+  if (OPEN_VERB.test(t)) {
+    const screen = SCREENS.find((s) => s.re.test(t));
+    if (screen) return { kind: 'NAVIGATE', tab: screen.tab, label: screen.label };
+  }
+  return null;
+}
+
+/** Texto e detalhes da confirmação de cada ação. */
+export function describeAction(a: Exclude<ForsetiActionRequest, { kind: 'NEED_INFO' }>): { title: string; details: string[] } {
+  switch (a.kind) {
+    case 'NAVIGATE':
+      return { title: `Abrir a tela **${a.label}**?`, details: [] };
+    case 'CREATE_NATURE':
+      return {
+        title: `Criar a natureza **${a.name}**?`,
+        details: ['Nome: ' + a.name, 'Sem itens por enquanto: você completa depois em Naturezas.'],
+      };
+    case 'CREATE_MAPPING':
+      return {
+        title: `Criar o mapeamento **${a.name}** na natureza **${a.natureName}**?`,
+        details: ['Todos os meses, sem itens por enquanto: você adiciona os itens depois.'],
+      };
+  }
+}

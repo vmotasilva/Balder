@@ -38,7 +38,7 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
   initialDraft = '',
   onOpenOnboarding,
 }) => {
-  const { chatHistory, sendMessageToCopilot, respondToCopilotOption, reconcileReceiptData, natures, activeCheckpoint, movements } = useFinancial();
+  const { chatHistory, sendMessageToCopilot, respondToCopilotOption, confirmForsetiAction, reconcileReceiptData, natures, activeCheckpoint, movements } = useFinancial();
   const { viewing } = useAccountScope();
   const [inputQuery, setInputQuery] = useState(initialDraft);
   const [attachedImages, setAttachedImages] = useState<CopilotAttachment[]>([]);
@@ -461,6 +461,26 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
                             </div>
                           </button>
                         ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Ação proposta pela Forseti: só acontece depois do Confirmar */}
+                  {msg.pendingAction && (
+                    <div className="copilot-interactive-options-card animate-fade-in">
+                      <div className="interactive-options-grid">
+                        <button type="button" className="interactive-option-btn" onClick={() => confirmForsetiAction(msg.id, true)}>
+                          <span className="option-icon">✅</span>
+                          <div className="option-text-col">
+                            <span className="option-label">Confirmar</span>
+                          </div>
+                        </button>
+                        <button type="button" className="interactive-option-btn" onClick={() => confirmForsetiAction(msg.id, false)}>
+                          <span className="option-icon">✖️</span>
+                          <div className="option-text-col">
+                            <span className="option-label">Cancelar</span>
+                          </div>
+                        </button>
                       </div>
                     </div>
                   )}

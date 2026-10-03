@@ -108,6 +108,8 @@ import {
   brl,
   categoryFromChip,
   detectAmbiguity,
+  detectAction,
+  describeAction,
   detectDoubt,
   type DoubtId,
   inferExpenseCategory,
@@ -259,6 +261,10 @@ interface FinancialContextType {
     invoiceTitle: string;
   };
   respondToCopilotOption: (messageId: string, option: CopilotInteractiveOption) => void;
+  /** Confirma (ou cancela) a ação que a Forseti propôs no chat: abrir tela, criar natureza ou mapeamento. */
+  confirmForsetiAction: (messageId: string, accept: boolean) => void;
+  /** O app registra aqui como trocar de tela (a Forseti abre telas a pedido, depois da confirmação). */
+  registerForsetiNavigator: (navigate: ((tab: string) => void) | null) => void;
   /** Registro de pagamento/recebimento em etapas: avança a etapa e/ou corrige os dados do lançamento. */
   updatePaymentWizard: (
     messageId: string,
@@ -503,6 +509,8 @@ const SHARED_READ_ONLY_SAFE = new Set([
   // Forseti: conversa liberada; ela mesma confere o papel antes de gravar (forsetiBlockedInShared)
   'sendMessageToCopilot',
   'respondToCopilotOption',
+  'confirmForsetiAction',
+  'registerForsetiNavigator',
   'updatePaymentWizard',
   'confirmPaymentWizard',
   'cancelPaymentWizard',
@@ -3645,6 +3653,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const changedSubject =
           MAIN_CHIPS.includes(trimmed) ||
           !!registrationKind(trimmed) ||
+          !!detectAction(trimmed, natures) ||
           (!cardStep && !!detectDoubt(trimmed) && parseAmount(trimmed) === null);
         if (!changedSubject) requestTrailRef.current.push(trimmed);
         if (changedSubject) {
@@ -3789,6 +3798,31 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const isNewLoan = /novo empr[eé]stimo|pegar empr[eé]stimo|tomar empr[eé]stimo/i.test(trimmed);
       const isScreenAnalysis = /analis|auditar|diagn[oó]stico|esta tela|tela de/i.test(trimmed);
       if (!isNewLoan && !isScreenAnalysis) {
+        // 0. Ações (abrir tela, criar natureza ou mapeamento): a Forseti propõe e só faz depois do "Confirmar"
+        const action = detectAction(trimmed, natures);
+        if (action) {
+          if (action.kind === 'NEED_INFO') {
+            reply(action.reply);
+            return;
+          }
+          if (action.kind !== 'NAVIGATE' && forsetiBlockedInShared('crio naturezas nem mapeamentos')) return;
+          const { title, details } = describeAction(action);
+          const pendingAction = { ...action, request: trimmed, title, details };
+          logForsetiActivity({ kind: 'CONVERSA', request: trimmed, result: title.replace(/\*\*/g, '') });
+          setChatHistory((prev) => [
+            ...prev.map((m) => (m.pendingAction ? { ...m, pendingAction: undefined } : m)),
+            {
+              id: `ast_${Date.now()}`,
+              role: 'assistant',
+              content: `${title}${details.length > 0 ? `\n\n${details.map((d) => `• ${d}`).join('\n')}` : ''}`,
+              timestamp: 'Agora',
+              actionBadge: 'CONFIRMAR AÇÃO',
+              pendingAction,
+            },
+          ]);
+          return;
+        }
+
         // 1. Registro em linguagem natural ("paguei 50 no mercado", "vou receber 1.200 dia 10")
         const kind = registrationKind(trimmed);
         if (kind) {
@@ -3932,6 +3966,78 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       option = { id: 'opt_wizard', label: `${w.institution} (débito)`, payload: { bank, type: 'PAGAR', category } };
     }
     respondToCopilotOption(messageId, option);
+  };
+
+  const forsetiNavigatorRef = useRef<((tab: string) => void) | null>(null);
+  const registerForsetiNavigator = (navigate: ((tab: string) => void) | null) => {
+    forsetiNavigatorRef.current = navigate;
+  };
+
+  // Confirmação (ou cancelamento) de uma ação proposta pela Forseti no chat
+  const confirmForsetiAction = (messageId: string, accept: boolean) => {
+    const action = chatHistory.find((m) => m.id === messageId)?.pendingAction;
+    if (!action) return;
+    const say = (content: string, chips: string[] = [], badge = 'AÇÃO') => {
+      logForsetiActivity({ kind: 'CONVERSA', request: action.request, result: content.replace(/\*\*/g, '') });
+      setChatHistory((prev) => [
+        ...prev.map((m) => (m.pendingAction ? { ...m, pendingAction: undefined } : m)),
+        { id: `usr_${Date.now()}`, role: 'user', content: accept ? '✅ Sim, pode fazer' : '✖️ Não, cancelar', timestamp: 'Agora' },
+        { id: `ast_${Date.now() + 1}`, role: 'assistant', content, timestamp: 'Agora', actionBadge: badge, suggestedFollowUps: chips },
+      ]);
+    };
+    const norm = (v: string) => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+    if (!accept) {
+      say('Tudo bem, não fiz nada. Se precisar, é só pedir.', MAIN_CHIPS, 'CANCELADO');
+      return;
+    }
+
+    if (action.kind === 'NAVIGATE') {
+      say(`Abrindo **${action.label}**…`, [], 'TELA ABERTA');
+      forsetiNavigatorRef.current?.(action.tab);
+      return;
+    }
+
+    if (forsetiBlockedInShared('crio naturezas nem mapeamentos')) return;
+
+    if (action.kind === 'CREATE_NATURE') {
+      if (natures.some((n) => norm(n.name) === norm(action.name))) {
+        say(`Você já tem a natureza **${action.name}**. Não criei outra igual.`, ['Abrir naturezas'], 'JÁ EXISTE');
+        return;
+      }
+      addNature({
+        name: action.name,
+        icon: '🏷️',
+        color: '#10B981',
+        type: 'VARIAVEL',
+        description: '',
+        overCeilingJustification: '',
+        justificationHistory: [],
+        keywords: [],
+      });
+      say(
+        `✅ Natureza **${action.name}** criada.\n\nAgora você pode criar um mapeamento nela ou abrir Naturezas para completar.`,
+        [`Criar mapeamento Despesas na natureza ${action.name}`, 'Abrir naturezas'],
+        'NATUREZA CRIADA'
+      );
+      return;
+    }
+
+    const nature = natures.find((n) => n.id === action.natureId);
+    if (!nature) {
+      say('Não encontrei mais essa natureza. Nada foi criado.', ['Abrir naturezas'], 'NÃO FEITO');
+      return;
+    }
+    if (nature.mappings.some((m) => norm(m.name) === norm(action.name))) {
+      say(`A natureza **${nature.name}** já tem o mapeamento **${action.name}**. Não criei outro igual.`, ['Abrir naturezas'], 'JÁ EXISTE');
+      return;
+    }
+    addMappingToNature(nature.id, action.name);
+    say(
+      `✅ Mapeamento **${action.name}** criado na natureza **${nature.name}**.\n\nEle começa sem itens: abra Naturezas para adicionar os itens e valores.`,
+      ['Abrir naturezas'],
+      'MAPEAMENTO CRIADO'
+    );
   };
 
   const respondToCopilotOption = (messageId: string, option: CopilotInteractiveOption) => {
@@ -5373,6 +5479,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         sendMessageToCopilot,
         associateReceiptItemsToInvoice,
         respondToCopilotOption,
+        confirmForsetiAction,
+        registerForsetiNavigator,
         updatePaymentWizard,
         confirmPaymentWizard,
         cancelPaymentWizard,

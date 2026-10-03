@@ -79,7 +79,7 @@ export function AppContent() {
       return null;
     }
   });
-  const { viewPreferences, activeCheckpoint } = useFinancial();
+  const { viewPreferences, activeCheckpoint, registerForsetiNavigator } = useFinancial();
   const homeTab: TabId =
     viewPreferences.homeScreen === 'PAINEL'
       ? 'DASHBOARD'
@@ -145,6 +145,12 @@ export function AppContent() {
       setIsCopilotOpen(false);
     }
   };
+
+  // A Forseti abre telas a pedido (depois da confirmação no chat)
+  useEffect(() => {
+    registerForsetiNavigator((tab) => handleSelectTab(tab as TabId));
+    return () => registerForsetiNavigator(null);
+  });
 
   const handleOpenNewMovement = (
     type: MovementType = 'PAGAR',
