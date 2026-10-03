@@ -26,3 +26,6 @@ export type SpendPeriod = (typeof SPEND_PERIODS)[number];
 
 export const isForsetiIntent = (v: unknown): v is ForsetiIntent => FORSETI_INTENTS.includes(v as ForsetiIntent);
 export const isSpendPeriod = (v: unknown): v is SpendPeriod => SPEND_PERIODS.includes(v as SpendPeriod);
+
+/** Trechos que identificam as respostas em que a Forseti não entendeu a frase (resposta padrão ou pergunta A/B/C). */
+export const NOT_UNDERSTOOD_MARKERS = ['Não entendi bem', 'Toque na opção ou escreva de outro jeito'] as const;
