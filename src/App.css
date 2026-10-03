@@ -24202,3 +24202,17 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
 
 .home-purchase-list li.is-clickable { cursor: pointer; }
 .home-purchase-list li.is-clickable:hover { background: rgba(56, 189, 248, 0.08); }
+
+/* Movimentações do período: valor tachado (o que teria sido realizado) e, embaixo, o valor zerado */
+.period-mov-amount {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.period-mov-struck {
+  font-size: 0.8em;
+  font-weight: 500;
+  opacity: 0.65;
+  text-decoration: line-through;
+}
