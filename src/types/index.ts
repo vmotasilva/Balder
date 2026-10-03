@@ -331,6 +331,18 @@ export interface ForsetiActivity {
   undoneAt?: string;
 }
 
+/** Ação (abrir tela, criar natureza ou mapeamento) esperando a confirmação da pessoa no chat. */
+export type ForsetiPendingAction = {
+  /** O que a pessoa pediu (para o histórico de solicitações). */
+  request: string;
+  title: string;
+  details: string[];
+} & (
+  | { kind: 'NAVIGATE'; tab: string; label: string }
+  | { kind: 'CREATE_NATURE'; name: string }
+  | { kind: 'CREATE_MAPPING'; name: string; natureId: string; natureName: string }
+);
+
 export interface CopilotMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -345,6 +357,8 @@ export interface CopilotMessage {
   suggestedFollowUps?: string[];
   parsedEntry?: Partial<Movement>;
   pendingConfirmation?: CopilotPendingConfirmation;
+  /** Ação proposta pela Forseti que só acontece depois do "Confirmar" da pessoa. */
+  pendingAction?: ForsetiPendingAction;
   receiptReconciliation?: ReceiptReconciliationData;
 }
 
