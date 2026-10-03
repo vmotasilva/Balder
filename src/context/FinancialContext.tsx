@@ -3489,7 +3489,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const lower = trimmed.toLowerCase();
 
       const reply = (r: ForsetiReply, extra?: Partial<CopilotMessage>) => {
-        logForsetiActivity({ kind: 'CONVERSA', request: trimmed, result: r.text });
+        logForsetiActivity({ kind: 'CONVERSA', request: trimmed, result: r.text.replace(/\{(?:ok|bad)\|([^}]*)\}/g, '$1') });
         setChatHistory((prev) => [
           ...(r.pendingAction ? prev.map((m) => (m.pendingAction ? { ...m, pendingAction: undefined } : m)) : prev),
           {
