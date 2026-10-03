@@ -23068,14 +23068,16 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .pay-wizard-custom input { width: 70px; }
 .pay-wizard-hint { color: var(--text-muted); }
 .pay-wizard-summary {
-  display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; align-items: center; margin: 0;
+  display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 6px 10px; align-items: center; margin: 0;
 }
-.pay-wizard-summary dt { color: var(--text-muted); }
-.pay-wizard-summary dd { margin: 0; }
-.pay-wizard-summary input {
-  width: 100%; padding: 4px 8px; border-radius: var(--radius-sm, 6px);
+.pay-wizard-summary dt { color: var(--text-muted); font-size: 12px; line-height: 1.2; overflow-wrap: break-word; }
+.pay-wizard-summary dd { margin: 0; min-width: 0; }
+.pay-wizard-summary input,
+.pay-wizard-summary select {
+  width: 100%; min-width: 0; box-sizing: border-box; padding: 4px 8px; font-size: 13px; border-radius: var(--radius-sm, 6px);
   background: transparent; border: 1px solid var(--border-default); color: var(--text-primary);
 }
+.pay-wizard-summary select { background: var(--bg-input); }
 .pay-wizard-edit-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .pay-wizard-link { background: none; border: none; color: var(--accent-cyan); cursor: pointer; font-size: 12px; }
 .pay-wizard-actions { display: flex; justify-content: flex-end; gap: 8px; }
