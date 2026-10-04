@@ -4,7 +4,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { FinancialProvider, useFinancial } from './context/FinancialContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AccountScopeProvider, useAccountScope } from './context/AccountScopeContext';
-import { PlanScopeProvider, usePlans } from './context/PlanScopeContext';
+import { MAIN_PLAN_KEY, PlanScopeProvider, usePlans } from './context/PlanScopeContext';
 import { SharedAccountBanner } from './components/SharedAccountBanner';
 import { PENDING_TAB_KEY } from './components/PlanningSwitcher';
 import { InviteAcceptDialog, captureInviteFromUrl } from './components/InviteAcceptDialog';
@@ -34,6 +34,9 @@ import { ForsetiSetupModal } from './components/ForsetiSetupModal';
 import { topicFromStepIndex, type SetupTopic } from './utils/setupCatalog';
 import type { Movement, MovementType, SimulationPresetId } from './types';
 import './App.css';
+
+/** Reabre o "+" depois da troca de planejamento pedida na visão consolidada. */
+const PENDING_NEW_RECORD_KEY = 'balder_pending_new_record';
 
 // Link de convite (#convite=TOKEN): guarda antes do login para não perder no redirecionamento
 captureInviteFromUrl();
@@ -99,7 +102,9 @@ export function AppContent() {
   const planningOnly = viewing?.scope === 'PLANEJAMENTO';
   const shownTab: TabId = planningOnly ? 'COMPARTILHADO' : activeTab;
   // Visão consolidada (soma dos planejamentos marcados): ocupa o lugar da tela até o usuário escolher outra
-  const { consolidated, setConsolidated } = usePlans();
+  const { consolidated, setConsolidated, compareIds, plans, activePlanId, switchPlan } = usePlans();
+  // Na visão consolidada o lançamento precisa de um planejamento de destino, confirmado antes de começar
+  const [planChoiceOpen, setPlanChoiceOpen] = useState(false);
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   // Texto que já abre escrito no campo do chat da Forseti (ex.: ditado na Início)
   const [forsetiDraft, setForsetiDraft] = useState('');
@@ -113,7 +118,16 @@ export function AppContent() {
 
   // Global Modals State
   const [newMovementModalOpen, setNewMovementModalOpen] = useState(false);
-  const [recordPickerOpen, setRecordPickerOpen] = useState(false);
+  // Depois de escolher o destino na visão consolidada a tela é recriada no planejamento escolhido: o "+" reabre lá
+  const [recordPickerOpen, setRecordPickerOpen] = useState(() => {
+    try {
+      const pending = sessionStorage.getItem(PENDING_NEW_RECORD_KEY);
+      if (pending) sessionStorage.removeItem(PENDING_NEW_RECORD_KEY);
+      return !!pending;
+    } catch {
+      return false;
+    }
+  });
   // Lançamento começado e deixado em suspensão por 5 minutos (retomado pelo botão da barra superior)
   const SUSPEND_MS = 5 * 60 * 1000;
   const [suspended, setSuspended] = useState<{ draft: MovementDraft; expiresAt: number } | null>(null);
@@ -174,8 +188,27 @@ export function AppContent() {
 
   // "+": com um lançamento em suspensão, pergunta se quer retomá-lo antes de começar outro
   const openNewRecord = () => {
+    if (consolidated) {
+      setPlanChoiceOpen(true);
+      return;
+    }
     if (suspended && suspended.expiresAt > Date.now()) setResumePromptOpen(true);
     else setRecordPickerOpen(true);
+  };
+  const chooseTargetPlan = (key: string) => {
+    setPlanChoiceOpen(false);
+    const target = key === MAIN_PLAN_KEY ? null : key;
+    setConsolidated(false);
+    if (target === activePlanId) {
+      setRecordPickerOpen(true);
+      return;
+    }
+    try {
+      sessionStorage.setItem(PENDING_NEW_RECORD_KEY, '1');
+    } catch {
+      // sem armazenamento: o planejamento muda e o "+" é tocado de novo
+    }
+    switchPlan(target);
   };
   const resumeSuspended = () => {
     if (!suspended) return;
@@ -390,6 +423,22 @@ export function AppContent() {
           <button type="button" className="btn btn-primary" onClick={resumeSuspended}>
             Retomar
           </button>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={planChoiceOpen}
+        onClose={() => setPlanChoiceOpen(false)}
+        title="Em qual planejamento lançar?"
+        subtitle="Você está na visão consolidada, que é só leitura. O lançamento será feito dentro do planejamento que escolher."
+        maxWidth="460px"
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {compareIds.map((key) => (
+            <button key={key} type="button" className="btn btn-outline" onClick={() => chooseTargetPlan(key)}>
+              {key === MAIN_PLAN_KEY ? 'Meu planejamento (principal)' : plans.find((p) => p.id === key)?.name || 'Planejamento'}
+            </button>
+          ))}
         </div>
       </Modal>
 
