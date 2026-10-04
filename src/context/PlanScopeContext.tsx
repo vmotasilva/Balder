@@ -17,6 +17,13 @@ interface PlanScopeContextType {
   activePlan: Plan | null;
   createPlan: (name: string, icon?: string) => Promise<{ ok: true; plan: Plan } | { ok: false; error: CreatePlanError | 'NOME' | 'LIMITE' }>;
   renamePlan: (id: string, name: string) => Promise<void>;
+  /** Nome e ícone do planejamento principal. */
+  mainPlan: { name: string; icon?: string };
+  /** Altera nome e/ou ícone de um planejamento (null = o principal). Devolve false se o nome for inválido. */
+  updatePlan: (id: string | null, changes: { name?: string; icon?: string }) => Promise<boolean>;
+  /** Configurações do planejamento em uso (nome, ícone, marco, período, dados). */
+  settingsOpen: boolean;
+  setSettingsOpen: (open: boolean) => void;
   deletePlan: (id: string) => Promise<boolean>;
   /** Troca de planejamento (null = o principal). A tela é recriada com os dados do escolhido. */
   switchPlan: (id: string | null) => void;
@@ -33,6 +40,8 @@ const PlanScopeContext = createContext<PlanScopeContextType | undefined>(undefin
 export const MAX_EXTRA_PLANS = 5;
 /** Chave do planejamento principal na seleção da visão consolidada. */
 export const MAIN_PLAN_KEY = 'main';
+export const DEFAULT_MAIN_NAME = 'Meu planejamento';
+const mainKey = (userId: string) => `balder_main_plan_${userId}`;
 const compareKey = (userId: string) => `balder_compare_plans_${userId}`;
 const listKey = (userId: string) => `balder_plans_${userId}`;
 const activeKey = (userId: string) => `balder_active_plan_${userId}`;
@@ -96,6 +105,34 @@ export const PlanScopeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   });
   const [consolidatedOpen, setConsolidatedOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [mainPlan, setMainPlan] = useState<{ name: string; icon?: string }>(() => {
+    try {
+      const raw = userId ? JSON.parse(localStorage.getItem(mainKey(userId)) || 'null') : null;
+      if (raw && typeof raw.name === 'string') return raw;
+    } catch {
+      // sem armazenamento local
+    }
+    return { name: DEFAULT_MAIN_NAME };
+  });
+
+  // Nome e ícone do principal vindos da nuvem
+  useEffect(() => {
+    if (!userId) return;
+    let alive = true;
+    void PlansService.getMain().then((cloud) => {
+      if (!alive || !cloud) return;
+      setMainPlan(cloud);
+      try {
+        localStorage.setItem(mainKey(userId), JSON.stringify(cloud));
+      } catch {
+        // sem armazenamento local
+      }
+    });
+    return () => {
+      alive = false;
+    };
+  }, [userId]);
 
   // Atualiza a lista com a da nuvem (outro aparelho pode ter criado ou apagado planejamentos)
   useEffect(() => {
@@ -182,6 +219,31 @@ export const PlanScopeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     [plans, persistPlans]
   );
 
+  const updatePlan = useCallback<PlanScopeContextType['updatePlan']>(
+    async (id, changes) => {
+      const name = changes.name === undefined ? undefined : changes.name.trim().slice(0, 40);
+      if (name !== undefined && name.length < 2) return false;
+      if (id === null) {
+        const next = { ...mainPlan, ...(name !== undefined ? { name } : {}), ...(changes.icon !== undefined ? { icon: changes.icon } : {}) };
+        setMainPlan(next);
+        if (userId) {
+          try {
+            localStorage.setItem(mainKey(userId), JSON.stringify(next));
+          } catch {
+            // sem armazenamento local
+          }
+        }
+        await PlansService.saveMain(next);
+        return true;
+      }
+      await persistPlans(
+        plans.map((p) => (p.id === id ? { ...p, ...(name !== undefined ? { name } : {}), ...(changes.icon !== undefined ? { icon: changes.icon } : {}) } : p))
+      );
+      return true;
+    },
+    [mainPlan, plans, persistPlans, userId]
+  );
+
   const deletePlan = useCallback(
     async (id: string) => {
       if (!userId || !plans.some((p) => p.id === id)) return false;
@@ -232,6 +294,10 @@ export const PlanScopeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       activePlan: plans.find((p) => p.id === effectiveActiveId) || null,
       createPlan,
       renamePlan,
+      mainPlan,
+      updatePlan,
+      settingsOpen,
+      setSettingsOpen,
       deletePlan,
       switchPlan,
       compareIds,
@@ -239,7 +305,7 @@ export const PlanScopeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       consolidated,
       setConsolidated: setConsolidatedOpen,
     }),
-    [plans, effectiveActiveId, createPlan, renamePlan, deletePlan, switchPlan, compareIds, toggleCompare, consolidated]
+    [plans, effectiveActiveId, createPlan, renamePlan, mainPlan, updatePlan, settingsOpen, deletePlan, switchPlan, compareIds, toggleCompare, consolidated]
   );
 
   return <PlanScopeContext.Provider value={value}>{children}</PlanScopeContext.Provider>;
@@ -249,7 +315,7 @@ export const usePlans = (): PlanScopeContextType => {
   const ctx = useContext(PlanScopeContext);
   if (!ctx) {
     // Fora do provedor (ex.: testes): só o planejamento principal
-    return { plans: [], activePlanId: null, activePlan: null, createPlan: async () => ({ ok: false, error: 'ERRO' }), renamePlan: async () => {}, deletePlan: async () => false, switchPlan: () => {}, compareIds: [], toggleCompare: () => {}, consolidated: false, setConsolidated: () => {} };
+    return { plans: [], activePlanId: null, activePlan: null, createPlan: async () => ({ ok: false, error: 'ERRO' }), renamePlan: async () => {}, mainPlan: { name: DEFAULT_MAIN_NAME }, updatePlan: async () => false, settingsOpen: false, setSettingsOpen: () => {}, deletePlan: async () => false, switchPlan: () => {}, compareIds: [], toggleCompare: () => {}, consolidated: false, setConsolidated: () => {} };
   }
   return ctx;
 };

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Briefcase, Check, CheckSquare, ChevronDown, Layers, Pencil, Plus, Square, Star, Trash2, User, UserPlus, Users } from 'lucide-react';
+import { Briefcase, Check, CheckSquare, ChevronDown, Layers, Plus, Settings, Square, Star, User, UserPlus, Users } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAccountScope } from '../context/AccountScopeContext';
 import { MAIN_PLAN_KEY, MAX_EXTRA_PLANS, usePlans } from '../context/PlanScopeContext';
@@ -20,7 +20,7 @@ interface PlanningSwitcherProps {
 export const PlanningSwitcher: React.FC<PlanningSwitcherProps> = ({ onPlanWithOthers }) => {
   const { user } = useAuth();
   const { viewing, openSharedAccount, backToOwnAccount } = useAccountScope();
-  const { plans, activePlanId, activePlan, createPlan, renamePlan, deletePlan, switchPlan, compareIds, toggleCompare, consolidated, setConsolidated } = usePlans();
+  const { plans, activePlanId, activePlan, createPlan, mainPlan, setSettingsOpen, switchPlan, compareIds, toggleCompare, consolidated, setConsolidated } = usePlans();
   const [open, setOpen] = useState(false);
   // Criação de um planejamento próprio (formulário dentro do menu)
   const [creating, setCreating] = useState(false);
@@ -60,7 +60,7 @@ export const PlanningSwitcher: React.FC<PlanningSwitcherProps> = ({ onPlanWithOt
 
   if (!user || user.isGuest) return null;
 
-  const currentLabel = consolidated ? `Consolidado (${compareIds.length})` : viewing ? viewing.ownerName : activePlan ? activePlan.name : 'Meu planejamento';
+  const currentLabel = consolidated ? `Consolidado (${compareIds.length})` : viewing ? viewing.ownerName : activePlan ? activePlan.name : mainPlan.name;
   const inMain = !viewing && !activePlanId && !consolidated;
   // Somar só faz sentido com mais de um planejamento próprio
   const canCompare = plans.length > 0 && !viewing;
@@ -120,24 +120,17 @@ export const PlanningSwitcher: React.FC<PlanningSwitcherProps> = ({ onPlanWithOt
     );
   };
 
-  const onRename = async (id: string, current: string) => {
-    const name = window.prompt('Novo nome do planejamento:', current);
-    if (name && name.trim() && name.trim() !== current) await renamePlan(id, name);
+  /** Abre a configuração do planejamento: se não for o ativo, troca para ele primeiro. */
+  const openSettings = (id: string | null) => {
+    setOpen(false);
+    setConsolidated(false);
+    if (viewing) backToOwnAccount();
+    if (id !== activePlanId) switchPlan(id);
+    setSettingsOpen(true);
   };
 
-  const onDelete = async (id: string, name: string) => {
-    const typed = window.prompt(
-      `Excluir "${name}" apaga TODOS os dados dele (lançamentos, naturezas, contas, metas) e não dá para desfazer.\n\nPara confirmar, digite o nome do planejamento:`
-    );
-    if (typed === null) return;
-    if (typed.trim().toLowerCase() !== name.trim().toLowerCase()) {
-      window.alert('O nome não confere. Nada foi excluído.');
-      return;
-    }
-    setOpen(false);
-    const ok = await deletePlan(id);
-    if (!ok) window.alert('Não consegui excluir agora. Nada foi apagado por completo; tente de novo.');
-  };
+  const iconOf = (icon: string | undefined, fallback: React.ReactNode) =>
+    icon ? <span className="planning-switch-emoji" aria-hidden="true">{icon}</span> : fallback;
 
   return (
     <div className="planning-switch" ref={rootRef}>
@@ -152,7 +145,7 @@ export const PlanningSwitcher: React.FC<PlanningSwitcherProps> = ({ onPlanWithOt
         aria-expanded={open}
         title="Alternar planejamento"
       >
-        {viewing ? <Users size={15} /> : activePlan ? <Briefcase size={15} /> : <User size={15} />}
+        {viewing ? <Users size={15} /> : activePlan ? iconOf(activePlan.icon, <Briefcase size={15} />) : iconOf(mainPlan.icon, <User size={15} />)}
         <span className="planning-switch-text">{currentLabel}</span>
         <ChevronDown size={14} />
       </button>
@@ -162,14 +155,17 @@ export const PlanningSwitcher: React.FC<PlanningSwitcherProps> = ({ onPlanWithOt
           <span className="planning-switch-caption">Meus planejamentos</span>
           <div className="planning-switch-row">
             <button type="button" role="menuitemradio" aria-checked={inMain} className="planning-switch-item" onClick={goMain}>
-              <User size={15} />
+              {iconOf(mainPlan.icon, <User size={15} />)}
               <span className="planning-switch-item-text">
-                <strong>Meu planejamento</strong>
+                <strong>{mainPlan.name}</strong>
                 <small>Principal</small>
               </span>
               {inMain && <Check size={15} className="text-cyan" />}
             </button>
-            {canCompare && compareToggle(MAIN_PLAN_KEY, 'Meu planejamento')}
+            {canCompare && compareToggle(MAIN_PLAN_KEY, mainPlan.name)}
+            <button type="button" className="planning-switch-mini" title="Configurar" aria-label={`Configurar ${mainPlan.name}`} onClick={() => openSettings(null)}>
+              <Settings size={14} />
+            </button>
           </div>
 
           {plans.map((plan) => {
@@ -177,7 +173,7 @@ export const PlanningSwitcher: React.FC<PlanningSwitcherProps> = ({ onPlanWithOt
             return (
               <div key={plan.id} className="planning-switch-row">
                 <button type="button" role="menuitemradio" aria-checked={active} className="planning-switch-item" onClick={() => goPlan(plan.id)}>
-                  <Briefcase size={15} />
+                  {iconOf(plan.icon, <Briefcase size={15} />)}
                   <span className="planning-switch-item-text">
                     <strong>{plan.name}</strong>
                     <small>Independente</small>
@@ -185,11 +181,8 @@ export const PlanningSwitcher: React.FC<PlanningSwitcherProps> = ({ onPlanWithOt
                   {active && <Check size={15} className="text-cyan" />}
                 </button>
                 {canCompare && compareToggle(plan.id, plan.name)}
-                <button type="button" className="planning-switch-mini" title="Renomear" aria-label={`Renomear ${plan.name}`} onClick={() => void onRename(plan.id, plan.name)}>
-                  <Pencil size={13} />
-                </button>
-                <button type="button" className="planning-switch-mini is-danger" title="Excluir" aria-label={`Excluir ${plan.name}`} onClick={() => void onDelete(plan.id, plan.name)}>
-                  <Trash2 size={13} />
+                <button type="button" className="planning-switch-mini" title="Configurar" aria-label={`Configurar ${plan.name}`} onClick={() => openSettings(plan.id)}>
+                  <Settings size={14} />
                 </button>
               </div>
             );

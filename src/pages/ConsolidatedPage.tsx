@@ -20,15 +20,15 @@ type Loaded = { summary: PlanSummary } | { error: true };
  */
 export const ConsolidatedPage: React.FC = () => {
   const { user } = useAuth();
-  const { plans, compareIds, setConsolidated } = usePlans();
+  const { plans, compareIds, setConsolidated, mainPlan } = usePlans();
   const [period, setPeriod] = useState<TrackingPeriod>('SEMANA');
   const [loaded, setLoaded] = useState<Record<string, Loaded>>({});
   const [loading, setLoading] = useState(true);
 
   const keys = compareIds.join('|');
   const nameOf = useCallback(
-    (key: string) => (key === MAIN_PLAN_KEY ? 'Meu planejamento' : plans.find((p) => p.id === key)?.name || 'Planejamento'),
-    [plans]
+    (key: string) => (key === MAIN_PLAN_KEY ? mainPlan.name : plans.find((p) => p.id === key)?.name || 'Planejamento'),
+    [plans, mainPlan.name]
   );
 
   const load = useCallback(async () => {

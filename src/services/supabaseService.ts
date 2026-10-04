@@ -1054,6 +1054,28 @@ export const PlansService = {
     }
   },
 
+  /** Nome e ícone do planejamento principal (null = padrão). */
+  async getMain(): Promise<{ name: string; icon?: string } | null> {
+    if (!isSupabaseConfigured) return null;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const main = user?.user_metadata?.balder_main_plan;
+      return main && typeof main.name === 'string' ? main : null;
+    } catch {
+      return null;
+    }
+  },
+
+  async saveMain(main: { name: string; icon?: string }): Promise<boolean> {
+    if (!isSupabaseConfigured) return false;
+    try {
+      const { error } = await supabase.auth.updateUser({ data: { balder_main_plan: main } });
+      return !error;
+    } catch {
+      return false;
+    }
+  },
+
   async save(plans: PlanItem[]): Promise<boolean> {
     if (!isSupabaseConfigured) return false;
     try {

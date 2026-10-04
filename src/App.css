@@ -24477,3 +24477,16 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
 @media (max-width: 720px) {
   .consol .home-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Configuração do planejamento */
+.planning-switch-emoji { display: inline-flex; width: 15px; justify-content: center; font-size: 14px; line-height: 1; }
+.plan-settings { display: flex; flex-direction: column; gap: 18px; }
+.plan-settings section { display: flex; flex-direction: column; gap: 8px; padding-bottom: 16px; border-bottom: 1px solid var(--border-default); }
+.plan-settings section:last-child { border-bottom: 0; padding-bottom: 0; }
+.plan-settings h3 { margin: 0; font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.plan-settings p { margin: 0; font-size: 13px; color: var(--text-secondary); line-height: 1.4; }
+.plan-settings-input { width: 100%; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-default); background: var(--bg-input); color: var(--text-primary); font-size: 14px; }
+.plan-settings-icons { display: flex; flex-wrap: wrap; gap: 6px; }
+.plan-settings-icons button { width: 36px; height: 36px; border-radius: var(--radius-sm); border: 1px solid var(--border-default); background: var(--bg-card); font-size: 18px; cursor: pointer; }
+.plan-settings-icons button.is-active { border-color: var(--accent-cyan); box-shadow: 0 0 0 1px var(--accent-cyan); }
+.plan-settings-danger { color: var(--accent-rose); border-color: var(--accent-rose); }

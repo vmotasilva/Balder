@@ -23,6 +23,7 @@ import { NaturezasPage } from './pages/NaturezasPage';
 import { ContractsPage } from './pages/ContractsPage';
 import { SharedPlanningPage } from './pages/SharedPlanningPage';
 import { PurchasesPage } from './pages/PurchasesPage';
+import { PlanSettingsModal } from './components/PlanSettingsModal';
 import { ConsolidatedPage } from './pages/ConsolidatedPage';
 import { IosInstallFromLink } from './components/IosInstallModal';
 import { NewMovementModal, type MovementDraft } from './components/NewMovementModal';
@@ -102,7 +103,7 @@ export function AppContent() {
   const planningOnly = viewing?.scope === 'PLANEJAMENTO';
   const shownTab: TabId = planningOnly ? 'COMPARTILHADO' : activeTab;
   // Visão consolidada (soma dos planejamentos marcados): ocupa o lugar da tela até o usuário escolher outra
-  const { consolidated, setConsolidated, compareIds, plans, activePlanId, switchPlan } = usePlans();
+  const { consolidated, setConsolidated, compareIds, plans, activePlanId, switchPlan, mainPlan } = usePlans();
   // Na visão consolidada o lançamento precisa de um planejamento de destino, confirmado antes de começar
   const [planChoiceOpen, setPlanChoiceOpen] = useState(false);
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
@@ -436,7 +437,7 @@ export function AppContent() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {compareIds.map((key) => (
             <button key={key} type="button" className="btn btn-outline" onClick={() => chooseTargetPlan(key)}>
-              {key === MAIN_PLAN_KEY ? 'Meu planejamento (principal)' : plans.find((p) => p.id === key)?.name || 'Planejamento'}
+              {key === MAIN_PLAN_KEY ? `${mainPlan.name} (principal)` : plans.find((p) => p.id === key)?.name || 'Planejamento'}
             </button>
           ))}
         </div>
@@ -460,6 +461,7 @@ export function AppContent() {
         onClose={() => setPrepaymentModalOpen(false)}
       />
 
+      <PlanSettingsModal />
       <InviteAcceptDialog />
       <IosInstallFromLink />
     </div>
