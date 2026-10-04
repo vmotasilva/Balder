@@ -540,6 +540,25 @@ export function buildWeekSummaries(monthKey: string, groups: DetailViewGroup[]):
   const add = (key: string, v: number) => spent.set(key, (spent.get(key) || 0) + v);
   groups.forEach((g) =>
     g.dated.forEach(({ date, item }) => {
+      // Resumo de mapeamento: o gasto é o que foi pago (mesmo em parte), na semana em que cada pagamento foi feito
+      if (item.isMappingSummary && item.paidAmount !== undefined) {
+        if (item.paidByOthers || item.paidAmount <= 0) return;
+        const events = item.paymentEvents || [];
+        let dated = 0;
+        events.forEach((e) => {
+          add(keyOf(e.date), e.amount);
+          dated += e.amount;
+        });
+        // Pago pelo previsto, sem pagamentos registrados: distribui pelos dias previstos
+        const rest = Math.round((item.paidAmount - dated) * 100) / 100;
+        if (rest > 0.005) {
+          const weights = item.occurrenceWeights || [];
+          const total = weights.reduce((a, o) => a + o.weight, 0);
+          if (total > 0) weights.forEach((o) => add(keyOf(o.date), (rest * o.weight) / total));
+          else add('sem-data', rest);
+        }
+        return;
+      }
       if (item.status !== 'REALIZADA') return;
       const value = itemValue(item);
       if (value <= 0) return;

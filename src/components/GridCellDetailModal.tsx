@@ -159,6 +159,7 @@ export interface CellBreakdownSubItem {
   occurrenceWeights?: { date: string; weight: number }[]; // dias reais dos itens agregados (distribuição semanal)
   paidAmount?: number;    // Real: já pago/recebido na competência (itens mapeados)
   pendingAmount?: number; // Previsto: ainda a pagar/receber na competência (itens mapeados)
+  paymentEvents?: { date: string; amount: number }[]; // pagamentos do resumo, pela data em que foram feitos
   loanMovementId?: string; // parcela de empréstimo: clique abre o manuseio da parcela
 }
 
@@ -274,6 +275,35 @@ function loanInstallmentsBreakdownItem(
   };
 }
 
+/**
+ * Separa o que já foi pago (Real) do que ainda está em aberto (Previsto). Itens mapeados trazem os dois valores do
+ * mês (um item pago em parte tem os dois); os demais são Real ou Previsto pelo status.
+ */
+function splitRealPrevisto(list: CellBreakdownItem[]): { real: number; previsto: number } {
+  let real = 0;
+  let previsto = 0;
+  list.forEach((b) => {
+    if (b.subItems && b.subItems.length > 0) {
+      b.subItems.forEach((sub) => {
+        if (sub.status === 'CANCELADA' || sub.paidByOthers) return;
+        if (sub.paidAmount !== undefined || sub.pendingAmount !== undefined) {
+          real += sub.paidAmount || 0;
+          previsto += sub.pendingAmount || 0;
+          return;
+        }
+        const val = sub.totalValue || sub.quantity * sub.price * (sub.multiplierWeeks || 1);
+        if (sub.status === 'REALIZADA') real += val;
+        else previsto += val;
+      });
+    } else if (b.badge === 'Liquidado' || b.badge === 'Liquidada' || b.badge === 'Fatura Paga' || b.badgeType === 'emerald') {
+      real += b.amount;
+    } else {
+      previsto += b.amount;
+    }
+  });
+  return { real: Math.round(real * 100) / 100, previsto: Math.round(previsto * 100) / 100 };
+}
+
 /** Situação do item na competência (realizado / pago por terceiros) para o detalhamento. */
 function natureItemStateFields(ni: NatureItemEntry, monthKey: string): Partial<CellBreakdownSubItem> {
   const summary = resolveMappingItemMonth(ni.item, monthKey);
@@ -292,6 +322,9 @@ function natureItemStateFields(ni: NatureItemEntry, monthKey: string): Partial<C
     baseValue: summary.base,
     paidAmount: round2(sources.reduce((acc, s) => acc + (isExcludedState(s.state) ? 0 : s.paid), 0)),
     pendingAmount: round2(sources.reduce((acc, s) => acc + (isExcludedState(s.state) ? 0 : s.pending), 0)),
+    paymentEvents: sources
+      .filter((s) => !isExcludedState(s.state))
+      .flatMap((s) => s.payments.map((pay) => ({ date: pay.paidAt, amount: pay.amount }))),
     ...(ni.summaryItemCount
       ? {
           isMappingSummary: true,
@@ -2519,33 +2552,8 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
   // Apuração segregada do que é REAL (já liquidado/quitado) e do que é PREVISTO (em aberto/projetado)
   const { cellRealizedTotal, cellPrevistoTotal } = useMemo(() => {
-    let realized = 0;
-    let previsto = 0;
-
-    breakdownItems.forEach((b) => {
-      if (b.subItems && b.subItems.length > 0) {
-        b.subItems.forEach((sub) => {
-          if (sub.status === 'CANCELADA') return;
-          const val = sub.paidByOthers ? 0 : sub.totalValue || (sub.quantity * sub.price * (sub.multiplierWeeks || 1));
-          if (sub.status === 'REALIZADA') {
-            realized += val;
-          } else {
-            previsto += val;
-          }
-        });
-      } else {
-        if (b.badge === 'Liquidado' || b.badge === 'Liquidada' || b.badge === 'Fatura Paga' || b.badgeType === 'emerald') {
-          realized += b.amount;
-        } else {
-          previsto += b.amount;
-        }
-      }
-    });
-
-    return {
-      cellRealizedTotal: Math.round(realized * 100) / 100,
-      cellPrevistoTotal: Math.round(previsto * 100) / 100,
-    };
+    const { real, previsto } = splitRealPrevisto(breakdownItems);
+    return { cellRealizedTotal: real, cellPrevistoTotal: previsto };
   }, [breakdownItems]);
 
   // Filtragem de naturezas pelo termo de busca informado pelo usuário e modo de visualização Realizado/Previsto
@@ -2622,6 +2630,8 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
   const currentOrigin = isAll ? `${breakdownItems.length} naturezas mapeadas` : activeItem?.bankOrOrigin || '';
   const currentBadge = isAll ? 'Visão Geral' : activeItem?.badge;
   const currentAmount = isAll ? dynamicTotalValue : activeItem?.amount || 0;
+  // Real (já pago) e Previsto (a pagar) da seleção; currentAmount é a soma dos dois
+  const selectionSplit = splitRealPrevisto(isAll ? breakdownItems : activeItem ? [activeItem] : []);
 
 
   // ── Estilos de visualização do detalhamento ─────────────────────────────────
@@ -3562,7 +3572,11 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
               </div>
               <div className="metric-strip-chip">
                 <span className="metric-strip-chip-label">Realizado:</span>
-                <span className="metric-strip-chip-val">{formatBRL(currentAmount)}</span>
+                <span className="metric-strip-chip-val">{formatBRL(selectionSplit.real)}</span>
+              </div>
+              <div className="metric-strip-chip">
+                <span className="metric-strip-chip-label">Previsto:</span>
+                <span className="metric-strip-chip-val">{formatBRL(selectionSplit.previsto)}</span>
               </div>
               <div className="metric-strip-chip">
                 <span className="metric-strip-chip-label">{diffAmount >= 0 ? 'Saldo:' : 'Estouro:'}</span>
