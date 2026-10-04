@@ -59,7 +59,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
 
   // Modal para Criar Nova Fatura
   // Filtros: abertos no computador, recolhidos no celular
-  const [filtersOpen, setFiltersOpen] = useState(() => (typeof window === 'undefined' ? true : window.innerWidth >= 1100));
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [isNewInvoiceModalOpen, setIsNewInvoiceModalOpen] = useState(newInvoiceSignal > 0);
   // Pedido externo (ex.: "+ > Fatura de cartão") abre o cadastro de fatura
   useEffect(() => {
@@ -606,14 +606,15 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
       {/* Page Header */}
       <div className="page-header">
         <div>
-          <div className="kicker-badge">
-            <CreditCard size={13} className="mr-1" />
-            <span>MÓDULO DE FATURAS & CARTÕES</span>
-          </div>
           <h1 className="page-title label-with-info">
-            Gestão & Detalhamento de Faturas
-            <InfoButton title="Gestão & Detalhamento de Faturas">
+            Faturas
+            <InfoButton title="Faturas por banco">
               <p>Monitore o valor real de cada fatura, destrinche seus itens entre as naturezas orçamentárias e acompanhe o que resta pendente de análise.</p>
+              <p>O que você gasta no mês (ex.: setembro) fecha na fatura que vence no mês seguinte (ex.: outubro).</p>
+              <p>
+                Ao distribuir os itens da fatura entre as naturezas, os valores abatem direto dos tetos. O que não for distribuído
+                fica como <strong>Não analisada</strong> até você alocar ou mandar para <strong>Outros</strong>.
+              </p>
             </InfoButton>
           </h1>
         </div>
@@ -661,7 +662,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
       </div>
 
       {/* Top KPIs Banner */}
-      <div className="invoices-kpi-grid">
+      <div className="invoices-kpi-grid is-compact">
         <div className="invoices-kpi-card">
           <div className="invoices-kpi-icon" style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#38BDF8' }}>
             <CreditCard size={22} />
@@ -727,20 +728,6 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
             <span className="invoices-kpi-hint" style={{ color: '#10B981' }}>Abatendo dos tetos</span>
           </div>
         </div>
-      </div>
-
-      {/* Regra de competência do cartão: explicação no "i" */}
-      <div className="info-inline">
-        <span>Como a fatura entra no mês</span>
-        <InfoButton title="Competência e vencimento do cartão">
-          <p>
-            O que você gasta no mês (ex.: setembro) fecha na fatura que vence no mês seguinte (ex.: outubro).
-          </p>
-          <p>
-            Ao distribuir os itens da fatura entre as naturezas, os valores abatem direto dos tetos. O que não for distribuído
-            fica como <strong>Não analisada</strong> até você alocar ou mandar para <strong>Outros</strong>.
-          </p>
-        </InfoButton>
       </div>
 
       {/* Banner de Alerta e Limpeza Inteligente de Duplicadas */}
@@ -833,12 +820,8 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
             <span>Bancos</span>
           </button>
           <strong>{selectedBankFilter === 'ALL' ? 'Todos os bancos' : selectedBankFilter}</strong>
+          {selectedBankFilter !== 'ALL' && <BankInvoiceTerms bank={selectedBankFilter} />}
         </div>
-        {selectedBankFilter !== 'ALL' && (
-          <div className="glass-card" style={{ padding: '12px 14px', borderRadius: '12px' }}>
-            <BankInvoiceTerms bank={selectedBankFilter} />
-          </div>
-        )}
       </div>
 
       {/* Filter Panel com Abas Visuais por Banco */}
@@ -853,7 +836,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <SlidersHorizontal size={15} style={{ color: 'var(--text-muted)' }} />
             <span style={{ fontSize: '12px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-secondary)' }}>
-              Filtros & Distinção por Banco
+              Filtros
             </span>
           </div>
           <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
@@ -865,6 +848,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
         {filtersOpen && (
         <>
         {/* Abas Rápidas por Banco com cores da marca */}
+        {selectedBankFilter === 'ALL' && (
         <div className="invoices-bank-pills">
           <button
             type="button"
@@ -903,6 +887,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
             );
           })}
         </div>
+        )}
 
         {/* Grid de Inputs de Filtros */}
         <div className="invoices-filter-grid">

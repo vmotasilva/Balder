@@ -422,6 +422,8 @@ export interface BankInstitution {
   /** Fechamento e vencimento da fatura de crédito do banco (a fatura é do banco, não de um cartão). */
   closingDay?: number;
   dueDay?: number;
+  /** O cartão de crédito deste banco não é usado: some das escolhas de crédito. */
+  noCredit?: boolean;
 }
 
 export interface MappingItem {
