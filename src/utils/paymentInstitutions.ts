@@ -40,3 +40,15 @@ export function listPaymentInstitutions(accounts: BankAccount[], cards: CreditCa
     };
   });
 }
+
+/**
+ * Banco a que uma fatura pertence. Fatura gravada com o nome do cartão ("Cartão Principal") conta para o banco
+ * dele ("Nubank"); nome desconhecido fica como está.
+ */
+export function canonicalBankName(name: string | undefined, banks: BankInstitution[], cards: CreditCardItem[]): string {
+  const raw = (name || '').trim();
+  if (!raw) return raw;
+  const known = banks.find((b) => same(b.name, raw))?.name || cards.find((c) => same(c.bank, raw))?.bank;
+  if (known) return known;
+  return cards.find((c) => same(c.name, raw) && c.bank)?.bank || raw;
+}

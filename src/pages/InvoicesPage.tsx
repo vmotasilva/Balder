@@ -18,6 +18,7 @@ import {
   Check,
   Upload,
   Copy,
+  ArrowLeft,
 } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import type { Movement, InvoiceNatureItemBreakdown } from '../types';
@@ -28,6 +29,9 @@ import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
 import { RealizationConfirmModal, realizedMovementUpdates, reopenConfirmOptions, reopenedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
 import { getBankBranding } from '../utils/bankBranding';
 import { InfoButton } from '../components/InfoButton';
+import { BankPicker } from '../components/BankPicker';
+import { BankInvoiceTerms } from '../components/BankInvoiceTerms';
+import { canonicalBankName } from '../utils/paymentInstitutions';
 
 export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoiceSignal = 0 }) => {
   const {
@@ -36,6 +40,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
     addMovement,
     deleteMovement,
     cards,
+    banks,
     natures,
   } = useFinancial();
 
@@ -45,6 +50,9 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
   // Estados de Filtros e Busca
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBankFilter, setSelectedBankFilter] = useState('ALL');
+  // Primeiro a escolha do banco; as faturas aparecem depois
+  const [showBankPicker, setShowBankPicker] = useState(newInvoiceSignal === 0);
+  const bankOf = (m: Movement) => canonicalBankName(m.bank, banks, cards);
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<'ALL' | 'PREVISTA' | 'REALIZADA'>('ALL');
   const [selectedConciliationFilter, setSelectedConciliationFilter] = useState<'ALL' | 'RECONCILED' | 'PARTIAL' | 'UNANALYZED'>('ALL');
   const [selectedMonthFilter, setSelectedMonthFilter] = useState('ALL');
@@ -88,13 +96,14 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
   const availableBanks = useMemo(() => {
     const set = new Set<string>();
     cardMovements.forEach((m) => {
-      if (m.bank) set.add(m.bank);
+      const b = canonicalBankName(m.bank, banks, cards);
+      if (b) set.add(b);
     });
     cards.forEach((c) => {
       if (c.bank) set.add(c.bank);
     });
     return Array.from(set);
-  }, [cardMovements, cards]);
+  }, [cardMovements, cards, banks]);
 
   // Lista de meses de competência presentes
   const availableMonths = useMemo(() => {
@@ -178,7 +187,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
 
       // Banco
       if (selectedBankFilter !== 'ALL') {
-        const bankMatch = (m.bank || '').toLowerCase() === selectedBankFilter.toLowerCase();
+        const bankMatch = bankOf(m).toLowerCase() === selectedBankFilter.toLowerCase();
         if (!bankMatch) return false;
       }
 
@@ -808,6 +817,30 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
         </div>
       )}
 
+      {showBankPicker ? (
+        <BankPicker
+          onSelect={(bank) => {
+            setSelectedBankFilter(bank);
+            setShowBankPicker(false);
+          }}
+        />
+      ) : (
+      <>
+      <div className="invoices-bank-bar">
+        <div className="invoices-bank-bar-head">
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setShowBankPicker(true)}>
+            <ArrowLeft size={14} />
+            <span>Bancos</span>
+          </button>
+          <strong>{selectedBankFilter === 'ALL' ? 'Todos os bancos' : selectedBankFilter}</strong>
+        </div>
+        {selectedBankFilter !== 'ALL' && (
+          <div className="glass-card" style={{ padding: '12px 14px', borderRadius: '12px' }}>
+            <BankInvoiceTerms bank={selectedBankFilter} />
+          </div>
+        )}
+      </div>
+
       {/* Filter Panel com Abas Visuais por Banco */}
       <div className="invoices-filter-panel">
         <button
@@ -844,7 +877,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
 
           {availableBanks.map((b) => {
             const brand = getBankBranding(b);
-            const count = cardMovements.filter((m) => (m.bank || '').toLowerCase() === b.toLowerCase()).length;
+            const count = cardMovements.filter((m) => bankOf(m).toLowerCase() === b.toLowerCase()).length;
             const isSelected = selectedBankFilter.toLowerCase() === b.toLowerCase();
             return (
               <button
@@ -1558,6 +1591,8 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
             );
           })}
         </div>
+      )}
+      </>
       )}
 
       {/* Pop-up para Adicionar Nova Fatura (Banco e Valor) */}

@@ -24,7 +24,7 @@ interface Props {
  * banco ou dinheiro → banco → débito ou crédito → parcelas → resumo editável.
  */
 export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) => {
-  const { accounts, cards, banks, natures, addBank, updateBank, updatePaymentWizard, confirmPaymentWizard, cancelPaymentWizard } = useFinancial();
+  const { accounts, cards, banks, natures, setBankInvoiceTerms, updatePaymentWizard, confirmPaymentWizard, cancelPaymentWizard } = useFinancial();
   const wizard = pending.wizard as PaymentWizardState;
   const data = pending.pendingData;
   const isIncome = data.type === 'RECEBER';
@@ -79,10 +79,7 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
     go({ ...extra, step: 'INVOICE' });
   };
   const saveTerms = () => {
-    const name = wizard.institution || '';
-    const existing = banks.find((b) => b.name.trim().toLowerCase() === name.trim().toLowerCase());
-    if (existing) updateBank(existing.id, { closingDay: termsClosing, dueDay: termsDue });
-    else addBank({ name, color: getBankBranding(name).primaryColor, icon: '🏦', status: 'MANUAL', closingDay: termsClosing, dueDay: termsDue });
+    setBankInvoiceTerms(wizard.institution || '', { closingDay: termsClosing, dueDay: termsDue });
     go({ step: termsFromSummary ? 'SUMMARY' : 'INSTALLMENTS' });
   };
   const perInstallment = wizard.installments > 1 ? Math.round((data.amount / wizard.installments) * 100) / 100 : data.amount;
