@@ -92,7 +92,7 @@ import { getBankBranding } from '../utils/bankBranding';
 import { ForsetiActivityService } from '../services/forsetiActivityService';
 import { ForsetiTranscriptService } from '../services/forsetiTranscriptService';
 import { defaultClosingDay } from '../utils/setupCatalog';
-import { firstInvoiceDueDate } from '../utils/cardPurchase';
+import { addCardPurchaseToInvoices, firstInvoiceDueDate } from '../utils/cardPurchase';
 import { getItemOccurrences, isExcludedState, mappingItemBaseValue, registerItemPayment, removeItemPayment, resolveMappingItemState } from '../utils/mappingItemState';
 import { buildForecastWindow, FORECAST_PERIODS, type ForecastPeriod, type ForecastWindow } from '../utils/forecastWindow';
 import { buildMonthlyProjectionGrid, movementCompetenceDate } from '../utils/projectionMath';
@@ -4315,7 +4315,26 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const count = !isIncome && pending.installments && pending.installments >= 2 ? pending.installments : 0;
     const schedule = count ? installmentSchedule(pending.amount, count, finalDueDate, isCredit ? option.payload.dueDay : undefined) : [];
     // O pagamento no item da natureza (Real do mês) é lançado pela reconciliação de movimentações realizadas
-    if (count) {
+    if (isCredit && !isIncome) {
+      // Compra no cartão não é um lançamento solto: entra na fatura do banco, com a natureza e o item escolhidos
+      const nature = natureLink.natureId ? natures.find((n) => n.id === natureLink.natureId) : undefined;
+      const mapping = natureLink.mappingItemId ? nature?.mappings?.find((mp) => (mp.items || []).some((it) => it.id === natureLink.mappingItemId)) : undefined;
+      addCardPurchaseToInvoices(
+        {
+          institution: finalBank,
+          title: pending.rawTitle,
+          total: pending.amount,
+          natureId: natureLink.natureId,
+          natureName: nature?.name,
+          mappingId: mapping?.id,
+          mappingItemId: natureLink.mappingItemId,
+          notes: `Confirmado via Forseti: ${option.label}.`,
+        },
+        count ? schedule : [{ dueDate: finalDueDate, amount: pending.amount }],
+        movements,
+        { addMovement, updateMovement }
+      );
+    } else if (count) {
       const groupId = `inst_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
       addMultipleMovements(
         schedule.map((p, idx) => ({

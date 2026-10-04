@@ -6,11 +6,11 @@ import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { useAccountScope } from '../context/AccountScopeContext';
-import type { MovementType, MovementStatus, Movement, InvoiceNatureItemBreakdown } from '../types';
+import type { MovementType, MovementStatus, Movement } from '../types';
 import { POPULAR_BANKS } from '../utils/bankBranding';
 import { findMappingItemForTitle } from '../utils/mappingMatch';
 import { userNatures } from '../utils/baseNatures';
-import { firstInvoiceDueDate, invoiceDueDates } from '../utils/cardPurchase';
+import { addCardPurchaseToInvoices, firstInvoiceDueDate, invoiceDueDates } from '../utils/cardPurchase';
 import { Calendar, Split, Repeat } from 'lucide-react';
 
 // Valores digitados aceitam vírgula ou ponto como decimal ("7.073,70", "7073,70", "7073.70")
@@ -325,56 +325,21 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
     if (cardPurchase) {
       const n = installing ? count : 1;
       const dates = invoiceDueDates(firstInvoiceDue, n);
-      const cleanTitle = title.trim();
-      const itemId = `purchase_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
-      const total = installing ? totalInstallmentsAmount : parsedAmount;
-      const each = installing ? perInstallment : parsedAmount;
-      dates.forEach((dateStr, idx) => {
-        const item: InvoiceNatureItemBreakdown = {
-          id: `${itemId}_${idx + 1}`,
-          natureId: natureId || 'OUTROS',
-          natureName: selectedNature?.name || 'Outros',
+      addCardPurchaseToInvoices(
+        {
+          institution,
+          title: title.trim(),
+          total: installing ? totalInstallmentsAmount : parsedAmount,
+          natureId: natureId || undefined,
+          natureName: selectedNature?.name,
           mappingId: selectedMapping?.id,
           mappingItemId: itemId || undefined,
-          description: n > 1 ? `${cleanTitle} (${idx + 1}/${n})` : cleanTitle,
-          amount: each,
-          isAnalyzed: true,
-          installments: n,
-          currentInstallment: idx + 1,
-          finalAmount: total,
-        };
-        const target = movements.find(
-          (inv) =>
-            inv.type === 'CARTAO' &&
-            inv.status === 'PREVISTA' &&
-            (inv.bank || '').trim().toLowerCase() === institution.trim().toLowerCase() &&
-            inv.dueDate.startsWith(dateStr.substring(0, 7))
-        );
-        if (target) {
-          // Usa o que a fatura ainda tem sem detalhar; o que passar disso aumenta o total da fatura
-          const free = target.unanalyzedAmount ?? 0;
-          const extra = Math.max(0, Math.round((each - free) * 100) / 100);
-          updateMovement(target.id, {
-            amount: Math.round((target.amount + extra) * 100) / 100,
-            invoiceBreakdown: [...(target.invoiceBreakdown || []), item],
-            unanalyzedAmount: Math.max(0, Math.round((free - each) * 100) / 100),
-          });
-        } else {
-          const monthName = new Date(`${dateStr}T12:00:00`).toLocaleDateString('pt-BR', { month: 'long' });
-          addMovement({
-            title: `Fatura ${institution} (${monthName.charAt(0).toUpperCase()}${monthName.slice(1)})`,
-            type: 'CARTAO',
-            amount: each,
-            dueDate: dateStr,
-            bank: institution,
-            status: 'PREVISTA',
-            category: 'Fatura de Cartão',
-            notes: notes.trim() || undefined,
-            invoiceBreakdown: [item],
-            unanalyzedAmount: 0,
-          });
-        }
-      });
+          notes: notes.trim() || undefined,
+        },
+        dates.map((dueDate) => ({ dueDate, amount: installing ? perInstallment : parsedAmount })),
+        movements,
+        { addMovement, updateMovement }
+      );
     } else if (repeating && recurringMonths >= 2) {
       const groupId = `rec_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
       const dates = getInstallmentDates(dueDate, recurringMonths);
