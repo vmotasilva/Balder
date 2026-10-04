@@ -32,6 +32,10 @@ import { InfoButton } from '../components/InfoButton';
 import { BankPicker } from '../components/BankPicker';
 import { BankInvoiceTerms } from '../components/BankInvoiceTerms';
 import { canonicalBankName } from '../utils/paymentInstitutions';
+import { movementCompetenceDate } from '../utils/projectionMath';
+
+const competenceMonthLabel = (iso: string) =>
+  new Date(`${iso.slice(0, 7)}-15T12:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
 export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoiceSignal = 0 }) => {
   const {
@@ -1183,7 +1187,13 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
 
                       <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>
                         Vencimento: <strong style={{ color: 'var(--text-primary)' }}>{dueDateFormatted}</strong> ({monthName}) • Competência:{' '}
-                        <span style={{ color: 'var(--text-secondary)' }}>Gastos do mês anterior</span>
+                        <span style={{ color: 'var(--text-secondary)' }}>
+                          {isPaid && m.paymentDate
+                            ? `paga em ${m.paymentDate.split('-').reverse().join('/')} (${competenceMonthLabel(m.paymentDate)})`
+                            : movementCompetenceDate(m).slice(0, 7) !== m.dueDate.slice(0, 7)
+                              ? `vencida e em aberto, no mês corrente (${competenceMonthLabel(movementCompetenceDate(m))})`
+                              : 'Gastos do mês anterior'}
+                        </span>
                       </p>
                     </div>
                   </div>
