@@ -39,8 +39,8 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
 
   // Pagamento: um banco por vez; recebimento: a conta que recebe
   const institutions = isIncome
-    ? accounts.map((a) => ({ name: a.name, color: getBankBranding(a.bankName || a.name).primaryColor }))
-    : listPaymentInstitutions(accounts, cards, banks).map((i) => ({ name: i.name, color: i.color }));
+    ? accounts.map((a) => ({ name: a.name, color: getBankBranding(a.bankName || a.name).primaryColor, noCredit: false }))
+    : listPaymentInstitutions(accounts, cards, banks).map((i) => ({ name: i.name, color: i.color, noCredit: i.noCredit }));
 
   // Despesa: a Forseti sugere natureza e item do teto pelo nome; a pessoa confirma ou troca no resumo
   const ownNatures = userNatures(natures);
@@ -131,7 +131,7 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
               type="button"
               className="pay-wizard-bank"
               style={{ borderColor: i.color }}
-              onClick={() => go({ institution: i.name, step: isIncome ? 'SUMMARY' : 'METHOD' })}
+              onClick={() => go(i.noCredit && !isIncome ? { institution: i.name, method: 'DEBITO', installments: 1, step: 'SUMMARY' } : { institution: i.name, step: isIncome ? 'SUMMARY' : 'METHOD' })}
             >
               <span className="pay-wizard-dot" style={{ background: i.color }} />
               {i.name}

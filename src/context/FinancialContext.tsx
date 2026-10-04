@@ -224,6 +224,8 @@ interface FinancialContextType {
   updateBank: (id: string, updates: Partial<BankInstitution>) => void;
   /** Fechamento e vencimento da fatura do banco (cria o banco na lista se ainda não estiver nela). */
   setBankInvoiceTerms: (bankName: string, terms: { closingDay?: number; dueDay?: number }) => void;
+  /** Marca se o cartão de crédito do banco é usado (cria o banco na lista se ainda não estiver nela). */
+  setBankCreditUsed: (bankName: string, used: boolean) => void;
   /** Move o vencimento das faturas em aberto do banco para o dia informado; devolve quantas mudaram. */
   applyBankDueDayToOpenInvoices: (bankName: string, dueDay: number) => number;
   /** Passa para o banco as faturas gravadas com o nome do cartão, unindo as do mesmo mês; devolve quantas ajustou. */
@@ -1584,6 +1586,13 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     };
     if (existing) updateBank(existing.id, patch);
     else addBank({ name, color: getBankBranding(name).primaryColor, icon: '🏦', status: 'MANUAL', ...patch });
+  };
+
+  const setBankCreditUsed = (bankName: string, used: boolean) => {
+    const name = bankName.trim();
+    const existing = banks.find((b) => b.name.trim().toLowerCase() === name.toLowerCase());
+    if (existing) updateBank(existing.id, { noCredit: !used });
+    else addBank({ name, color: getBankBranding(name).primaryColor, icon: '🏦', status: 'MANUAL', noCredit: !used });
   };
 
   const applyBankDueDayToOpenInvoices = (bankName: string, dueDay: number): number => {
@@ -5653,6 +5662,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         addBank,
         updateBank,
         setBankInvoiceTerms,
+        setBankCreditUsed,
         applyBankDueDayToOpenInvoices,
         consolidateCardNamedInvoices,
         deleteBank,

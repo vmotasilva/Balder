@@ -96,6 +96,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
       name,
       card,
       terms,
+      noCredit: !!bank?.noCredit,
       account: accounts.find(
         (a) => (a.bankName || '').toLowerCase() === name.toLowerCase() || a.name.toLowerCase().includes(name.toLowerCase())
       ),
@@ -446,7 +447,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
       <form onSubmit={handleSubmit} className="movement-form">
         {/* Type Selector Tabs (compra é sempre saída) */}
         {(
-          <div className="form-type-selector" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+          <div className="form-type-selector" style={{ gridTemplateColumns: selectedInstitution?.noCredit ? '1fr' : 'repeat(2, 1fr)' }}>
             <button
               type="button"
               className={`type-chip ${type === 'RECEBER' ? 'active-receber' : ''}`}
@@ -575,7 +576,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
                 value={institution}
                 onChange={(e) => {
                   setInstitution(e.target.value);
-                  if (e.target.value === CASH_IN_HAND) {
+                  if (e.target.value === CASH_IN_HAND || institutions.find((i) => i.name === e.target.value)?.noCredit) {
                     setPayMethod('SALDO');
                     setIsInstallment(false);
                   }
@@ -593,7 +594,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
             {institution !== CASH_IN_HAND && (
               <div className="form-group">
                 <label>Como foi pago?</label>
-                <div className="form-type-selector" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                <div className="form-type-selector" style={{ gridTemplateColumns: selectedInstitution?.noCredit ? '1fr' : 'repeat(2, 1fr)' }}>
                   <button
                     type="button"
                     className={`type-chip ${payMethod === 'SALDO' ? 'active-pagar' : ''}`}
@@ -604,13 +605,15 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
                   >
                     Saldo da conta (débito / Pix)
                   </button>
-                  <button
-                    type="button"
-                    className={`type-chip ${payMethod === 'CARTAO' ? 'active-cc' : ''}`}
-                    onClick={() => setPayMethod('CARTAO')}
-                  >
-                    💳 Cartão de crédito
-                  </button>
+                  {!selectedInstitution?.noCredit && (
+                    <button
+                      type="button"
+                      className={`type-chip ${payMethod === 'CARTAO' ? 'active-cc' : ''}`}
+                      onClick={() => setPayMethod('CARTAO')}
+                    >
+                      💳 Cartão de crédito
+                    </button>
+                  )}
                 </div>
                 {cardPurchase && (
                   <small className="form-hint">

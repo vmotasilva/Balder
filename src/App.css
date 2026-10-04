@@ -24428,3 +24428,5 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
 [data-theme="light"] .nature-select-trigger { background: #FFFFFF; border-color: #BAE6FD; }
 [data-theme="light"] .nature-select-menu { background: #FFFFFF; }
 .nature-tabs-bar-container .nature-select { flex: 1 1 auto; }
+
+.bank-picker-card.is-muted { opacity: 0.7; border-style: dashed; }

@@ -10,6 +10,8 @@ export interface PaymentInstitution {
   card?: CreditCardItem;
   /** Fechamento e vencimento da fatura do banco; vem do próprio banco e, na falta, do cartão dele. */
   terms?: { closingDay: number; dueDay: number };
+  /** Marcado pela pessoa: não usa o cartão de crédito deste banco. */
+  noCredit?: boolean;
 }
 
 const same = (a?: string, b?: string) => !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
@@ -37,6 +39,7 @@ export function listPaymentInstitutions(accounts: BankAccount[], cards: CreditCa
       terms: bank?.closingDay && bank?.dueDay ? { closingDay: bank.closingDay, dueDay: bank.dueDay } : card ? { closingDay: card.closingDay, dueDay: card.dueDay } : undefined,
       account: accountsOfBank.find((a) => debitTypes.includes(a.type)) || accountsOfBank[0],
       card,
+      noCredit: !!bank?.noCredit,
     };
   });
 }
