@@ -41,7 +41,7 @@ interface NatureBudgetRow {
   itemsCount: number;
   routinesCount: number;
   hasAttentionPoint: boolean;
-  attentionType: 'OVER_CEILING' | 'ATYPICAL' | null;
+  attentionType: 'OVER_CEILING' | 'OVER_LINE' | 'ATYPICAL' | null;
 }
 
 interface NatureBudgetGridProps {
@@ -203,6 +203,8 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
       const payments: { date: string; description: string; amount: number }[] = [];
       // O que passou do previsto: itens pagos/lançados acima do valor do mês e lançamentos fora dos itens
       const overages: { name: string; amount: number }[] = [];
+      // Linhas (itens) que passaram do próprio previsto; avulsos não são linha, então ficam só em `overages`
+      const lineOverages: { name: string; amount: number }[] = [];
       natItems.forEach((ni) => {
         const summary = resolveMappingItemMonth(ni.item, selectedMonthKey);
         if (isExcludedState(summary.state)) return;
@@ -214,13 +216,17 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
             if (m.status === 'REALIZADA') real += m.amount;
             else pending += m.amount;
           });
-          if (launchedTotal - summary.base > 0.005) overages.push({ name: ni.item.description, amount: launchedTotal - summary.base });
+          if (launchedTotal - summary.base > 0.005) {
+            overages.push({ name: ni.item.description, amount: launchedTotal - summary.base });
+            lineOverages.push({ name: ni.item.description, amount: launchedTotal - summary.base });
+          }
           return;
         }
         real += summary.paid;
         pending += summary.pending;
         if (summary.paid + summary.pending - summary.base > 0.005) {
           overages.push({ name: ni.item.description, amount: summary.paid + summary.pending - summary.base });
+          lineOverages.push({ name: ni.item.description, amount: summary.paid + summary.pending - summary.base });
         }
         summary.payments.forEach((p) => payments.push({ date: p.paidAt, description: ni.item.description, amount: p.amount }));
       });
@@ -284,6 +290,16 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
           })
         );
         pending = Math.round(pending * 100) / 100;
+        // Linha acima do previsto do período: pago no período + ainda aberto passa do previsto dela
+        mine
+          .filter((it) => !it.movementId)
+          .forEach((it) => {
+            const open = it.purchases
+              .filter((pu) => pu.status === 'PREVISTA' || pu.status === 'ATRASADA')
+              .reduce((acc, pu) => acc + Math.max(0, pu.plannedAmount - (pu.paidAmount || 0)), 0);
+            const over = Math.round((it.spent + open - it.planned) * 100) / 100;
+            if (over > 0.005) lineOverages.push({ name: it.title, amount: over });
+          });
       }
       const realized = real;
 
@@ -385,6 +401,10 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
         autoObservation = culprit
           ? `Excedente de ${formatBRL(overBy)} impactado por: ${culprit.name} (${formatBRL(culprit.amount)} acima do previsto).`
           : `Excedente de ${formatBRL(overBy)} sobre o teto ${period === 'MES' ? 'do mês' : `d${period === 'SEMANA' ? 'a semana' : 'a quinzena'}`}.`;
+      } else if (lineOverages.length > 0) {
+        // Natureza dentro do teto, mas uma linha passou do próprio previsto: alerta amarelo
+        const topLine = [...lineOverages].sort((a, b) => b.amount - a.amount)[0];
+        autoObservation = `${topLine.name}: ${formatBRL(topLine.amount)} acima do previsto da linha (teto da natureza mantido).`;
       } else if (atypicalExpenses.length > 0) {
         // Se houver gastos atípicos (mas dentro do teto):
         // Exiba um resumo curto dessas anomalias.
@@ -411,9 +431,11 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
         }
       }
 
-      const hasAttention = isOver || atypicalExpenses.length > 0;
-      const attentionType: 'OVER_CEILING' | 'ATYPICAL' | null = isOver
+      const hasAttention = isOver || lineOverages.length > 0 || atypicalExpenses.length > 0;
+      const attentionType: 'OVER_CEILING' | 'OVER_LINE' | 'ATYPICAL' | null = isOver
         ? 'OVER_CEILING'
+        : lineOverages.length > 0
+        ? 'OVER_LINE'
         : atypicalExpenses.length > 0
         ? 'ATYPICAL'
         : null;

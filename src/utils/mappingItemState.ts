@@ -117,11 +117,19 @@ export function resolveMappingItemMonth(item: MappingItem, monthKey: string): Ma
     return { state, payments, coveredDates, base, paid: 0, openBalance: 0, pending: 0, value: 0, isSettled: true };
   }
 
+  // Valor ainda agendado: as ocorrências (datas) do item que não foram cobertas por pagamento. Item com multiplicador
+  // maior que as datas do mês (ex.: 22 sem. num item semanal de 5 sábados) não pode ter em aberto mais do que isso.
+  const occurrences = getItemOccurrences(item, monthKey);
+  const scheduledTotal = occurrences.reduce((acc, o) => acc + o.value, 0);
+  const hasSchedule = scheduledTotal > 0.005;
+  const scheduledOpen = (covered: Map<string, MappingItemPayment>) =>
+    occurrences.filter((o) => !covered.has(o.date)).reduce((acc, o) => acc + o.value, 0);
+
   if (payments.length === 0) {
     // Sem pagamentos registrados: "realizado" marca o mês inteiro como pago pelo valor previsto
     const paid = state.realized ? base : 0;
-    const pending = state.realized ? 0 : base;
-    return { state, payments, coveredDates, base, paid, openBalance: 0, pending, value: base, isSettled: pending === 0 };
+    const pending = state.realized ? 0 : hasSchedule ? round2(Math.min(base, scheduledTotal)) : base;
+    return { state, payments, coveredDates, base, paid, openBalance: 0, pending, value: round2(paid + pending), isSettled: pending === 0 };
   }
 
   const paid = round2(payments.reduce((acc, p) => acc + p.amount, 0));
@@ -132,7 +140,12 @@ export function resolveMappingItemMonth(item: MappingItem, monthKey: string): Ma
   const totalCarry = [...extras.values()].reduce((acc, v) => acc + v, 0);
   // Redistribuído de uma data dispensada: o planejado cresce nas seguintes e cai na dispensada, fechando no mesmo total
   const coveredValue = [...coveredDates.keys()].reduce((acc, d) => acc + occurrenceValue + (extras.get(d) || 0), 0);
-  const pendingUncovered = state.realized ? 0 : Math.max(0, base + totalCarry - coveredValue - mappingShares);
+  const pendingByBase = Math.max(0, base + totalCarry - coveredValue - mappingShares);
+  const pendingUncovered = state.realized
+    ? 0
+    : hasSchedule
+    ? Math.min(pendingByBase, Math.max(0, scheduledOpen(coveredDates) - mappingShares))
+    : pendingByBase;
   const openBalance = payments
     .filter((p) => p.action === 'SALDO_ABERTO')
     .reduce((acc, p) => acc + Math.max(0, p.expectedAmount - p.amount), 0);
