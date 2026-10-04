@@ -3,10 +3,11 @@ import { ArrowLeft, ChevronRight, FileText, Handshake, Home, Landmark, TrendingU
 import { useFinancial } from '../context/FinancialContext';
 import { groupLoanMovements } from '../utils/loanMath';
 import { LoansPage } from './LoansPage';
+import { FinancingsPage } from './FinancingsPage';
 import { InfoButton } from '../components/InfoButton';
 import { InvestmentsPage } from './InvestmentsPage';
 
-type ContractKind = 'EMPRESTIMOS' | 'INVESTIMENTOS';
+type ContractKind = 'EMPRESTIMOS' | 'INVESTIMENTOS' | 'FINANCIAMENTOS';
 
 interface ContractModality {
   id: string;
@@ -68,6 +69,20 @@ export const ContractsPage: React.FC<{ newLoanSignal?: number }> = ({ newLoanSig
     );
   }
 
+  if (openKind === 'FINANCIAMENTOS') {
+    return (
+      <>
+        <div className="page-container" style={{ paddingBottom: 0 }}>
+          <button type="button" className="btn btn-outline btn-sm" onClick={() => setOpenKind(null)}>
+            <ArrowLeft size={14} />
+            <span>Contratos</span>
+          </button>
+        </div>
+        <FinancingsPage />
+      </>
+    );
+  }
+
   const modalities: ContractModality[] = [
     {
       id: 'EMPRESTIMOS',
@@ -79,7 +94,7 @@ export const ContractsPage: React.FC<{ newLoanSignal?: number }> = ({ newLoanSig
           ? `${loanSummary.count} ativo(s) · ${formatBRL(loanSummary.balance)}`
           : 'Simule ou cadastre',
     },
-    { id: 'FINANCIAMENTOS', label: 'Financiamentos', icon: Home, status: 'Em breve' },
+    { id: 'FINANCIAMENTOS', label: 'Financiamentos', icon: Home, kind: 'FINANCIAMENTOS', status: 'Simule SAC e Price' },
     { id: 'CONSORCIOS', label: 'Consórcios', icon: Handshake, status: 'Em breve' },
     { id: 'INVESTIMENTOS', label: 'Investimentos', icon: TrendingUp, kind: 'INVESTIMENTOS', status: 'Abrir carteira' },
     { id: 'OUTROS', label: 'Outros contratos', icon: FileText, status: 'Em breve' },
@@ -117,7 +132,7 @@ export const ContractsPage: React.FC<{ newLoanSignal?: number }> = ({ newLoanSig
           >
             <m.icon size={18} aria-hidden="true" />
             <span className="home-module-label">{m.label}</span>
-            <span className={`home-module-status ${m.kind === 'EMPRESTIMOS' && loanSummary.count === 0 ? 'is-invite' : ''}`}>{m.status}</span>
+            <span className={`home-module-status ${(m.kind === 'FINANCIAMENTOS' || (m.kind === 'EMPRESTIMOS' && loanSummary.count === 0)) ? 'is-invite' : ''}`}>{m.status}</span>
             {m.kind && <ChevronRight size={14} className="home-module-arrow" aria-hidden="true" />}
           </button>
         ))}
