@@ -273,7 +273,7 @@ export function paymentOptions(
       const dueDate = nextCardDueDate(c.closingDay, c.dueDay);
       return {
         id: `opt_pay_card_${c.id}`,
-        label: c.name,
+        label: c.bank || c.name,
         icon: '💳',
         badge: 'Cartão de crédito',
         description: split
