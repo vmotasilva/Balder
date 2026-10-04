@@ -2414,6 +2414,50 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
           loanInstallmentsBreakdownItem(movements, monthPrefix, 'PROJETADO', activeCheckpoint?.startDate, row.loanPayment)
         );
       }
+
+      // 5. Aberto pela natureza: as compras dela detalhadas nas faturas do mês saem da fatura e vão para a aba
+      // da natureza (mover e não copiar, para os totais não contarem duas vezes)
+      if (selection?.initialNatureId) {
+        const natureId = selection.initialNatureId;
+        const natureName = selection.initialNatureName || 'Natureza';
+        const activeItemIds = new Set<string>();
+        natures.forEach((nat) => nat.mappings.forEach((mp) => mp.items.forEach((it) => activeItemIds.add(it.id))));
+        const moved: CellBreakdownSubItem[] = [];
+        monthCardMovements.forEach((inv) => {
+          const ids = new Set(
+            (inv.invoiceBreakdown || [])
+              .filter((ib) => ib.natureId === natureId && !(ib.mappingItemId && activeItemIds.has(ib.mappingItemId)))
+              .map((ib) => ib.id)
+          );
+          if (ids.size === 0) return;
+          const invoiceItem = items.find((it) => it.movementId === inv.id);
+          if (!invoiceItem?.subItems) return;
+          moved.push(...invoiceItem.subItems.filter((sub) => ids.has(sub.id)));
+          invoiceItem.subItems = invoiceItem.subItems.filter((sub) => !ids.has(sub.id));
+        });
+        if (moved.length > 0) {
+          const movedTotal = Math.round(moved.reduce((acc, sub) => acc + sub.totalValue, 0) * 100) / 100;
+          const natureTab = items.find((it) => it.id === `expense_fix_${natureId}`);
+          if (natureTab) {
+            natureTab.subItems = [...(natureTab.subItems || []), ...moved];
+            natureTab.amount = Math.round((natureTab.amount + movedTotal) * 100) / 100;
+          } else {
+            items.push({
+              id: `expense_card_nat_${natureId}`,
+              category: natureName,
+              bankOrOrigin: 'Cartão de Crédito',
+              title: natureName,
+              notes: `Compras no cartão (${moved.length} ${moved.length === 1 ? 'item' : 'itens'}) que vencem em ${row.competenceLabel}`,
+              badge: 'No Cartão',
+              badgeType: 'purple',
+              amount: movedTotal,
+              dateOrDue: `Vencimento: ${row.competenceLabel}`,
+              isProjected: false,
+              subItems: moved,
+            });
+          }
+        }
+      }
     } else if (columnTitle === 'Saldo Inicial do Ciclo') {
       const isFirst = row?.isFirstMonth ?? (monthPrefix === '2026-09');
       const prevKey = row?.previousMonthKey;
