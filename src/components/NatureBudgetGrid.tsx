@@ -11,7 +11,7 @@ import type { ExpenseNature, MonthlyGridProjectionRow, MappingItem } from '../ty
 import { buildMonthlyProjectionGrid, movementCompetenceDate } from '../utils/projectionMath';
 import { mappingItemMonthValue, resolveMappingItemMonth } from '../utils/mappingItemState';
 import { userNatures } from '../utils/baseNatures';
-import { buildPeriodItems, periodRangeLabel, trackingPeriodRange, TRACKING_PERIOD_LABELS } from '../utils/periodSpending';
+import { buildPeriodItems, trackingPeriodRange, TRACKING_PERIOD_LABELS } from '../utils/periodSpending';
 import type { TrackingPeriod } from '../utils/periodSpending';
 import { GridCellDetailModal } from './GridCellDetailModal';
 import type { GridCellSelection } from './GridCellDetailModal';
@@ -57,11 +57,10 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
     activeCheckpoint,
     monthlyClosings,
     viewPreferences,
-    setViewPreferences,
     natureDetailModes,
   } = useFinancial();
 
-  // Período avaliado (o mesmo do Início): semana, quinzena ou mês. Fora do mês, o teto é proporcional ao período.
+  // Período avaliado: o escolhido no seletor do Início (semana, quinzena ou mês). Fora do mês, o teto é proporcional ao período.
   const period: TrackingPeriod = viewPreferences.trackingPeriod || 'MES';
   const periodLabels = TRACKING_PERIOD_LABELS[period];
   const periodRange = useMemo(() => trackingPeriodRange(period), [period]);
@@ -519,21 +518,6 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
         <div className="nature-grid-row">
           <h2 className="nature-grid-title">Naturezas</h2>
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          {/* Período avaliado: semana, quinzena ou mês */}
-          <div className="flex items-center gap-1 p-0.5 rounded-lg border border-border/50 text-xs" style={{ background: 'var(--bg-app)' }}>
-            {(['SEMANA', 'QUINZENA', 'MES'] as TrackingPeriod[]).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setViewPreferences({ trackingPeriod: p })}
-                className={`px-2 py-1 rounded font-medium transition cursor-pointer ${
-                  period === p ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30' : 'text-muted hover:text-primary'
-                }`}
-              >
-                {TRACKING_PERIOD_LABELS[p].name}
-              </button>
-            ))}
-          </div>
           {period === 'MES' ? (
             /* Seletor de Competência */
             <div className="flex items-center gap-1.5 bg-slate-900/60 dark:bg-slate-900/80 px-2.5 py-1.5 rounded-lg border border-border/50">
@@ -552,14 +536,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
                 ))}
               </select>
             </div>
-          ) : (
-            <div className="flex items-center gap-1.5 bg-slate-900/60 dark:bg-slate-900/80 px-2.5 py-1.5 rounded-lg border border-border/50">
-              <Clock size={14} className="text-cyan-400 flex-shrink-0" />
-              <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
-                {periodRangeLabel(period, periodRange)}
-              </span>
-            </div>
-          )}
+          ) : null}
         </div>
         </div>
 
