@@ -248,6 +248,24 @@ export function buildPeriodItems(params: {
 
   const items: PeriodItem[] = [];
 
+  // Gasto do item no período = o que foi pago DENTRO dele (pela data do pagamento), mais as compras dadas como
+  // pagas pelo previsto, sem data. As datas das compras são as previstas e não dizem quando o dinheiro saiu.
+  const withPaidInRange = (it: PeriodItem, mappingItems: MappingItem[], applicableMonths?: number[]): PeriodItem => {
+    let paid = 0;
+    monthKeys.forEach((key) => {
+      if (applicableMonths && applicableMonths.length > 0 && !applicableMonths.includes(Number(key.slice(5, 7)))) return;
+      mappingItems.forEach((mi) => {
+        const summary = resolveMappingItemMonth(mi, key);
+        if (isExcludedState(summary.state)) return;
+        summary.payments.forEach((pay) => {
+          if (pay.paidAt >= range.from && pay.paidAt <= range.to && pay.paidAt >= startDate) paid += pay.amount;
+        });
+      });
+    });
+    const undated = it.purchases.filter((pu) => pu.status === 'FEITA' && !pu.paidAt).reduce((acc, pu) => acc + (pu.paidAmount || 0), 0);
+    return { ...it, spent: round2(paid + undated) };
+  };
+
   natures.forEach((nat) => {
     nat.mappings.forEach((mapping) => {
       // Modo Resumo: o mapeamento é o que se acompanha; os itens só compõem o previsto dele
@@ -265,13 +283,17 @@ export function buildPeriodItems(params: {
         });
         if (purchases.length === 0) return;
         items.push(
-          finishItem({
-            id: mapping.id,
-            title: mapping.name,
-            detail: `${itemCount} ${itemCount === 1 ? 'item' : 'itens'} no resumo`,
-            natureId: nat.id,
-            purchases,
-          })
+          withPaidInRange(
+            finishItem({
+              id: mapping.id,
+              title: mapping.name,
+              detail: `${itemCount} ${itemCount === 1 ? 'item' : 'itens'} no resumo`,
+              natureId: nat.id,
+              purchases,
+            }),
+            mapping.items,
+            mapping.applicableMonths
+          )
         );
         return;
       }
@@ -315,7 +337,13 @@ export function buildPeriodItems(params: {
           });
         });
         if (purchases.length === 0) return;
-        items.push(finishItem({ id: item.id, title: item.description, detail: mapping.name, natureId: nat.id, purchases }));
+        items.push(
+          withPaidInRange(
+            finishItem({ id: item.id, title: item.description, detail: mapping.name, natureId: nat.id, purchases }),
+            [item],
+            mapping.applicableMonths
+          )
+        );
       });
     });
   });

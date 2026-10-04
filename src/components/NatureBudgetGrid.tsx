@@ -11,7 +11,7 @@ import type { ExpenseNature, MonthlyGridProjectionRow, MappingItem } from '../ty
 import { buildMonthlyProjectionGrid, movementCompetenceDate } from '../utils/projectionMath';
 import { mappingItemMonthValue, resolveMappingItemMonth } from '../utils/mappingItemState';
 import { userNatures } from '../utils/baseNatures';
-import { buildPeriodItems, periodRangeLabel, trackingPeriodRange, TRACKING_PERIOD_LABELS } from '../utils/periodSpending';
+import { buildPeriodItems, trackingPeriodRange, TRACKING_PERIOD_LABELS } from '../utils/periodSpending';
 import type { TrackingPeriod } from '../utils/periodSpending';
 import { GridCellDetailModal } from './GridCellDetailModal';
 import type { GridCellSelection } from './GridCellDetailModal';
@@ -57,11 +57,10 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
     activeCheckpoint,
     monthlyClosings,
     viewPreferences,
-    setViewPreferences,
     natureDetailModes,
   } = useFinancial();
 
-  // Período avaliado (o mesmo do Início): semana, quinzena ou mês. Fora do mês, o teto é proporcional ao período.
+  // Período avaliado: o escolhido no seletor do Início (semana, quinzena ou mês). Fora do mês, o teto é proporcional ao período.
   const period: TrackingPeriod = viewPreferences.trackingPeriod || 'MES';
   const periodLabels = TRACKING_PERIOD_LABELS[period];
   const periodRange = useMemo(() => trackingPeriodRange(period), [period]);
@@ -118,6 +117,18 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
     if (val === undefined || val === null) return 'R$ 0,00';
     return val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   };
+
+  // Competências que o período corrente toca (uma semana pode cruzar dois meses)
+  const periodMonthKeys = useMemo(() => {
+    const [fy, fm] = periodRange.from.split('-').map(Number);
+    const keys: string[] = [];
+    for (let d = new Date(fy, fm - 1, 1); ; d.setMonth(d.getMonth() + 1)) {
+      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (k > periodRange.to.slice(0, 7)) break;
+      keys.push(k);
+    }
+    return keys;
+  }, [periodRange]);
 
   // Compras do período corrente (semana/quinzena), item a item, para apurar teto, real e previsto
   const periodItems = useMemo(
@@ -228,12 +239,48 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
       if (period !== 'MES') {
         const mine = periodItems.filter((it) => it.natureId === nat.id);
         planned = Math.round(mine.filter((it) => !it.movementId).reduce((acc, it) => acc + it.planned, 0) * 100) / 100;
-        real = Math.round(mine.reduce((acc, it) => acc + it.spent, 0) * 100) / 100;
+        // Real = o que foi pago DENTRO do período, pela data do pagamento (não pela data prevista da compra)
+        const events: { date: string; description: string; amount: number }[] = [];
+        periodMonthKeys.forEach((key) => {
+          const monthNum = parseInt(key.slice(5, 7), 10);
+          const monthItems = nat.mappings
+            .filter((mp) => !(mp.applicableMonths && mp.applicableMonths.length > 0 && !mp.applicableMonths.includes(monthNum)))
+            .flatMap((mp) => mp.items);
+          const titles = new Set(monthItems.map((it) => norm(it.description)));
+          const ids = new Set(monthItems.map((it) => it.id));
+          const monthMovs = movements.filter(
+            (m) =>
+              (m.type === 'PAGAR' || m.type === 'CARTAO') &&
+              movementCompetenceDate(m).startsWith(key) &&
+              m.status !== 'CANCELADA' &&
+              (m.natureId === nat.id ||
+                m.category.toLowerCase() === nat.name.toLowerCase() ||
+                monthItems.some((it) => it.id === m.mappingItemId || norm(it.description) === norm(m.title)))
+          );
+          const addPaid = (m: (typeof monthMovs)[number]) => {
+            if (m.status === 'REALIZADA') events.push({ date: m.paymentDate || m.dueDate, description: m.title, amount: m.amount });
+          };
+          monthItems.forEach((it) => {
+            const summary = resolveMappingItemMonth(it, key);
+            if (isExcludedState(summary.state)) return;
+            const launched = monthMovs.filter((m) => m.mappingItemId === it.id || norm(m.title) === norm(it.description));
+            if (launched.length > 0) {
+              launched.forEach(addPaid);
+              return;
+            }
+            summary.payments.forEach((pay) => events.push({ date: pay.paidAt, description: it.description, amount: pay.amount }));
+          });
+          monthMovs.filter((m) => !titles.has(norm(m.title)) && !(m.mappingItemId && ids.has(m.mappingItemId))).forEach(addPaid);
+        });
+        const startDate = activeCheckpoint?.startDate || '';
+        events
+          .filter((e) => e.date >= periodRange.from && e.date <= periodRange.to && e.date >= startDate)
+          .forEach((e) => periodPayments.push(e));
+        real = Math.round(periodPayments.reduce((acc, e) => acc + e.amount, 0) * 100) / 100;
         pending = 0;
         mine.forEach((it) =>
           it.purchases.forEach((p) => {
             if (p.status === 'PREVISTA' || p.status === 'ATRASADA') pending += Math.max(0, p.plannedAmount - (p.paidAmount || 0));
-            if (p.status === 'FEITA' && p.paidAt) periodPayments.push({ date: p.paidAt, description: it.title, amount: p.paidAmount ?? p.plannedAmount });
           })
         );
         pending = Math.round(pending * 100) / 100;
@@ -393,7 +440,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
         attentionType,
       };
     });
-  }, [currentRow, natures, movements, selectedMonthKey, getNatureCeiling, period, periodItems]);
+  }, [currentRow, natures, movements, selectedMonthKey, getNatureCeiling, period, periodItems, periodMonthKeys, periodRange, activeCheckpoint?.startDate]);
 
   // Filtragem por status do teto
   const filteredRows = useMemo(() => {
@@ -471,21 +518,6 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
         <div className="nature-grid-row">
           <h2 className="nature-grid-title">Naturezas</h2>
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          {/* Período avaliado: semana, quinzena ou mês */}
-          <div className="flex items-center gap-1 p-0.5 rounded-lg border border-border/50 text-xs" style={{ background: 'var(--bg-app)' }}>
-            {(['SEMANA', 'QUINZENA', 'MES'] as TrackingPeriod[]).map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setViewPreferences({ trackingPeriod: p })}
-                className={`px-2 py-1 rounded font-medium transition cursor-pointer ${
-                  period === p ? 'bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30' : 'text-muted hover:text-primary'
-                }`}
-              >
-                {TRACKING_PERIOD_LABELS[p].name}
-              </button>
-            ))}
-          </div>
           {period === 'MES' ? (
             /* Seletor de Competência */
             <div className="flex items-center gap-1.5 bg-slate-900/60 dark:bg-slate-900/80 px-2.5 py-1.5 rounded-lg border border-border/50">
@@ -504,14 +536,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
                 ))}
               </select>
             </div>
-          ) : (
-            <div className="flex items-center gap-1.5 bg-slate-900/60 dark:bg-slate-900/80 px-2.5 py-1.5 rounded-lg border border-border/50">
-              <Clock size={14} className="text-cyan-400 flex-shrink-0" />
-              <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
-                {periodRangeLabel(period, periodRange)}
-              </span>
-            </div>
-          )}
+          ) : null}
         </div>
         </div>
 
