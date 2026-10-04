@@ -4014,7 +4014,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         ? {
             ...cardOpt,
             label: `${w.institution} (crédito)`,
-            payload: { ...cardOpt.payload, dueDate: firstInvoiceDueDate(pending.dueDate, card.closingDay, card.dueDay) },
+            // A fatura é do banco ("Nubank"), não do nome do cartão ("Cartão Principal"): uma só por banco
+            payload: { ...cardOpt.payload, bank: w.institution || card.bank || card.name, dueDate: firstInvoiceDueDate(pending.dueDate, card.closingDay, card.dueDay) },
           }
         : { id: 'opt_wizard_card', label: `Cadastrar o cartão ${w.institution}`, payload: { action: OPTION_REGISTER_CARD, cardName: w.institution || '' } };
     } else {

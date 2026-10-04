@@ -279,7 +279,7 @@ export function paymentOptions(
         description: split
           ? `${planLabel(split)} · a 1ª entra na fatura que vence em ${ddmm(dueDate)}`
           : `Entra na fatura que vence em ${ddmm(dueDate)}`,
-        payload: { bank: c.name, type: 'CARTAO' as const, category, dueDate, dueDay: c.dueDay },
+        payload: { bank: c.bank || c.name, type: 'CARTAO' as const, category, dueDate, dueDay: c.dueDay },
       };
     }),
   ];
