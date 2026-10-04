@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Home } from 'lucide-react';
 import { DecimalInput } from '../components/DecimalInput';
 import { InfoButton } from '../components/InfoButton';
-import { buildFinancingSchedule, financedAmount, type FinancingInput, type FinancingSchedule } from '../utils/financingMath';
+import { buildFinancingSchedule, financedAmount, type AmortizationSystem, type FinancingInput, type FinancingSchedule } from '../utils/financingMath';
 
 const STORAGE_KEY = 'balder.financing-sim.v1';
 
@@ -23,7 +23,8 @@ const DEFAULTS: FinancingInput = {
 const loadInput = (): FinancingInput => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...DEFAULTS, ...JSON.parse(raw) };
+    // Amortizações extras são tratadas depois de contratado: o simulador não as usa
+    if (raw) return { ...DEFAULTS, ...JSON.parse(raw), extras: {} };
   } catch {
     /* sem storage: usa os padrões */
   }
@@ -36,11 +37,16 @@ const monthLabel = (ym: string) => {
   return `${m}/${y}`;
 };
 
-/** Simulador de financiamento (SAC x Price) com amortizações extras, no modelo da planilha "Tabela Financiamento". */
+/** Simulador de financiamento (SAC x Price) na tabela escolhida (SAC ou Price), no modelo da planilha "Tabela Financiamento". */
 export const FinancingsPage: React.FC = () => {
   const [input, setInput] = useState<FinancingInput>(loadInput);
-  const [extraMonth, setExtraMonth] = useState(1);
-  const [extraValue, setExtraValue] = useState(0);
+  const [system, setSystem] = useState<AmortizationSystem>(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEY + '.system') === 'PRICE' ? 'PRICE' : 'SAC';
+    } catch {
+      return 'SAC';
+    }
+  });
 
   useEffect(() => {
     try {
@@ -48,26 +54,15 @@ export const FinancingsPage: React.FC = () => {
     } catch {
       /* ignora */
     }
-  }, [input]);
+    try {
+      localStorage.setItem(STORAGE_KEY + '.system', system);
+    } catch {
+      /* ignora */
+    }
+  }, [input, system]);
 
-  const sac = useMemo(() => buildFinancingSchedule(input, 'SAC'), [input]);
-  const price = useMemo(() => buildFinancingSchedule(input, 'PRICE'), [input]);
+  const schedule = useMemo(() => buildFinancingSchedule(input, system), [input, system]);
   const financed = financedAmount(input);
-  const extraEntries = Object.entries(input.extras)
-    .map(([k, v]) => [Number(k), v] as const)
-    .filter(([, v]) => v > 0)
-    .sort((a, b) => a[0] - b[0]);
-
-  const addExtra = () => {
-    if (extraValue <= 0 || extraMonth < 1 || extraMonth > input.termMonths) return;
-    setInput({ ...input, extras: { ...input.extras, [extraMonth]: extraValue } });
-    setExtraValue(0);
-  };
-  const removeExtra = (k: number) => {
-    const next = { ...input.extras };
-    delete next[k];
-    setInput({ ...input, extras: next });
-  };
 
   const renderTable = (title: string, hint: string, schedule: FinancingSchedule) => (
     <div className="glass-card" style={{ padding: 16, minWidth: 0 }}>
@@ -85,7 +80,7 @@ export const FinancingsPage: React.FC = () => {
           <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-card, #111)' }}>
             <tr>
               <th align="left">#</th><th align="left">Mês</th><th align="right">Parcela</th>
-              <th align="right">Juros</th><th align="right">Amort.</th><th align="right">Extra</th>
+              <th align="right">Juros</th><th align="right">Amort.</th>
               <th align="right">Saldo</th>
             </tr>
           </thead>
@@ -97,7 +92,6 @@ export const FinancingsPage: React.FC = () => {
                 <td align="right">{brl(r.installment)}</td>
                 <td align="right">{brl(r.interest)}</td>
                 <td align="right">{brl(r.amortization)}</td>
-                <td align="right">{r.extra > 0 ? brl(r.extra) : '—'}</td>
                 <td align="right">{brl(r.balance)}</td>
               </tr>
             ))}
@@ -118,7 +112,7 @@ export const FinancingsPage: React.FC = () => {
           <h1 className="page-title label-with-info">
             Financiamentos
             <InfoButton title="Financiamentos">
-              <p>Calculadora de financiamento. Compara a tabela SAC (amortização constante, parcelas decrescentes) com a Price (parcela fixa) e permite lançar amortizações extras, que reduzem o saldo e encurtam o prazo.</p>
+              <p>Simule o financiamento escolhendo a tabela: SAC (amortização constante, parcelas decrescentes) ou Price (parcela fixa). Amortizações extras são tratadas depois de contratado.</p>
               <p>A taxa mensal é a anual dividida por 12, como na planilha.</p>
             </InfoButton>
           </h1>
@@ -154,6 +148,23 @@ export const FinancingsPage: React.FC = () => {
             <input readOnly className="form-input loan-calculated-field" value={((input.annualRate * 100) / 12).toFixed(4).replace('.', ',')} />
           </div>
           <div className="form-group">
+            <label>Tabela de amortização</label>
+            <select className="form-input" value={system} onChange={(e) => setSystem(e.target.value as AmortizationSystem)}>
+              <option value="SAC">SAC — parcelas decrescentes</option>
+              <option value="PRICE">Price — parcelas fixas</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label>Prazo (anos)</label>
+            <DecimalInput
+              money={false}
+              maxFractionDigits={2}
+              className="form-input"
+              value={Math.round((input.termMonths / 12) * 100) / 100}
+              onValueChange={(v) => setInput({ ...input, termMonths: Math.max(0, Math.round(v * 12)) })}
+            />
+          </div>
+          <div className="form-group">
             <label>Prazo (meses)</label>
             <DecimalInput
               money={false}
@@ -175,34 +186,9 @@ export const FinancingsPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="glass-card" style={{ padding: 16, marginBottom: 16 }}>
-        <h3 style={{ marginBottom: 8 }}>Amortizações extras</h3>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div className="form-group">
-            <label>Parcela nº</label>
-            <DecimalInput money={false} maxFractionDigits={0} className="form-input" value={extraMonth} onValueChange={(v) => setExtraMonth(Math.floor(v))} />
-          </div>
-          <div className="form-group">
-            <label>Valor extra (R$)</label>
-            <DecimalInput className="form-input" value={extraValue} emptyWhenZero onValueChange={setExtraValue} />
-          </div>
-          <button type="button" className="btn btn-primary btn-sm" onClick={addExtra}>Adicionar</button>
-        </div>
-        {extraEntries.length > 0 && (
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-            {extraEntries.map(([k, v]) => (
-              <button key={k} type="button" className="btn btn-outline btn-sm" title="Remover" onClick={() => removeExtra(k)}>
-                Parcela {k}: {brl(v)} ✕
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(520px, 1fr))', gap: 16 }}>
-        {renderTable('Tabela SAC', 'Amortização constante: parcela inicial maior, que diminui a cada mês.', sac)}
-        {renderTable('Tabela Price', 'Parcela fixa: juros maiores no começo, amortização crescente.', price)}
-      </div>
+      {system === 'SAC'
+        ? renderTable('Tabela SAC', 'Amortização constante: parcela inicial maior, que diminui a cada mês.', schedule)
+        : renderTable('Tabela Price', 'Parcela fixa: juros maiores no começo, amortização crescente.', schedule)}
     </div>
   );
 };
