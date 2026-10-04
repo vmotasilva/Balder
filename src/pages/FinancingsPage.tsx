@@ -252,10 +252,11 @@ export const FinancingsPage: React.FC = () => {
             type="button"
             role="tab"
             aria-selected={system === id}
-            className={`btn btn-sm ${system === id ? 'btn-primary' : 'btn-outline'}`}
+            className={`btn btn-sm ${system === id ? '' : 'btn-outline'}`}
+            style={system === id ? { background: '#0369A1', color: '#fff', fontWeight: 700 } : undefined}
             onClick={() => setSystem(id)}
           >
-            {label} <small style={{ opacity: 0.75, marginLeft: 4 }}>· {hint}</small>
+            {label} <small style={{ opacity: system === id ? 1 : 0.75, marginLeft: 4 }}>· {hint}</small>
           </button>
         ))}
       </div>
