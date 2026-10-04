@@ -8,6 +8,8 @@ export interface PaymentInstitution {
   account?: BankAccount;
   /** Cartão de crédito do banco, quando houver. */
   card?: CreditCardItem;
+  /** Fechamento e vencimento da fatura do banco; vem do próprio banco e, na falta, do cartão dele. */
+  terms?: { closingDay: number; dueDay: number };
 }
 
 const same = (a?: string, b?: string) => !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
@@ -27,11 +29,14 @@ export function listPaymentInstitutions(accounts: BankAccount[], cards: CreditCa
   const debitTypes = ['CORRENTE', 'CARTEIRA', 'OUTRO'];
   return names.map((name) => {
     const accountsOfBank = accounts.filter((a) => same(a.bankName, name) || a.name.toLowerCase().includes(name.toLowerCase()));
+    const bank = banks.find((b) => same(b.name, name));
+    const card = cards.find((c) => same(c.bank, name) || same(c.name, name));
     return {
       name,
       color: getBankBranding(name).primaryColor,
+      terms: bank?.closingDay && bank?.dueDay ? { closingDay: bank.closingDay, dueDay: bank.dueDay } : card ? { closingDay: card.closingDay, dueDay: card.dueDay } : undefined,
       account: accountsOfBank.find((a) => debitTypes.includes(a.type)) || accountsOfBank[0],
-      card: cards.find((c) => same(c.bank, name) || same(c.name, name)),
+      card,
     };
   });
 }

@@ -262,7 +262,7 @@ export interface CopilotPendingConfirmation {
 }
 
 export interface PaymentWizardState {
-  step: 'WHERE' | 'BANK' | 'METHOD' | 'INSTALLMENTS' | 'SUMMARY';
+  step: 'WHERE' | 'BANK' | 'METHOD' | 'INVOICE' | 'INSTALLMENTS' | 'SUMMARY';
   where?: 'BANK' | 'CASH';
   /** Banco escolhido (pagamento) ou nome da conta (recebimento). */
   institution?: string;
@@ -418,6 +418,9 @@ export interface BankInstitution {
   icon: string;
   status?: 'CONECTADO' | 'MANUAL';
   syncedAt?: string;
+  /** Fechamento e vencimento da fatura de crédito do banco (a fatura é do banco, não de um cartão). */
+  closingDay?: number;
+  dueDay?: number;
 }
 
 export interface MappingItem {

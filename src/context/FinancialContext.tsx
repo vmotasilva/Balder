@@ -4006,18 +4006,22 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } else if (w.where === 'CASH') {
       option = { id: 'opt_wizard', label: CASH_IN_HAND, payload: { bank: CASH_IN_HAND, type: 'PAGAR', category } };
     } else if (w.method === 'CREDITO') {
-      const plan = w.installments >= 2 ? { count: w.installments, total: pending.amount } : undefined;
-      const card = inst?.card;
-      const cardOpt = card ? paymentOptions([], [card], category, plan).find((o) => o.payload.type === 'CARTAO') : undefined;
-      // A fatura sai da data da compra editada no resumo, não de hoje
-      option = cardOpt && card
-        ? {
-            ...cardOpt,
-            label: `${w.institution} (crédito)`,
-            // A fatura é do banco ("Nubank"), não do nome do cartão ("Cartão Principal"): uma só por banco
-            payload: { ...cardOpt.payload, bank: w.institution || card.bank || card.name, dueDate: firstInvoiceDueDate(pending.dueDate, card.closingDay, card.dueDay) },
-          }
-        : { id: 'opt_wizard_card', label: `Cadastrar o cartão ${w.institution}`, payload: { action: OPTION_REGISTER_CARD, cardName: w.institution || '' } };
+      // A fatura é do banco: fechamento e vencimento vêm do banco (ou do cartão dele), sem exigir cartão cadastrado
+      const bank = w.institution || 'Geral';
+      const terms = inst?.terms;
+      option = {
+        id: 'opt_wizard_card',
+        label: `${bank} (crédito)`,
+        icon: '💳',
+        badge: 'Cartão de crédito',
+        payload: {
+          bank,
+          type: 'CARTAO',
+          category,
+          dueDate: firstInvoiceDueDate(pending.dueDate, terms?.closingDay, terms?.dueDay),
+          dueDay: terms?.dueDay || 10,
+        },
+      };
     } else {
       const bank = inst?.account?.name ?? w.institution ?? 'Geral';
       option = { id: 'opt_wizard', label: `${w.institution} (débito)`, payload: { bank, type: 'PAGAR', category } };

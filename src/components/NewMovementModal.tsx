@@ -272,7 +272,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   const cardPurchase = isPay && institution !== CASH_IN_HAND && payMethod === 'CARTAO';
   const installing = cardPurchase && isInstallment;
   const firstInvoiceDue = cardPurchase
-    ? firstInvoiceDueDate(dueDate, selectedInstitution?.card?.closingDay, selectedInstitution?.card?.dueDay)
+    ? firstInvoiceDueDate(dueDate, selectedInstitution?.terms?.closingDay, selectedInstitution?.terms?.dueDay)
     : dueDate;
   const installmentDates = cardPurchase ? invoiceDueDates(firstInvoiceDue, count) : getInstallmentDates(dueDate, count);
   const firstDueDateFormatted = installmentDates[0]?.split('-').reverse().join('/') || dueDate;

@@ -23070,6 +23070,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .pay-wizard-summary {
   display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 6px 10px; align-items: center; margin: 0;
 }
+.pay-wizard-field { display: contents; }
 .pay-wizard-summary dt { color: var(--text-muted); font-size: 12px; line-height: 1.2; overflow-wrap: break-word; }
 .pay-wizard-summary dd { margin: 0; min-width: 0; }
 .pay-wizard-summary input,
