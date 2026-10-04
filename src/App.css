@@ -23160,9 +23160,6 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     min-height: 0;
     overflow-y: auto;
   }
-  .home-modules {
-    display: none;
-  }
 }
 
 /* Início no celular: abas no lugar dos dois cards empilhados */

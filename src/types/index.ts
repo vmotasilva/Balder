@@ -710,6 +710,23 @@ export interface UserProfileSettings {
   checkpointCashInHand?: Record<string, number>;
   /** Situação das metas arquivadas/canceladas, por id da meta. */
   goalStatuses?: Record<string, GoalStatusInfo>;
+  /** Carteira de investimentos (aplicações com valor investido e valor atual). */
+  investments?: Investment[];
+}
+
+export type InvestmentType = 'RENDA_FIXA' | 'TESOURO' | 'ACOES' | 'FIIS' | 'FUNDOS' | 'CRIPTO' | 'OUTROS';
+
+export interface Investment {
+  id: string;
+  name: string;
+  type: InvestmentType;
+  /** Quanto foi aplicado (custo) */
+  invested: number;
+  /** Valor atual de mercado */
+  currentValue: number;
+  /** Data da aplicação (YYYY-MM-DD) */
+  date: string;
+  note?: string;
 }
 
 /**
