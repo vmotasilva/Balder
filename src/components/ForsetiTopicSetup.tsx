@@ -13,6 +13,7 @@ import {
   SUGGESTED_NATURES,
   brDate,
   clampDay,
+  defaultClosingDay,
   formatBRL,
   isoOf,
   nextDateForDay,
@@ -428,7 +429,7 @@ const EntradasTopic: React.FC<TopicProps> = (p) => {
 const CartoesTopic: React.FC<TopicProps> = (p) => {
   const { cards, banks, accounts, movements, addCard, updateCard, addMovement, updateMovement } = useFinancial();
   const s = useSteps<'USES' | 'WHICH' | 'DETAILS'>('USES', p);
-  const [rows, setRows] = useState<{ name: string; dueDay: number; amount: number }[]>([]);
+  const [rows, setRows] = useState<{ name: string; dueDay: number; amount: number; closingDay?: number }[]>([]);
   const known = [...banks.map((b) => b.name), ...accounts.map((a) => a.bankName || a.name), ...POPULAR_BANKS].filter(
     (n, i, arr) => arr.findIndex((x) => sameName(x, n)) === i
   );
@@ -436,14 +437,15 @@ const CartoesTopic: React.FC<TopicProps> = (p) => {
 
   const toggle = (name: string) =>
     setRows((prev) => (prev.some((r) => sameName(r.name, name)) ? prev.filter((r) => !sameName(r.name, name)) : [...prev, { name, dueDay: 10, amount: 0 }]));
-  const update = (idx: number, changes: Partial<{ dueDay: number; amount: number }>) => setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...changes } : r)));
+  const update = (idx: number, changes: Partial<{ dueDay: number; amount: number; closingDay: number }>) => setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...changes } : r)));
 
   const save = () => {
     const today = new Date();
     rows.forEach((r) => {
       const key = normalizeBankKey(r.name);
-      const closingDay = Math.max(1, r.dueDay - 7);
       const existing = cards.find((c) => normalizeBankKey(c.bank || c.name || '') === key);
+      // Fechamento informado vale sempre; sem ele, cartão já cadastrado mantém o seu e só cartão novo recebe a estimativa
+      const closingDay = r.closingDay ?? existing?.closingDay ?? defaultClosingDay(r.dueDay);
       if (existing) updateCard(existing.id, { dueDay: r.dueDay, closingDay });
       else
         addCard({
@@ -504,12 +506,17 @@ const CartoesTopic: React.FC<TopicProps> = (p) => {
     case 'DETAILS': {
       const q = rows.length > 1 ? 'Em que dia vence cada um e quanto está a próxima fatura?' : `Em que dia vence o ${rows[0]?.name} e quanto está a próxima fatura?`;
       return (
-        <Ask question={q} hint="As compras novas você me conta depois, ou manda a foto da fatura." onBack={s.back} backLabel={s.backLabel}>
+        <Ask question={q} hint="Se não souber o dia do fechamento, deixo uma estimativa (uma semana antes do vencimento): confira no app do banco. As compras novas você me conta depois, ou manda a foto da fatura." onBack={s.back} backLabel={s.backLabel}>
           {rows.map((r, idx) => (
             <div key={r.name} className="guided-row">
               <span className="guided-row-name">{r.name}</span>
               <DecimalInput className="form-input form-input-sm" money value={r.amount} emptyWhenZero onValueChange={(v) => update(idx, { amount: v })} placeholder="Próxima fatura" aria-label={`Próxima fatura ${r.name}`} />
               <DayInput label="vence dia" value={r.dueDay} onChange={(dueDay) => update(idx, { dueDay })} />
+              <DayInput
+                label="fecha dia"
+                value={r.closingDay ?? cards.find((c) => normalizeBankKey(c.bank || c.name || '') === normalizeBankKey(r.name))?.closingDay ?? defaultClosingDay(r.dueDay)}
+                onChange={(closingDay) => update(idx, { closingDay })}
+              />
             </div>
           ))}
           <div className="guided-actions">
