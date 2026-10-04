@@ -84,6 +84,7 @@ export const ContractsPage: React.FC<{ newLoanSignal?: number }> = ({ newLoanSig
   }
 
   const modalities: ContractModality[] = [
+    { id: 'INVESTIMENTOS', label: 'Investimentos', icon: TrendingUp, kind: 'INVESTIMENTOS', status: 'Abrir carteira' },
     {
       id: 'EMPRESTIMOS',
       label: 'Empréstimos',
@@ -96,7 +97,6 @@ export const ContractsPage: React.FC<{ newLoanSignal?: number }> = ({ newLoanSig
     },
     { id: 'FINANCIAMENTOS', label: 'Financiamentos', icon: Home, kind: 'FINANCIAMENTOS', status: 'Simule SAC e Price' },
     { id: 'CONSORCIOS', label: 'Consórcios', icon: Handshake, status: 'Em breve' },
-    { id: 'INVESTIMENTOS', label: 'Investimentos', icon: TrendingUp, kind: 'INVESTIMENTOS', status: 'Abrir carteira' },
     { id: 'OUTROS', label: 'Outros contratos', icon: FileText, status: 'Em breve' },
   ];
 
