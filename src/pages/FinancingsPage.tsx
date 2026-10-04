@@ -81,12 +81,12 @@ export const FinancingsPage: React.FC = () => {
         <div><small>Parcelas pagas</small><div><strong>{schedule.summary.paidMonths}</strong></div></div>
       </div>
       <div style={{ maxHeight: 420, overflow: 'auto' }}>
-        <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+        <table className="financing-table" style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse', whiteSpace: 'nowrap' }}>
           <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-card, #111)' }}>
             <tr>
               <th align="left">#</th><th align="left">Mês</th><th align="right">Parcela</th>
               <th align="right">Juros</th><th align="right">Amort.</th><th align="right">Extra</th>
-              <th align="right">Saldo devedor</th>
+              <th align="right">Saldo</th>
             </tr>
           </thead>
           <tbody>
@@ -199,7 +199,7 @@ export const FinancingsPage: React.FC = () => {
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(520px, 1fr))', gap: 16 }}>
         {renderTable('Tabela SAC', 'Amortização constante: parcela inicial maior, que diminui a cada mês.', sac)}
         {renderTable('Tabela Price', 'Parcela fixa: juros maiores no começo, amortização crescente.', price)}
       </div>

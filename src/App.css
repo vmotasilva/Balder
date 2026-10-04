@@ -24445,3 +24445,6 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
 .invoices-bank-bar-head .bank-terms-row select { width: 76px; padding-top: 4px; padding-bottom: 4px; }
 .invoices-bank-bar-head .bank-terms-check, .invoices-bank-bar-head .bank-terms-hint { font-size: 11px; }
 .invoices-filter-panel { padding: 10px 14px; }
+
+.financing-table th,
+.financing-table td { padding: 4px 8px; }
