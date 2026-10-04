@@ -6,14 +6,11 @@ import { Ban,
   X,
   CreditCard,
   Building2,
-  ShieldCheck,
   Receipt,
   DollarSign,
   Landmark,
   Layers,
   ArrowUpRight,
-  Info,
-  Search,
   Maximize2,
   Minimize2,
   AlertTriangle,
@@ -73,6 +70,8 @@ import {
   type WeekLayer,
 } from './CellDetailViews';
 import { MovementDetailModal } from './MovementDetailModal';
+import { NatureSelect } from './NatureSelect';
+import { InfoButton } from './InfoButton';
 import { InitialBalancePanel } from './InitialBalancePanel';
 import {
   SalaryRegimeDialog,
@@ -2612,34 +2611,6 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     return items;
   }, [breakdownItems]);
 
-  // Agrupamentos por data de todas as naturezas combinadas para visão consolidada
-  const consolidatedDateGroups = useMemo<CellDateGroup[]>(() => {
-    const map = new Map<string, CellDateGroup>();
-    breakdownItems.forEach((b) => {
-      if (b.dateGroups) {
-        b.dateGroups.forEach((dg) => {
-          const cur = map.get(dg.dateStr);
-          if (cur) {
-            cur.subtotal += dg.subtotal;
-            cur.items.push(...dg.items);
-          } else {
-            map.set(dg.dateStr, {
-              id: dg.id,
-              dateStr: dg.dateStr,
-              dateFormatted: dg.dateFormatted,
-              eventTitle: dg.eventTitle,
-              periodType: dg.periodType,
-              subtotal: dg.subtotal,
-              items: [...dg.items],
-              isSummaryGroup: dg.isSummaryGroup,
-            });
-          }
-        });
-      }
-    });
-    return Array.from(map.values()).sort((a, b) => a.dateStr.localeCompare(b.dateStr));
-  }, [breakdownItems]);
-
   // Item ativo no painel de detalhe dedicado
   const isAll = activeSelectionId === 'ALL';
   const activeItem = isAll
@@ -3510,144 +3481,57 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             );
           })()}
 
-          {/* Banner Inteligente Compacto Anti-Duplicidade se aplicável */}
-          {!isCompact && columnKey === 'totalIncome' && (
-            <div className="compact-info-banner mb-2">
-              <ArrowUpRight size={15} className="text-emerald-400 flex-shrink-0" />
-              <div className="text-xs min-w-0 flex-1 truncate" style={{ color: 'var(--text-secondary)' }}>
-                <strong style={{ color: 'var(--text-primary)' }}>Total de Entradas ({formatBRL(dynamicTotalValue)}):</strong>{' '}
-                consolidado de proventos CLT, receitas extras e rendimentos da competência.
-              </div>
-            </div>
-          )}
-
-          {!isCompact && columnKey === 'totalExpense' && currentRow && (
-            <div className="compact-info-banner mb-2">
-              <Receipt size={15} className="text-rose-400 flex-shrink-0" />
-              <div className="text-xs min-w-0 flex-1 truncate" style={{ color: 'var(--text-secondary)' }}>
-                <strong style={{ color: 'var(--text-primary)' }}>Total de Saídas ({formatBRL(dynamicTotalValue)}):</strong>{' '}
-                absorve faturas ({formatBRL(currentRow.creditCardTotal)}), custos fixos ({formatBRL(currentRow.fixedCostMapped)}), avulsos e parcelas.
-              </div>
-            </div>
-          )}
-
-          {!isCompact && columnKey === 'fixedCost' && currentRow && (
-            <div className="compact-info-banner mb-2">
-              <ShieldCheck size={15} className="text-emerald-400 flex-shrink-0" />
-              <div className="text-xs min-w-0 flex-1 truncate" style={{ color: 'var(--text-secondary)' }}>
-                <strong style={{ color: 'var(--text-primary)' }}>Proteção Anti-Duplicidade Ativa:</strong>{' '}
-                Fixos no cartão ({formatBRL(currentRow.fixedCostOnCard)}) na coluna Cartão; fixos diretos ({formatBRL(currentRow.fixedCostDirect)}) debitados em conta.
-              </div>
-            </div>
-          )}
-
-          {!isCompact && columnKey === 'creditCard' && currentRow && (
-            <div className="compact-info-banner mb-2">
-              <Info size={15} className="text-cyan-400 flex-shrink-0" />
-              <div className="text-xs min-w-0 flex-1 truncate" style={{ color: 'var(--text-secondary)' }}>
-                <strong style={{ color: 'var(--text-primary)' }}>Fatura de {formatBRL(currentRow.creditCardTotal)}:</strong>{' '}
-                absorve compras parceladas e gastos fixos recorrentes no cartão ({formatBRL(currentRow.fixedCostOnCard)}).
-              </div>
-            </div>
-          )}
-
-          {/* SELETOR DE ABAS HORIZONTAIS DE NATUREZAS COM CAMPO DE BUSCA (no celular, a lista de naturezas já navega) */}
+          {/* FILTRO DE NATUREZA: seletor com busca (no celular, a lista de naturezas já navega) */}
           {!isCompact && (
-          <div className="nature-tabs-bar-container">
-            {/* Campo de Busca para Delimitar a Natureza sob Análise */}
-            <div className="nature-search-wrap">
-              <Search size={14} className="nature-search-icon" />
-              <input
-                type="text"
-                value={natureSearchTerm}
-                onChange={(e) => setNatureSearchTerm(e.target.value)}
-                placeholder="Buscar natureza..."
-                className="nature-search-input"
+            <div className="nature-tabs-bar-container">
+              <NatureSelect
+                options={breakdownItems.map((item) => ({
+                  id: item.id,
+                  title: item.title,
+                  amount: item.amount,
+                  attention: item.hasAttentionPoint ? item.attentionType : undefined,
+                  searchText: [
+                    item.category,
+                    item.bankOrOrigin,
+                    item.notes || '',
+                    ...(item.subItems || []).flatMap((sub) => [sub.description, sub.mappingName || '']),
+                  ].join(' '),
+                }))}
+                value={activeSelectionId}
+                allLabel="Todas as naturezas"
+                allAmount={dynamicTotalValue}
+                allHint={(() => {
+                  // Linhas-resumo contam como mapeamentos, não como itens nem datas
+                  const summaries = consolidatedSubItems.filter((it) => it.isMappingSummary).length;
+                  const itemsCount = consolidatedSubItems.length - summaries;
+                  return `${breakdownItems.length} ${breakdownItems.length === 1 ? 'natureza' : 'naturezas'} · ${itemsCount} ${itemsCount === 1 ? 'item' : 'itens'}`;
+                })()}
+                onChange={setActiveSelectionId}
+                formatAmount={formatBRL}
               />
-              {natureSearchTerm && (
-                <button
-                  type="button"
-                  onClick={() => setNatureSearchTerm('')}
-                  className="nature-search-clear"
-                  title="Limpar busca"
-                >
-                  <X size={12} />
-                </button>
-              )}
+              {(() => {
+                // A composição da coluna fica numa dica, não numa faixa fixa
+                const note =
+                  columnKey === 'totalIncome'
+                    ? `Total de Entradas (${formatBRL(dynamicTotalValue)}): consolidado de proventos CLT, receitas extras e rendimentos da competência.`
+                    : columnKey === 'totalExpense' && currentRow
+                    ? `Total de Saídas (${formatBRL(dynamicTotalValue)}): absorve faturas (${formatBRL(currentRow.creditCardTotal)}), custos fixos (${formatBRL(currentRow.fixedCostMapped)}), avulsos e parcelas.`
+                    : columnKey === 'fixedCost' && currentRow
+                    ? `Proteção anti-duplicidade: fixos no cartão (${formatBRL(currentRow.fixedCostOnCard)}) entram na coluna Cartão; fixos diretos (${formatBRL(currentRow.fixedCostDirect)}) são debitados em conta.`
+                    : columnKey === 'creditCard' && currentRow
+                    ? `Fatura de ${formatBRL(currentRow.creditCardTotal)}: absorve compras parceladas e gastos fixos recorrentes no cartão (${formatBRL(currentRow.fixedCostOnCard)}).`
+                    : '';
+                return note ? (
+                  <InfoButton title="Como este total é composto">
+                    <p>{note}</p>
+                  </InfoButton>
+                ) : null;
+              })()}
             </div>
-
-            {/* Abas Horizontais com Rolagem Suave */}
-            <div className="nature-horizontal-tabs">
-              {/* Aba Consolidada: Todos os Itens */}
-              <button
-                type="button"
-                className={`nature-tab-pill ${isAll ? 'active' : ''}`}
-                onClick={() => setActiveSelectionId('ALL')}
-              >
-                <span>📁 Todos os Itens</span>
-                <span className="nature-tab-amount">{formatBRL(dynamicTotalValue)}</span>
-                <span className="text-[10px] opacity-75">
-                  {(() => {
-                    // Linhas-resumo contam como mapeamentos, não como itens nem datas
-                    const summaries = consolidatedSubItems.filter((it) => it.isMappingSummary).length;
-                    const dates = consolidatedDateGroups.filter((dg) => !dg.isSummaryGroup).length;
-                    const itemsCount = consolidatedSubItems.length - summaries;
-                    const parts = [
-                      dates > 0 ? `${dates} ${dates === 1 ? 'data' : 'datas'}` : null,
-                      itemsCount > 0 ? `${itemsCount} ${itemsCount === 1 ? 'item' : 'itens'}` : null,
-                      summaries > 0 ? `${summaries} ${summaries === 1 ? 'mapeamento' : 'mapeamentos'}` : null,
-                    ].filter(Boolean);
-                    return `(${parts.join(' • ') || '0 itens'})`;
-                  })()}
-                </span>
-              </button>
-
-              {/* Abas Individuais Filtradas */}
-              {filteredBreakdownItems.map((item) => {
-                const isSelected = activeSelectionId === item.id;
-                return (
-                  <button
-                    type="button"
-                    key={item.id}
-                    className={`nature-tab-pill ${isSelected ? 'active' : ''} ${
-                      item.hasAttentionPoint
-                        ? item.attentionType === 'OVER_CEILING'
-                          ? 'has-attention-rose'
-                          : 'has-attention-amber'
-                        : ''
-                    }`}
-                    onClick={() => setActiveSelectionId(item.id)}
-                    title={`${item.title} - ${item.bankOrOrigin}${
-                      item.attentionMessage ? ` (${item.attentionMessage})` : ''
-                    }`}
-                  >
-                    <span className="truncate max-w-[170px]">{item.title}</span>
-                    {item.hasAttentionPoint && (
-                      <span
-                        className={`nature-tab-attention-pill ${
-                          item.attentionType === 'OVER_CEILING' ? 'rose' : 'amber'
-                        }`}
-                      >
-                        <AlertTriangle size={10} />
-                        {item.attentionType === 'OVER_CEILING' ? 'Estouro' : 'Atípico'}
-                      </span>
-                    )}
-                    <span className="nature-tab-amount">{formatBRL(item.amount)}</span>
-                  </button>
-                );
-              })}
-
-              {filteredBreakdownItems.length === 0 && (
-                <div className="text-xs text-muted py-1 px-3 whitespace-nowrap italic">
-                  Nenhuma natureza encontrada para "{natureSearchTerm}"
-                </div>
-              )}
-            </div>
-          </div>
           )}
 
-          {/* BARRA DE MÉTRICAS E STATUS EM LINHA ÚNICA (no celular, o resumo do topo e as linhas já mostram) */}
-          {!isCompact && (
+          {/* BARRA DE MÉTRICAS E STATUS EM LINHA ÚNICA (só com uma natureza escolhida: em "todas", o resumo do topo já mostra) */}
+          {!isCompact && !isAll && (
           <div className="compact-metrics-strip">
             {/* Lado Esquerdo: Identificação e Badge de Status */}
             <div className="metrics-strip-title-area">
@@ -3706,11 +3590,11 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
 
           {/* LISTAGEM VERTICAL AGRUPADA COM STICKY HEADERS (DATA & SUBTOTAL DO DIA) */}
           <div className="detail-items-scroll-area">
-            {/* PAINEL ESPECIAL DE GESTÃO DA FATURA DO CARTÃO */}
+            {/* GESTÃO DA FATURA DO CARTÃO: só ao abrir a fatura ou na coluna Cartão, em uma linha */}
             {(() => {
               const isInvoiceContext =
                 (activeItem && (activeItem.category === 'Cartão de Crédito' || activeItem.category === 'Fatura de Cartão' || activeItem.movementId || activeItem.id.startsWith('expense_card_'))) ||
-                (isAll && (columnKey === 'creditCard' || (columnKey === 'totalExpense' && (currentRow?.creditCardTotal || 0) > 0)));
+                (isAll && columnKey === 'creditCard');
 
               if (!isInvoiceContext) return null;
               // Celular: gestão da fatura só ao abrir a fatura, não na lista de todas as naturezas
@@ -3736,115 +3620,87 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
               return (
                 <div
                   style={{
-                    margin: '0 0 0.85rem 0',
-                    padding: '0.85rem 1rem',
-                    borderRadius: '12px',
-                    background: 'linear-gradient(135deg, rgba(88, 28, 135, 0.22) 0%, rgba(30, 27, 75, 0.45) 100%)',
-                    border: '1px solid rgba(168, 85, 247, 0.35)',
+                    margin: '0 0 0.6rem 0',
+                    padding: '0.5rem 0.75rem',
+                    borderRadius: '10px',
+                    background: 'rgba(88, 28, 135, 0.16)',
+                    border: '1px solid rgba(168, 85, 247, 0.3)',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '0.65rem',
+                    gap: '0.5rem',
                   }}
-                  className="animate-fade-in shadow-md"
+                  className="animate-fade-in"
                 >
                   <div className="flex items-center justify-between flex-wrap gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <div className="p-2 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-500/30 flex-shrink-0">
-                        <CreditCard size={18} />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-bold text-purple-300">
-                            Fatura de Cartão • {invMov?.bank || activeItem?.bankOrOrigin || 'Nubank / Inter'}
-                          </span>
-                          {invMov ? (
-                            <button
-                              type="button"
-                              onClick={() => toggleInvoicePaid(invMov)}
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold cursor-pointer transition flex items-center gap-1 ${
-                                isPaid
-                                  ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/40'
-                                  : 'bg-purple-500/25 text-purple-300 border border-purple-500/40 hover:bg-purple-500/40'
-                              }`}
-                              title="Clique para alternar entre Fatura Paga e Fatura Aberta"
-                            >
-                              {isPaid ? (
-                                <>
-                                  <Check size={10} /> Fatura Paga (Liquidada)
-                                </>
-                              ) : (
-                                <>
-                                  <Clock size={10} /> Fatura Aberta (Prevista)
-                                </>
-                              )}
-                            </button>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                              Previsão Orçamentária
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-slate-300 mt-0.5">
-                          Defina se parte dos gastos previstos nas naturezas foi aplicado nesta fatura e associe os valores em aberto.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap min-w-0">
+                      <CreditCard size={15} className="text-purple-300 flex-shrink-0" />
+                      <span className="text-xs font-bold text-purple-300">Fatura • {invMov?.bank || activeItem?.bankOrOrigin || 'Banco'}</span>
                       {invMov ? (
                         <button
                           type="button"
-                          onClick={() => handleAutoAssociateCardNatures(invMov)}
-                          className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-500/20 text-purple-200 border border-purple-500/40 hover:bg-purple-500/35 transition flex items-center gap-1.5 cursor-pointer shadow-sm hover:scale-[1.02]"
-                          title="Puxa todos os itens de naturezas orçadas no cartão e associa diretamente à fatura"
+                          onClick={() => toggleInvoicePaid(invMov)}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold cursor-pointer transition flex items-center gap-1 ${
+                            isPaid
+                              ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/40'
+                              : 'bg-purple-500/25 text-purple-300 border border-purple-500/40 hover:bg-purple-500/40'
+                          }`}
+                          title="Clique para alternar entre Fatura Paga e Fatura Aberta"
                         >
-                          <Sparkles size={13} className="text-purple-300" />
-                          <span>Associar Gastos Previstos</span>
+                          {isPaid ? (
+                            <>
+                              <Check size={10} /> Paga
+                            </>
+                          ) : (
+                            <>
+                              <Clock size={10} /> Aberta
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          Previsão orçamentária
+                        </span>
+                      )}
+                      <span className="text-[11px] text-slate-300">
+                        Total <strong className="text-white">{formatBRL(totalAmt)}</strong>
+                      </span>
+                      <span className={`text-[11px] font-semibold ${unanalyzed > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                        {unanalyzed > 0 ? `Pendente: ${formatBRL(unanalyzed)}` : '✓ 100% classificada'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {invMov && unanalyzed > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => handleAutoAssociateCardNatures(invMov)}
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-500/20 text-purple-200 border border-purple-500/40 hover:bg-purple-500/35 transition flex items-center gap-1.5 cursor-pointer"
+                          title="Puxa os itens das naturezas orçadas no cartão e associa à fatura"
+                        >
+                          <Sparkles size={12} className="text-purple-300" />
+                          <span>Associar previstos</span>
                         </button>
                       ) : null}
 
                       <button
                         type="button"
                         onClick={() => handleOpenInvoiceEditor(invMov)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-500 hover:to-indigo-500 transition flex items-center gap-1.5 cursor-pointer shadow-sm hover:scale-[1.02]"
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-500 hover:to-indigo-500 transition flex items-center gap-1.5 cursor-pointer"
                         title="Ajustar valor da fatura, destrinchar parcelas e classificar cada gasto em naturezas"
                       >
-                        <Edit3 size={13} />
-                        <span>Ajustar Fatura & Naturezas</span>
+                        <Edit3 size={12} />
+                        <span>Ajustar fatura</span>
                       </button>
                     </div>
                   </div>
 
-                  {/* Barra de Progresso de Alocação da Fatura */}
-                  <div className="p-2 rounded-lg bg-black/30 border border-white/5 flex flex-col gap-1.5 text-xs">
-                    <div className="flex items-center justify-between flex-wrap gap-2 text-[11px]">
-                      <span className="text-slate-300">
-                        Total da Fatura: <strong className="text-white">{formatBRL(totalAmt)}</strong>
-                      </span>
-                      <div className="flex items-center gap-3">
-                        <span className="text-cyan-400 font-semibold">
-                          Associado a Naturezas: {formatBRL(totalAllocated)} ({pctAllocated}%)
-                        </span>
-                        <span className={`font-semibold ${unanalyzed > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
-                          {unanalyzed > 0 ? `Em Aberto (Pendente): ${formatBRL(unanalyzed)}` : '✓ 100% Classificada'}
-                        </span>
-                      </div>
-                    </div>
+                  {/* Progresso de alocação: só enquanto há valor pendente */}
+                  {unanalyzed > 0 && (
                     <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden flex">
-                      <div
-                        className="bg-cyan-500 h-full transition-all duration-300"
-                        style={{ width: `${pctAllocated}%` }}
-                        title={`Alocado em Naturezas: ${formatBRL(totalAllocated)}`}
-                      />
-                      {unanalyzed > 0 && (
-                        <div
-                          className="bg-amber-500 h-full transition-all duration-300"
-                          style={{ width: `${Math.max(0, 100 - pctAllocated)}%` }}
-                          title={`Em Aberto: ${formatBRL(unanalyzed)}`}
-                        />
-                      )}
+                      <div className="bg-cyan-500 h-full transition-all duration-300" style={{ width: `${pctAllocated}%` }} title={`Alocado em naturezas: ${formatBRL(totalAllocated)} (${pctAllocated}%)`} />
+                      <div className="bg-amber-500 h-full transition-all duration-300" style={{ width: `${Math.max(0, 100 - pctAllocated)}%` }} title={`Pendente: ${formatBRL(unanalyzed)}`} />
                     </div>
-                  </div>
+                  )}
                 </div>
               );
             })()}
