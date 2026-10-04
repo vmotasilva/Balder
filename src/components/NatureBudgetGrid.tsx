@@ -28,7 +28,9 @@ interface NatureBudgetRow {
   pendingAmount: number;  // Previsto: ainda a pagar no mês
   diffAmount: number;
   percentUsed: number;
-  isOverCeiling: boolean;
+  isOverCeiling: boolean;     // vermelho: o Real (já pago) passou do teto
+  isProjectedOver: boolean;   // amarelo: Real + Previsto projetam passar do teto
+  hasLineOver: boolean;       // amarelo: uma linha passou do próprio previsto
   observations: string;
   customNotes?: string;
   lastTransaction: {
@@ -41,7 +43,7 @@ interface NatureBudgetRow {
   itemsCount: number;
   routinesCount: number;
   hasAttentionPoint: boolean;
-  attentionType: 'OVER_CEILING' | 'OVER_LINE' | 'ATYPICAL' | null;
+  attentionType: 'OVER_CEILING' | 'PROJECTED' | 'OVER_LINE' | 'ATYPICAL' | null;
 }
 
 interface NatureBudgetGridProps {
@@ -303,10 +305,12 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
       }
       const realized = real;
 
-      // 3. Disponível (teto - real) e situação: acima do teto quando real + previsto passam do teto
+      // 3. Disponível (teto - real) e situação: acima do teto quando o real passa do teto
       const diff = Math.round((planned - realized) * 100) / 100;
       const pct = planned > 0 ? Math.round((realized / planned) * 100) : (realized > 0 ? 100 : 0);
-      const isOver = planned > 0 && realized + pending > planned + 0.005;
+      // Vermelho só quando o que já foi pago passa do teto; Real + Previsto acima do teto é projeção (amarelo)
+      const isOver = planned > 0 && realized > planned + 0.005;
+      const isProjectedOver = !isOver && planned > 0 && realized + pending > planned + 0.005;
 
       // 4. Última transação: somente pagamentos reais (movimentações realizadas ou pagamentos de itens)
       if (period === 'MES') {
@@ -394,31 +398,34 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
       // 6. Regra de Negócios para Observações Analíticas
       let autoObservation = '';
 
+      const periodName = period === 'MES' ? 'do mês' : period === 'SEMANA' ? 'da semana' : 'da quinzena';
       if (isOver) {
         // Estouro de teto: aponta o que realmente passou do previsto (item acima do valor do mês ou gasto avulso)
-        const overBy = Math.round((realized + pending - planned) * 100) / 100;
+        const overBy = Math.round((realized - planned) * 100) / 100;
         const culprit = period !== 'MES' ? undefined : [...overages].sort((a, b) => b.amount - a.amount)[0];
         autoObservation = culprit
           ? `Excedente de ${formatBRL(overBy)} impactado por: ${culprit.name} (${formatBRL(culprit.amount)} acima do previsto).`
-          : `Excedente de ${formatBRL(overBy)} sobre o teto ${period === 'MES' ? 'do mês' : `d${period === 'SEMANA' ? 'a semana' : 'a quinzena'}`}.`;
-      } else if (lineOverages.length > 0) {
-        // Natureza dentro do teto, mas uma linha passou do próprio previsto: alerta amarelo
-        const topLine = [...lineOverages].sort((a, b) => b.amount - a.amount)[0];
-        autoObservation = `${topLine.name}: ${formatBRL(topLine.amount)} acima do previsto da linha (teto da natureza mantido).`;
-      } else if (atypicalExpenses.length > 0) {
-        // Se houver gastos atípicos (mas dentro do teto):
-        // Exiba um resumo curto dessas anomalias.
-        const totalAtypical = atypicalExpenses.reduce((acc, e) => acc + e.amount, 0);
-        const topAtypical = atypicalExpenses[0];
-        const count = atypicalExpenses.length;
-
-        autoObservation = `Inclui ${count} ${
-          count === 1 ? 'gasto atípico' : 'gastos atípicos'
-        } somando ${formatBRL(totalAtypical)} (Ex: ${topAtypical.name}).`;
+          : `Excedente de ${formatBRL(overBy)} sobre o teto ${periodName}.`;
       } else {
-        // Se ocorreu tudo exatamente como o previsto (apenas custos fixos/recorrentes normais):
-        // Deixe a coluna de observação com traço ("-") para reduzir o ruído visual.
-        autoObservation = '-';
+        // Dentro do teto no Real: avisos em amarelo (projeção, linha acima do previsto, gastos atípicos)
+        const notes: string[] = [];
+        if (isProjectedOver) {
+          const projBy = Math.round((realized + pending - planned) * 100) / 100;
+          notes.push(`Real + Previsto somam ${formatBRL(realized + pending)}, ${formatBRL(projBy)} acima do teto ${periodName}.`);
+        }
+        if (lineOverages.length > 0) {
+          const topLine = [...lineOverages].sort((a, b) => b.amount - a.amount)[0];
+          notes.push(`${topLine.name}: ${formatBRL(topLine.amount)} acima do previsto da linha.`);
+        }
+        if (atypicalExpenses.length > 0) {
+          const totalAtypical = atypicalExpenses.reduce((acc, e) => acc + e.amount, 0);
+          const count = atypicalExpenses.length;
+          notes.push(
+            `Inclui ${count} ${count === 1 ? 'gasto atípico' : 'gastos atípicos'} somando ${formatBRL(totalAtypical)} (Ex: ${atypicalExpenses[0].name}).`
+          );
+        }
+        // Sem nada fora do previsto: traço ("-") para reduzir o ruído visual
+        autoObservation = notes.length > 0 ? notes.join(' • ') : '-';
       }
 
       // Justificativa manual personalizada cadastrada pelo usuário na natureza (se existir)
@@ -431,9 +438,11 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
         }
       }
 
-      const hasAttention = isOver || lineOverages.length > 0 || atypicalExpenses.length > 0;
-      const attentionType: 'OVER_CEILING' | 'OVER_LINE' | 'ATYPICAL' | null = isOver
+      const hasAttention = isOver || isProjectedOver || lineOverages.length > 0 || atypicalExpenses.length > 0;
+      const attentionType: NatureBudgetRow['attentionType'] = isOver
         ? 'OVER_CEILING'
+        : isProjectedOver
+        ? 'PROJECTED'
         : lineOverages.length > 0
         ? 'OVER_LINE'
         : atypicalExpenses.length > 0
@@ -453,6 +462,8 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
         diffAmount: diff,
         percentUsed: pct,
         isOverCeiling: isOver,
+        isProjectedOver,
+        hasLineOver: lineOverages.length > 0,
         observations: autoObservation,
         customNotes: nat.overCeilingJustification,
         lastTransaction: lastTx,
@@ -637,11 +648,27 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
                         className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
                           row.isOverCeiling
                             ? 'bg-rose-500/20 text-rose border border-rose-500/30'
+                            : row.isProjectedOver || row.hasLineOver
+                            ? 'bg-amber-500/20 text-amber border border-amber-500/30'
                             : 'bg-emerald-500/20 text-emerald border border-emerald-500/30'
                         }`}
-                        title={row.isOverCeiling ? 'Real + Previsto passam do teto' : 'Real + Previsto dentro do teto'}
+                        title={
+                          row.isOverCeiling
+                            ? 'O Real (já pago) passou do teto'
+                            : row.isProjectedOver
+                            ? 'Real + Previsto passam do teto'
+                            : row.hasLineOver
+                            ? 'Uma linha passou do próprio previsto; o teto da natureza foi mantido'
+                            : 'Real + Previsto dentro do teto'
+                        }
                       >
-                        {row.isOverCeiling ? '⚠️ Acima do teto' : '✓ No teto'}
+                        {row.isOverCeiling
+                          ? '⚠️ Acima do teto'
+                          : row.isProjectedOver
+                          ? '⚠️ Previsão acima'
+                          : row.hasLineOver
+                          ? '⚠️ Linha acima'
+                          : '✓ No teto'}
                       </span>
                     </div>
 
