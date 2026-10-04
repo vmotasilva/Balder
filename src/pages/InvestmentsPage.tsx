@@ -108,10 +108,12 @@ export const InvestmentsPage: React.FC = () => {
             </InfoButton>
           </h1>
         </div>
-        <button type="button" className="btn btn-primary btn-sm" onClick={() => setDraft(emptyDraft())}>
-          <PlusCircle size={14} />
-          <span>Novo</span>
-        </button>
+        <div className="page-header-actions keep-mobile">
+          <button type="button" className="btn btn-primary btn-sm" onClick={() => setDraft(emptyDraft())}>
+            <PlusCircle size={14} />
+            <span>Novo</span>
+          </button>
+        </div>
       </div>
 
       <div className="glass-card" style={{ marginBottom: 16 }}>
