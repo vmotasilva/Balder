@@ -23070,6 +23070,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .pay-wizard-summary {
   display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 6px 10px; align-items: center; margin: 0;
 }
+.pay-wizard-field { display: contents; }
 .pay-wizard-summary dt { color: var(--text-muted); font-size: 12px; line-height: 1.2; overflow-wrap: break-word; }
 .pay-wizard-summary dd { margin: 0; min-width: 0; }
 .pay-wizard-summary input,
@@ -24356,3 +24357,38 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
   color: var(--accent-rose);
   line-height: 1.35;
 }
+
+/* Faturas: escolha do banco e datas de fechamento/vencimento */
+.bank-picker { display: flex; flex-direction: column; gap: 16px; }
+.bank-picker-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.bank-picker-head h2 { margin: 0 0 4px; font-size: 18px; font-weight: 800; color: var(--text-primary); }
+.bank-picker-head p { margin: 0; font-size: 13px; color: var(--text-secondary); max-width: 560px; }
+.bank-picker-notice {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 10px 14px; border-radius: var(--radius-md); font-size: 13px;
+  background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.4); color: var(--text-primary);
+}
+.bank-picker-empty { color: var(--text-muted); font-size: 13px; }
+.bank-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 14px; }
+.bank-picker-card {
+  display: flex; flex-direction: column; gap: 12px; padding: 14px; border-radius: var(--radius-lg, 14px);
+  background: var(--bg-input); border: 1px solid var(--border-default); min-width: 0;
+}
+.bank-picker-card-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.bank-picker-card-head strong { display: block; font-size: 15px; color: var(--text-primary); }
+.bank-picker-card-head small { display: block; font-size: 12px; color: var(--text-muted); }
+.bank-picker-icon { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0; }
+.bank-picker-open {
+  display: inline-flex; align-items: center; justify-content: space-between; padding: 8px 12px; cursor: pointer;
+  border-radius: var(--radius-md); background: transparent; border: 1px solid var(--border-default); color: var(--accent-cyan); font-weight: 600;
+}
+.bank-picker-open:hover { border-color: var(--accent-cyan); }
+.bank-terms { display: flex; flex-direction: column; gap: 6px; }
+.bank-terms-row { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; }
+.bank-terms-row label { display: flex; flex-direction: column; gap: 2px; font-size: 11px; color: var(--text-muted); flex: 1; min-width: 80px; }
+.bank-terms-row select { min-width: 0; }
+.bank-terms-check { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+.bank-terms-hint { font-size: 12px; color: var(--text-muted); }
+.bank-terms-hint.ok { color: var(--accent-green, #10B981); }
+.invoices-bank-bar { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.invoices-bank-bar-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }

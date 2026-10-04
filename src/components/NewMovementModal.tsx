@@ -82,13 +82,25 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
       add(a.bankName || known || a.name);
     });
     if (names.length === 0) POPULAR_BANKS.slice(0, 6).forEach((n) => add(n));
-    return names.map((name) => ({
+    return names.map((name) => {
+      const card = cards.find((c) => (c.bank || '').toLowerCase() === name.toLowerCase());
+      const bank = banks.find((b) => b.name.toLowerCase() === name.toLowerCase());
+      // Fechamento e vencimento são do banco; na falta, do cartão dele
+      const terms =
+        bank?.closingDay && bank?.dueDay
+          ? { closingDay: bank.closingDay, dueDay: bank.dueDay }
+          : card
+          ? { closingDay: card.closingDay, dueDay: card.dueDay }
+          : undefined;
+      return {
       name,
-      card: cards.find((c) => (c.bank || '').toLowerCase() === name.toLowerCase()),
+      card,
+      terms,
       account: accounts.find(
         (a) => (a.bankName || '').toLowerCase() === name.toLowerCase() || a.name.toLowerCase().includes(name.toLowerCase())
       ),
-    }));
+      };
+    });
   }, [banks, cards, accounts]);
 
   // Receitas no planejamento a dois: quem recebe (só essa pessoa confirma o recebimento)
@@ -272,7 +284,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
   const cardPurchase = isPay && institution !== CASH_IN_HAND && payMethod === 'CARTAO';
   const installing = cardPurchase && isInstallment;
   const firstInvoiceDue = cardPurchase
-    ? firstInvoiceDueDate(dueDate, selectedInstitution?.card?.closingDay, selectedInstitution?.card?.dueDay)
+    ? firstInvoiceDueDate(dueDate, selectedInstitution?.terms?.closingDay, selectedInstitution?.terms?.dueDay)
     : dueDate;
   const installmentDates = cardPurchase ? invoiceDueDates(firstInvoiceDue, count) : getInstallmentDates(dueDate, count);
   const firstDueDateFormatted = installmentDates[0]?.split('-').reverse().join('/') || dueDate;

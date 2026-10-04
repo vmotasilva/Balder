@@ -4,6 +4,7 @@ import { useFinancial } from '../context/FinancialContext';
 import { listPaymentInstitutions } from '../utils/paymentInstitutions';
 import { getBankBranding } from '../utils/bankBranding';
 import { parseMoney } from '../utils/parseDecimal';
+import { defaultClosingDay } from '../utils/setupCatalog';
 import { firstInvoiceDueDate } from '../utils/cardPurchase';
 import { findMappingItemForTitle } from '../utils/mappingMatch';
 import { userNatures } from '../utils/baseNatures';
@@ -23,7 +24,7 @@ interface Props {
  * banco ou dinheiro → banco → débito ou crédito → parcelas → resumo editável.
  */
 export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) => {
-  const { accounts, cards, banks, natures, updatePaymentWizard, confirmPaymentWizard, cancelPaymentWizard } = useFinancial();
+  const { accounts, cards, banks, natures, setBankInvoiceTerms, updatePaymentWizard, confirmPaymentWizard, cancelPaymentWizard } = useFinancial();
   const wizard = pending.wizard as PaymentWizardState;
   const data = pending.pendingData;
   const isIncome = data.type === 'RECEBER';
@@ -31,6 +32,10 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
 
   const [amountText, setAmountText] = useState(String(data.amount).replace('.', ','));
   const [customInstallments, setCustomInstallments] = useState('');
+  const [termsDue, setTermsDue] = useState(10);
+  const [termsClosing, setTermsClosing] = useState(defaultClosingDay(10));
+  const [closingTouched, setClosingTouched] = useState(false);
+  const [termsFromSummary, setTermsFromSummary] = useState(false);
 
   // Pagamento: um banco por vez; recebimento: a conta que recebe
   const institutions = isIncome
@@ -56,13 +61,27 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
   const back = () => {
     if (wizard.step === 'BANK') go({ step: 'WHERE', where: undefined });
     else if (wizard.step === 'METHOD') go({ step: 'BANK' });
+    else if (wizard.step === 'INVOICE') go({ step: termsFromSummary ? 'SUMMARY' : 'METHOD' });
     else if (wizard.step === 'INSTALLMENTS') go({ step: 'METHOD' });
     else if (wizard.step === 'SUMMARY') go({ step: 'WHERE', where: undefined, institution: undefined, method: undefined, installments: 1 });
   };
 
   const credit = wizard.method === 'CREDITO';
-  const invoiceCard = credit ? listPaymentInstitutions(accounts, cards, banks).find((i) => i.name === wizard.institution)?.card : undefined;
-  const invoiceDue = invoiceCard ? firstInvoiceDueDate(data.dueDate, invoiceCard.closingDay, invoiceCard.dueDay) : '';
+  const terms = credit ? listPaymentInstitutions(accounts, cards, banks).find((i) => i.name === wizard.institution)?.terms : undefined;
+  const invoiceDue = terms ? firstInvoiceDueDate(data.dueDate, terms.closingDay, terms.dueDay) : '';
+
+  // Fechamento e vencimento são do banco: ficam guardados nele e valem para todas as compras no crédito
+  const openTerms = (fromSummary: boolean, extra: Partial<PaymentWizardState> = {}) => {
+    setTermsFromSummary(fromSummary);
+    setTermsDue(terms?.dueDay ?? 10);
+    setTermsClosing(terms?.closingDay ?? defaultClosingDay(terms?.dueDay ?? 10));
+    setClosingTouched(!!terms);
+    go({ ...extra, step: 'INVOICE' });
+  };
+  const saveTerms = () => {
+    setBankInvoiceTerms(wizard.institution || '', { closingDay: termsClosing, dueDay: termsDue });
+    go({ step: termsFromSummary ? 'SUMMARY' : 'INSTALLMENTS' });
+  };
   const perInstallment = wizard.installments > 1 ? Math.round((data.amount / wizard.installments) * 100) / 100 : data.amount;
   const payLabel =
     wizard.where === 'CASH'
@@ -83,6 +102,7 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
           {wizard.step === 'WHERE' && (isIncome ? 'Onde o dinheiro entrou?' : 'Como você pagou?')}
           {wizard.step === 'BANK' && (isIncome ? 'Em qual conta?' : 'Qual banco?')}
           {wizard.step === 'METHOD' && `${wizard.institution}: débito ou crédito?`}
+          {wizard.step === 'INVOICE' && `Fatura do ${wizard.institution}`}
           {wizard.step === 'INSTALLMENTS' && 'Em quantas vezes?'}
           {wizard.step === 'SUMMARY' && 'Confira e confirme'}
         </strong>
@@ -125,10 +145,61 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
           <button type="button" onClick={() => go({ method: 'DEBITO', installments: 1, step: 'SUMMARY' })}>
             Débito / Pix
           </button>
-          <button type="button" onClick={() => go({ method: 'CREDITO', step: 'INSTALLMENTS' })}>
+          <button
+            type="button"
+            onClick={() => {
+              if (terms) go({ method: 'CREDITO', step: 'INSTALLMENTS' });
+              else openTerms(false, { method: 'CREDITO' });
+            }}
+          >
             💳 Crédito
           </button>
         </div>
+      )}
+
+      {wizard.step === 'INVOICE' && (
+        <>
+          <span className="pay-wizard-hint">Em que dia a fatura fecha e vence? Vale para todas as compras no crédito deste banco.</span>
+          <dl className="pay-wizard-summary">
+            <div className="pay-wizard-field">
+              <dt>Fecha dia</dt>
+              <dd>
+                <input
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={termsClosing}
+                  onChange={(e) => {
+                    setClosingTouched(true);
+                    setTermsClosing(Math.min(31, Math.max(1, parseInt(e.target.value, 10) || 1)));
+                  }}
+                />
+              </dd>
+            </div>
+            <div className="pay-wizard-field">
+              <dt>Vence dia</dt>
+              <dd>
+                <input
+                  type="number"
+                  min={1}
+                  max={31}
+                  value={termsDue}
+                  onChange={(e) => {
+                    const d = Math.min(31, Math.max(1, parseInt(e.target.value, 10) || 1));
+                    setTermsDue(d);
+                    if (!closingTouched) setTermsClosing(defaultClosingDay(d));
+                  }}
+                />
+              </dd>
+            </div>
+          </dl>
+          {!closingTouched && <span className="pay-wizard-hint">Fechamento estimado (uma semana antes do vencimento): confira no app do banco.</span>}
+          <div className="pay-wizard-actions">
+            <button type="button" className="pay-wizard-confirm" onClick={saveTerms}>
+              Continuar
+            </button>
+          </div>
+        </>
       )}
 
       {wizard.step === 'INSTALLMENTS' && (
@@ -227,11 +298,16 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
                 Alterar
               </button>
             </dd>
-            {credit && invoiceCard && (
+            {credit && terms && (
               <>
                 <dt>Fatura</dt>
-                <dd>
-                  Fecha dia {invoiceCard.closingDay} · vence {invoiceDue.slice(8, 10)}/{invoiceDue.slice(5, 7)}
+                <dd className="pay-wizard-edit-row">
+                  <span>
+                    Fecha dia {terms.closingDay} · vence {invoiceDue.slice(8, 10)}/{invoiceDue.slice(5, 7)}
+                  </span>
+                  <button type="button" className="pay-wizard-link" onClick={() => openTerms(true)}>
+                    Alterar
+                  </button>
                 </dd>
               </>
             )}

@@ -76,7 +76,7 @@ import { recognizeImageOCR } from '../services/ocrService';
 import { learnReceiptItemAssociation } from '../services/receiptMemoryService';
 import { matchNatureForTransaction } from '../services/invoiceFileParser';
 import { findMappingItemForTitle } from '../utils/mappingMatch';
-import { listPaymentInstitutions } from '../utils/paymentInstitutions';
+import { canonicalBankName, listPaymentInstitutions } from '../utils/paymentInstitutions';
 import { CASH_IN_HAND } from '../utils/cashInHand';
 import {
   DEMO_ACCOUNTS,
@@ -92,7 +92,7 @@ import { getBankBranding } from '../utils/bankBranding';
 import { ForsetiActivityService } from '../services/forsetiActivityService';
 import { ForsetiTranscriptService } from '../services/forsetiTranscriptService';
 import { defaultClosingDay } from '../utils/setupCatalog';
-import { addCardPurchaseToInvoices, firstInvoiceDueDate } from '../utils/cardPurchase';
+import { addCardPurchaseToInvoices, firstInvoiceDueDate, monthDateKeepingDay } from '../utils/cardPurchase';
 import { getItemOccurrences, isExcludedState, mappingItemBaseValue, registerItemPayment, removeItemPayment, resolveMappingItemState } from '../utils/mappingItemState';
 import { buildForecastWindow, FORECAST_PERIODS, type ForecastPeriod, type ForecastWindow } from '../utils/forecastWindow';
 import { buildMonthlyProjectionGrid, movementCompetenceDate } from '../utils/projectionMath';
@@ -117,6 +117,7 @@ import {
   spendPeriodFrom,
   TOPIC_TTL_MS,
   type ForsetiTopic,
+  type BankInvoiceInfo,
   detectDoubt,
   type DoubtId,
   inferExpenseCategory,
@@ -221,6 +222,12 @@ interface FinancialContextType {
 
   addBank: (bank: Omit<BankInstitution, 'id'>) => void;
   updateBank: (id: string, updates: Partial<BankInstitution>) => void;
+  /** Fechamento e vencimento da fatura do banco (cria o banco na lista se ainda não estiver nela). */
+  setBankInvoiceTerms: (bankName: string, terms: { closingDay?: number; dueDay?: number }) => void;
+  /** Move o vencimento das faturas em aberto do banco para o dia informado; devolve quantas mudaram. */
+  applyBankDueDayToOpenInvoices: (bankName: string, dueDay: number) => number;
+  /** Passa para o banco as faturas gravadas com o nome do cartão, unindo as do mesmo mês; devolve quantas ajustou. */
+  consolidateCardNamedInvoices: () => number;
   deleteBank: (id: string) => void;
 
   // Ações Principais
@@ -1566,6 +1573,63 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
       return next;
     });
+  };
+
+  const setBankInvoiceTerms = (bankName: string, terms: { closingDay?: number; dueDay?: number }) => {
+    const name = bankName.trim();
+    const existing = banks.find((b) => b.name.trim().toLowerCase() === name.toLowerCase());
+    const patch: Partial<BankInstitution> = {
+      ...(terms.closingDay ? { closingDay: terms.closingDay } : {}),
+      ...(terms.dueDay ? { dueDay: terms.dueDay } : {}),
+    };
+    if (existing) updateBank(existing.id, patch);
+    else addBank({ name, color: getBankBranding(name).primaryColor, icon: '🏦', status: 'MANUAL', ...patch });
+  };
+
+  const applyBankDueDayToOpenInvoices = (bankName: string, dueDay: number): number => {
+    let changed = 0;
+    movements.forEach((m) => {
+      if (m.type !== 'CARTAO' || m.status !== 'PREVISTA') return;
+      if (canonicalBankName(m.bank, banks, cards).toLowerCase() !== bankName.trim().toLowerCase()) return;
+      const [y, mo] = m.dueDate.split('-').map((n) => parseInt(n, 10));
+      const next = monthDateKeepingDay(y, mo - 1, dueDay);
+      if (next === m.dueDate) return;
+      updateMovement(m.id, { dueDate: next });
+      changed += 1;
+    });
+    return changed;
+  };
+
+  const consolidateCardNamedInvoices = (): number => {
+    let fixed = 0;
+    const absorbed = new Set<string>();
+    movements.forEach((m) => {
+      if (m.type !== 'CARTAO' || absorbed.has(m.id)) return;
+      const canonical = canonicalBankName(m.bank, banks, cards);
+      if (!canonical || canonical === m.bank) return;
+      const target = movements.find(
+        (t) =>
+          t.id !== m.id &&
+          !absorbed.has(t.id) &&
+          t.type === 'CARTAO' &&
+          t.status === m.status &&
+          t.bank === canonical &&
+          t.dueDate.slice(0, 7) === m.dueDate.slice(0, 7)
+      );
+      if (target) {
+        updateMovement(target.id, {
+          amount: Math.round((target.amount + m.amount) * 100) / 100,
+          invoiceBreakdown: [...(target.invoiceBreakdown || []), ...(m.invoiceBreakdown || [])],
+          unanalyzedAmount: Math.round(((target.unanalyzedAmount || 0) + (m.unanalyzedAmount || 0)) * 100) / 100,
+        });
+        absorbed.add(m.id);
+        deleteMovement(m.id);
+      } else {
+        updateMovement(m.id, { bank: canonical, title: m.title.replace(m.bank || '', canonical) });
+      }
+      fixed += 1;
+    });
+    return fixed;
   };
 
   const deleteBank = (id: string) => {
@@ -3828,13 +3892,25 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const isScreenAnalysis = /analis|auditar|diagn[oó]stico|esta tela|tela de/i.test(trimmed);
       if (!isNewLoan && !isScreenAnalysis) {
         // 0. Ações (abrir tela, criar natureza ou mapeamento): a Forseti propõe e só faz depois do "Confirmar"
-        const action = detectAction(trimmed, natures);
+        const bankInvoiceInfo: BankInvoiceInfo[] = listPaymentInstitutions(accounts, cards, banks)
+          .filter((i) => i.card || banks.some((b) => b.name === i.name))
+          .map((i) => ({
+            name: i.name,
+            closingDay: i.terms?.closingDay,
+            dueDay: i.terms?.dueDay,
+            openInvoices: movements.filter(
+              (m) => m.type === 'CARTAO' && m.status === 'PREVISTA' && canonicalBankName(m.bank, banks, cards).toLowerCase() === i.name.toLowerCase()
+            ).length,
+          }));
+        const action = detectAction(trimmed, natures, bankInvoiceInfo);
         if (action) {
           if (action.kind === 'NEED_INFO') {
             reply(action.reply);
             return;
           }
-          if (action.kind !== 'NAVIGATE' && forsetiBlockedInShared('crio naturezas nem mapeamentos')) return;
+          if (action.kind === 'SET_BANK_INVOICE') {
+            if (forsetiBlockedInShared('ajusto as datas da fatura', undefined, ['REGISTRAR_PAGAMENTOS'])) return;
+          } else if (action.kind !== 'NAVIGATE' && forsetiBlockedInShared('crio naturezas nem mapeamentos')) return;
           const { title, details } = describeAction(action);
           const pendingAction = { ...action, request: trimmed, title, details };
           logForsetiActivity({ kind: 'CONVERSA', request: trimmed, result: title.replace(/\*\*/g, '') });
@@ -4006,17 +4082,22 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } else if (w.where === 'CASH') {
       option = { id: 'opt_wizard', label: CASH_IN_HAND, payload: { bank: CASH_IN_HAND, type: 'PAGAR', category } };
     } else if (w.method === 'CREDITO') {
-      const plan = w.installments >= 2 ? { count: w.installments, total: pending.amount } : undefined;
-      const card = inst?.card;
-      const cardOpt = card ? paymentOptions([], [card], category, plan).find((o) => o.payload.type === 'CARTAO') : undefined;
-      // A fatura sai da data da compra editada no resumo, não de hoje
-      option = cardOpt && card
-        ? {
-            ...cardOpt,
-            label: `${w.institution} (crédito)`,
-            payload: { ...cardOpt.payload, dueDate: firstInvoiceDueDate(pending.dueDate, card.closingDay, card.dueDay) },
-          }
-        : { id: 'opt_wizard_card', label: `Cadastrar o cartão ${w.institution}`, payload: { action: OPTION_REGISTER_CARD, cardName: w.institution || '' } };
+      // A fatura é do banco: fechamento e vencimento vêm do banco (ou do cartão dele), sem exigir cartão cadastrado
+      const bank = w.institution || 'Geral';
+      const terms = inst?.terms;
+      option = {
+        id: 'opt_wizard_card',
+        label: `${bank} (crédito)`,
+        icon: '💳',
+        badge: 'Cartão de crédito',
+        payload: {
+          bank,
+          type: 'CARTAO',
+          category,
+          dueDate: firstInvoiceDueDate(pending.dueDate, terms?.closingDay, terms?.dueDay),
+          dueDay: terms?.dueDay || 10,
+        },
+      };
     } else {
       const bank = inst?.account?.name ?? w.institution ?? 'Geral';
       option = { id: 'opt_wizard', label: `${w.institution} (débito)`, payload: { bank, type: 'PAGAR', category } };
@@ -4070,6 +4151,20 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           : 'Nada a associar: essas despesas já foram ligadas a uma natureza ou não existem mais.',
         ['Gastos por origem', 'Gastos sem natureza'],
         done.length > 0 ? 'DESPESAS ASSOCIADAS' : 'NÃO FEITO'
+      );
+      return;
+    }
+
+    if (action.kind === 'SET_BANK_INVOICE') {
+      if (forsetiBlockedInShared('ajusto as datas da fatura', undefined, ['REGISTRAR_PAGAMENTOS'])) return;
+      setBankInvoiceTerms(action.bank, { closingDay: action.closingDay, dueDay: action.dueDay });
+      const moved = action.shiftOpen ? applyBankDueDayToOpenInvoices(action.bank, action.dueDay) : 0;
+      say(
+        `✅ Fatura do **${action.bank}**: fecha dia **${action.closingDay}**${action.estimatedClosing ? ' *(estimado: confira no app do banco)*' : ''} e vence dia **${action.dueDay}**.${
+          moved > 0 ? `\n\n${moved} ${moved === 1 ? 'fatura em aberto passou' : 'faturas em aberto passaram'} a vencer no dia ${action.dueDay}.` : ''
+        }\n\nAs próximas compras no crédito já usam essas datas.`,
+        ['Abrir faturas', 'Registrar um gasto'],
+        'FATURA AJUSTADA'
       );
       return;
     }
@@ -5557,6 +5652,9 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         deletePaymentMethod,
         addBank,
         updateBank,
+        setBankInvoiceTerms,
+        applyBankDueDayToOpenInvoices,
+        consolidateCardNamedInvoices,
         deleteBank,
         addMovement,
         addMultipleMovements,

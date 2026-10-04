@@ -1,4 +1,5 @@
 import { firstInvoiceDueDate } from './cardPurchase';
+import { defaultClosingDay } from './setupCatalog';
 import type { BankAccount, CopilotInteractiveOption, ExpenseNature, ForsetiPendingAction, CopilotPendingConfirmation, CreditCardItem, ForsetiActivity, Goal, MonthlyGridProjectionRow, Movement } from '../types';
 import type { ForecastEntry, ForecastPeriod, ForecastWindow } from './forecastWindow';
 import { CASH_IN_HAND } from './cashInHand';
@@ -273,13 +274,13 @@ export function paymentOptions(
       const dueDate = nextCardDueDate(c.closingDay, c.dueDay);
       return {
         id: `opt_pay_card_${c.id}`,
-        label: c.name,
+        label: c.bank || c.name,
         icon: '💳',
         badge: 'Cartão de crédito',
         description: split
           ? `${planLabel(split)} · a 1ª entra na fatura que vence em ${ddmm(dueDate)}`
           : `Entra na fatura que vence em ${ddmm(dueDate)}`,
-        payload: { bank: c.name, type: 'CARTAO' as const, category, dueDate, dueDay: c.dueDay },
+        payload: { bank: c.bank || c.name, type: 'CARTAO' as const, category, dueDate, dueDay: c.dueDay },
       };
     }),
   ];
@@ -1187,7 +1188,102 @@ export type ForsetiActionRequest =
   | { kind: 'NAVIGATE'; tab: string; label: string }
   | { kind: 'CREATE_NATURE'; name: string }
   | { kind: 'CREATE_MAPPING'; name: string; natureId: string; natureName: string }
+  | { kind: 'SET_BANK_INVOICE'; bank: string; closingDay: number; dueDay: number; estimatedClosing: boolean; shiftOpen: boolean; openInvoices: number }
   | { kind: 'NEED_INFO'; reply: ForsetiReply };
+
+/** Banco e as datas da fatura dele (para a Forseti responder e ajustar). */
+export interface BankInvoiceInfo {
+  name: string;
+  closingDay?: number;
+  dueDay?: number;
+  openInvoices: number;
+}
+
+const termsText = (b: BankInvoiceInfo) =>
+  b.closingDay && b.dueDay
+    ? `a fatura do **${b.name}** fecha dia **${b.closingDay}** e vence dia **${b.dueDay}**`
+    : `ainda não tenho o fechamento e o vencimento da fatura do **${b.name}**`;
+
+/**
+ * Fechamento e vencimento da fatura de um banco: consulta ("quando fecha a fatura do Nubank?") e ajuste
+ * ("fechamento do Inter dia 15 e vencimento dia 10"). O ajuste só vale depois do "Confirmar".
+ */
+function detectBankInvoiceRequest(text: string, banks: BankInvoiceInfo[]): ForsetiActionRequest | null {
+  if (banks.length === 0) return null;
+  const t = stripAccents(text);
+  if (!/\b(fecha\w*|fecham\w*|venc\w*)\b/.test(t)) return null;
+  const bank = [...banks].sort((a, b) => b.name.length - a.name.length).find((b) => t.includes(stripAccents(b.name)));
+  const mentionsInvoice = /\bfaturas?\b|\bcartao\b|\bcartoes\b/.test(t);
+  if (!bank && !mentionsInvoice) return null;
+  const chips = ['Abrir faturas'];
+
+  if (isQuestion(text)) {
+    if (bank) {
+      return {
+        kind: 'NEED_INFO',
+        reply: {
+          text: `Pelo que tenho, ${termsText(bank)}.${bank.closingDay && bank.dueDay ? '' : `\n\nPara informar, escreva, por exemplo: *fechamento do ${bank.name} dia 15 e vencimento dia 10*.`}`,
+          badge: 'FATURA DO BANCO',
+          chips,
+        },
+      };
+    }
+    return {
+      kind: 'NEED_INFO',
+      reply: {
+        text: `Datas das faturas:\n\n${banks.map((b) => `• ${termsText(b).replace(/^a fatura/, 'A fatura').replace(/^ainda/, 'Ainda')}`).join('\n')}`,
+        badge: 'FATURA DO BANCO',
+        chips,
+      },
+    };
+  }
+
+  if (!bank) {
+    return {
+      kind: 'NEED_INFO',
+      reply: { text: 'De qual banco? Ex.: *fechamento do Nubank dia 15 e vencimento dia 10*.', badge: 'FATURA DO BANCO', chips: [] },
+    };
+  }
+  const rest = t.replace(stripAccents(bank.name), ' ');
+  const found = (re: RegExp) => {
+    const m = rest.match(re);
+    return m ? parseInt(m[1], 10) : undefined;
+  };
+  const closing = found(/\bfech\w*\D{0,40}?(\d{1,2})\b/);
+  const due = found(/\bvenc\w*\D{0,40}?(\d{1,2})\b/);
+  const invalid = [closing, due].some((d) => d !== undefined && (d < 1 || d > 31));
+  if ((closing === undefined && due === undefined) || invalid) {
+    return {
+      kind: 'NEED_INFO',
+      reply: {
+        text: `Em que dia a fatura do **${bank.name}** fecha e vence? Ex.: *fechamento do ${bank.name} dia 15 e vencimento dia 10*.`,
+        badge: 'FATURA DO BANCO',
+        chips: [],
+      },
+    };
+  }
+  const dueDay = due ?? bank.dueDay;
+  if (!dueDay) {
+    return {
+      kind: 'NEED_INFO',
+      reply: {
+        text: `Fechamento do **${bank.name}** dia **${closing}**. E em que dia a fatura vence? Ex.: *vencimento do ${bank.name} dia 10*.`,
+        badge: 'FATURA DO BANCO',
+        chips: [],
+      },
+    };
+  }
+  const closingDay = closing ?? bank.closingDay ?? defaultClosingDay(dueDay);
+  return {
+    kind: 'SET_BANK_INVOICE',
+    bank: bank.name,
+    closingDay,
+    dueDay,
+    estimatedClosing: closing === undefined && !bank.closingDay,
+    shiftOpen: due !== undefined && due !== bank.dueDay,
+    openInvoices: bank.openInvoices,
+  };
+}
 
 const SCREENS: { re: RegExp; tab: string; label: string }[] = [
   { re: /\bnaturezas?\b|\btetos?\b/, tab: 'NATUREZAS', label: 'Naturezas & Tetos' },
@@ -1218,8 +1314,10 @@ const cleanName = (raw: string): string => {
  * Pedido de ação: abrir uma tela, criar natureza ou criar mapeamento. Nada é feito aqui: a conversa propõe
  * e só executa depois do "Confirmar". `NEED_INFO` pede o que falta (nome, natureza).
  */
-export function detectAction(text: string, natures: { id: string; name: string }[]): ForsetiActionRequest | null {
+export function detectAction(text: string, natures: { id: string; name: string }[], banks: BankInvoiceInfo[] = []): ForsetiActionRequest | null {
   const t = stripAccents(text);
+  const invoiceTerms = detectBankInvoiceRequest(text, banks);
+  if (invoiceTerms) return invoiceTerms;
   if (isQuestion(text)) return null;
 
   // Criar mapeamento: "criar mapeamento Ração na natureza Pets"
@@ -1279,6 +1377,17 @@ export function describeAction(a: Exclude<ForsetiActionRequest, { kind: 'NEED_IN
       return {
         title: `Criar o mapeamento **${a.name}** na natureza **${a.natureName}**?`,
         details: ['Todos os meses, sem itens por enquanto: você adiciona os itens depois.'],
+      };
+    case 'SET_BANK_INVOICE':
+      return {
+        title: `Ajustar a fatura do **${a.bank}**?`,
+        details: [
+          `Fechamento: dia ${a.closingDay}${a.estimatedClosing ? ' (estimado: confira no app do banco)' : ''}`,
+          `Vencimento: dia ${a.dueDay}`,
+          ...(a.shiftOpen && a.openInvoices > 0
+            ? [`${a.openInvoices} ${a.openInvoices === 1 ? 'fatura em aberto passa' : 'faturas em aberto passam'} a vencer no dia ${a.dueDay}`]
+            : []),
+        ],
       };
   }
 }

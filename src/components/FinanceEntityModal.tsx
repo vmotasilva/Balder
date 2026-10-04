@@ -114,6 +114,8 @@ export const FinanceEntityModal: React.FC<FinanceEntityModalProps> = ({
   const [bankColor, setBankColor] = useState('#06B6D4');
   const [bankIcon, setBankIcon] = useState('🏦');
   const [bankStatus, setBankStatus] = useState<'CONECTADO' | 'MANUAL'>('MANUAL');
+  const [bankClosingDay, setBankClosingDay] = useState<number | ''>('');
+  const [bankDueDay, setBankDueDay] = useState<number | ''>('');
 
   // Inicialização quando abre ou muda aba/item para edição
   useEffect(() => {
@@ -153,6 +155,8 @@ export const FinanceEntityModal: React.FC<FinanceEntityModalProps> = ({
           setBankColor(d.color || '#06B6D4');
           setBankIcon(d.icon || '🏦');
           setBankStatus(d.status || 'MANUAL');
+          setBankClosingDay(d.closingDay ?? '');
+          setBankDueDay(d.dueDay ?? '');
         }
       } else {
         setActiveTab(initialTab);
@@ -298,6 +302,8 @@ export const FinanceEntityModal: React.FC<FinanceEntityModalProps> = ({
         color: bankColor,
         icon: bankIcon,
         status: bankStatus,
+        closingDay: bankClosingDay || undefined,
+        dueDay: bankDueDay || undefined,
       });
     } else {
       addBank({
@@ -306,6 +312,8 @@ export const FinanceEntityModal: React.FC<FinanceEntityModalProps> = ({
         color: bankColor,
         icon: bankIcon,
         status: bankStatus,
+        closingDay: bankClosingDay || undefined,
+        dueDay: bankDueDay || undefined,
       });
     }
     onClose();
@@ -884,6 +892,39 @@ export const FinanceEntityModal: React.FC<FinanceEntityModalProps> = ({
                   </button>
                 ))}
               </div>
+            </div>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group flex-1">
+              <label>Fechamento da fatura de crédito</label>
+              <select
+                className="form-select"
+                value={bankClosingDay}
+                onChange={(e) => setBankClosingDay(e.target.value ? parseInt(e.target.value, 10) : '')}
+              >
+                <option value="">Não informado</option>
+                {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                  <option key={d} value={d}>
+                    Dia {d}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group flex-1">
+              <label>Vencimento da fatura de crédito</label>
+              <select
+                className="form-select"
+                value={bankDueDay}
+                onChange={(e) => setBankDueDay(e.target.value ? parseInt(e.target.value, 10) : '')}
+              >
+                <option value="">Não informado</option>
+                {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                  <option key={d} value={d}>
+                    Dia {d}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

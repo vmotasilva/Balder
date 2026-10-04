@@ -262,7 +262,7 @@ export interface CopilotPendingConfirmation {
 }
 
 export interface PaymentWizardState {
-  step: 'WHERE' | 'BANK' | 'METHOD' | 'INSTALLMENTS' | 'SUMMARY';
+  step: 'WHERE' | 'BANK' | 'METHOD' | 'INVOICE' | 'INSTALLMENTS' | 'SUMMARY';
   where?: 'BANK' | 'CASH';
   /** Banco escolhido (pagamento) ou nome da conta (recebimento). */
   institution?: string;
@@ -342,6 +342,7 @@ export type ForsetiPendingAction = {
   | { kind: 'CREATE_NATURE'; name: string }
   | { kind: 'CREATE_MAPPING'; name: string; natureId: string; natureName: string }
   | { kind: 'ASSIGN_NATURES'; assignments: { movementId: string; title: string; natureId: string; natureName: string }[] }
+  | { kind: 'SET_BANK_INVOICE'; bank: string; closingDay: number; dueDay: number; estimatedClosing: boolean; shiftOpen: boolean; openInvoices: number }
 );
 
 export interface CopilotMessage {
@@ -418,6 +419,9 @@ export interface BankInstitution {
   icon: string;
   status?: 'CONECTADO' | 'MANUAL';
   syncedAt?: string;
+  /** Fechamento e vencimento da fatura de crédito do banco (a fatura é do banco, não de um cartão). */
+  closingDay?: number;
+  dueDay?: number;
 }
 
 export interface MappingItem {
