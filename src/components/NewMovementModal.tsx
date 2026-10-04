@@ -6,7 +6,7 @@ import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { useAccountScope } from '../context/AccountScopeContext';
-import type { MovementType, MovementStatus, Movement, InvoiceNatureItemBreakdown } from '../types';
+import type { MovementType, MovementStatus, Movement } from '../types';
 import { POPULAR_BANKS } from '../utils/bankBranding';
 import { findMappingItemForTitle } from '../utils/mappingMatch';
 import { userNatures } from '../utils/baseNatures';
