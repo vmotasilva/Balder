@@ -20,11 +20,20 @@ interface PlanScopeContextType {
   deletePlan: (id: string) => Promise<boolean>;
   /** Troca de planejamento (null = o principal). A tela é recriada com os dados do escolhido. */
   switchPlan: (id: string | null) => void;
+  /** Planejamentos marcados para somar na visão consolidada (MAIN_PLAN_KEY = o principal). */
+  compareIds: string[];
+  toggleCompare: (key: string) => void;
+  /** Visão consolidada aberta: mostra o resultado do todo, somente leitura. */
+  consolidated: boolean;
+  setConsolidated: (open: boolean) => void;
 }
 
 const PlanScopeContext = createContext<PlanScopeContextType | undefined>(undefined);
 
 export const MAX_EXTRA_PLANS = 5;
+/** Chave do planejamento principal na seleção da visão consolidada. */
+export const MAIN_PLAN_KEY = 'main';
+const compareKey = (userId: string) => `balder_compare_plans_${userId}`;
 const listKey = (userId: string) => `balder_plans_${userId}`;
 const activeKey = (userId: string) => `balder_active_plan_${userId}`;
 
@@ -75,6 +84,18 @@ export const PlanScopeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setActivePlan(id, readPlans(userId).length > 0);
     return id;
   });
+
+  // Planejamentos marcados para somar (guardados por aparelho) e se a visão consolidada está aberta
+  const [compareRaw, setCompareRaw] = useState<string[]>(() => {
+    if (!userId) return [];
+    try {
+      const raw = JSON.parse(localStorage.getItem(compareKey(userId)) || '[]');
+      return Array.isArray(raw) ? raw.filter((k) => typeof k === 'string') : [];
+    } catch {
+      return [];
+    }
+  });
+  const [consolidatedOpen, setConsolidatedOpen] = useState(false);
 
   // Atualiza a lista com a da nuvem (outro aparelho pode ter criado ou apagado planejamentos)
   useEffect(() => {
@@ -177,8 +198,33 @@ export const PlanScopeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     [userId, plans, activePlanId, switchPlan, persistPlans]
   );
 
+  // Só entram na soma planejamentos que ainda existem
+  const compareIds = useMemo(
+    () => compareRaw.filter((k) => k === MAIN_PLAN_KEY || plans.some((p) => p.id === k)),
+    [compareRaw, plans]
+  );
+
+  const toggleCompare = useCallback(
+    (key: string) => {
+      setCompareRaw((prev) => {
+        const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
+        if (userId) {
+          try {
+            localStorage.setItem(compareKey(userId), JSON.stringify(next));
+          } catch {
+            // sem armazenamento local
+          }
+        }
+        return next;
+      });
+    },
+    [userId]
+  );
+
   // Em conta compartilhada vale o planejamento do dono, nunca um extra do visitante
   const effectiveActiveId = viewing ? null : activePlanId;
+  // A soma precisa de pelo menos dois planejamentos marcados; em conta compartilhada não se aplica
+  const consolidated = consolidatedOpen && !viewing && compareIds.length >= 2;
   const value = useMemo<PlanScopeContextType>(
     () => ({
       plans,
@@ -188,8 +234,12 @@ export const PlanScopeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       renamePlan,
       deletePlan,
       switchPlan,
+      compareIds,
+      toggleCompare,
+      consolidated,
+      setConsolidated: setConsolidatedOpen,
     }),
-    [plans, effectiveActiveId, createPlan, renamePlan, deletePlan, switchPlan]
+    [plans, effectiveActiveId, createPlan, renamePlan, deletePlan, switchPlan, compareIds, toggleCompare, consolidated]
   );
 
   return <PlanScopeContext.Provider value={value}>{children}</PlanScopeContext.Provider>;
@@ -199,7 +249,7 @@ export const usePlans = (): PlanScopeContextType => {
   const ctx = useContext(PlanScopeContext);
   if (!ctx) {
     // Fora do provedor (ex.: testes): só o planejamento principal
-    return { plans: [], activePlanId: null, activePlan: null, createPlan: async () => ({ ok: false, error: 'ERRO' }), renamePlan: async () => {}, deletePlan: async () => false, switchPlan: () => {} };
+    return { plans: [], activePlanId: null, activePlan: null, createPlan: async () => ({ ok: false, error: 'ERRO' }), renamePlan: async () => {}, deletePlan: async () => false, switchPlan: () => {}, compareIds: [], toggleCompare: () => {}, consolidated: false, setConsolidated: () => {} };
   }
   return ctx;
 };

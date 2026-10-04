@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useMemo, useEffect, useRef 
 import { useAccountScope, type ViewingAccount } from './AccountScopeContext';
 import { usePlans, scopedUserId } from './PlanScopeContext';
 import { isBaseCategoryName, natureCoveringCategory, userNatures } from '../utils/baseNatures';
-import { isCashInHand } from '../utils/cashInHand';
+import { computeAvailableBalance, computeCashInHand } from '../utils/planSummary';
 import { SupabaseService, msSinceProfileSave } from '../services/supabaseService';
 import { supabase, isSupabaseConfigured, TABLES } from '../lib/supabase';
 import { useAuth } from './AuthContext';
@@ -95,7 +95,7 @@ import { defaultClosingDay } from '../utils/setupCatalog';
 import { addCardPurchaseToInvoices, firstInvoiceDueDate, monthDateKeepingDay } from '../utils/cardPurchase';
 import { getItemOccurrences, isExcludedState, mappingItemBaseValue, registerItemPayment, removeItemPayment, resolveMappingItemState } from '../utils/mappingItemState';
 import { buildForecastWindow, FORECAST_PERIODS, type ForecastPeriod, type ForecastWindow } from '../utils/forecastWindow';
-import { buildMonthlyProjectionGrid, movementCompetenceDate } from '../utils/projectionMath';
+import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
 import { classifyIntent } from '../services/forsetiIntentService';
 import { resolveMovementNatureId } from '../utils/movementNature';
 import type { SpendPeriod } from '../utils/forsetiIntents';
@@ -1686,33 +1686,17 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
 
   // Métricas Calculadas — respeitam o activeCheckpoint quando configurado
-  const availableBalance = useMemo(() => {
-    if (activeCheckpoint) {
-      // Saldo = saldo inicial do marco + entradas realizadas - saídas realizadas (após startDate)
-      const startDate = activeCheckpoint.startDate;
-      const realized = movements.filter((m) => movementCompetenceDate(m) >= startDate && m.status === 'REALIZADA');
-      const income  = realized.filter((m) => m.type === 'RECEBER').reduce((s, m) => s + m.amount, 0);
-      const expense = realized.filter((m) => m.type !== 'RECEBER').reduce((s, m) => s + m.amount, 0);
-      return Math.round((activeCheckpoint.initialBalance + income - expense) * 100) / 100;
-    }
-    // Fallback legado: soma de contas correntes/carteira
-    return accounts
-      .filter((a: any) => a.type === 'CORRENTE' || a.type === 'CARTEIRA')
-      .reduce((acc, cur) => acc + cur.balance, 0);
-  }, [activeCheckpoint, movements, accounts]);
+  const availableBalance = useMemo(
+    () => computeAvailableBalance({ movements, accounts, activeCheckpoint }),
+    [activeCheckpoint, movements, accounts]
+  );
 
   // Dinheiro em mãos: o que havia no marco + entradas − saídas realizadas em dinheiro desde então.
   // Sem marco: contas do tipo carteira. O restante do saldo em caixa está em conta.
-  const cashInHandBalance = useMemo(() => {
-    if (activeCheckpoint) {
-      const startDate = activeCheckpoint.startDate;
-      const flows = movements
-        .filter((m) => m.status === 'REALIZADA' && isCashInHand(m.bank) && movementCompetenceDate(m) >= startDate)
-        .reduce((acc, m) => acc + (m.type === 'RECEBER' ? m.amount : -m.amount), 0);
-      return Math.round(((checkpointCashInHand[activeCheckpoint.id] || 0) + flows) * 100) / 100;
-    }
-    return accounts.filter((a: any) => a.type === 'CARTEIRA').reduce((acc, cur) => acc + cur.balance, 0);
-  }, [activeCheckpoint, movements, checkpointCashInHand, accounts]);
+  const cashInHandBalance = useMemo(
+    () => computeCashInHand({ movements, accounts, activeCheckpoint, checkpointCashInHand }),
+    [activeCheckpoint, movements, checkpointCashInHand, accounts]
+  );
 
   const accountBalance = Math.round((availableBalance - cashInHandBalance) * 100) / 100;
 

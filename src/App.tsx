@@ -23,6 +23,7 @@ import { NaturezasPage } from './pages/NaturezasPage';
 import { ContractsPage } from './pages/ContractsPage';
 import { SharedPlanningPage } from './pages/SharedPlanningPage';
 import { PurchasesPage } from './pages/PurchasesPage';
+import { ConsolidatedPage } from './pages/ConsolidatedPage';
 import { IosInstallFromLink } from './components/IosInstallModal';
 import { NewMovementModal, type MovementDraft } from './components/NewMovementModal';
 import { Modal } from './components/Modal';
@@ -97,6 +98,8 @@ export function AppContent() {
   const { viewing } = useAccountScope();
   const planningOnly = viewing?.scope === 'PLANEJAMENTO';
   const shownTab: TabId = planningOnly ? 'COMPARTILHADO' : activeTab;
+  // Visão consolidada (soma dos planejamentos marcados): ocupa o lugar da tela até o usuário escolher outra
+  const { consolidated, setConsolidated } = usePlans();
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   // Texto que já abre escrito no campo do chat da Forseti (ex.: ditado na Início)
   const [forsetiDraft, setForsetiDraft] = useState('');
@@ -142,6 +145,7 @@ export function AppContent() {
   const handleSelectTab = (tab: TabId) => {
     // O pedido de "novo empréstimo" vale uma vez; ao navegar, não pode reabrir o simulador
     setNewLoanSignal(0);
+    if (tab !== 'COPILOT') setConsolidated(false);
     if (tab === 'COPILOT') {
       setIsCopilotOpen(true);
     } else {
@@ -252,15 +256,17 @@ export function AppContent() {
 
         <SharedAccountBanner />
         <main className="app-content-viewport">
+          {consolidated && <ConsolidatedPage />}
+
           {/* No celular, toda tela (menos o Início) tem um atalho de volta no topo */}
-          {shownTab !== 'INICIO' && !planningOnly && (
+          {!consolidated && shownTab !== 'INICIO' && !planningOnly && (
             <button type="button" className="back-home-btn" onClick={() => setActiveTab('INICIO')}>
               <ArrowLeft size={16} />
               <span>Início</span>
             </button>
           )}
 
-          {shownTab === 'INICIO' && (
+          {!consolidated && shownTab === 'INICIO' && (
             <HomeHubPage
               onNavigate={handleSelectTab}
               onOpenForseti={(draft) => {
@@ -275,7 +281,7 @@ export function AppContent() {
             />
           )}
 
-          {(shownTab === 'DASHBOARD' || shownTab === 'COPILOT') && (
+          {!consolidated && (shownTab === 'DASHBOARD' || shownTab === 'COPILOT') && (
             <DashboardPage
               onNavigateToMovements={() => setActiveTab('MOVIMENTACOES')}
               onNavigateToGoals={() => setActiveTab('METAS')}
@@ -289,28 +295,28 @@ export function AppContent() {
             />
           )}
 
-          {shownTab === 'MOVIMENTACOES' && (
+          {!consolidated && shownTab === 'MOVIMENTACOES' && (
             <MovementsPage
               onOpenNewMovementModal={handleOpenNewMovement}
               onOpenNewRecordPicker={openNewRecord}
             />
           )}
 
-          {shownTab === 'FATURAS' && <InvoicesPage newInvoiceSignal={newInvoiceSignal} />}
+          {!consolidated && shownTab === 'FATURAS' && <InvoicesPage newInvoiceSignal={newInvoiceSignal} />}
 
-          {shownTab === 'NATUREZAS' && (
+          {!consolidated && shownTab === 'NATUREZAS' && (
             <NaturezasPage onOpenNewMovementModal={handleOpenNewMovement} />
           )}
 
-          {shownTab === 'EMPRESTIMOS' && <ContractsPage newLoanSignal={newLoanSignal} />}
+          {!consolidated && shownTab === 'EMPRESTIMOS' && <ContractsPage newLoanSignal={newLoanSignal} />}
 
-          {shownTab === 'METAS' && <GoalsPage />}
+          {!consolidated && shownTab === 'METAS' && <GoalsPage />}
 
-          {shownTab === 'OPORTUNIDADES' && <PurchasesPage onRegisterPurchase={handleOpenNewMovement} />}
+          {!consolidated && shownTab === 'OPORTUNIDADES' && <PurchasesPage onRegisterPurchase={handleOpenNewMovement} />}
 
-          {shownTab === 'COMPARTILHADO' && <SharedPlanningPage />}
+          {!consolidated && shownTab === 'COMPARTILHADO' && <SharedPlanningPage />}
 
-          {shownTab === 'PERFIL' && (
+          {!consolidated && shownTab === 'PERFIL' && (
             <ProfilePage onOpenOnboarding={handleOpenOnboarding} />
           )}
         </main>

@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Briefcase, Check, ChevronDown, Pencil, Plus, Star, Trash2, User, UserPlus, Users } from 'lucide-react';
+import { Briefcase, Check, CheckSquare, ChevronDown, Layers, Pencil, Plus, Square, Star, Trash2, User, UserPlus, Users } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAccountScope } from '../context/AccountScopeContext';
-import { MAX_EXTRA_PLANS, usePlans } from '../context/PlanScopeContext';
+import { MAIN_PLAN_KEY, MAX_EXTRA_PLANS, usePlans } from '../context/PlanScopeContext';
 import { SharingService, type AccountShare } from '../services/sharingService';
 
 /** Aba a abrir depois de trocar de planejamento (a troca recria a tela). */
@@ -20,7 +20,7 @@ interface PlanningSwitcherProps {
 export const PlanningSwitcher: React.FC<PlanningSwitcherProps> = ({ onPlanWithOthers }) => {
   const { user } = useAuth();
   const { viewing, openSharedAccount, backToOwnAccount } = useAccountScope();
-  const { plans, activePlanId, activePlan, createPlan, renamePlan, deletePlan, switchPlan } = usePlans();
+  const { plans, activePlanId, activePlan, createPlan, renamePlan, deletePlan, switchPlan, compareIds, toggleCompare, consolidated, setConsolidated } = usePlans();
   const [open, setOpen] = useState(false);
   // Criação de um planejamento próprio (formulário dentro do menu)
   const [creating, setCreating] = useState(false);
@@ -60,18 +60,38 @@ export const PlanningSwitcher: React.FC<PlanningSwitcherProps> = ({ onPlanWithOt
 
   if (!user || user.isGuest) return null;
 
-  const currentLabel = viewing ? viewing.ownerName : activePlan ? activePlan.name : 'Meu planejamento';
-  const inMain = !viewing && !activePlanId;
+  const currentLabel = consolidated ? `Consolidado (${compareIds.length})` : viewing ? viewing.ownerName : activePlan ? activePlan.name : 'Meu planejamento';
+  const inMain = !viewing && !activePlanId && !consolidated;
+  // Somar só faz sentido com mais de um planejamento próprio
+  const canCompare = plans.length > 0 && !viewing;
+
+  const compareToggle = (key: string, name: string) => {
+    const on = compareIds.includes(key);
+    return (
+      <button
+        type="button"
+        className={`planning-switch-mini ${on ? 'is-checked' : ''}`}
+        title={on ? 'Tirar da soma' : 'Somar na visão consolidada'}
+        aria-label={`${on ? 'Tirar' : 'Incluir'} ${name} na visão consolidada`}
+        aria-pressed={on}
+        onClick={() => toggleCompare(key)}
+      >
+        {on ? <CheckSquare size={15} /> : <Square size={15} />}
+      </button>
+    );
+  };
 
   const goMain = () => {
     setOpen(false);
+    setConsolidated(false);
     if (activePlanId) switchPlan(null);
     if (viewing) backToOwnAccount();
   };
 
   const goPlan = (id: string) => {
     setOpen(false);
-    if (id === activePlanId && !viewing) return;
+    setConsolidated(false);
+    if (id === activePlanId && !viewing && !consolidated) return;
     switchPlan(id);
     if (viewing) backToOwnAccount();
   };
@@ -140,17 +160,20 @@ export const PlanningSwitcher: React.FC<PlanningSwitcherProps> = ({ onPlanWithOt
       {open && (
         <div className="planning-switch-menu" role="menu">
           <span className="planning-switch-caption">Meus planejamentos</span>
-          <button type="button" role="menuitemradio" aria-checked={inMain} className="planning-switch-item" onClick={goMain}>
-            <User size={15} />
-            <span className="planning-switch-item-text">
-              <strong>Meu planejamento</strong>
-              <small>Principal</small>
-            </span>
-            {inMain && <Check size={15} className="text-cyan" />}
-          </button>
+          <div className="planning-switch-row">
+            <button type="button" role="menuitemradio" aria-checked={inMain} className="planning-switch-item" onClick={goMain}>
+              <User size={15} />
+              <span className="planning-switch-item-text">
+                <strong>Meu planejamento</strong>
+                <small>Principal</small>
+              </span>
+              {inMain && <Check size={15} className="text-cyan" />}
+            </button>
+            {canCompare && compareToggle(MAIN_PLAN_KEY, 'Meu planejamento')}
+          </div>
 
           {plans.map((plan) => {
-            const active = !viewing && plan.id === activePlanId;
+            const active = !viewing && !consolidated && plan.id === activePlanId;
             return (
               <div key={plan.id} className="planning-switch-row">
                 <button type="button" role="menuitemradio" aria-checked={active} className="planning-switch-item" onClick={() => goPlan(plan.id)}>
@@ -161,6 +184,7 @@ export const PlanningSwitcher: React.FC<PlanningSwitcherProps> = ({ onPlanWithOt
                   </span>
                   {active && <Check size={15} className="text-cyan" />}
                 </button>
+                {canCompare && compareToggle(plan.id, plan.name)}
                 <button type="button" className="planning-switch-mini" title="Renomear" aria-label={`Renomear ${plan.name}`} onClick={() => void onRename(plan.id, plan.name)}>
                   <Pencil size={13} />
                 </button>
@@ -170,6 +194,31 @@ export const PlanningSwitcher: React.FC<PlanningSwitcherProps> = ({ onPlanWithOt
               </div>
             );
           })}
+
+          {canCompare && (
+            <button
+              type="button"
+              role="menuitemradio"
+              aria-checked={consolidated}
+              className="planning-switch-item"
+              disabled={compareIds.length < 2}
+              onClick={() => {
+                setOpen(false);
+                setConsolidated(true);
+              }}
+            >
+              <Layers size={15} />
+              <span className="planning-switch-item-text">
+                <strong>Ver consolidado</strong>
+                <small>
+                  {compareIds.length < 2
+                    ? 'Marque 2 ou mais planejamentos (☐) para somar'
+                    : `Soma de ${compareIds.length} planejamentos, somente leitura`}
+                </small>
+              </span>
+              {consolidated && <Check size={15} className="text-cyan" />}
+            </button>
+          )}
 
           {creating ? (
             <form

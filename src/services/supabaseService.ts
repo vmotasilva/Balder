@@ -9,6 +9,7 @@ import type {
   PaymentMethodItem,
   UserProfileSettings,
 } from '../types';
+import type { PlanData } from '../utils/planSummary';
 
 /**
  * Conta cujos dados estão sendo lidos/gravados. null = a própria conta do usuário logado.
@@ -33,6 +34,11 @@ let activePlanId: string | null = null;
 /** Há planejamentos além do principal: só então o principal passa a filtrar por plan_id vazio (sem a coluna ainda criada, nada muda). */
 let hasExtraPlans = false;
 
+/** Planejamento lido de forma explícita (null = o principal), sem alterar o que está ativo. */
+export interface PlanRef {
+  planId: string | null;
+}
+
 export function setActivePlan(planId: string | null, extraPlans: boolean) {
   activePlanId = planId;
   hasExtraPlans = extraPlans;
@@ -43,7 +49,9 @@ export function getActivePlan(): string | null {
 }
 
 /** Filtro de planejamento para consultas já filtradas por user_id: `.filter(...planFilter(userId))`. */
-function planFilter(userId: string): [string, string, unknown] {
+function planFilter(userId: string, scope?: PlanRef): [string, string, unknown] {
+  // Leitura explícita de um planejamento (visão consolidada), sem depender do que está ativo
+  if (scope) return scope.planId ? ['plan_id', 'eq', scope.planId] : ['plan_id', 'is', null];
   if (dataOwnerId) return ['user_id', 'eq', userId]; // conta compartilhada: o filtro duplicado não altera nada
   if (activePlanId) return ['plan_id', 'eq', activePlanId];
   return hasExtraPlans ? ['plan_id', 'is', null] : ['user_id', 'eq', userId];
@@ -53,13 +61,16 @@ function planFilter(userId: string): [string, string, unknown] {
  * Tabelas com chave de texto definida pelo app (naturezas, contas, marcos, meios de pagamento): dois planejamentos
  * podem gerar o mesmo id (ex.: as naturezas-base). No servidor o id leva o prefixo do planejamento; o app só vê o id sem ele.
  */
-const planPrefix = () => (!dataOwnerId && activePlanId ? `${activePlanId}~` : '');
+const planPrefix = (scope?: PlanRef) => {
+  const id = scope ? scope.planId : !dataOwnerId ? activePlanId : null;
+  return id ? `${id}~` : '';
+};
 const toServerId = (id: string): string => {
   const prefix = planPrefix();
   return prefix && !id.startsWith(prefix) ? `${prefix}${id}` : id;
 };
-const fromServerId = (id: string): string => {
-  const prefix = planPrefix();
+const fromServerId = (id: string, scope?: PlanRef): string => {
+  const prefix = planPrefix(scope);
   return prefix && id.startsWith(prefix) ? id.slice(prefix.length) : id;
 };
 
@@ -95,7 +106,7 @@ export const SupabaseService = {
   // ============================================================================
   // MOVEMENTS
   // ============================================================================
-  async getMovements(): Promise<Movement[]> {
+  async getMovements(scope?: PlanRef): Promise<Movement[]> {
     if (!isSupabaseConfigured) return [];
     const userId = await getCurrentUserId();
     if (!userId) return [];
@@ -105,7 +116,7 @@ export const SupabaseService = {
         .from(TABLES.MOVEMENTS)
         .select('*')
         .eq('user_id', userId)
-        .filter(...planFilter(userId))
+        .filter(...planFilter(userId, scope))
         .order('due_date', { ascending: false })
         .limit(5000);
 
@@ -310,7 +321,7 @@ export const SupabaseService = {
   // ============================================================================
   // NATURES
   // ============================================================================
-  async getNatures(): Promise<ExpenseNature[]> {
+  async getNatures(scope?: PlanRef): Promise<ExpenseNature[]> {
     if (!isSupabaseConfigured) return [];
     const userId = await getCurrentUserId();
     if (!userId) return [];
@@ -320,7 +331,7 @@ export const SupabaseService = {
         .from(TABLES.NATURES)
         .select('*')
         .eq('user_id', userId)
-        .filter(...planFilter(userId))
+        .filter(...planFilter(userId, scope))
         .order('name');
 
       if (error) {
@@ -329,7 +340,7 @@ export const SupabaseService = {
       }
 
       return (data || []).map((row: any) => ({
-        id: fromServerId(String(row.id)),
+        id: fromServerId(String(row.id), scope),
         name: row.name,
         color: row.color,
         icon: row.icon,
@@ -596,7 +607,7 @@ export const SupabaseService = {
   // ============================================================================
   // ACCOUNTS
   // ============================================================================
-  async getAccounts(): Promise<BankAccount[]> {
+  async getAccounts(scope?: PlanRef): Promise<BankAccount[]> {
     if (!isSupabaseConfigured) return [];
     const userId = await getCurrentUserId();
     if (!userId) return [];
@@ -606,7 +617,7 @@ export const SupabaseService = {
         .from(TABLES.ACCOUNTS)
         .select('*')
         .eq('user_id', userId)
-        .filter(...planFilter(userId))
+        .filter(...planFilter(userId, scope))
         .order('name');
 
       if (error) {
@@ -615,7 +626,7 @@ export const SupabaseService = {
       }
 
       return (data || []).map((row: any) => ({
-        id: fromServerId(String(row.id)),
+        id: fromServerId(String(row.id), scope),
         name: row.name,
         bankName: row.bank || row.name,
         type: row.type || 'CORRENTE',
@@ -684,7 +695,7 @@ export const SupabaseService = {
   // ============================================================================
   // CHECKPOINTS
   // ============================================================================
-  async getCheckpoints(): Promise<FinancialCheckpoint[]> {
+  async getCheckpoints(scope?: PlanRef): Promise<FinancialCheckpoint[]> {
     if (!isSupabaseConfigured) return [];
     const userId = await getCurrentUserId();
     if (!userId) return [];
@@ -694,7 +705,7 @@ export const SupabaseService = {
         .from(TABLES.CHECKPOINTS)
         .select('*')
         .eq('user_id', userId)
-        .filter(...planFilter(userId))
+        .filter(...planFilter(userId, scope))
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -703,7 +714,7 @@ export const SupabaseService = {
       }
 
       return (data || []).map((row: any) => ({
-        id: fromServerId(String(row.id)),
+        id: fromServerId(String(row.id), scope),
         createdAt: row.created_at,
         startDate: row.start_date,
         initialBalance: Number(row.initial_balance) || 0,
@@ -1059,6 +1070,42 @@ export const PlansService = {
     if (!isSupabaseConfigured) return false;
     const { error } = await supabase.from(TABLES.MOVEMENTS).select('plan_id').limit(1);
     return !error;
+  },
+
+  /** Tudo o que é preciso para resumir um planejamento (null = o principal), sem abri-lo. */
+  async loadData(planId: string | null): Promise<PlanData> {
+    const scope: PlanRef = { planId };
+    const [movements, natures, accounts, checkpoints, settings] = await Promise.all([
+      SupabaseService.getMovements(scope),
+      SupabaseService.getNatures(scope),
+      SupabaseService.getAccounts(scope),
+      SupabaseService.getCheckpoints(scope),
+      this.getSettings(planId),
+    ]);
+    return {
+      movements,
+      natures,
+      accounts,
+      checkpoints,
+      natureDetailModes: settings?.natureDetailModes || {},
+      checkpointCashInHand: settings?.checkpointCashInHand || {},
+    };
+  },
+
+  /** Configurações do perfil de um planejamento (null = o principal), sem alterar o que está ativo. */
+  async getSettings(planId: string | null): Promise<UserProfileSettings | null> {
+    if (!isSupabaseConfigured) return null;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      if (planId) {
+        const byPlan = (user.user_metadata?.balder_plan_settings || {}) as Record<string, UserProfileSettings>;
+        return byPlan[planId] || null;
+      }
+      return (user.user_metadata?.balder_settings as UserProfileSettings) || null;
+    } catch {
+      return null;
+    }
   },
 
   /** Apaga do servidor todos os dados de um planejamento extra e as configurações dele. */
