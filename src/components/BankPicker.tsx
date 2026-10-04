@@ -4,6 +4,7 @@ import { useFinancial } from '../context/FinancialContext';
 import { getBankBranding } from '../utils/bankBranding';
 import { canonicalBankName, listPaymentInstitutions } from '../utils/paymentInstitutions';
 import { BankInvoiceTerms } from './BankInvoiceTerms';
+import { InfoButton } from './InfoButton';
 
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
@@ -43,10 +44,12 @@ export const BankPicker: React.FC<Props> = ({ onSelect }) => {
   return (
     <div className="bank-picker">
       <div className="bank-picker-head">
-        <div>
-          <h2>Escolha o banco</h2>
-          <p>A fatura é do banco: fechamento e vencimento valem para todas as compras no crédito dele.</p>
-        </div>
+        <h2>
+          Escolha o banco
+          <InfoButton title="Fatura por banco">
+            <p>A fatura é do banco: fechamento e vencimento valem para todas as compras no crédito dele.</p>
+          </InfoButton>
+        </h2>
         <button type="button" className="btn btn-secondary" onClick={() => onSelect('ALL')}>
           <Layers size={15} />
           <span>Ver faturas de todos os bancos</span>

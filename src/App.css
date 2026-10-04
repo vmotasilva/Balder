@@ -24430,3 +24430,21 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
 .nature-tabs-bar-container .nature-select { flex: 1 1 auto; }
 
 .bank-picker-card.is-muted { opacity: 0.7; border-style: dashed; }
+
+/* Faturas: totais em faixa compacta (a frase de apoio fica na dica) */
+.invoices-kpi-grid.is-compact { gap: 10px; }
+.invoices-kpi-grid.is-compact .invoices-kpi-card { padding: 10px 14px; gap: 10px; }
+.invoices-kpi-grid.is-compact .invoices-kpi-card:hover { transform: none; }
+.invoices-kpi-grid.is-compact .invoices-kpi-icon { width: 32px; height: 32px; border-radius: 9px; }
+.invoices-kpi-grid.is-compact .invoices-kpi-icon svg { width: 16px; height: 16px; }
+.invoices-kpi-grid.is-compact .invoices-kpi-value { font-size: 18px; margin: 1px 0 0; }
+.invoices-kpi-grid.is-compact .invoices-kpi-hint { display: none; }
+.bank-picker-head h2 { display: flex; align-items: center; gap: 6px; }
+
+/* Faturas de um banco: barra única com as datas ao lado do nome; filtros enxutos */
+.invoices-bank-bar-head .bank-terms { margin-left: auto; flex-direction: row; align-items: center; gap: 10px; flex-wrap: wrap; }
+.invoices-bank-bar-head .bank-terms-row { flex-wrap: nowrap; align-items: center; gap: 8px; }
+.invoices-bank-bar-head .bank-terms-row label { flex: none; flex-direction: row; align-items: center; gap: 6px; min-width: 0; }
+.invoices-bank-bar-head .bank-terms-row select { width: 76px; padding-top: 4px; padding-bottom: 4px; }
+.invoices-bank-bar-head .bank-terms-check, .invoices-bank-bar-head .bank-terms-hint { font-size: 11px; }
+.invoices-filter-panel { padding: 10px 14px; }
