@@ -99,3 +99,20 @@ export function buildFinancingSchedule(input: FinancingInput, system: Amortizati
     },
   };
 }
+
+export interface InstallmentPhases {
+  initial: number;
+  middle: number;
+  final: number;
+}
+
+/** Média da parcela em cada terço do cronograma (inicial, intermediário e final). */
+export function installmentPhaseAverages(rows: FinancingRow[]): InstallmentPhases {
+  const avg = (part: FinancingRow[]) => (part.length ? round2(part.reduce((s, r) => s + r.installment, 0) / part.length) : 0);
+  const third = Math.ceil(rows.length / 3);
+  return {
+    initial: avg(rows.slice(0, third)),
+    middle: avg(rows.slice(third, rows.length - third)),
+    final: avg(rows.slice(-third)),
+  };
+}
