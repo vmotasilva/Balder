@@ -712,6 +712,8 @@ export interface UserProfileSettings {
   goalStatuses?: Record<string, GoalStatusInfo>;
   /** Carteira de investimentos (aplicações com valor investido e valor atual). */
   investments?: Investment[];
+  /** Programações fixas de aporte nos investimentos. */
+  investmentPlans?: InvestmentPlan[];
 }
 
 export type InvestmentType = 'RENDA_FIXA' | 'TESOURO' | 'ACOES' | 'FIIS' | 'FUNDOS' | 'CRIPTO' | 'OUTROS';
@@ -727,6 +729,32 @@ export interface Investment {
   /** Data da aplicação (YYYY-MM-DD) */
   date: string;
   note?: string;
+  /** Histórico de aportes feitos depois do cadastro (o valor inicial é investido − soma dos aportes). */
+  contributions?: InvestmentContribution[];
+}
+
+export interface InvestmentContribution {
+  id: string;
+  /** YYYY-MM-DD */
+  date: string;
+  amount: number;
+  /** Veio de uma programação fixa */
+  planId?: string;
+}
+
+export type InvestmentFrequency = 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+
+/** Programação fixa: aporte recorrente num investimento, confirmado a cada ocorrência. */
+export interface InvestmentPlan {
+  id: string;
+  investmentId: string;
+  amount: number;
+  frequency: InvestmentFrequency;
+  /** Primeira ocorrência (YYYY-MM-DD); no mensal, o dia do mês se repete */
+  startDate: string;
+  endDate?: string;
+  /** Ocorrências já tratadas (confirmadas ou puladas) */
+  doneDates: string[];
 }
 
 /**

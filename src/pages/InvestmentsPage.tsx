@@ -1,14 +1,27 @@
 import React, { useMemo, useState } from 'react';
-import { PlusCircle, Pencil, Trash2, TrendingUp } from 'lucide-react';
+import { CalendarClock, Check, ChevronDown, ChevronUp, PlusCircle, Pencil, SkipForward, Trash2, TrendingUp } from 'lucide-react';
 import { DecimalInput } from '../components/DecimalInput';
 import { Modal } from '../components/Modal';
 import { InfoButton } from '../components/InfoButton';
 import { INVESTMENT_TYPES, useInvestments } from '../hooks/useInvestments';
-import type { Investment, InvestmentType } from '../types';
+import { dueOccurrences, FREQUENCY_LABELS, nextOccurrence } from '../utils/investmentPlans';
+import type { Investment, InvestmentFrequency, InvestmentPlan, InvestmentType } from '../types';
 
 const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const formatPct = (v: number) => `${v >= 0 ? '+' : ''}${v.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`;
 const today = () => new Date().toISOString().slice(0, 10);
+
+const formatDate = (iso: string) => iso.split('-').reverse().join('/');
+const fieldStyle: React.CSSProperties = { display: 'grid', gap: 4 };
+
+const emptyPlan = (investmentId: string): InvestmentPlan => ({
+  id: '',
+  investmentId,
+  amount: 0,
+  frequency: 'MONTHLY',
+  startDate: today(),
+  doneDates: [],
+});
 
 const emptyDraft = (): Investment => ({
   id: '',
@@ -22,8 +35,36 @@ const emptyDraft = (): Investment => ({
 
 /** Carteira de investimentos: posições, rentabilidade e distribuição por tipo. */
 export const InvestmentsPage: React.FC = () => {
-  const { investments, saveInvestment, removeInvestment } = useInvestments();
+  const {
+    investments,
+    plans,
+    saveInvestment,
+    removeInvestment,
+    contribute,
+    removeContribution,
+    savePlan,
+    removePlan,
+    settleOccurrence,
+  } = useInvestments();
   const [draft, setDraft] = useState<Investment | null>(null);
+  const [aporte, setAporte] = useState<{ investmentId: string; amount: number; date: string } | null>(null);
+  const [planDraft, setPlanDraft] = useState<InvestmentPlan | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const nameOf = (id: string) => investments.find((i) => i.id === id)?.name ?? 'Investimento removido';
+  const todayIso = today();
+  const dueItems = useMemo(
+    () => plans.flatMap((plan) => dueOccurrences(plan, todayIso).map((date) => ({ plan, date }))).sort((a, b) => a.date.localeCompare(b.date)),
+    [plans, todayIso]
+  );
+  const toggleExpanded = (id: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const canSavePlan = !!planDraft && !!planDraft.investmentId && planDraft.amount > 0 && !!planDraft.startDate;
 
   const totals = useMemo(() => {
     const invested = investments.reduce((s, i) => s + i.invested, 0);
@@ -114,6 +155,80 @@ export const InvestmentsPage: React.FC = () => {
         )}
       </div>
 
+      {dueItems.length > 0 && (
+        <div className="glass-card" style={{ marginBottom: 16 }}>
+          <h3 style={{ marginBottom: 8 }}>Aportes previstos</h3>
+          <div style={{ display: 'grid', gap: 8 }}>
+            {dueItems.map(({ plan, date }) => (
+              <div key={`${plan.id}_${date}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div>
+                  <strong>{nameOf(plan.investmentId)}</strong>
+                  <div className="text-xs text-secondary">{formatDate(date)} · {formatBRL(plan.amount)}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button type="button" className="btn btn-primary btn-sm" onClick={() => settleOccurrence(plan, date, true)}>
+                    <Check size={14} /> <span>Aportei</span>
+                  </button>
+                  <button type="button" className="btn btn-outline btn-sm" onClick={() => settleOccurrence(plan, date, false)}>
+                    <SkipForward size={14} /> <span>Pular</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="glass-card" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <h3 style={{ margin: 0 }}>Programação de aportes</h3>
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            disabled={investments.length === 0}
+            title={investments.length === 0 ? 'Cadastre um investimento primeiro' : undefined}
+            onClick={() => setPlanDraft(emptyPlan(investments[0].id))}
+          >
+            <CalendarClock size={14} /> <span>Programar</span>
+          </button>
+        </div>
+        {plans.length === 0 ? (
+          <p className="text-xs text-secondary" style={{ marginTop: 8 }}>
+            Defina um aporte fixo (semanal, quinzenal ou mensal) e o Balder avisa quando chegar a data de investir.
+          </p>
+        ) : (
+          <div style={{ display: 'grid', gap: 8, marginTop: 10 }}>
+            {plans.map((plan) => {
+              const next = nextOccurrence(plan, todayIso);
+              return (
+                <div key={plan.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                  <div>
+                    <strong>{nameOf(plan.investmentId)}</strong>
+                    <div className="text-xs text-secondary">
+                      {formatBRL(plan.amount)} · {FREQUENCY_LABELS[plan.frequency]} ·{' '}
+                      {next ? `próximo em ${formatDate(next)}` : 'encerrada'}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button type="button" className="btn btn-outline btn-sm" aria-label="Editar programação" onClick={() => setPlanDraft(plan)}>
+                      <Pencil size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      aria-label="Excluir programação"
+                      onClick={() => window.confirm('Excluir esta programação de aporte?') && removePlan(plan.id)}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       {investments.length === 0 ? (
         <div className="glass-card text-secondary" style={{ textAlign: 'center' }}>
           Nenhum investimento cadastrado. Toque em “Novo” para registrar o primeiro.
@@ -155,6 +270,41 @@ export const InvestmentsPage: React.FC = () => {
                   </span>
                 </div>
                 {inv.note && <div className="text-xs text-secondary" style={{ marginTop: 6 }}>{inv.note}</div>}
+                <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                  <button type="button" className="btn btn-outline btn-sm" onClick={() => setAporte({ investmentId: inv.id, amount: 0, date: today() })}>
+                    <PlusCircle size={14} /> <span>Aportar</span>
+                  </button>
+                  {(inv.contributions?.length ?? 0) > 0 && (
+                    <button type="button" className="btn btn-outline btn-sm" onClick={() => toggleExpanded(inv.id)}>
+                      {expanded.has(inv.id) ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      <span>Histórico de aportes ({inv.contributions!.length})</span>
+                    </button>
+                  )}
+                </div>
+                {expanded.has(inv.id) && (
+                  <div style={{ display: 'grid', gap: 4, marginTop: 8 }}>
+                    {[...(inv.contributions ?? [])]
+                      .sort((a, b) => b.date.localeCompare(a.date))
+                      .map((c) => (
+                        <div key={c.id} className="text-xs" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span className="text-secondary">
+                            {formatDate(c.date)}{c.planId ? ' · programado' : ''}
+                          </span>
+                          <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            <strong>{formatBRL(c.amount)}</strong>
+                            <button
+                              type="button"
+                              className="btn btn-outline btn-sm"
+                              aria-label="Desfazer aporte"
+                              onClick={() => window.confirm('Desfazer este aporte?') && removeContribution(inv.id, c.id)}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -168,7 +318,7 @@ export const InvestmentsPage: React.FC = () => {
       >
         {draft && (
           <div style={{ display: 'grid', gap: 12 }}>
-            <label>
+            <label style={fieldStyle}>
               <span className="text-xs text-secondary">Nome</span>
               <input
                 className="form-input form-input-sm"
@@ -177,7 +327,7 @@ export const InvestmentsPage: React.FC = () => {
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
               />
             </label>
-            <label>
+            <label style={fieldStyle}>
               <span className="text-xs text-secondary">Tipo</span>
               <select
                 className="form-input form-input-sm"
@@ -189,7 +339,7 @@ export const InvestmentsPage: React.FC = () => {
                 ))}
               </select>
             </label>
-            <label>
+            <label style={fieldStyle}>
               <span className="text-xs text-secondary">Valor investido (R$)</span>
               <DecimalInput
                 className="form-input form-input-sm"
@@ -198,7 +348,7 @@ export const InvestmentsPage: React.FC = () => {
                 onValueChange={(v) => setDraft({ ...draft, invested: v })}
               />
             </label>
-            <label>
+            <label style={fieldStyle}>
               <span className="text-xs text-secondary">Valor atual (R$) — vazio = igual ao investido</span>
               <DecimalInput
                 className="form-input form-input-sm"
@@ -207,7 +357,7 @@ export const InvestmentsPage: React.FC = () => {
                 onValueChange={(v) => setDraft({ ...draft, currentValue: v })}
               />
             </label>
-            <label>
+            <label style={fieldStyle}>
               <span className="text-xs text-secondary">Data da aplicação</span>
               <input
                 type="date"
@@ -216,7 +366,7 @@ export const InvestmentsPage: React.FC = () => {
                 onChange={(e) => setDraft({ ...draft, date: e.target.value })}
               />
             </label>
-            <label>
+            <label style={fieldStyle}>
               <span className="text-xs text-secondary">Observação</span>
               <input
                 className="form-input form-input-sm"
@@ -226,6 +376,112 @@ export const InvestmentsPage: React.FC = () => {
             </label>
             <button type="button" className="btn btn-primary" disabled={!canSave} onClick={submit}>
               Salvar
+            </button>
+          </div>
+        )}
+      </Modal>
+
+      <Modal isOpen={!!aporte} onClose={() => setAporte(null)} title={`Novo aporte${aporte ? ` — ${nameOf(aporte.investmentId)}` : ''}`}>
+        {aporte && (
+          <div style={{ display: 'grid', gap: 12 }}>
+            <label style={fieldStyle}>
+              <span className="text-xs text-secondary">Valor aportado (R$)</span>
+              <DecimalInput
+                className="form-input form-input-sm"
+                value={aporte.amount}
+                emptyWhenZero
+                onValueChange={(v) => setAporte({ ...aporte, amount: v })}
+              />
+            </label>
+            <label style={fieldStyle}>
+              <span className="text-xs text-secondary">Data</span>
+              <input
+                type="date"
+                className="form-input form-input-sm"
+                value={aporte.date}
+                onChange={(e) => setAporte({ ...aporte, date: e.target.value })}
+              />
+            </label>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={aporte.amount <= 0 || !aporte.date}
+              onClick={() => {
+                contribute(aporte.investmentId, aporte.amount, aporte.date);
+                setAporte(null);
+              }}
+            >
+              Registrar aporte
+            </button>
+          </div>
+        )}
+      </Modal>
+
+      <Modal isOpen={!!planDraft} onClose={() => setPlanDraft(null)} title={planDraft?.id ? 'Editar programação' : 'Nova programação de aporte'}>
+        {planDraft && (
+          <div style={{ display: 'grid', gap: 12 }}>
+            <label style={fieldStyle}>
+              <span className="text-xs text-secondary">Investimento</span>
+              <select
+                className="form-input form-input-sm"
+                value={planDraft.investmentId}
+                onChange={(e) => setPlanDraft({ ...planDraft, investmentId: e.target.value })}
+              >
+                {investments.map((i) => (
+                  <option key={i.id} value={i.id}>{i.name}</option>
+                ))}
+              </select>
+            </label>
+            <label style={fieldStyle}>
+              <span className="text-xs text-secondary">Valor de cada aporte (R$)</span>
+              <DecimalInput
+                className="form-input form-input-sm"
+                value={planDraft.amount}
+                emptyWhenZero
+                onValueChange={(v) => setPlanDraft({ ...planDraft, amount: v })}
+              />
+            </label>
+            <label style={fieldStyle}>
+              <span className="text-xs text-secondary">Periodicidade</span>
+              <select
+                className="form-input form-input-sm"
+                value={planDraft.frequency}
+                onChange={(e) => setPlanDraft({ ...planDraft, frequency: e.target.value as InvestmentFrequency })}
+              >
+                {Object.entries(FREQUENCY_LABELS).map(([id, label]) => (
+                  <option key={id} value={id}>{label}</option>
+                ))}
+              </select>
+            </label>
+            <label style={fieldStyle}>
+              <span className="text-xs text-secondary">Primeiro aporte</span>
+              <input
+                type="date"
+                className="form-input form-input-sm"
+                value={planDraft.startDate}
+                onChange={(e) => setPlanDraft({ ...planDraft, startDate: e.target.value })}
+              />
+            </label>
+            <label style={fieldStyle}>
+              <span className="text-xs text-secondary">Até (opcional)</span>
+              <input
+                type="date"
+                className="form-input form-input-sm"
+                value={planDraft.endDate ?? ''}
+                onChange={(e) => setPlanDraft({ ...planDraft, endDate: e.target.value || undefined })}
+              />
+            </label>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={!canSavePlan}
+              onClick={() => {
+                if (!planDraft) return;
+                savePlan({ ...planDraft, id: planDraft.id || `plan_${Date.now()}` });
+                setPlanDraft(null);
+              }}
+            >
+              Salvar programação
             </button>
           </div>
         )}
