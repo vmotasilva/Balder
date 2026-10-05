@@ -8,6 +8,7 @@ import { MappingCombobox } from './MappingCombobox';
 import type { ComboboxOption } from './MappingCombobox';
 import { learnReceiptItemAssociation, autoAssociateReceiptTextToItemKeywords } from '../services/receiptMemoryService';
 import { Check, Plus, Edit2, AlertCircle, ShoppingBag, Sparkles, Store, Calendar, DollarSign, Wallet, CheckCircle2, CreditCard } from 'lucide-react';
+import { DateInput } from './DateInput';
 
 interface Props {
   data: ReceiptReconciliationData;
@@ -351,7 +352,7 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
             <span>Data do Cupom</span>
           </div>
           {isEditingHeader ? (
-            <input
+            <DateInput
               type="date"
               className="rec-inline-input"
               value={date}

@@ -24,6 +24,7 @@ import {
 import type { TrackingPeriod } from '../utils/periodSpending';
 import type { ExpenseNature, FixedExpenseMapping, MappingItem, Movement } from '../types';
 import { NumberInput } from './NumberInput';
+import { DateInput } from './DateInput';
 
 
 const TOPICS: { id: SetupTopic; label: string; hint: string; why: string }[] = [
@@ -295,7 +296,7 @@ const InicioTopic: React.FC<TopicProps> = (p) => {
       const q = 'Qual data?';
       return (
         <Ask question={q} onBack={s.back} backLabel={s.backLabel}>
-          <input type="date" className="form-input form-input-sm guided-date" value={customDate} onChange={(e) => setCustomDate(e.target.value)} />
+          <DateInput type="date" className="form-input form-input-sm guided-date" value={customDate} onChange={(e) => setCustomDate(e.target.value)} />
           <div className="guided-actions">
             <button type="button" className="btn btn-primary btn-sm" disabled={!customDate} onClick={() => s.finish(q, brDate(customDate), save(customDate))}>
               Continuar

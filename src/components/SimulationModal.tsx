@@ -28,6 +28,7 @@ import type {
 } from '../types';
 import { NumberInput } from './NumberInput';
 import { InfoButton } from './InfoButton';
+import { DateInput } from './DateInput';
 
 interface SimulationModalProps {
   isOpen: boolean;
@@ -500,7 +501,7 @@ export const SimulationModal: React.FC<SimulationModalProps> = ({
                     <Calendar size={13} className="text-muted inline mr-1" />
                     Data da Contratação
                   </label>
-                  <input
+                  <DateInput
                     type="date"
                     className="form-input"
                     value={contractDate}
@@ -513,7 +514,7 @@ export const SimulationModal: React.FC<SimulationModalProps> = ({
                     <Calendar size={13} className="text-cyan inline mr-1" />
                     Data Vencimento Inicial
                   </label>
-                  <input
+                  <DateInput
                     type="date"
                     className="form-input"
                     value={firstDueDate}

@@ -6,6 +6,7 @@ import { InfoButton } from '../components/InfoButton';
 import { INVESTMENT_TYPES, useInvestments } from '../hooks/useInvestments';
 import { dueOccurrences, FREQUENCY_LABELS, nextOccurrence } from '../utils/investmentPlans';
 import type { Investment, InvestmentFrequency, InvestmentPlan, InvestmentType } from '../types';
+import { DateInput } from '../components/DateInput';
 
 const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const formatPct = (v: number) => `${v >= 0 ? '+' : ''}${v.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`;
@@ -359,7 +360,7 @@ export const InvestmentsPage: React.FC = () => {
             </label>
             <label style={fieldStyle}>
               <span className="text-xs text-secondary">Data da aplicação</span>
-              <input
+              <DateInput
                 type="date"
                 className="form-input form-input-sm"
                 value={draft.date}
@@ -395,7 +396,7 @@ export const InvestmentsPage: React.FC = () => {
             </label>
             <label style={fieldStyle}>
               <span className="text-xs text-secondary">Data</span>
-              <input
+              <DateInput
                 type="date"
                 className="form-input form-input-sm"
                 value={aporte.date}
@@ -455,7 +456,7 @@ export const InvestmentsPage: React.FC = () => {
             </label>
             <label style={fieldStyle}>
               <span className="text-xs text-secondary">Primeiro aporte</span>
-              <input
+              <DateInput
                 type="date"
                 className="form-input form-input-sm"
                 value={planDraft.startDate}
@@ -464,7 +465,7 @@ export const InvestmentsPage: React.FC = () => {
             </label>
             <label style={fieldStyle}>
               <span className="text-xs text-secondary">Até (opcional)</span>
-              <input
+              <DateInput
                 type="date"
                 className="form-input form-input-sm"
                 value={planDraft.endDate ?? ''}

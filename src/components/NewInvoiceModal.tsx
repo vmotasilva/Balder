@@ -5,6 +5,7 @@ import { useFinancial } from '../context/FinancialContext';
 import type { MovementStatus } from '../types';
 import { CreditCard, Calendar, DollarSign, Building2, Check, AlertCircle } from 'lucide-react';
 import { getBankBranding, POPULAR_BANKS } from '../utils/bankBranding';
+import { DateInput } from './DateInput';
 
 interface NewInvoiceModalProps {
   isOpen: boolean;
@@ -479,7 +480,7 @@ export const NewInvoiceModal: React.FC<NewInvoiceModalProps> = ({
               <Calendar size={14} style={{ color: 'var(--accent-cyan)' }} />
               <span>Vencimento</span>
             </label>
-            <input
+            <DateInput
               id="inv-due-date"
               type="date"
               className="form-input"

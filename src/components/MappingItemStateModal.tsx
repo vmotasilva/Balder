@@ -26,6 +26,7 @@ import {
   resolveMappingItemMonth,
   resolveMappingItemState,
 } from '../utils/mappingItemState';
+import { DateInput } from './DateInput';
 
 export interface MappingItemStateTarget {
   natureId: string;
@@ -640,7 +641,7 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
                       </label>
                       <label style={{ flex: '1 1 150px', fontSize: '12px', color: 'var(--text-muted)' }}>
                         Data do pagamento
-                        <input
+                        <DateInput
                           type="date"
                           className="form-input"
                           value={paidAt}

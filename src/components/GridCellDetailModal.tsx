@@ -84,6 +84,7 @@ import {
 import { ReceiptChangeDialog, futureReceiptSiblings, type ReceiptChangeResult } from './ReceiptChangeDialog';
 import { NewMovementModal } from './NewMovementModal';
 import { LoanInstallmentModal } from './LoanInstallmentModal';
+import { DateInput } from './DateInput';
 
 export interface GridCellSelection {
   columnKey:
@@ -4144,7 +4145,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                 <label style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                   Data Prevista / Vencimento:
                 </label>
-                <input
+                <DateInput
                   type="date"
                   value={editingReceipt.dueDate}
                   onChange={(e) =>
@@ -4161,7 +4162,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                   <label style={{ fontSize: '11px', fontWeight: 600, color: '#10b981', display: 'block', marginBottom: '4px' }}>
                     Data Efetiva do Crédito:
                   </label>
-                  <input
+                  <DateInput
                     type="date"
                     value={editingReceipt.paymentDate || editingReceipt.dueDate}
                     onChange={(e) =>

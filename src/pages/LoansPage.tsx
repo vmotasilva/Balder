@@ -30,6 +30,7 @@ import { buildMonthlyProjectionGrid } from '../utils/projectionMath';
 import { Modal } from '../components/Modal';
 import { NumberInput } from '../components/NumberInput';
 import { InfoButton } from '../components/InfoButton';
+import { DateInput } from '../components/DateInput';
 
 export type RowSimMode = 'NORMAL' | 'ANTECIPAR' | 'PAUSAR' | 'CUSTOM';
 
@@ -695,7 +696,7 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
 
                 <div className="form-group">
                   <label>Data da Contratação</label>
-                  <input
+                  <DateInput
                     type="date"
                     className="form-input"
                     value={params.contractDate}
@@ -705,7 +706,7 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
 
                 <div className="form-group">
                   <label>1º Vencimento</label>
-                  <input
+                  <DateInput
                     type="date"
                     className="form-input"
                     value={params.firstDueDate}
@@ -715,7 +716,7 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
 
                 <div className="form-group">
                   <label>Data para Simulação de Antecipação</label>
-                  <input
+                  <DateInput
                     type="date"
                     className="form-input"
                     value={params.simulationDate || params.contractDate}

@@ -10,6 +10,7 @@ import { findMappingItemForTitle } from '../utils/mappingMatch';
 import { userNatures } from '../utils/baseNatures';
 import { matchNatureForTransaction } from '../services/invoiceFileParser';
 import type { CopilotPendingConfirmation, PaymentWizardState } from '../types';
+import { DateInput } from './DateInput';
 
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const INSTALLMENT_CHOICES = [1, 2, 3, 4, 5, 6, 10, 12];
@@ -255,7 +256,7 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
             </dd>
             <dt>{credit ? 'Data da compra' : isIncome ? 'Data' : 'Data do pagamento'}</dt>
             <dd>
-              <input type="date" value={data.dueDate} onChange={(e) => e.target.value && updatePaymentWizard(messageId, undefined, { dueDate: e.target.value })} />
+              <DateInput type="date" value={data.dueDate} onChange={(e) => e.target.value && updatePaymentWizard(messageId, undefined, { dueDate: e.target.value })} />
             </dd>
             {!isIncome && (
               <>
