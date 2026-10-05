@@ -35,6 +35,8 @@ interface MovementDetailModalProps {
   onClose: () => void;
   movement: Movement | null;
   onOpenPrepaymentSimulator?: (groupId?: string, movementId?: string) => void;
+  /** Fatura de cartão: abre já com a conciliação por natureza (padrão: só o essencial para dar baixa). */
+  startExpanded?: boolean;
 }
 
 interface ModalBreakdownRow {
@@ -63,6 +65,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
   onClose,
   movement,
   onOpenPrepaymentSimulator,
+  startExpanded,
 }) => {
   const {
     movements,
@@ -125,12 +128,15 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
   // Estados específicos para CARTAO (Detalhamento de Itens por Natureza)
   const [breakdownRows, setBreakdownRows] = useState<ModalBreakdownRow[]>([]);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  // Fatura de cartão: a conciliação por natureza e os campos extras ficam recolhidos até a pessoa pedir
+  const [showInvoiceDetails, setShowInvoiceDetails] = useState(false);
 
   // Inicializa o modal quando o movement mudar
   useEffect(() => {
     if (!movement) return;
 
     setTitle(movement.title || '');
+    setShowInvoiceDetails(!!startExpanded);
     const original = movement.originalAmount ?? movement.amount;
     setNominalAmount(original);
     
@@ -528,6 +534,9 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
 
   if (!isOpen || !movement) return null;
 
+  // Fatura de cartão no modo simples: valor, vencimento e data do pagamento (o resto vem em "Conciliar itens")
+  const simpleCard = movement.type === 'CARTAO' && !showInvoiceDetails;
+
   // Manipuladores de modos específicos
   // Desconto de antecipação a valor presente, como na lista de parcelas ("Se pago hoje"): taxa do contrato,
   // vencimento da parcela e data do pagamento (se ainda não passou do vencimento; senão, hoje)
@@ -879,13 +888,19 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
         movement.type === 'EMPRESTIMO'
           ? '🏛️ Detalhes & Quitação de Parcela de Empréstimo'
           : movement.type === 'CARTAO'
-          ? '💳 Detalhes & Conciliação de Fatura de Cartão'
+          ? showInvoiceDetails
+            ? '💳 Detalhes & Conciliação de Fatura de Cartão'
+            : '💳 Fatura de Cartão'
           : movement.type === 'RECEBER'
           ? '💰 Detalhes & Apuração de Recebimento'
           : '🧾 Detalhes & Liquidação de Despesa'
       }
-      subtitle="Ajuste o valor para a realidade que foi efetivamente aplicada e confirme a conciliação financeira."
-      maxWidth={movement.type === 'CARTAO' ? '880px' : '680px'}
+      subtitle={
+        movement.type === 'CARTAO' && !showInvoiceDetails
+          ? 'Confirme o valor e a data do pagamento.'
+          : 'Ajuste o valor para a realidade que foi efetivamente aplicada e confirme a conciliação financeira.'
+      }
+      maxWidth={movement.type === 'CARTAO' && showInvoiceDetails ? '880px' : '680px'}
       className="mdm-modal"
     >
       <div className="mdm-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -1154,7 +1169,17 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
         {/* ------------------------------------------------------------------------- */}
         {/* 2. CARTAO: Detalhamento Completo por Natureza e Itens                    */}
         {/* ------------------------------------------------------------------------- */}
-        {movement.type === 'CARTAO' && (
+        {movement.type === 'CARTAO' && !showInvoiceDetails && (
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            onClick={() => setShowInvoiceDetails(true)}
+          >
+            <CreditCard size={14} /> Conciliar itens da fatura
+          </button>
+        )}
+        {movement.type === 'CARTAO' && showInvoiceDetails && (
           <div
             style={{
               padding: '0.85rem',
@@ -1834,19 +1859,21 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
               />
             </div>
 
-            <div>
-              <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
-                Motivo / Justificativa
-              </label>
-              <input
-                type="text"
-                className="form-input"
-                style={{ fontSize: '0.8rem', padding: '6px 10px' }}
-                placeholder="ex: conta veio mais cara..."
-                value={adjustmentReason}
-                onChange={(e) => setAdjustmentReason(e.target.value)}
-              />
-            </div>
+            {!simpleCard && (
+              <div>
+                <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
+                  Motivo / Justificativa
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  style={{ fontSize: '0.8rem', padding: '6px 10px' }}
+                  placeholder="ex: conta veio mais cara..."
+                  value={adjustmentReason}
+                  onChange={(e) => setAdjustmentReason(e.target.value)}
+                />
+              </div>
+            )}
           </div>
 
           {/* Parcelamento: parcelar a compra nas faturas certas ou desfazer */}
@@ -1882,7 +1909,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
           )}
 
           {/* Dados de Liquidação: Data e Banco */}
-          <div className="mdm-three" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginTop: '0.25rem' }}>
+          <div className="mdm-three" style={{ display: 'grid', gridTemplateColumns: simpleCard ? '1fr 1fr' : '1fr 1fr 1fr', gap: '10px', marginTop: '0.25rem' }}>
             <div>
               <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
                 Vencimento
@@ -1913,6 +1940,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
               />
             </div>
 
+            {!simpleCard && (
             <div>
               <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
                 Banco
@@ -1942,9 +1970,11 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
                 ))}
               </select>
             </div>
+            )}
           </div>
 
           {/* Observações Opcionais */}
+          {!simpleCard && (
           <div>
             <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
               Observações
@@ -1958,6 +1988,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
               onChange={(e) => setNotes(e.target.value)}
             />
           </div>
+          )}
         </div>
 
         {/* ========================================================================= */}

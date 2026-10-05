@@ -1597,6 +1597,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
       {/* Modal de Detalhamento Pop-up (MovementDetailModal) */}
       {selectedMovementForModal && (
         <MovementDetailModal
+          startExpanded
           isOpen={!!selectedMovementForModal}
           onClose={() => setSelectedMovementForModal(null)}
           movement={selectedMovementForModal}
