@@ -46,7 +46,7 @@ export const DataFormatPanel: React.FC = () => {
     return [
       { id: 'MOVIMENTACOES', label: 'Contas a pagar e a receber', description: 'Lançamentos avulsos, salários e recebimentos', count: countType('PAGAR', 'RECEBER') },
       { id: 'FATURAS', label: 'Faturas de cartão', description: 'Faturas e seus detalhamentos por natureza', count: countType('CARTAO') },
-      { id: 'EMPRESTIMOS', label: 'Empréstimos & financiamentos', description: 'Parcelas e contratos de crédito', count: countType('EMPRESTIMO') },
+      { id: 'EMPRESTIMOS', label: 'Empréstimos', description: 'Parcelas e contratos de empréstimo', count: countType('EMPRESTIMO') },
       { id: 'MARCOS', label: 'Marcos de início', description: 'Pontos de partida e cenários de simulação', count: checkpoints.length },
       { id: 'FECHAMENTOS', label: 'Fechamentos mensais', description: 'Competências fechadas na projeção', count: monthlyClosings.length },
       { id: 'NATUREZAS', label: 'Naturezas & mapeamentos', description: 'Naturezas, tetos, mapeamentos e itens', count: natures.length },

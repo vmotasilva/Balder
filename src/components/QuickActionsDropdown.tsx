@@ -85,8 +85,8 @@ export const QuickActionsDropdown: React.FC<QuickActionsDropdownProps> = ({
     },
     {
       id: 'financiamento',
-      title: 'Novo Financiamento',
-      subtitle: 'Verificar comprometimento de renda e margem segura da parcela',
+      title: 'Financiar um Bem',
+      subtitle: 'Simular a parcela de um bem financiado e a margem segura da renda',
       badge: 'Margem',
       badgeClass: 'badge-amber',
       icon: <CreditCard size={18} className="text-amber-400" />,

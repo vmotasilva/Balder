@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   Banknote,
   Building2,
-  CreditCard,
   ArrowRight,
   X,
 } from 'lucide-react';
@@ -116,18 +115,6 @@ export const ImmediateActionsModal: React.FC<ImmediateActionsModalProps> = ({
       badge: 'Crédito',
       badgeClass: 'badge-amber',
       icon: <Building2 size={18} className="text-amber-400" />,
-      onClick: () => {
-        onClose();
-        onOpenNewMovementModal('EMPRESTIMO');
-      },
-    },
-    {
-      id: 'cadastrar_financiamento',
-      title: 'Cadastrar Financiamento',
-      subtitle: 'Financiamento habitacional, automotivo ou de bens',
-      badge: 'Financiamento',
-      badgeClass: 'badge-purple',
-      icon: <CreditCard size={18} className="text-purple-400" />,
       onClick: () => {
         onClose();
         onOpenNewMovementModal('EMPRESTIMO');

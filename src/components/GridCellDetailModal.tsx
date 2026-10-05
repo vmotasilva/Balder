@@ -263,7 +263,7 @@ function loanInstallmentsBreakdownItem(
   });
   return {
     id: `expense_loan_${monthKey}`,
-    category: 'Financiamentos & Dívidas',
+    category: 'Empréstimos & Dívidas',
     bankOrOrigin: 'Débito em Conta',
     title: 'Parcelas de Empréstimos & Dívidas',
     notes: 'Amortização e juros das parcelas ativas (Tabela Price)',
@@ -2148,7 +2148,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
           id: `income_loan_${monthPrefix}`,
           category: 'Empréstimo Captado',
           bankOrOrigin: 'Crédito em Conta',
-          title: 'Crédito / Financiamento Injetado no Caixa',
+          title: 'Empréstimo Creditado no Caixa',
           notes: 'Entrada de capital oriunda de novo contrato',
           badge: 'Empréstimo (+)',
           badgeType: 'amber',
@@ -2409,7 +2409,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         });
       }
 
-      // 4. Parcelas de Empréstimo / Financiamento
+      // 4. Parcelas de Empréstimo
       if (row.loanPayment > 0) {
         items.push(
           loanInstallmentsBreakdownItem(movements, monthPrefix, 'PROJETADO', activeCheckpoint?.startDate, row.loanPayment)

@@ -1043,7 +1043,7 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
       const open = d.movements.filter((m) => m.type === 'EMPRESTIMO' && m.category !== 'Recebimento' && m.status === 'PREVISTA');
       if (open.length === 0) {
         return {
-          text: 'Não encontrei parcelas de empréstimo em aberto. 👏 Se tiver um empréstimo que ainda não cadastrou, adicione em **Empréstimos** para eu acompanhar.',
+          text: 'Não encontrei parcelas de empréstimo em aberto. 👏 Se tiver um empréstimo que ainda não cadastrou, adicione em **Contratos › Empréstimos** para eu acompanhar.',
           badge: 'EMPRÉSTIMOS',
           chips: [CHIP_DUVIDA],
         };
@@ -1052,7 +1052,7 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
       const last = open.reduce((max, m) => (m.dueDate > max ? m.dueDate : max), open[0].dueDate);
       const reserveOk = d.emergencyReserveMonths >= 6;
       return {
-        text: `Você tem **${open.length} parcela(s)** em aberto, somando **${brl(total)}**, até ${last.split('-').reverse().join('/')}.\n\nAo antecipar parcelas, o banco é obrigado a tirar os **juros das parcelas futuras** (Código de Defesa do Consumidor, art. 52, § 2º) — por isso quitar costuma valer a pena quando:\n• os juros do empréstimo são maiores que o rendimento do seu dinheiro guardado;\n• você **não** precisa usar a reserva de emergência para isso${reserveOk ? ' (a sua está em dia ✅)' : ' (a sua está abaixo de 6 meses ⚠️)'}.\n\nEm **Empréstimos › Antecipar parcelas** você vê exatamente quanto economiza.`,
+        text: `Você tem **${open.length} parcela(s)** em aberto, somando **${brl(total)}**, até ${last.split('-').reverse().join('/')}.\n\nAo antecipar parcelas, o banco é obrigado a tirar os **juros das parcelas futuras** (Código de Defesa do Consumidor, art. 52, § 2º) — por isso quitar costuma valer a pena quando:\n• os juros do empréstimo são maiores que o rendimento do seu dinheiro guardado;\n• você **não** precisa usar a reserva de emergência para isso${reserveOk ? ' (a sua está em dia ✅)' : ' (a sua está abaixo de 6 meses ⚠️)'}.\n\nEm **Contratos › Empréstimos › Antecipar parcelas** você vê exatamente quanto economiza.`,
         badge: 'EMPRÉSTIMOS',
         chips: ['Como está minha reserva de emergência?', 'Quanto ainda posso gastar este mês?', CHIP_DUVIDA],
       };
@@ -1060,7 +1060,7 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
 
     case 'COMO_FUNCIONA':
       return {
-        text: 'O Balder organiza o seu dinheiro em 3 ideias: **o que você tem hoje**, **o que vai entrar e sair** e **para onde quer chegar**.\n\n• **Início:** saldo de hoje, o que fazer agora e gastos do período\n• **Painel:** a competência **Atual**, a **Projeção** mês a mês, as **Naturezas** e as **Metas**\n• **Movimentações:** tudo o que entrou e saiu, com filtros\n• **Faturas:** importe a fatura do cartão e distribua nas naturezas\n• **Naturezas:** seus gastos previstos (contas fixas, rotinas de mercado…)\n• **Empréstimos:** parcelas, simulações e antecipação\n• **Compartilhar:** planeje junto com outra pessoa\n\nE eu, a Forseti, registro o que você me contar, leio fotos de comprovantes e respondo dúvidas com os seus números.',
+        text: 'O Balder organiza o seu dinheiro em 3 ideias: **o que você tem hoje**, **o que vai entrar e sair** e **para onde quer chegar**.\n\n• **Início:** saldo de hoje, o que fazer agora e gastos do período\n• **Painel:** a competência **Atual**, a **Projeção** mês a mês, as **Naturezas** e as **Metas**\n• **Movimentações:** tudo o que entrou e saiu, com filtros\n• **Faturas:** importe a fatura do cartão e distribua nas naturezas\n• **Naturezas:** seus gastos previstos (contas fixas, rotinas de mercado…)\n• **Contratos:** empréstimos (parcelas, simulações e antecipação) e simulação de financiamentos\n• **Compartilhar:** planeje junto com outra pessoa\n\nE eu, a Forseti, registro o que você me contar, leio fotos de comprovantes e respondo dúvidas com os seus números.',
         badge: 'COMO FUNCIONA',
         chips: ['O que são naturezas?', 'O que é competência?', 'O que é a projeção?', CHIP_DUVIDA],
       };
@@ -1082,8 +1082,10 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
         ? '**Naturezas** (ou a aba Naturezas do Painel)'
         : t.includes('meta')
         ? '**Metas**'
+        : t.includes('financiamento')
+        ? '**Contratos › Financiamentos**'
         : t.includes('emprestimo')
-        ? '**Empréstimos**'
+        ? '**Contratos › Empréstimos**'
         : '**Painel**';
       return {
         text: `Você encontra isso em ${where}: no celular, pelo botão de menu no canto inferior; no computador, pela barra lateral.`,
@@ -1106,7 +1108,16 @@ export const FALLBACK_REPLY: ForsetiReply = {
  */
 const AMBIGUOUS: { keys: RegExp; question: string; options: { chip: string; meaning: string }[] }[] = [
   {
-    keys: /emprestimo|financiamento|parcela/,
+    // Financiamento é outra coisa: um bem (carro, imóvel) com entrada, SAC/Price e saldo devedor
+    keys: /financiamento|financiar|financiad/,
+    question: 'Você está falando de **financiamento** (de um bem, como carro ou imóvel). É sobre:',
+    options: [
+      { chip: 'Posso comprar um carro?', meaning: 'ver se a parcela de um bem financiado cabe no orçamento' },
+      { chip: 'Abrir financiamentos', meaning: 'simular financiamento (SAC e Price) em Contratos' },
+    ],
+  },
+  {
+    keys: /emprestimo|consignado|parcela/,
     question: 'Você está falando de **empréstimo**. É sobre:',
     options: [
       { chip: 'Vale a pena quitar meu empréstimo?', meaning: 'quitar ou antecipar parcelas' },
@@ -1306,7 +1317,9 @@ const SCREENS: { re: RegExp; tab: string; label: string }[] = [
   { re: /\bmetas?\b/, tab: 'METAS', label: 'Metas' },
   { re: /\bfaturas?\b|\bcartoes\b/, tab: 'FATURAS', label: 'Faturas de Cartão' },
   { re: /movimentac|lancamentos?|\bextrato\b/, tab: 'MOVIMENTACOES', label: 'Lançamentos & Movimentações' },
-  { re: /emprestimos?/, tab: 'EMPRESTIMOS', label: 'Empréstimos' },
+  { re: /financiamentos?/, tab: 'EMPRESTIMOS', label: 'Contratos (Financiamentos)' },
+  { re: /emprestimos?/, tab: 'EMPRESTIMOS', label: 'Contratos (Empréstimos)' },
+  { re: /\bcontratos?\b/, tab: 'EMPRESTIMOS', label: 'Contratos' },
   { re: /\bpainel\b|dashboard|projecao/, tab: 'DASHBOARD', label: 'Painel (Meu Dinheiro)' },
   { re: /\binicio\b|\bhome\b/, tab: 'INICIO', label: 'Início' },
   { re: /\bperfil\b|configurac|ajustes/, tab: 'PERFIL', label: 'Perfil & Configurações' },
