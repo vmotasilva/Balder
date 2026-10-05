@@ -86,7 +86,7 @@ const isoOf = (d: Date) =>
  * saldo em caixa hoje + entradas previstas − saídas previstas com vencimento até o fim da janela.
  *
  * - Movimentos PREVISTOS vencidos desde o início do marco continuam pendentes e entram como "em atraso";
- *   os anteriores ao marco ficam de fora.
+ *   os anteriores ao marco ficam de fora, exceto faturas de cartão, que seguem em aberto até serem pagas.
  * - Itens das naturezas entram pelas ocorrências ainda não pagas (datas não cobertas por pagamento,
  *   mês não marcado como realizado, não pago por terceiros). Itens no cartão ficam de fora: já entram
  *   pela fatura. As ocorrências vencidas do mês corrente contam como "em atraso", como na grade.
@@ -115,8 +115,9 @@ export function buildForecastWindow(params: {
   // ── Movimentos previstos ──
   movements.forEach((m) => {
     if (m.status !== 'PREVISTA') return;
-    // Nada anterior ao início do marco aparece; previstos vencidos depois dele entram como em atraso
-    if (m.dueDate > toDate || m.dueDate < startDate) return;
+    // Nada anterior ao início do marco aparece; previstos vencidos depois dele entram como em atraso.
+    // Fatura de cartão em aberto não some com o marco: continua pendente (como na grade) até ser paga.
+    if (m.dueDate > toDate || (m.dueDate < startDate && m.type !== 'CARTAO')) return;
     // Mesmo critério da grade: lançamentos de "Cartões"/"Empréstimos" em contas a pagar duplicariam fatura/parcela
     if (m.type === 'PAGAR' && (m.category === 'Cartões' || m.category === 'Empréstimos')) return;
 
