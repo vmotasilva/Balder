@@ -77,6 +77,7 @@ import {
   SalaryRegimeDialog,
   salaryBaseTitle,
   planSalaryRegime,
+  salaryPartsFromMovements,
   salaryOfCompetence,
   futureSalaryMonths,
   type SalaryRegimeResult,
@@ -4307,7 +4308,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
         <SalaryRegimeDialog
           baseName={regimeInfo.base}
           currentTotal={regimeInfo.current.reduce((acc, m) => acc + m.amount, 0)}
-          currentParts={regimeInfo.current.map((m) => ({ amount: m.amount, day: Number(m.dueDate.slice(8, 10)) || 5 }))}
+          currentParts={salaryPartsFromMovements(regimeInfo.current)}
           hasRealizedThisMonth={regimeInfo.hasRealized}
           futureCount={regimeInfo.futureMonths.length}
           onApply={handleApplyRegime}

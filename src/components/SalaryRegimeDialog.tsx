@@ -7,6 +7,16 @@ import type { Movement } from '../types';
 export interface SalaryPart {
   amount: number;
   day: number;
+  /** Cai no último dia de cada mês (28, 29, 30 ou 31); `day` é ignorado. */
+  lastDay?: boolean;
+}
+
+/** Partes de pagamento a partir dos lançamentos do mês, reconhecendo o último dia do mês. */
+export function salaryPartsFromMovements(movements: Pick<Movement, 'amount' | 'dueDate'>[]): SalaryPart[] {
+  return movements.map((m) => {
+    const [y, mo, d] = m.dueDate.split('-').map(Number);
+    return { amount: m.amount, day: d || 5, lastDay: !!d && d === new Date(y, mo, 0).getDate() };
+  });
 }
 
 /** Título sem o sufixo da parte ("(adiantamento)", "(2ª parte)", "(2/3)", "(3ª semana)"). */
@@ -55,6 +65,7 @@ const splitEqual = (total: number, days: number[]): SalaryPart[] => {
   const each = Math.floor((total / days.length) * 100) / 100;
   return days.map((day, i) => ({
     day,
+    lastDay: day === 30,
     amount: i === days.length - 1 ? Math.round((total - each * (days.length - 1)) * 100) / 100 : each,
   }));
 };
@@ -68,13 +79,50 @@ const PRESETS: Preset[] = [
       const advance = Math.round(t * 0.4 * 100) / 100;
       return [
         { amount: advance, day: 15 },
-        { amount: Math.round((t - advance) * 100) / 100, day: 30 },
+        { amount: Math.round((t - advance) * 100) / 100, day: 30, lastDay: true },
       ];
     },
   },
   { id: 'THREE', label: '3 partes', build: (t) => splitEqual(t, [10, 20, 30]) },
   { id: 'WEEKLY', label: 'Semanal (4 semanas)', weekly: true, build: (t) => splitEqual(t, [7, 14, 21, 28]) },
 ];
+
+interface SalaryPaymentFieldsProps {
+  amount: number;
+  day: number;
+  lastDay: boolean;
+  onChange: (patch: { amount?: number; day?: number; lastDay?: boolean }) => void;
+}
+
+/** Valor, dia do pagamento e "Último dia do mês": o mesmo formulário no valor de salário e na modalidade de recebimento. */
+export const SalaryPaymentFields: React.FC<SalaryPaymentFieldsProps> = ({ amount, day, lastDay, onChange }) => (
+  <div className="salary-payment-fields">
+    <div className="form-group">
+      <label>Valor (R$)</label>
+      <DecimalInput className="form-input" value={amount} onValueChange={(v) => onChange({ amount: v })} />
+    </div>
+    <div className="salary-register-row">
+      <div className="form-group">
+        <label>Dia do pagamento</label>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={31}
+          className="form-input"
+          value={lastDay ? '' : day}
+          placeholder={lastDay ? 'fim' : undefined}
+          disabled={lastDay}
+          onChange={(e) => onChange({ day: Number(e.target.value) })}
+        />
+      </div>
+      <label className="receipt-change-future" style={{ alignSelf: 'end' }}>
+        <input type="checkbox" checked={lastDay} onChange={(e) => onChange({ lastDay: e.target.checked })} />
+        <span>Último dia do mês</span>
+      </label>
+    </div>
+  </div>
+);
 
 interface SalaryPartsEditorProps {
   parts: SalaryPart[];
@@ -90,7 +138,7 @@ export const SalaryPartsEditor: React.FC<SalaryPartsEditorProps> = ({ parts, ref
 
   const addPart = () => {
     const last = parts[parts.length - 1];
-    onChange([...parts, { amount: 0, day: Math.min(31, (last?.day ?? 0) + 5) }], false);
+    onChange([...parts, { amount: 0, day: Math.min(30, (last?.day ?? 0) + 5), lastDay: false }], false);
   };
 
   return (
@@ -113,35 +161,27 @@ export const SalaryPartsEditor: React.FC<SalaryPartsEditorProps> = ({ parts, ref
       <div className="salary-regime-parts">
         {parts.map((part, i) => (
           <div key={i} className="salary-regime-part">
-            <span className="salary-regime-part-label">
-              {parts.length === 1 ? 'Pagamento' : `${i + 1}ª parte`}
-            </span>
-            <DecimalInput
-              className="form-input form-input-sm"
-              value={part.amount}
-              onValueChange={(amount) => setPart(i, { amount })}
+            <div className="salary-regime-part-head">
+                <span className="salary-regime-part-label">
+                  {parts.length === 1 ? 'Pagamento' : `${i + 1}ª parte`}
+                </span>
+                {parts.length > 1 && (
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-xs"
+                    aria-label="Remover parte"
+                    onClick={() => onChange(parts.filter((_, idx) => idx !== i), false)}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            <SalaryPaymentFields
+              amount={part.amount}
+              day={part.day}
+              lastDay={!!part.lastDay}
+              onChange={(patch) => setPart(i, patch)}
             />
-            <label className="salary-regime-day">
-              dia
-              <input
-                type="number"
-                min={1}
-                max={31}
-                className="form-input form-input-sm"
-                value={part.day}
-                onChange={(e) => setPart(i, { day: Number(e.target.value) })}
-              />
-            </label>
-            {parts.length > 1 && (
-              <button
-                type="button"
-                className="btn btn-outline btn-xs"
-                aria-label="Remover parte"
-                onClick={() => onChange(parts.filter((_, idx) => idx !== i), false)}
-              >
-                ✕
-              </button>
-            )}
           </div>
         ))}
         <button type="button" className="btn btn-outline btn-xs" onClick={addPart}>
@@ -177,7 +217,7 @@ export function planSalaryRegime(
         type: 'RECEBER',
         amount: part.amount,
         originalAmount: part.amount,
-        dueDate: `${monthKey}-${String(Math.min(part.day, daysInMonth)).padStart(2, '0')}`,
+        dueDate: `${monthKey}-${String(part.lastDay ? daysInMonth : Math.min(part.day, daysInMonth)).padStart(2, '0')}`,
         bank,
         status: 'PREVISTA',
         category: 'Salário',
@@ -224,7 +264,7 @@ export const SalaryRegimeDialog: React.FC<SalaryRegimeDialogProps> = ({
   const [applyToFuture, setApplyToFuture] = useState(true);
 
   const total = Math.round(parts.reduce((acc, p) => acc + (Number(p.amount) || 0), 0) * 100) / 100;
-  const valid = parts.length > 0 && parts.every((p) => p.amount > 0 && p.day >= 1 && p.day <= 31);
+  const valid = parts.length > 0 && parts.every((p) => p.amount > 0 && (p.lastDay || (p.day >= 1 && p.day <= 31)));
   const mustUseFuture = hasRealizedThisMonth;
   const willApplyFuture = futureCount > 0 && (mustUseFuture || applyToFuture);
   const nothingToDo = mustUseFuture && futureCount === 0;

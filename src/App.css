@@ -24178,12 +24178,15 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 
 /* Modalidade de recebimento do salário */
 .salary-regime-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-.salary-regime-parts { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
-.salary-regime-part { display: flex; align-items: center; gap: 8px; width: 100%; }
-.salary-regime-part-label { min-width: 64px; font-size: 12px; color: var(--text-muted); }
-.salary-regime-part .form-input { min-width: 0; }
-.salary-regime-day { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-muted); }
-.salary-regime-day input { width: 56px; }
+.salary-regime-parts { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
+.salary-regime-part .salary-payment-fields { display: grid; grid-template-columns: minmax(0, 1fr) 104px; gap: 8px 10px; align-items: end; }
+.salary-regime-part .salary-register-row { display: contents; }
+.salary-regime-part .form-group { margin-bottom: 0; min-width: 0; }
+.salary-regime-part .receipt-change-future { grid-column: 1 / -1; margin-top: 0; }
+.salary-regime-part { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--border-color, rgba(128,128,128,.25)); border-radius: 10px; }
+.salary-regime-part-head { display: flex; align-items: center; justify-content: space-between; min-height: 22px; }
+.salary-regime-part-label { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.salary-regime-parts > .btn { align-self: flex-start; }
 
 /* Início: aba de salário */
 .home-tabs { overflow-x: auto; }
