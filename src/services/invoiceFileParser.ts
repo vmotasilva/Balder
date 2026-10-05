@@ -1,6 +1,5 @@
 import type { ExpenseNature, InvoiceNatureItemBreakdown } from '../types';
 import { parseMoney } from '../utils/parseDecimal';
-import Tesseract from 'tesseract.js';
 
 export interface ParsedInvoiceItem {
   id: string;
@@ -603,7 +602,7 @@ export async function parseImageInvoiceOCR(
   try {
     if (onProgress) onProgress(10, 'Iniciando reconhecimento ótico (OCR)...');
 
-    const result = await Tesseract.recognize(imageUrl, 'por+eng', {
+    const result = await (await import('tesseract.js')).default.recognize(imageUrl, 'por+eng', {
       logger: (m) => {
         if (m.status === 'recognizing text' && onProgress) {
           const pct = Math.round((m.progress || 0) * 80) + 15;

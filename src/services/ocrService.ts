@@ -1,4 +1,3 @@
-import Tesseract from 'tesseract.js';
 import type { ReceiptItemLine } from '../types';
 import { matchItemToLearnedRecord } from './receiptMemoryService';
 
@@ -257,7 +256,7 @@ export async function recognizeImageOCR(imageUrl: string, userText?: string): Pr
 
     const ocrPromise = (async () => {
       try {
-        const result = await Tesseract.recognize(processedUrl, 'por+eng', {
+        const result = await (await import('tesseract.js')).default.recognize(processedUrl, 'por+eng', {
           logger: () => {},
         });
         return result?.data?.text || '';

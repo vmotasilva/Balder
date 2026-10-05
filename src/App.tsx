@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { ThemeProvider } from './context/ThemeContext';
 import { FinancialProvider, useFinancial } from './context/FinancialContext';
@@ -12,19 +12,8 @@ import { Sidebar } from './components/Sidebar';
 import type { TabId } from './components/Sidebar';
 import { Navbar } from './components/Navbar';
 import { LoginPage } from './pages/LoginPage';
-import { DashboardPage } from './pages/DashboardPage';
 import { HomeHubPage } from './pages/HomeHubPage';
-import { MovementsPage } from './pages/MovementsPage';
-import { InvoicesPage } from './pages/InvoicesPage';
-import { CopilotPage } from './pages/CopilotPage';
-import { GoalsPage } from './pages/GoalsPage';
-import { ProfilePage } from './pages/ProfilePage';
-import { NaturezasPage } from './pages/NaturezasPage';
-import { ContractsPage } from './pages/ContractsPage';
-import { SharedPlanningPage } from './pages/SharedPlanningPage';
-import { PurchasesPage } from './pages/PurchasesPage';
 import { PlanSettingsModal } from './components/PlanSettingsModal';
-import { ConsolidatedPage } from './pages/ConsolidatedPage';
 import { IosInstallFromLink } from './components/IosInstallModal';
 import { NewMovementModal, type MovementDraft } from './components/NewMovementModal';
 import { Modal } from './components/Modal';
@@ -35,6 +24,19 @@ import { ForsetiSetupModal } from './components/ForsetiSetupModal';
 import { topicFromStepIndex, type SetupTopic } from './utils/setupCatalog';
 import type { Movement, MovementType, SimulationPresetId } from './types';
 import './App.css';
+
+// Páginas carregadas sob demanda (a tela inicial e o login ficam no bundle principal)
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
+const MovementsPage = lazy(() => import('./pages/MovementsPage').then((m) => ({ default: m.MovementsPage })));
+const InvoicesPage = lazy(() => import('./pages/InvoicesPage').then((m) => ({ default: m.InvoicesPage })));
+const CopilotPage = lazy(() => import('./pages/CopilotPage').then((m) => ({ default: m.CopilotPage })));
+const GoalsPage = lazy(() => import('./pages/GoalsPage').then((m) => ({ default: m.GoalsPage })));
+const ProfilePage = lazy(() => import('./pages/ProfilePage').then((m) => ({ default: m.ProfilePage })));
+const NaturezasPage = lazy(() => import('./pages/NaturezasPage').then((m) => ({ default: m.NaturezasPage })));
+const ContractsPage = lazy(() => import('./pages/ContractsPage').then((m) => ({ default: m.ContractsPage })));
+const SharedPlanningPage = lazy(() => import('./pages/SharedPlanningPage').then((m) => ({ default: m.SharedPlanningPage })));
+const PurchasesPage = lazy(() => import('./pages/PurchasesPage').then((m) => ({ default: m.PurchasesPage })));
+const ConsolidatedPage = lazy(() => import('./pages/ConsolidatedPage').then((m) => ({ default: m.ConsolidatedPage })));
 
 /** Reabre o "+" depois da troca de planejamento pedida na visão consolidada. */
 const PENDING_NEW_RECORD_KEY = 'balder_pending_new_record';
@@ -296,6 +298,7 @@ export function AppContent() {
 
         <SharedAccountBanner />
         <main className="app-content-viewport">
+          <Suspense fallback={<div className="page-loading" role="status" aria-label="Carregando" />}>
           {consolidated && <ConsolidatedPage />}
 
           {/* No celular, toda tela (menos o Início) tem um atalho de volta no topo */}
@@ -359,6 +362,7 @@ export function AppContent() {
           {!consolidated && shownTab === 'PERFIL' && (
             <ProfilePage onOpenOnboarding={handleOpenOnboarding} />
           )}
+          </Suspense>
         </main>
       </div>
 
@@ -374,6 +378,7 @@ export function AppContent() {
           }}
         >
           <div className="copilot-popup-window glass-card">
+            <Suspense fallback={null}>
             <CopilotPage
               onBack={() => setIsCopilotOpen(false)}
               activeScreen={activeTab === 'COPILOT' ? 'DASHBOARD' : activeTab}
@@ -381,6 +386,7 @@ export function AppContent() {
               initialDraft={forsetiDraft}
               onOpenOnboarding={handleOpenOnboarding}
             />
+            </Suspense>
           </div>
         </div>
       )}
