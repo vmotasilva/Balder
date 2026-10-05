@@ -807,11 +807,11 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
               </div>
             </div>
 
-            {/* Painel 2: Resumo do Financiamento */}
+            {/* Painel 2: Resumo do Empréstimo */}
             <div className="glass-card loan-summary-card">
               <div className="card-section-title">
                 <span className="step-num">2</span>
-                <h3>Resumo do Financiamento</h3>
+                <h3>Resumo do Empréstimo</h3>
               </div>
 
               <div className="summary-metrics-list">
@@ -1675,8 +1675,8 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
             <span>ENGENHARIA FINANCEIRA & CRÉDITO</span>
           </div>
           <h1 className="page-title label-with-info">
-            Sessão de Empréstimos & Financiamentos
-            <InfoButton title="Sessão de Empréstimos & Financiamentos">
+            Sessão de Empréstimos
+            <InfoButton title="Sessão de Empréstimos">
               <p>Simulações determinísticas e auditoria de contratos com a Tabela Price oficial, pró-rata e deságio a valor presente.</p>
             </InfoButton>
           </h1>
@@ -1742,7 +1742,7 @@ export const LoansPage: React.FC<{ openSimulatorSignal?: number }> = ({ openSimu
               >
                 <div>
                   <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-                    Seus Contratos de Financiamento
+                    Seus Contratos de Empréstimo
                   </h3>
                   <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '2px 0 0 0' }}>
                     Acompanhe parcelas em aberto, saldo devedor e execute amortizações antecipadas

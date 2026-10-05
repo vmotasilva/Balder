@@ -3066,8 +3066,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       case 'FINANCIAMENTO':
         return {
           id: 'sim_financiamento',
-          title: 'Simulação: Novo Financiamento Empresarial/Pessoal',
-          description: 'Aporte de capital de R$ 50.000 com parcelas de R$ 2.400/mês',
+          title: 'Simulação: Financiamento de Bens',
+          description: 'Financiamento de um bem de R$ 50.000 com parcelas de R$ 2.400/mês',
           initialOutflow: 0,
           monthlyCost: 2400,
           runwayBeforeMonths: 6.8,
@@ -3247,7 +3247,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       dueDate: nextMonthStr,
       bank: 'Nubank',
       status: 'PREVISTA',
-      category: 'Empréstimos & Financiamentos',
+      category: result.input.operationType.startsWith('FINANCIAMENTO') ? 'Financiamentos' : 'Empréstimos',
       notes: `Programado via Simulador de Cenários Futuros. Taxa: ${result.input.monthlyInterestRate}% a.m.`,
     });
 

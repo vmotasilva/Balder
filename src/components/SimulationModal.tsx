@@ -55,12 +55,12 @@ const PRESET_DEFAULTS: Record<SimulationPresetId, {
     description: 'Captação bancária com parcelas mensais debitadas em conta.',
   },
   FINANCIAMENTO: {
-    title: 'Simulação: Novo Financiamento Empresarial / Bens',
+    title: 'Simulação: Financiamento de Bens',
     defaultAmount: 50000,
     defaultRate: 1.95,
     defaultInstallments: 36,
     defaultBankPayment: 1950.00,
-    description: 'Financiamento estruturado com carência e prazos estendidos.',
+    description: 'Financiamento de um bem, com carência e prazos estendidos.',
   },
   CARRO: {
     title: 'Simulação: Financiamento de Veículo (Auto)',
@@ -297,19 +297,22 @@ export const SimulationModal: React.FC<SimulationModalProps> = ({
 
   // Salvar a simulação validada diretamente no planejamento financeiro
   const handleSaveValidatedLoan = () => {
-    if (confirm(`Deseja efetivar este financiamento no seu Balder?\n\n• Captação de ${loanAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} em ${contractDate}\n• ${installments} parcelas de ${bankPayment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} a partir de ${firstDueDate}.`)) {
+    const isFinancing = selectedPreset === 'FINANCIAMENTO' || selectedPreset === 'CARRO' || selectedPreset === 'IMOVEL';
+    const kindWord = isFinancing ? 'financiamento' : 'empréstimo';
+    const kindCategory = isFinancing ? 'Financiamentos' : 'Empréstimos';
+    if (confirm(`Deseja efetivar este ${kindWord} no seu Balder?\n\n• ${isFinancing ? 'Valor financiado' : 'Captação'} de ${loanAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} em ${contractDate}\n• ${installments} parcelas de ${bankPayment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} a partir de ${firstDueDate}.`)) {
       const groupId = `loan_${Date.now()}`;
       const itemsToAdd = [];
 
       // 1. Entrada do valor captado
       itemsToAdd.push({
-        title: `Captação: ${currentDefaults.title.replace('Simulação: ', '')}`,
+        title: `${isFinancing ? 'Valor financiado' : 'Captação'}: ${currentDefaults.title.replace('Simulação: ', '')}`,
         type: 'RECEBER' as const,
         amount: loanAmount,
         dueDate: contractDate,
         bank: 'Nubank',
         status: 'REALIZADA' as const,
-        category: 'Empréstimos / Financiamentos',
+        category: kindCategory,
         notes: `Efetivado via Simulador de Crédito. Taxa real: ${effectiveRate}% a.m.`,
       });
 
@@ -330,7 +333,7 @@ export const SimulationModal: React.FC<SimulationModalProps> = ({
           dueDate: pDate.toISOString().split('T')[0],
           bank: 'Nubank',
           status: 'PREVISTA' as const,
-          category: 'Empréstimos & Financiamentos',
+          category: kindCategory,
           notes: `Plano de ${installments}x de ${bankPayment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} • Taxa Real: ${effectiveRate}% a.m.`,
           installmentNumber: idx + 1,
           installmentsTotal: installments,
@@ -339,7 +342,7 @@ export const SimulationModal: React.FC<SimulationModalProps> = ({
       }
 
       addMultipleMovements(itemsToAdd);
-      alert('Operação de crédito efetivada no seu fluxo de caixa!');
+      alert(`${isFinancing ? 'Financiamento' : 'Empréstimo'} efetivado no seu fluxo de caixa!`);
       onClose();
     }
   };

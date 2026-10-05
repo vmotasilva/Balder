@@ -1027,7 +1027,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
             }}
           >
             <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#fbbf24', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Building2 size={14} /> Tratativa de Quitação do Empréstimo / Financiamento
+              <Building2 size={14} /> Tratativa de Quitação do Empréstimo
             </span>
 
             {/* Modos de Quitação */}

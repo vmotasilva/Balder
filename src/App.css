@@ -7530,7 +7530,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
     font-size: 12px !important;
   }
 
-  /* Sessão de Empréstimos & Financiamentos no mobile */
+  /* Sessão de Empréstimos no mobile */
   .loans-page .page-header {
     margin-bottom: 12px !important;
     padding-bottom: 0 !important;
