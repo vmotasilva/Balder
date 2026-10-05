@@ -28,7 +28,7 @@ export const DateInput = React.forwardRef<HTMLInputElement, DateInputProps>(({ s
 
   return (
     <span style={{ display: 'flex', gap: '6px', alignItems: 'stretch', width: '100%', minWidth: 0 }}>
-      <DateInput
+      <input
         {...props}
         type="date"
         style={{ flex: 1, minWidth: 0, ...style }}
