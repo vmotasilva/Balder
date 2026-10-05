@@ -68,19 +68,8 @@ export function isSalaryMovement(m: Movement): boolean {
  * entra no mês do pagamento (ex.: parcela que vence em 15/10 paga em 28/09 aparece em setembro);
  * caso contrário, no mês do vencimento.
  */
-const todayIsoLocal = () => {
-  const n = new Date();
-  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
-};
-
 export function movementCompetenceDate(m: Movement, startDate?: string): string {
   const date = m.status === 'REALIZADA' && m.paymentDate ? m.paymentDate : m.dueDate;
-  // Fatura de cartão vencida e ainda não paga: continua em aberto e rola para o mês corrente até ser paga
-  // (ao pagar, a data de pagamento define a competência definitiva).
-  if (m.type === 'CARTAO' && m.status === 'PREVISTA' && date) {
-    const currentMonthStart = `${todayIsoLocal().slice(0, 7)}-01`;
-    if (date < currentMonthStart) return currentMonthStart;
-  }
   // Previsto com data anterior ao ponto de partida ainda vai acontecer: entra no mês do marco
   if (startDate && m.status === 'PREVISTA' && date && date < startDate) return startDate;
   return date;
