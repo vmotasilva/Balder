@@ -23,7 +23,7 @@ import { useFinancial } from '../context/FinancialContext';
 import { InstallmentPlanner } from './InstallmentPlanner';
 import { normalizeBankKey } from '../utils/cardUtils';
 import { itemUnitPrice } from '../utils/mappingItemState';
-import { calculatePresentValue, groupLoanMovements } from '../utils/loanMath';
+import { groupLoanMovements, loanPaymentOutcome } from '../utils/loanMath';
 import { getBankBranding } from '../utils/bankBranding';
 import { futureReceiptSiblings } from './ReceiptChangeDialog';
 import { RecurringChangeDialog, futureRecurringSiblings, type RecurringChangePrompt } from './RecurringChangeDialog';
@@ -99,8 +99,14 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
   const [adjustmentReason, setAdjustmentReason] = useState('');
 
   // Estados específicos para EMPRESTIMO
-  const [loanPayMode, setLoanPayMode] = useState<'REGULAR' | 'DESCONTO' | 'AJUSTE'>('REGULAR');
-  const [discountAmountInput, setDiscountAmountInput] = useState('');
+  // Taxa do contrato da parcela (a mesma da lista de parcelas), para o desconto de antecipação
+  const loanRate = useMemo(
+    () =>
+      movement?.type === 'EMPRESTIMO'
+        ? groupLoanMovements(movements).find((g) => g.groupId === movement.installmentGroupId)?.interestRatePercent ?? movement.interestRatePercent ?? 0
+        : 0,
+    [movements, movement]
+  );
 
   // Estados específicos para RECEBER (Salário / Holerite)
   const [isSalaryDetailMode, setIsSalaryDetailMode] = useState(false);
@@ -154,17 +160,14 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
     setNotes(movement.notes || '');
     setAdjustmentReason(movement.adjustmentReason || '');
 
-    // Defaults por tipo
-    if (movement.type === 'EMPRESTIMO') {
-      if (movement.actualAmount && movement.actualAmount < original) {
-        setLoanPayMode('DESCONTO');
-        setDiscountAmountInput(String(Math.round((original - movement.actualAmount) * 100) / 100));
-      } else if (movement.actualAmount && movement.actualAmount > original) {
-        setLoanPayMode('AJUSTE');
-      } else {
-        setLoanPayMode('REGULAR');
-        setDiscountAmountInput('');
-      }
+    // Parcela de empréstimo em aberto: o pagamento é hoje por padrão e o valor já sai da relação com o vencimento
+    if (movement.type === 'EMPRESTIMO' && movement.status !== 'REALIZADA') {
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const outcome = loanPaymentOutcome(original, movement.dueDate || today, today, loanRate);
+      setPaymentDate(today);
+      setActualAmountInput(String(outcome.amount));
+      setAdjustmentReason(outcome.kind === 'EM_DIA' ? movement.adjustmentReason || '' : outcome.reason);
     }
 
     const isSalaryCat = movement.category.toLowerCase().includes('salár') || movement.title.toLowerCase().includes('salár');
@@ -537,51 +540,15 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
   // Fatura de cartão no modo simples: valor, vencimento e data do pagamento (o resto vem em "Conciliar itens")
   const simpleCard = movement.type === 'CARTAO' && !showInvoiceDetails;
 
-  // Manipuladores de modos específicos
-  // Desconto de antecipação a valor presente, como na lista de parcelas ("Se pago hoje"): taxa do contrato,
-  // vencimento da parcela e data do pagamento (se ainda não passou do vencimento; senão, hoje)
-  const presentValueFor = (payDate: string) => {
-    const due = dueDate || movement.dueDate;
-    // Mesma taxa da lista de parcelas (do contrato, com os mesmos fallbacks)
-    const rate =
-      groupLoanMovements(movements).find((g) => g.groupId === movement.installmentGroupId)?.interestRatePercent ??
-      movement.interestRatePercent ??
-      0;
-    return calculatePresentValue(nominalAmount, due, payDate, rate);
+  // Parcela de empréstimo: a data do pagamento em relação ao vencimento define o valor
+  // (antes: desconto a valor presente; no dia: valor da parcela; depois: multa e juros de mora)
+  const applyLoanOutcome = (payDate: string, due: string) => {
+    if (!payDate || !due) return;
+    const outcome = loanPaymentOutcome(nominalAmount, due, payDate, loanRate);
+    setActualAmountInput(String(outcome.amount));
+    setAdjustmentReason(outcome.reason);
   };
-  const prepaymentDate = (payDate: string) => {
-    const now = new Date();
-    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    return payDate && payDate < (dueDate || movement.dueDate) ? payDate : today;
-  };
-  const applyPresentValueDiscount = (payDate: string) => {
-    const calc = presentValueFor(payDate);
-    setDiscountAmountInput(calc.discountAmount > 0 ? String(calc.discountAmount) : '');
-    setActualAmountInput(String(calc.discountedAmount));
-  };
-
-  const handleLoanModeChange = (mode: 'REGULAR' | 'DESCONTO' | 'AJUSTE') => {
-    setLoanPayMode(mode);
-    if (mode === 'REGULAR') {
-      setActualAmountInput(String(nominalAmount));
-      setDiscountAmountInput('');
-      setAdjustmentReason('Pagamento regular da parcela no valor contratual');
-    } else if (mode === 'DESCONTO') {
-      const payDate = prepaymentDate(paymentDate);
-      setPaymentDate(payDate);
-      applyPresentValueDiscount(payDate);
-      setAdjustmentReason('Antecipação com desconto a valor presente (BACEN nº 3.516)');
-    } else {
-      setAdjustmentReason('Ajuste com encargos / juros de mora ou amortização extraordinária');
-    }
-  };
-
-  const handleDiscountInputChange = (val: string) => {
-    setDiscountAmountInput(val);
-    const disc = parseBRL(val);
-    const newActual = Math.max(0, nominalAmount - disc);
-    setActualAmountInput(String(newActual));
-  };
+  const loanOutcome = movement.type === 'EMPRESTIMO' ? loanPaymentOutcome(nominalAmount, dueDate || movement.dueDate, paymentDate, loanRate) : null;
 
   const handleApplySalaryCalculation = () => {
     const gross = parseBRL(salaryGrossInput);
@@ -1045,120 +1012,48 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
               <Building2 size={14} /> Tratativa de Quitação do Empréstimo
             </span>
 
-            {/* Modos de Quitação */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '8px' }}>
-              <button
-                type="button"
-                className={`pill-btn ${loanPayMode === 'REGULAR' ? 'active' : ''}`}
-                style={{
-                  padding: '8px 10px',
-                  borderRadius: '8px',
-                  fontSize: '0.75rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'flex-start',
-                  gap: '2px',
-                  background: loanPayMode === 'REGULAR' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(255, 255, 255, 0.03)',
-                  borderColor: loanPayMode === 'REGULAR' ? 'rgba(245, 158, 11, 0.4)' : 'rgba(255, 255, 255, 0.08)',
-                }}
-                onClick={() => handleLoanModeChange('REGULAR')}
-              >
-                <strong style={{ color: '#fbbf24' }}>1. Parcela Integral</strong>
-                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                  Valor contratual ({nominalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
-                </span>
-              </button>
-
-              <button
-                type="button"
-                className={`pill-btn ${loanPayMode === 'DESCONTO' ? 'active' : ''}`}
-                style={{
-                  padding: '8px 10px',
-                  borderRadius: '8px',
-                  fontSize: '0.75rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'flex-start',
-                  gap: '2px',
-                  background: loanPayMode === 'DESCONTO' ? 'rgba(6, 182, 212, 0.15)' : 'rgba(255, 255, 255, 0.03)',
-                  borderColor: loanPayMode === 'DESCONTO' ? 'rgba(6, 182, 212, 0.4)' : 'rgba(255, 255, 255, 0.08)',
-                }}
-                onClick={() => handleLoanModeChange('DESCONTO')}
-              >
-                <strong style={{ color: 'var(--accent-cyan)' }}>2. Antecipação c/ Desconto</strong>
-                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                  Deságio BACEN nº 3.516
-                </span>
-              </button>
-
-              <button
-                type="button"
-                className={`pill-btn ${loanPayMode === 'AJUSTE' ? 'active' : ''}`}
-                style={{
-                  padding: '8px 10px',
-                  borderRadius: '8px',
-                  fontSize: '0.75rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'flex-start',
-                  gap: '2px',
-                  background: loanPayMode === 'AJUSTE' ? 'rgba(244, 63, 94, 0.15)' : 'rgba(255, 255, 255, 0.03)',
-                  borderColor: loanPayMode === 'AJUSTE' ? 'rgba(244, 63, 94, 0.4)' : 'rgba(255, 255, 255, 0.08)',
-                }}
-                onClick={() => handleLoanModeChange('AJUSTE')}
-              >
-                <strong style={{ color: 'var(--accent-rose)' }}>3. Encargos / Extra</strong>
-                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                  Atraso ou amortização avulsa
-                </span>
-              </button>
-            </div>
-
-            {/* Painel do Desconto por Antecipação */}
-            {loanPayMode === 'DESCONTO' && (
+            {/* A data do pagamento, comparada com o vencimento, define o valor */}
+            {loanOutcome && (
               <div
                 style={{
-                  padding: '0.65rem 0.85rem',
+                  padding: '0.6rem 0.8rem',
                   borderRadius: '8px',
-                  background: 'rgba(6, 182, 212, 0.08)',
-                  border: '1px solid rgba(6, 182, 212, 0.25)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: '0.75rem',
-                  flexWrap: 'wrap',
+                  fontSize: '0.78rem',
+                  lineHeight: 1.45,
+                  border: `1px solid ${loanOutcome.kind === 'ANTECIPADA' ? 'rgba(6, 182, 212, 0.35)' : loanOutcome.kind === 'ATRASADA' ? 'rgba(244, 63, 94, 0.35)' : 'rgba(245, 158, 11, 0.3)'}`,
+                  background: loanOutcome.kind === 'ANTECIPADA' ? 'rgba(6, 182, 212, 0.08)' : loanOutcome.kind === 'ATRASADA' ? 'rgba(244, 63, 94, 0.08)' : 'rgba(245, 158, 11, 0.06)',
+                  color: 'var(--text-secondary)',
                 }}
               >
-                <div>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--accent-cyan)', fontWeight: 600 }}>
-                    Economia Obtida / Desconto Concedido:
-                  </span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px' }}>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>R$</span>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      className="form-input"
-                      style={{ width: '110px', fontSize: '0.8rem', padding: '3px 8px' }}
-                      placeholder="0,00"
-                      value={discountAmountInput}
-                      onChange={(e) => handleDiscountInputChange(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                {onOpenPrepaymentSimulator && (
+                {loanOutcome.kind === 'ANTECIPADA' && (
+                  <>
+                    <strong style={{ color: 'var(--accent-cyan)' }}>Antecipada em {loanOutcome.days} {loanOutcome.days === 1 ? 'dia' : 'dias'}:</strong>{' '}
+                    desconto de {loanOutcome.adjustment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} dos juros das parcelas futuras (BACEN nº 3.516).
+                  </>
+                )}
+                {loanOutcome.kind === 'EM_DIA' && (
+                  <>
+                    <strong style={{ color: '#fbbf24' }}>No vencimento:</strong> vale o valor exato da parcela.
+                  </>
+                )}
+                {loanOutcome.kind === 'ATRASADA' && (
+                  <>
+                    <strong style={{ color: 'var(--accent-rose)' }}>{loanOutcome.days} {loanOutcome.days === 1 ? 'dia' : 'dias'} de atraso:</strong>{' '}
+                    {loanOutcome.adjustment.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} a mais (multa de 2% + juros de mora de 1% a.m.). Ajuste o valor se o contrato prever outro.
+                  </>
+                )}
+                {onOpenPrepaymentSimulator && loanOutcome.kind === 'ANTECIPADA' && (
                   <button
                     type="button"
                     className="btn btn-outline btn-xs text-cyan"
-                    style={{ fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    style={{ marginTop: '6px', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: '4px' }}
                     onClick={() => {
                       onClose();
                       onOpenPrepaymentSimulator(movement.installmentGroupId, movement.id);
                     }}
                   >
                     <Zap size={12} />
-                    <span>Calcular Desconto Preciso no Simulador</span>
+                    <span>Simular outras antecipações</span>
                   </button>
                 )}
               </div>
@@ -1917,7 +1812,10 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
               <DateInput
                 type="date"
                 value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
+                onChange={(e) => {
+                  setDueDate(e.target.value);
+                  if (movement.type === 'EMPRESTIMO') applyLoanOutcome(paymentDate, e.target.value);
+                }}
                 className="form-input"
                 style={{ fontSize: '0.78rem', padding: '4px 8px' }}
               />
@@ -1933,8 +1831,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
                 value={paymentDate}
                 onChange={(e) => {
                   setPaymentDate(e.target.value);
-                  // Antecipação: o desconto depende da data do pagamento
-                  if (movement.type === 'EMPRESTIMO' && loanPayMode === 'DESCONTO' && e.target.value) applyPresentValueDiscount(e.target.value);
+                  if (movement.type === 'EMPRESTIMO') applyLoanOutcome(e.target.value, dueDate);
                 }}
                 className="form-input"
                 style={{ fontSize: '0.78rem', padding: '4px 8px' }}
