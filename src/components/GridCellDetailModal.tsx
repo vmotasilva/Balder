@@ -4163,6 +4163,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                     Data Efetiva do Crédito:
                   </label>
                   <DateInput
+                    showToday
                     type="date"
                     value={editingReceipt.paymentDate || editingReceipt.dueDate}
                     onChange={(e) =>

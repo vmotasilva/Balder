@@ -1909,7 +1909,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
           )}
 
           {/* Dados de Liquidação: Data e Banco */}
-          <div className="mdm-three" style={{ display: 'grid', gridTemplateColumns: simpleCard ? '1fr 1fr' : '1fr 1fr 1fr', gap: '10px', marginTop: '0.25rem' }}>
+          <div className="mdm-three" style={{ display: 'grid', gridTemplateColumns: simpleCard ? 'repeat(2, minmax(0, 1fr))' : 'repeat(3, minmax(0, 1fr))', gap: '10px', marginTop: '0.25rem' }}>
             <div>
               <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
                 Vencimento
@@ -1928,6 +1928,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
                 Pagamento
               </label>
               <DateInput
+                showToday
                 type="date"
                 value={paymentDate}
                 onChange={(e) => {

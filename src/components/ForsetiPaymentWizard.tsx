@@ -256,7 +256,7 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
             </dd>
             <dt>{credit ? 'Data da compra' : isIncome ? 'Data' : 'Data do pagamento'}</dt>
             <dd>
-              <DateInput type="date" value={data.dueDate} onChange={(e) => e.target.value && updatePaymentWizard(messageId, undefined, { dueDate: e.target.value })} />
+              <DateInput type="date" showToday={!credit && !isIncome} value={data.dueDate} onChange={(e) => e.target.value && updatePaymentWizard(messageId, undefined, { dueDate: e.target.value })} />
             </dd>
             {!isIncome && (
               <>

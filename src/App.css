@@ -23450,7 +23450,7 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   .mdm-modal .mdm-two { grid-template-columns: 1fr 1fr !important; gap: 6px !important; }
   .mdm-modal .mdm-main { padding: 8px 10px !important; gap: 6px !important; }
   .mdm-modal .mdm-desc { display: none; }
-  .mdm-modal .mdm-three { grid-template-columns: 1fr 1fr 1fr !important; gap: 6px !important; margin-top: 0 !important; }
+  .mdm-modal .mdm-three { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 6px !important; margin-top: 0 !important; }
   .mdm-modal .mdm-three .form-input { padding: 4px 3px !important; font-size: 0.7rem !important; }
   .mdm-modal .mdm-main label { font-size: 0.66rem !important; margin-bottom: 1px !important; }
   .mdm-modal .mdm-main .form-input,

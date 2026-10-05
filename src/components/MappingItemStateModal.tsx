@@ -642,6 +642,7 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
                       <label style={{ flex: '1 1 150px', fontSize: '12px', color: 'var(--text-muted)' }}>
                         Data do pagamento
                         <DateInput
+                          showToday
                           type="date"
                           className="form-input"
                           value={paidAt}
