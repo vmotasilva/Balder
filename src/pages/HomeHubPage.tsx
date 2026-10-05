@@ -271,10 +271,26 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     !item.movementId && !!item.natureId && !!natures.find((n) => n.id === item.natureId)?.mappings.some((m) => m.items.some((it) => it.id === item.id));
 
   const renderTaskAction = (entry: ForecastEntry) => {
+    // Fatura: confirma o pagamento aqui mesmo (valor e data conferidos no pop-up), sem sair da Home
     if (entry.source === 'FATURA') {
+      const invoice = movements.find((m) => m.id === entry.id);
       return (
-        <button type="button" className="btn btn-outline btn-xs" onClick={() => onNavigate('FATURAS')}>
-          Ver fatura
+        <button
+          type="button"
+          className="btn btn-outline btn-xs"
+          onClick={() =>
+            invoice
+              ? setRealization({
+                  kind: 'SAIDA',
+                  title: entry.title,
+                  expectedAmount: invoice.amount,
+                  dueDate: invoice.dueDate,
+                  onConfirm: (amount, date) => updateMovement(invoice.id, realizedMovementUpdates(invoice, amount, date)),
+                })
+              : onNavigate('FATURAS')
+          }
+        >
+          Já paguei
         </button>
       );
     }
