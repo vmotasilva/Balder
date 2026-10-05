@@ -26,6 +26,7 @@ interface NatureBudgetRow {
   plannedAmount: number;
   realizedAmount: number; // Real: já pago no mês
   pendingAmount: number;  // Previsto: ainda a pagar no mês
+  advancePaidAmount: number; // Semana/quinzena: pago ANTES do período, cobrindo compras previstas dele
   diffAmount: number;
   percentUsed: number;
   isOverCeiling: boolean;     // vermelho: o Real (já pago) passou do teto
@@ -259,8 +260,19 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
 
       // Semana/quinzena: teto, real e previsto vêm só das compras do período (contas avulsas não entram no teto)
       const periodPayments: { date: string; description: string; amount: number }[] = [];
+      // Pago antes do período (ex.: semana anterior) cobrindo compras previstas dele: zera o Previsto sem entrar no Real
+      let advancePaid = 0;
       if (period !== 'MES') {
         const mine = periodItems.filter((it) => it.natureId === nat.id);
+        advancePaid = Math.round(
+          mine
+            .filter((it) => !it.movementId)
+            .reduce(
+              (acc, it) =>
+                acc + it.purchases.filter((p) => p.status === 'FEITA' && !!p.paidAt && p.paidAt < periodRange.from).reduce((sum, p) => sum + (p.paidAmount || 0), 0),
+              0
+            ) * 100
+        ) / 100;
         planned = Math.round(mine.filter((it) => !it.movementId).reduce((acc, it) => acc + it.planned, 0) * 100) / 100;
         // Real = o que foi pago DENTRO do período, pela data do pagamento (não pela data prevista da compra)
         const events: { date: string; description: string; amount: number }[] = [];
@@ -474,6 +486,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
         plannedAmount: planned,
         realizedAmount: realized,
         pendingAmount: pending,
+        advancePaidAmount: advancePaid,
         diffAmount: diff,
         percentUsed: pct,
         isOverCeiling: isOver,
@@ -525,7 +538,13 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
 
   // Abrir modal de detalhamento para uma natureza específica
   // Previsto zerado com gasto já feito: o que estava previsto no período foi todo pago (ou passou)
-  const plannedExhausted = (row: Pick<NatureBudgetRow, 'pendingAmount' | 'realizedAmount'>) => row.pendingAmount < 0.005 && row.realizedAmount > 0.005;
+  // (também quando o previsto do período foi pago antes dele, como na semana anterior)
+  const plannedExhausted = (row: Pick<NatureBudgetRow, 'pendingAmount' | 'realizedAmount' | 'advancePaidAmount'>) =>
+    row.pendingAmount < 0.005 && (row.realizedAmount > 0.005 || row.advancePaidAmount > 0.005);
+  const exhaustedHint = (row: Pick<NatureBudgetRow, 'advancePaidAmount' | 'realizedAmount'>) =>
+    row.advancePaidAmount > 0.005 && row.realizedAmount <= 0.005
+      ? `Previsto zerado: ${formatBRL(row.advancePaidAmount)} do previsto deste período já foram pagos antes dele`
+      : 'Previsto zerado: tudo o que estava previsto já foi gasto';
 
   const hasAlert = (row: NatureBudgetRow) => row.hasAttentionPoint && !!row.observations && row.observations !== '-';
 
@@ -709,7 +728,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
                         <span className="nature-card-metric-label">Previsto</span>
                         <span
                           className={`font-mono font-bold text-xs ${plannedExhausted(row) ? 'text-rose' : 'text-amber'}`}
-                          title={plannedExhausted(row) ? 'Previsto zerado: tudo o que estava previsto já foi gasto' : undefined}
+                          title={plannedExhausted(row) ? exhaustedHint(row) : undefined}
                         >
                           {formatBRL(row.pendingAmount)}
                         </span>
@@ -721,6 +740,14 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
                         </span>
                       </div>
                     </div>
+
+                    {/* Previsto do período já pago antes dele: explica o Previsto zerado em vermelho */}
+                    {plannedExhausted(row) && row.advancePaidAmount > 0.005 && row.realizedAmount <= 0.005 && (
+                      <p className="nature-card-alert" title={exhaustedHint(row)}>
+                        <AlertTriangle size={11} className="flex-shrink-0" />
+                        <span className="truncate">Previsto do período já pago antes: {formatBRL(row.advancePaidAmount)}</span>
+                      </p>
+                    )}
 
                     {/* Estouro: aponta o maior causador */}
                     {hasAlert(row) && (
