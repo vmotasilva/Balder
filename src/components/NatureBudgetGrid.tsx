@@ -260,7 +260,8 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
 
       // Semana/quinzena: teto, real e previsto vêm só das compras do período (contas avulsas não entram no teto)
       const periodPayments: { date: string; description: string; amount: number }[] = [];
-      // Pago antes do período (ex.: semana anterior) cobrindo compras previstas dele: zera o Previsto sem entrar no Real
+      // Pago antes do período (ex.: semana anterior) cobrindo compras previstas dele: zera o Previsto sem entrar no Real.
+      // Só vale quando o pagamento é do mesmo mês da compra que cobre: nada de misturar meses diferentes.
       let advancePaid = 0;
       if (period !== 'MES') {
         const mine = periodItems.filter((it) => it.natureId === nat.id);
@@ -269,7 +270,9 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
             .filter((it) => !it.movementId)
             .reduce(
               (acc, it) =>
-                acc + it.purchases.filter((p) => p.status === 'FEITA' && !!p.paidAt && p.paidAt < periodRange.from).reduce((sum, p) => sum + (p.paidAmount || 0), 0),
+                acc + it.purchases
+                    .filter((p) => p.status === 'FEITA' && !!p.paidAt && p.paidAt < periodRange.from && p.paidAt.slice(0, 7) === p.date.slice(0, 7))
+                    .reduce((sum, p) => sum + (p.paidAmount || 0), 0),
               0
             ) * 100
         ) / 100;
