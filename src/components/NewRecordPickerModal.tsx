@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowDownCircle, ArrowUpCircle, CreditCard, FileSignature, Home, Landmark } from 'lucide-react';
+import { ArrowDownCircle, ArrowUpCircle, CreditCard, FileSignature, Home, Landmark, TrendingUp } from 'lucide-react';
 import { Modal } from './Modal';
 
-export type NewRecordKind = 'PAGAR' | 'RECEBER' | 'EMPRESTIMO' | 'CARTAO';
+export type NewRecordKind = 'PAGAR' | 'RECEBER' | 'EMPRESTIMO' | 'CARTAO' | 'FINANCIAMENTO' | 'INVESTIMENTO';
 
 interface NewRecordPickerModalProps {
   isOpen: boolean;
@@ -28,7 +28,8 @@ const MAIN_OPTIONS: Option[] = [
 
 const CONTRACT_OPTIONS: Option[] = [
   { kind: 'EMPRESTIMO', label: 'Empréstimo', hint: 'Simular e contratar, com parcelas e saldo devedor', icon: Landmark, color: 'var(--accent-amber)' },
-  { label: 'Financiamento', hint: 'Em breve', icon: Home, color: 'var(--text-muted)' },
+  { kind: 'FINANCIAMENTO', label: 'Financiamento', hint: 'Simular um bem financiado (SAC e Price), com entrada e prazo', icon: Home, color: 'var(--accent-purple)' },
+  { kind: 'INVESTIMENTO', label: 'Investimento', hint: 'Abrir a carteira: aplicações, aportes e rendimento', icon: TrendingUp, color: 'var(--accent-cyan)' },
 ];
 
 /** Primeiro passo do "+": pergunta o que será registrado e o sistema abre a tela específica. */
@@ -43,7 +44,7 @@ export const NewRecordPickerModal: React.FC<NewRecordPickerModalProps> = ({ isOp
     ? CONTRACT_OPTIONS
     : [
         ...MAIN_OPTIONS,
-        { label: 'Contratar', hint: 'Empréstimo ou financiamento', icon: FileSignature, color: 'var(--accent-amber)', contract: true },
+        { label: 'Contratar', hint: 'Empréstimo, financiamento ou investimento', icon: FileSignature, color: 'var(--accent-amber)', contract: true },
       ];
 
   return (

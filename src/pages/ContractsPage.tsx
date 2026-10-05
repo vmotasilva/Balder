@@ -21,9 +21,16 @@ interface ContractModality {
 const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 /** Hub de contratos de crédito: cada modalidade (empréstimos, financiamentos, consórcios…) abre na sua tela. */
-export const ContractsPage: React.FC<{ newLoanSignal?: number }> = ({ newLoanSignal = 0 }) => {
+interface ContractsPageProps {
+  newLoanSignal?: number;
+  /** Pedido do "+" para abrir direto financiamentos ou investimentos. */
+  openRequest?: { kind: ContractKind; n: number } | null;
+  onOpenRequestHandled?: () => void;
+}
+
+export const ContractsPage: React.FC<ContractsPageProps> = ({ newLoanSignal = 0, openRequest = null, onOpenRequestHandled }) => {
   const { movements, archivedLoanGroups } = useFinancial();
-  const [openKind, setOpenKind] = useState<ContractKind | null>(newLoanSignal > 0 ? 'EMPRESTIMOS' : null);
+  const [openKind, setOpenKind] = useState<ContractKind | null>(openRequest ? openRequest.kind : newLoanSignal > 0 ? 'EMPRESTIMOS' : null);
   // O simulador só abre sozinho quando veio do "+"; voltar ou entrar de novo pelos cartões não o reabre
   const [autoOpenSim, setAutoOpenSim] = useState(newLoanSignal > 0);
   useEffect(() => {
@@ -32,6 +39,13 @@ export const ContractsPage: React.FC<{ newLoanSignal?: number }> = ({ newLoanSig
       setAutoOpenSim(true);
     }
   }, [newLoanSignal]);
+  // Pedido de abrir financiamentos/investimentos: abre e consome o pedido (voltar não reabre)
+  useEffect(() => {
+    if (!openRequest) return;
+    setOpenKind(openRequest.kind);
+    setAutoOpenSim(false);
+    onOpenRequestHandled?.();
+  }, [openRequest, onOpenRequestHandled]);
 
   const loanSummary = useMemo(() => {
     const active = groupLoanMovements(movements).filter((g) => !archivedLoanGroups.includes(g.groupId));

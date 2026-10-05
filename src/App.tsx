@@ -141,6 +141,8 @@ export function AppContent() {
   }, [suspended]);
   const [newInvoiceSignal, setNewInvoiceSignal] = useState(0);
   const [newLoanSignal, setNewLoanSignal] = useState(0);
+  // Pedido do "+" para abrir direto a tela de financiamentos ou de investimentos em Contratos
+  const [contractOpenRequest, setContractOpenRequest] = useState<{ kind: 'FINANCIAMENTOS' | 'INVESTIMENTOS'; n: number } | null>(null);
   const [defaultMovementType, setDefaultMovementType] = useState<MovementType>('PAGAR');
   const [initialMovementData, setInitialMovementData] = useState<Partial<Movement> | undefined>(undefined);
 
@@ -233,6 +235,10 @@ export function AppContent() {
     else if (kind === 'EMPRESTIMO') {
       handleSelectTab('EMPRESTIMOS');
       setNewLoanSignal((n) => n + 1);
+    }
+    else if (kind === 'FINANCIAMENTO' || kind === 'INVESTIMENTO') {
+      handleSelectTab('EMPRESTIMOS');
+      setContractOpenRequest({ kind: kind === 'FINANCIAMENTO' ? 'FINANCIAMENTOS' : 'INVESTIMENTOS', n: Date.now() });
     }
     else if (kind === 'CARTAO') {
       handleSelectTab('FATURAS');
@@ -342,7 +348,7 @@ export function AppContent() {
             <NaturezasPage onOpenNewMovementModal={handleOpenNewMovement} />
           )}
 
-          {!consolidated && shownTab === 'EMPRESTIMOS' && <ContractsPage newLoanSignal={newLoanSignal} />}
+          {!consolidated && shownTab === 'EMPRESTIMOS' && <ContractsPage newLoanSignal={newLoanSignal} openRequest={contractOpenRequest} onOpenRequestHandled={() => setContractOpenRequest(null)} />}
 
           {!consolidated && shownTab === 'METAS' && <GoalsPage />}
 
