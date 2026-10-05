@@ -214,7 +214,7 @@ function summarizedMappingPurchases(
 
 /**
  * As compras do período, item por item (mapeamentos em Resumo: uma linha pelo mapeamento): cada ocorrência prevista dos itens das naturezas (pela data prevista),
- * dizendo se foi paga, quando e por quanto, e as contas a pagar do período (previstas ou já pagas).
+ * dizendo se foi paga, quando e por quanto, e as contas a pagar do período (previstas ou já pagas), incluindo faturas de cartão e parcelas de empréstimo.
  * Pagamentos que cobrem várias datas são divididos igualmente entre elas. Nada antes do início do marco aparece.
  */
 export function buildPeriodItems(params: {
@@ -368,6 +368,31 @@ export function buildPeriodItems(params: {
         }
       : { key: m.id, date: m.dueDate, status: billStatus(m.dueDate), plannedAmount: round2(m.amount) };
     items.push(finishItem({ id: m.id, title: m.title, detail: m.category || undefined, natureId: movementNatureId(m, natures), movementId: m.id, purchases: [purchase] }));
+  });
+
+  // Faturas de cartão e parcelas de empréstimo: saídas reais do período, para tratar pela Home.
+  // Fatura em aberto vencida antes do período continua pendente (atrasada) no período atual, mesmo antes do marco.
+  movements.forEach((m) => {
+    const isInvoice = m.type === 'CARTAO';
+    const isLoanInstallment = m.type === 'EMPRESTIMO' && m.category !== 'Recebimento';
+    if (!isInvoice && !isLoanInstallment) return;
+    if (m.status === 'CANCELADA') return;
+    const paid = m.status === 'REALIZADA';
+    const carriedOver = isInvoice && !paid && tense === 'ATUAL' && m.dueDate < range.from;
+    if (!carriedOver && (!inRange(paid ? m.paymentDate || m.dueDate : m.dueDate) || (m.dueDate < startDate && !isInvoice))) return;
+    const purchase: PeriodPurchase = paid
+      ? {
+          key: m.id,
+          date: m.dueDate,
+          status: 'FEITA',
+          plannedAmount: round2(m.originalAmount ?? m.amount),
+          paidAt: m.paymentDate || m.dueDate,
+          paidAmount: round2(m.actualAmount ?? m.amount),
+        }
+      : { key: m.id, date: m.dueDate, status: billStatus(m.dueDate), plannedAmount: round2(m.amount) };
+    items.push(
+      finishItem({ id: m.id, title: m.title, detail: isInvoice ? m.bank || 'Fatura de cartão' : 'Parcela de empréstimo', movementId: m.id, purchases: [purchase] })
+    );
   });
 
   return { tense, items };
