@@ -29,7 +29,7 @@ const MAIN_OPTIONS: Option[] = [
 const CONTRACT_OPTIONS: Option[] = [
   { kind: 'EMPRESTIMO', label: 'Empréstimo', hint: 'Simular e contratar, com parcelas e saldo devedor', icon: Landmark, color: 'var(--accent-amber)' },
   { kind: 'FINANCIAMENTO', label: 'Financiamento', hint: 'Simular um bem financiado (SAC e Price), com entrada e prazo', icon: Home, color: 'var(--accent-purple)' },
-  { kind: 'INVESTIMENTO', label: 'Investimento', hint: 'Abrir a carteira: aplicações, aportes e rendimento', icon: TrendingUp, color: 'var(--accent-cyan)' },
+  { kind: 'INVESTIMENTO', label: 'Investimento', hint: 'Registrar uma aplicação na carteira e acompanhar o rendimento', icon: TrendingUp, color: 'var(--accent-cyan)' },
 ];
 
 /** Primeiro passo do "+": pergunta o que será registrado e o sistema abre a tela específica. */

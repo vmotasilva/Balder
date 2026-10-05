@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { CalendarClock, Check, ChevronDown, ChevronUp, PlusCircle, Pencil, SkipForward, Trash2, TrendingUp } from 'lucide-react';
 import { DecimalInput } from '../components/DecimalInput';
 import { Modal } from '../components/Modal';
@@ -14,6 +14,17 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 const formatDate = (iso: string) => iso.split('-').reverse().join('/');
 const fieldStyle: React.CSSProperties = { display: 'grid', gap: 4 };
+
+/** Exemplo de nome por tipo, para a pessoa saber como identificar a posição. */
+const NAME_EXAMPLES: Record<InvestmentType, string> = {
+  RENDA_FIXA: 'Ex.: CDB 110% CDI, LCI Banco Inter',
+  TESOURO: 'Ex.: Tesouro Selic 2029, Tesouro IPCA+ 2035',
+  ACOES: 'Ex.: PETR4, ITUB4, WEGE3',
+  FIIS: 'Ex.: HGLG11, MXRF11',
+  FUNDOS: 'Ex.: Fundo multimercado XP',
+  CRIPTO: 'Ex.: Bitcoin, Ethereum',
+  OUTROS: 'Ex.: Previdência, imóvel na planta',
+};
 
 const emptyPlan = (investmentId: string): InvestmentPlan => ({
   id: '',
@@ -35,7 +46,13 @@ const emptyDraft = (): Investment => ({
 });
 
 /** Carteira de investimentos: posições, rentabilidade e distribuição por tipo. */
-export const InvestmentsPage: React.FC = () => {
+interface InvestmentsPageProps {
+  /** Pedido do "+" para abrir já o pop-up de novo investimento. */
+  openNew?: boolean;
+  onOpenNewHandled?: () => void;
+}
+
+export const InvestmentsPage: React.FC<InvestmentsPageProps> = ({ openNew = false, onOpenNewHandled }) => {
   const {
     investments,
     plans,
@@ -47,10 +64,17 @@ export const InvestmentsPage: React.FC = () => {
     removePlan,
     settleOccurrence,
   } = useInvestments();
-  const [draft, setDraft] = useState<Investment | null>(null);
+  const [draft, setDraft] = useState<Investment | null>(openNew ? emptyDraft() : null);
   const [aporte, setAporte] = useState<{ investmentId: string; amount: number; date: string } | null>(null);
   const [planDraft, setPlanDraft] = useState<InvestmentPlan | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  // Veio do "+" com a carteira já aberta: abre o pop-up de registro e consome o pedido
+  useEffect(() => {
+    if (!openNew) return;
+    setDraft(emptyDraft());
+    onOpenNewHandled?.();
+  }, [openNew, onOpenNewHandled]);
 
   const nameOf = (id: string) => investments.find((i) => i.id === id)?.name ?? 'Investimento removido';
   const todayIso = today();
@@ -109,10 +133,13 @@ export const InvestmentsPage: React.FC = () => {
             </InfoButton>
           </h1>
         </div>
-        <button type="button" className="btn btn-primary btn-sm" onClick={() => setDraft(emptyDraft())}>
-          <PlusCircle size={14} />
-          <span>Novo</span>
-        </button>
+        {/* page-header-actions keep-mobile: no celular o cabeçalho só fica visível com as ações */}
+        <div className="page-header-actions keep-mobile">
+          <button type="button" className="btn btn-primary" onClick={() => setDraft(emptyDraft())}>
+            <PlusCircle size={14} />
+            <span>Novo investimento</span>
+          </button>
+        </div>
       </div>
 
       <div className="glass-card" style={{ marginBottom: 16 }}>
@@ -231,8 +258,12 @@ export const InvestmentsPage: React.FC = () => {
       </div>
 
       {investments.length === 0 ? (
-        <div className="glass-card text-secondary" style={{ textAlign: 'center' }}>
-          Nenhum investimento cadastrado. Toque em “Novo” para registrar o primeiro.
+        <div className="glass-card text-secondary" style={{ textAlign: 'center', display: 'grid', gap: 12, justifyItems: 'center' }}>
+          <span>Nenhum investimento cadastrado ainda.</span>
+          <button type="button" className="btn btn-primary" onClick={() => setDraft(emptyDraft())}>
+            <PlusCircle size={14} />
+            <span>Registrar o primeiro investimento</span>
+          </button>
         </div>
       ) : (
         <div style={{ display: 'grid', gap: 10 }}>
@@ -316,69 +347,135 @@ export const InvestmentsPage: React.FC = () => {
         isOpen={!!draft}
         onClose={() => setDraft(null)}
         title={draft?.id ? 'Editar investimento' : 'Novo investimento'}
+        subtitle={draft?.id ? undefined : 'Registre a aplicação para acompanhar a rentabilidade da carteira'}
       >
         {draft && (
-          <div style={{ display: 'grid', gap: 12 }}>
+          <form
+            style={{ display: 'grid', gap: 14 }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              submit();
+            }}
+          >
+            <div style={fieldStyle} role="radiogroup" aria-label="Tipo de investimento">
+              <span className="text-xs text-secondary">Tipo</span>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 6 }}>
+                {Object.entries(INVESTMENT_TYPES).map(([id, t]) => {
+                  const active = draft.type === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => setDraft({ ...draft, type: id as InvestmentType })}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '8px 10px',
+                        borderRadius: 10,
+                        fontSize: 13,
+                        fontWeight: active ? 700 : 500,
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        color: 'var(--text-primary)',
+                        background: active ? `${t.color}22` : 'transparent',
+                        border: `1px solid ${active ? t.color : 'var(--border-default)'}`,
+                      }}
+                    >
+                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: t.color, flexShrink: 0 }} />
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <label style={fieldStyle}>
               <span className="text-xs text-secondary">Nome</span>
               <input
                 className="form-input form-input-sm"
-                placeholder="Ex.: CDB 110% CDI, PETR4, HGLG11"
+                placeholder={NAME_EXAMPLES[draft.type]}
                 value={draft.name}
+                autoFocus
                 onChange={(e) => setDraft({ ...draft, name: e.target.value })}
               />
             </label>
-            <label style={fieldStyle}>
-              <span className="text-xs text-secondary">Tipo</span>
-              <select
-                className="form-input form-input-sm"
-                value={draft.type}
-                onChange={(e) => setDraft({ ...draft, type: e.target.value as InvestmentType })}
-              >
-                {Object.entries(INVESTMENT_TYPES).map(([id, t]) => (
-                  <option key={id} value={id}>{t.label}</option>
-                ))}
-              </select>
-            </label>
-            <label style={fieldStyle}>
-              <span className="text-xs text-secondary">Valor investido (R$)</span>
-              <DecimalInput
-                className="form-input form-input-sm"
-                value={draft.invested}
-                emptyWhenZero
-                onValueChange={(v) => setDraft({ ...draft, invested: v })}
-              />
-            </label>
-            <label style={fieldStyle}>
-              <span className="text-xs text-secondary">Valor atual (R$) — vazio = igual ao investido</span>
-              <DecimalInput
-                className="form-input form-input-sm"
-                value={draft.currentValue}
-                emptyWhenZero
-                onValueChange={(v) => setDraft({ ...draft, currentValue: v })}
-              />
-            </label>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
+              <label style={fieldStyle}>
+                <span className="text-xs text-secondary">Valor investido (R$)</span>
+                <DecimalInput
+                  className="form-input form-input-sm"
+                  value={draft.invested}
+                  emptyWhenZero
+                  onValueChange={(v) => setDraft({ ...draft, invested: v })}
+                />
+              </label>
+              <label style={fieldStyle}>
+                <span className="text-xs text-secondary">Valor atual (R$)</span>
+                <DecimalInput
+                  className="form-input form-input-sm"
+                  value={draft.currentValue}
+                  emptyWhenZero
+                  placeholder="igual ao investido"
+                  onValueChange={(v) => setDraft({ ...draft, currentValue: v })}
+                />
+              </label>
+            </div>
+
+            {draft.invested > 0 &&
+              (() => {
+                const current = draft.currentValue > 0 ? draft.currentValue : draft.invested;
+                const gain = current - draft.invested;
+                const pct = (gain / draft.invested) * 100;
+                return (
+                  <p style={{ margin: 0, fontSize: 12.5 }} className={gain === 0 ? 'text-secondary' : gain > 0 ? 'text-emerald' : 'text-rose'}>
+                    {draft.currentValue > 0
+                      ? `Resultado: ${formatBRL(gain)} (${formatPct(pct)})`
+                      : 'O valor atual começa igual ao investido; atualize quando quiser acompanhar a rentabilidade.'}
+                  </p>
+                );
+              })()}
+
             <label style={fieldStyle}>
               <span className="text-xs text-secondary">Data da aplicação</span>
               <DateInput
                 type="date"
+                showToday
                 className="form-input form-input-sm"
+                max={today()}
                 value={draft.date}
                 onChange={(e) => setDraft({ ...draft, date: e.target.value })}
               />
             </label>
+
             <label style={fieldStyle}>
-              <span className="text-xs text-secondary">Observação</span>
+              <span className="text-xs text-secondary">Observação (opcional)</span>
               <input
                 className="form-input form-input-sm"
+                placeholder="Corretora, vencimento, objetivo…"
                 value={draft.note ?? ''}
                 onChange={(e) => setDraft({ ...draft, note: e.target.value })}
               />
             </label>
-            <button type="button" className="btn btn-primary" disabled={!canSave} onClick={submit}>
-              Salvar
-            </button>
-          </div>
+
+            {!canSave && (draft.name.trim().length > 0 || draft.invested > 0) && (
+              <p className="text-xs text-secondary" style={{ margin: 0 }}>
+                {draft.name.trim().length === 0 ? 'Dê um nome ao investimento.' : 'Informe o valor investido.'}
+              </p>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 2fr)', gap: 8 }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setDraft(null)}>
+                Cancelar
+              </button>
+              <button type="submit" className="btn btn-primary" disabled={!canSave}>
+                {draft.id ? 'Salvar alterações' : 'Registrar investimento'}
+              </button>
+            </div>
+          </form>
         )}
       </Modal>
 

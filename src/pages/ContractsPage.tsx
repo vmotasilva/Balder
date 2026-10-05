@@ -33,6 +33,8 @@ export const ContractsPage: React.FC<ContractsPageProps> = ({ newLoanSignal = 0,
   const [openKind, setOpenKind] = useState<ContractKind | null>(openRequest ? openRequest.kind : newLoanSignal > 0 ? 'EMPRESTIMOS' : null);
   // O simulador só abre sozinho quando veio do "+"; voltar ou entrar de novo pelos cartões não o reabre
   const [autoOpenSim, setAutoOpenSim] = useState(newLoanSignal > 0);
+  // Vindo do "+" > Investimento: a carteira abre já com o pop-up de registro
+  const [openNewInvestment, setOpenNewInvestment] = useState(openRequest?.kind === 'INVESTIMENTOS');
   useEffect(() => {
     if (newLoanSignal > 0) {
       setOpenKind('EMPRESTIMOS');
@@ -44,6 +46,7 @@ export const ContractsPage: React.FC<ContractsPageProps> = ({ newLoanSignal = 0,
     if (!openRequest) return;
     setOpenKind(openRequest.kind);
     setAutoOpenSim(false);
+    if (openRequest.kind === 'INVESTIMENTOS') setOpenNewInvestment(true);
     onOpenRequestHandled?.();
   }, [openRequest, onOpenRequestHandled]);
 
@@ -78,7 +81,7 @@ export const ContractsPage: React.FC<ContractsPageProps> = ({ newLoanSignal = 0,
             <span>Contratos</span>
           </button>
         </div>
-        <InvestmentsPage />
+        <InvestmentsPage openNew={openNewInvestment} onOpenNewHandled={() => setOpenNewInvestment(false)} />
       </>
     );
   }
