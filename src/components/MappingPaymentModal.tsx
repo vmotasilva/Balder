@@ -102,7 +102,7 @@ const MappingPaymentForm: React.FC<{ target: MappingPaymentTarget; onClose: () =
           </label>
           <label>
             <span>Data do pagamento</span>
-            <DateInput type="date" className="form-input" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
+            <DateInput type="date" showToday className="form-input" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
           </label>
         </div>
 

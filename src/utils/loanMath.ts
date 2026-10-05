@@ -65,6 +65,67 @@ export function calculatePresentValue(
   };
 }
 
+export type LoanPaymentKind = 'ANTECIPADA' | 'EM_DIA' | 'ATRASADA';
+
+export interface LoanPaymentOutcome {
+  kind: LoanPaymentKind;
+  /** Valor a pagar na data informada. */
+  amount: number;
+  /** Desconto (antecipação) ou acréscimo (atraso), sempre positivo. */
+  adjustment: number;
+  /** Dias de antecedência ou de atraso em relação ao vencimento. */
+  days: number;
+  reason: string;
+}
+
+/**
+ * Encargos de uma parcela paga depois do vencimento: multa de 2% mais juros de mora de 1% ao mês (pró-rata
+ * por dia), o padrão do crédito ao consumidor. O contrato pode prever outros valores: o campo fica editável.
+ */
+export function calculateLateCharges(nominalAmount: number, dueDateStr: string, paymentDateStr: string) {
+  const days = Math.max(0, isoDaysBetween(dueDateStr, paymentDateStr));
+  const fine = Math.round(nominalAmount * 0.02 * 100) / 100;
+  const interest = Math.round(nominalAmount * 0.01 * (days / 30) * 100) / 100;
+  return { days, charges: Math.round((fine + interest) * 100) / 100 };
+}
+
+/**
+ * O que acontece com o valor da parcela conforme a data do pagamento em relação ao vencimento:
+ * antes, antecipação com desconto a valor presente; no dia, o valor exato da parcela; depois, encargos de atraso.
+ */
+export function loanPaymentOutcome(
+  nominalAmount: number,
+  dueDateStr: string,
+  paymentDateStr: string,
+  monthlyRatePercent: number
+): LoanPaymentOutcome {
+  const valid = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+  if (!valid(dueDateStr) || !valid(paymentDateStr) || paymentDateStr === dueDateStr) {
+    return { kind: 'EM_DIA', amount: nominalAmount, adjustment: 0, days: 0, reason: 'Pagamento da parcela no valor contratual' };
+  }
+  if (paymentDateStr < dueDateStr) {
+    const pv = calculatePresentValue(nominalAmount, dueDateStr, paymentDateStr, monthlyRatePercent);
+    if (pv.discountAmount <= 0) {
+      return { kind: 'EM_DIA', amount: nominalAmount, adjustment: 0, days: pv.daysToDueDate, reason: 'Pagamento da parcela no valor contratual' };
+    }
+    return {
+      kind: 'ANTECIPADA',
+      amount: pv.discountedAmount,
+      adjustment: pv.discountAmount,
+      days: pv.daysToDueDate,
+      reason: 'Antecipação com desconto a valor presente (BACEN nº 3.516)',
+    };
+  }
+  const late = calculateLateCharges(nominalAmount, dueDateStr, paymentDateStr);
+  return {
+    kind: 'ATRASADA',
+    amount: Math.round((nominalAmount + late.charges) * 100) / 100,
+    adjustment: late.charges,
+    days: late.days,
+    reason: 'Pagamento em atraso com multa de 2% e juros de mora de 1% a.m.',
+  };
+}
+
 export interface LoanContractGroup {
   groupId: string;
   title: string;

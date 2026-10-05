@@ -581,9 +581,9 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
                     <div
                       style={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+                        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
                         gap: '6px',
-                        maxHeight: '170px',
+                        maxHeight: '190px',
                         overflowY: 'auto',
                         marginBottom: '12px',
                       }}
@@ -598,7 +598,7 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
                               display: 'flex',
                               alignItems: 'center',
                               gap: '6px',
-                              padding: '6px 8px',
+                              padding: '4px 7px',
                               borderRadius: '8px',
                               fontSize: '12px',
                               cursor: coveringPayment ? 'not-allowed' : 'pointer',
@@ -614,10 +614,12 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
                             ) : (
                               <input type="checkbox" checked={checked} onChange={() => toggleDate(o.date)} />
                             )}
-                            <span style={{ flex: 1 }}>
-                              {formatDate(o.date)} ({weekday(o.date)})
+                            <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25, minWidth: 0 }}>
+                              <span>
+                                {formatDate(o.date)} <span style={{ color: 'var(--text-muted)' }}>{weekday(o.date)}</span>
+                              </span>
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{coveringPayment ? 'pago' : formatBRL(o.value)}</span>
                             </span>
-                            <span>{coveringPayment ? 'pago' : formatBRL(o.value)}</span>
                           </label>
                         );
                       })}
@@ -642,6 +644,7 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
                       <label style={{ flex: '1 1 150px', fontSize: '12px', color: 'var(--text-muted)' }}>
                         Data do pagamento
                         <DateInput
+                          showToday
                           type="date"
                           className="form-input"
                           value={paidAt}

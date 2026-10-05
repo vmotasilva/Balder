@@ -1,7 +1,10 @@
 import React, { useRef } from 'react';
 
 // `type` é aceito (e ignorado) para trocar um <input type="date"> por este componente sem mexer no resto
-type DateInputProps = React.InputHTMLAttributes<HTMLInputElement>;
+type DateInputProps = React.InputHTMLAttributes<HTMLInputElement> & {
+  /** Mostra o atalho "Hoje" ao lado (só nos campos de data de pagamento). */
+  showToday?: boolean;
+};
 
 const todayIso = () => {
   const n = new Date();
@@ -9,10 +12,10 @@ const todayIso = () => {
 };
 
 /**
- * Campo de data (seletor do aparelho) com o atalho "Hoje" ao lado: o seletor nativo não tem esse botão.
+ * Campo de data (seletor do aparelho). Com `showToday`, traz o atalho "Hoje" ao lado: o seletor nativo não tem esse botão.
  * Aceita as mesmas propriedades de um `<input>`; "Hoje" respeita `min`/`max` e dispara o `onChange` normal.
  */
-export const DateInput = React.forwardRef<HTMLInputElement, DateInputProps>(({ style, type: _type, ...props }, forwardedRef) => {
+export const DateInput = React.forwardRef<HTMLInputElement, DateInputProps>(({ style, type: _type, showToday = false, ...props }, forwardedRef) => {
   const innerRef = useRef<HTMLInputElement | null>(null);
   const today = todayIso();
   const outOfRange = (!!props.min && today < String(props.min)) || (!!props.max && today > String(props.max));
@@ -25,6 +28,8 @@ export const DateInput = React.forwardRef<HTMLInputElement, DateInputProps>(({ s
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(el, today);
     el.dispatchEvent(new Event('input', { bubbles: true }));
   };
+
+  if (!showToday) return <input {...props} type="date" style={style} ref={forwardedRef} />;
 
   return (
     <span style={{ display: 'flex', gap: '6px', alignItems: 'stretch', width: '100%', minWidth: 0 }}>
