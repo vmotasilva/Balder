@@ -134,6 +134,8 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     natures,
     forecasts,
     availableBalance,
+    accountBalance,
+    cashInHandBalance,
     viewPreferences,
     setViewPreferences,
     updateMovement,
@@ -727,6 +729,9 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
         <button type="button" className="home-stat is-clickable" onClick={() => setShowBalance(true)}>
           <span>Saldo hoje</span>
           <strong>{formatBRL(availableBalance)}</strong>
+          <small>
+            {formatBRL(accountBalance)} em conta · {formatBRL(cashInHandBalance)} em mãos
+          </small>
         </button>
         <BalanceBreakdownModal isOpen={showBalance} onClose={() => setShowBalance(false)} />
         <button type="button" className="home-stat is-clickable" onClick={() => setShowForecast(true)}>
