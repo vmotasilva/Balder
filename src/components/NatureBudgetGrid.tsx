@@ -524,6 +524,9 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
   }, [natureRows]);
 
   // Abrir modal de detalhamento para uma natureza específica
+  // Previsto zerado com gasto já feito: o que estava previsto no período foi todo pago (ou passou)
+  const plannedExhausted = (row: Pick<NatureBudgetRow, 'pendingAmount' | 'realizedAmount'>) => row.pendingAmount < 0.005 && row.realizedAmount > 0.005;
+
   const hasAlert = (row: NatureBudgetRow) => row.hasAttentionPoint && !!row.observations && row.observations !== '-';
 
   // Com alerta, mostra primeiro o pop-up; sem alerta, abre direto as movimentações
@@ -704,7 +707,12 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
                       </div>
                       <div>
                         <span className="nature-card-metric-label">Previsto</span>
-                        <span className="font-mono font-bold text-xs text-amber">{formatBRL(row.pendingAmount)}</span>
+                        <span
+                          className={`font-mono font-bold text-xs ${plannedExhausted(row) ? 'text-rose' : 'text-amber'}`}
+                          title={plannedExhausted(row) ? 'Previsto zerado: tudo o que estava previsto já foi gasto' : undefined}
+                        >
+                          {formatBRL(row.pendingAmount)}
+                        </span>
                       </div>
                       <div className="text-right">
                         <span className="nature-card-metric-label">Teto</span>
@@ -849,7 +857,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
               </div>
               <div className="p-1.5 rounded-lg bg-black/20">
                 <span className="text-[10px] text-muted block uppercase font-semibold">Previsto</span>
-                <span className="font-mono font-bold text-amber">{formatBRL(alertRow.pendingAmount)}</span>
+                <span className={`font-mono font-bold ${plannedExhausted(alertRow) ? 'text-rose' : 'text-amber'}`}>{formatBRL(alertRow.pendingAmount)}</span>
               </div>
               <div className="p-1.5 rounded-lg bg-black/20">
                 <span className="text-[10px] text-muted block uppercase font-semibold">Teto</span>
