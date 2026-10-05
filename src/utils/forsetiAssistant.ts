@@ -41,6 +41,8 @@ export interface ForsetiFlow {
   amount?: number;
   date?: string;
   status?: 'PREVISTA' | 'REALIZADA';
+  /** Pagamento agendado ("agendei um pagamento para amanhã"): vira previsto na data, não pago hoje. */
+  scheduled?: boolean;
   category?: { title: string; category: string };
   /** Compra parcelada ("em 6x", "dividido em 6 vezes"). */
   installments?: number;
@@ -69,7 +71,19 @@ export function registrationKind(text: string): 'RECEBER' | 'PAGAR' | null {
   const t = stripAccents(text);
   if (/\b(receberei|vou receber|recebi|ganhei|vou ganhar|vai entrar|entrou|caiu na conta)\b/.test(t)) return 'RECEBER';
   if (/\b(paguei|gastei|comprei)\b/.test(t)) return 'PAGAR';
+  if (isScheduledPayment(text)) return 'PAGAR';
   return null;
+}
+
+/**
+ * Pagamento por vir: "agendei um pagamento para amanhã de 178,31", "programei o boleto", "vou pagar 200 dia 10".
+ * "vou pagar" e "pagarei" só valem com um valor na frase (sem ele podem ser outro assunto).
+ */
+export function isScheduledPayment(text: string): boolean {
+  if (isQuestion(text)) return false;
+  const t = stripAccents(text);
+  if (/\b(agendei|agendarei|agendar|agendado|programei)\b/.test(t)) return true;
+  return /\b(vou pagar|pagarei)\b/.test(t) && parseAmount(text) !== null;
 }
 
 /** "recebi", "ganhei", "entrou": o recebimento já aconteceu. */
@@ -117,7 +131,9 @@ export function parseAmount(text: string): number | null {
 export function extractTitle(text: string): string {
   return withoutDates(text)
     .replace(/(?:r\$\s*)?\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|(?:r\$\s*)?\d+(?:[.,]\d{1,2})?\s*(?:mil\b)?/gi, ' ')
-    .replace(/\b(?:eu|vou|receber|receberei|recebi|ganhei|paguei|gastei|comprei|pago|reais|real|hoje|amanh[ãa]|ontem)\b/gi, ' ')
+    .replace(/\b(?:eu|vou|receber|receberei|recebi|ganhei|paguei|gastei|comprei|pago|pagar|pagarei|agendei|agendarei|agendar|agendado|programei|reais|real|hoje|ontem)\b/gi, ' ')
+    // \b não funciona depois de "ã"
+    .replace(/\bamanh[ãa](?![\p{L}\d])/giu, ' ')
     .replace(/\b(?:no|pelo|por|com)\s+valor(?:\s+de)?\b/gi, ' ')
     .replace(/(?:^|\s)[àa]\s+vista\b/gi, ' ')
     // A forma de pagamento citada não faz parte do título ("TV no cartão Inter" → "TV")
@@ -126,7 +142,7 @@ export function extractTitle(text: string): string {
     .replace(/^\s*(?:de|do|da|no|na|em|com|pelo|pela|um|uma)\s+/i, '')
     .replace(/\s+/g, ' ')
     .replace(/[.!?,\s]+$/, '')
-    .replace(/\s+(?:de|do|da|no|na|em|por|com|e)$/i, '')
+    .replace(/(?:\s+(?:de|do|da|no|na|em|por|com|e|para|pra))+$/i, '')
     .trim();
 }
 
