@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import type { PrepaymentPurpose } from '../types';
 import { calculatePresentValue, groupLoanMovements } from '../utils/loanMath';
+import { DateInput } from './DateInput';
 
 interface LoanPrepaymentModalProps {
   isOpen: boolean;
@@ -303,7 +304,7 @@ export const LoanPrepaymentModal: React.FC<LoanPrepaymentModalProps> = ({
               </div>
 
               <div className="date-input-row mt-2">
-                <input
+                <DateInput
                   type="date"
                   className="form-input text-sm font-bold text-cyan"
                   value={simulationDate}

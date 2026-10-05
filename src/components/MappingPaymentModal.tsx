@@ -5,6 +5,7 @@ import { DecimalInput } from './DecimalInput';
 import { ConfirmDialog, useConfirmDialog } from './ConfirmDialog';
 import { useFinancial } from '../context/FinancialContext';
 import { registerMappingPayment, removeMappingPayment, resolveMappingMonth } from '../utils/mappingItemState';
+import { DateInput } from './DateInput';
 
 /** Mapeamento em modo Resumo na competência (a linha de cobrança da natureza). */
 export interface MappingPaymentTarget {
@@ -101,7 +102,7 @@ const MappingPaymentForm: React.FC<{ target: MappingPaymentTarget; onClose: () =
           </label>
           <label>
             <span>Data do pagamento</span>
-            <input type="date" className="form-input" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
+            <DateInput type="date" className="form-input" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
           </label>
         </div>
 

@@ -123,6 +123,7 @@ import {
   inferExpenseCategory,
   isPastReceive,
   registrationKind,
+  isScheduledPayment,
   titleFrom,
   parseAmount,
   parseDate,
@@ -3614,8 +3615,27 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         );
       };
       // hint: frase original, onde pode estar a forma de pagamento ("no cartão Inter", "no Pix")
-      type PayContext = { installments?: number; hint?: string };
+      type PayContext = { installments?: number; hint?: string; date?: string; scheduled?: boolean };
       const askPaymentMethod = (title: string, amount: number, category: string, ctx: PayContext = {}) => {
+        // Pagamento agendado sem data na frase: pergunta para quando é, antes da forma de pagamento
+        if (ctx.scheduled && !ctx.date) {
+          forsetiFlowRef.current = {
+            kind: 'PAGAR',
+            step: 'DATA',
+            title,
+            amount,
+            category: { title, category },
+            installments: ctx.installments,
+            hint: ctx.hint,
+            scheduled: true,
+          };
+          reply({
+            text: `**${brl(amount)}**${title ? ` (${title})` : ''}. **Para quando está agendado?**\n\nEscolha uma opção ou escreva a data (ex.: *dia 12* ou *15/10*).`,
+            badge: 'DATA DO PAGAMENTO',
+            chips: RECEIVE_DATE_CHIPS,
+          });
+          return;
+        }
         forsetiFlowRef.current = null;
         const installments = ctx.installments && ctx.installments >= 2 ? ctx.installments : undefined;
         const plan = installments ? { count: installments, total: amount } : undefined;
@@ -3640,14 +3660,23 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
         reply(
           {
-            text: `Anotado: **${brl(amount)}** em **${title}**${parcelas}.${needsRegister ? `${pick.note ? ` ${pick.note}` : ''}\n\n**${pick.question}**` : ''}`,
+            text: `Anotado: **${brl(amount)}** em **${title}**${parcelas}${ctx.scheduled && ctx.date ? `, agendado para **${ctx.date.slice(8, 10)}/${ctx.date.slice(5, 7)}**` : ''}.${needsRegister ? `${pick.note ? ` ${pick.note}` : ''}\n\n**${pick.question}**` : ''}`,
             badge: 'FORMA DE PAGAMENTO',
             chips: [],
           },
           {
             pendingConfirmation: {
               step: 'PAYMENT_METHOD',
-              pendingData: { rawTitle: title, amount, dueDate: todayIso, type: 'PAGAR', category, installments, request: requestTrailRef.current.join(' → ') },
+              pendingData: {
+                rawTitle: title,
+                amount,
+                dueDate: ctx.scheduled && ctx.date ? ctx.date : todayIso,
+                type: 'PAGAR',
+                category,
+                installments,
+                ...(ctx.scheduled && ctx.date ? { status: 'PREVISTA' as const } : {}),
+                request: requestTrailRef.current.join(' → '),
+              },
               question: pick.question,
               options: wizard ? [] : pick.options,
               wizard,
@@ -3706,7 +3735,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const purchase = readPurchase(text);
         const payTitle = titleFrom(purchase.base);
         const cat = inferExpenseCategory(purchase.base);
-        const ctx: PayContext = { installments: purchase.installments, hint: text };
+        const scheduled = isScheduledPayment(text);
+        const ctx: PayContext = { installments: purchase.installments, hint: text, scheduled, date: scheduled ? parseDate(text) || undefined : undefined };
         if (purchase.amount === null) {
           forsetiFlowRef.current = { kind, step: 'VALOR', title: payTitle, category: cat || undefined, ...ctx };
           reply({
@@ -3844,6 +3874,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             continuePay(title, amount, inferExpenseCategory(purchase!.base) || flow.category || null, {
               installments: purchase!.installments || flow.installments,
               hint: `${flow.hint || ''} ${trimmed}`,
+              scheduled: flow.scheduled,
+              date: (flow.scheduled ? parseDate(trimmed) : null) || flow.date,
             });
           return;
         } else if (flow.step === 'DATA') {
@@ -3853,6 +3885,15 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               text: 'Não entendi a data. Escolha uma opção ou escreva, por exemplo, **dia 12** ou **15/10**.',
               badge: 'DATA',
               chips: RECEIVE_DATE_CHIPS,
+            });
+            return;
+          }
+          if (flow.kind === 'PAGAR') {
+            askPaymentMethod(flow.title || flow.category?.title || '', flow.amount || 0, flow.category?.category || 'Outros', {
+              installments: flow.installments,
+              hint: flow.hint,
+              scheduled: true,
+              date,
             });
             return;
           }
@@ -4375,7 +4416,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     // Compra no cartão vence com a fatura do cartão escolhido; recebimento "recebi" já entra como realizado
     const finalDueDate = isCredit ? option.payload.dueDate || pending.dueDate : pending.dueDate;
-    const finalStatus = isCredit ? 'PREVISTA' : isIncome ? pending.status || 'PREVISTA' : 'REALIZADA';
+    // Pagamento agendado ("agendei para amanhã") fica previsto na data; o demais já saiu da conta
+    const finalStatus = isCredit ? 'PREVISTA' : isIncome ? pending.status || 'PREVISTA' : pending.status === 'PREVISTA' ? 'PREVISTA' : 'REALIZADA';
     const whenLabel = `${finalDueDate.slice(8, 10)}/${finalDueDate.slice(5, 7)}`;
     const ddmmOf = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
     const movementTitle =
@@ -4466,7 +4508,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         count ? `${brl(pending.amount)} em ${count}x` : brl(pending.amount),
         pending.rawTitle,
         option.label,
-        isIncome ? `${finalStatus === 'REALIZADA' ? 'recebido' : 'previsto'} em ${whenLabel}` : isCredit ? `fatura de ${whenLabel}` : '',
+        isIncome ? `${finalStatus === 'REALIZADA' ? 'recebido' : 'previsto'} em ${whenLabel}` : isCredit ? `fatura de ${whenLabel}` : finalStatus === 'PREVISTA' ? `agendado para ${whenLabel}` : '',
       ]
         .filter(Boolean)
         .join(' · '),
@@ -4489,7 +4531,10 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             ? `✓ **Recebimento registrado!**\n\n**${brl(pending.amount)}** entrou em **${option.label}** em ${whenLabel} e já está no seu saldo de hoje.`
             : `✓ **Recebimento agendado!**\n\n**${brl(pending.amount)}** vai entrar em **${option.label}** em **${whenLabel}**. Já considerei no saldo previsto; quando cair na conta, é só confirmar.`;
       } else {
-        confirmationText = `✓ **Pagamento registrado!**\n\n**${brl(pending.amount)}** (${pending.rawTitle}) pago com **${option.label}**.\n\n• **Categoria:** ${finalCategory}\n• O saldo de hoje já foi atualizado.`;
+        confirmationText =
+          finalStatus === 'PREVISTA'
+            ? `✓ **Pagamento agendado!**\n\n**${brl(pending.amount)}** (${pending.rawTitle}) será pago com **${option.label}** em **${whenLabel}**.\n\n• **Categoria:** ${finalCategory}\n• Já considerei no saldo previsto; quando pagar, é só confirmar.`
+            : `✓ **Pagamento registrado!**\n\n**${brl(pending.amount)}** (${pending.rawTitle}) pago com **${option.label}**.\n\n• **Categoria:** ${finalCategory}\n• O saldo de hoje já foi atualizado.`;
       }
 
       const botConfirmMsg: CopilotMessage = {

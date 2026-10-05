@@ -23,10 +23,12 @@ import { useFinancial } from '../context/FinancialContext';
 import { InstallmentPlanner } from './InstallmentPlanner';
 import { normalizeBankKey } from '../utils/cardUtils';
 import { itemUnitPrice } from '../utils/mappingItemState';
+import { calculatePresentValue, groupLoanMovements } from '../utils/loanMath';
 import { getBankBranding } from '../utils/bankBranding';
 import { futureReceiptSiblings } from './ReceiptChangeDialog';
 import { RecurringChangeDialog, futureRecurringSiblings, type RecurringChangePrompt } from './RecurringChangeDialog';
 import type { Movement, MovementStatus, InvoiceNatureItemBreakdown } from '../types';
+import { DateInput } from './DateInput';
 
 interface MovementDetailModalProps {
   isOpen: boolean;
@@ -527,6 +529,28 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
   if (!isOpen || !movement) return null;
 
   // Manipuladores de modos específicos
+  // Desconto de antecipação a valor presente, como na lista de parcelas ("Se pago hoje"): taxa do contrato,
+  // vencimento da parcela e data do pagamento (se ainda não passou do vencimento; senão, hoje)
+  const presentValueFor = (payDate: string) => {
+    const due = dueDate || movement.dueDate;
+    // Mesma taxa da lista de parcelas (do contrato, com os mesmos fallbacks)
+    const rate =
+      groupLoanMovements(movements).find((g) => g.groupId === movement.installmentGroupId)?.interestRatePercent ??
+      movement.interestRatePercent ??
+      0;
+    return calculatePresentValue(nominalAmount, due, payDate, rate);
+  };
+  const prepaymentDate = (payDate: string) => {
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return payDate && payDate < (dueDate || movement.dueDate) ? payDate : today;
+  };
+  const applyPresentValueDiscount = (payDate: string) => {
+    const calc = presentValueFor(payDate);
+    setDiscountAmountInput(calc.discountAmount > 0 ? String(calc.discountAmount) : '');
+    setActualAmountInput(String(calc.discountedAmount));
+  };
+
   const handleLoanModeChange = (mode: 'REGULAR' | 'DESCONTO' | 'AJUSTE') => {
     setLoanPayMode(mode);
     if (mode === 'REGULAR') {
@@ -534,9 +558,9 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
       setDiscountAmountInput('');
       setAdjustmentReason('Pagamento regular da parcela no valor contratual');
     } else if (mode === 'DESCONTO') {
-      const discount = parseBRL(discountAmountInput) || 50;
-      const discounted = Math.max(0, nominalAmount - discount);
-      setActualAmountInput(String(discounted));
+      const payDate = prepaymentDate(paymentDate);
+      setPaymentDate(payDate);
+      applyPresentValueDiscount(payDate);
       setAdjustmentReason('Antecipação com desconto a valor presente (BACEN nº 3.516)');
     } else {
       setAdjustmentReason('Ajuste com encargos / juros de mora ou amortização extraordinária');
@@ -1863,7 +1887,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
               <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
                 Vencimento
               </label>
-              <input
+              <DateInput
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
@@ -1876,10 +1900,14 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
               <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>
                 Pagamento
               </label>
-              <input
+              <DateInput
                 type="date"
                 value={paymentDate}
-                onChange={(e) => setPaymentDate(e.target.value)}
+                onChange={(e) => {
+                  setPaymentDate(e.target.value);
+                  // Antecipação: o desconto depende da data do pagamento
+                  if (movement.type === 'EMPRESTIMO' && loanPayMode === 'DESCONTO' && e.target.value) applyPresentValueDiscount(e.target.value);
+                }}
                 className="form-input"
                 style={{ fontSize: '0.78rem', padding: '4px 8px' }}
               />

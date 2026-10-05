@@ -12,6 +12,7 @@ import { findMappingItemForTitle } from '../utils/mappingMatch';
 import { userNatures } from '../utils/baseNatures';
 import { addCardPurchaseToInvoices, firstInvoiceDueDate, invoiceDueDates } from '../utils/cardPurchase';
 import { Calendar, Split, Repeat } from 'lucide-react';
+import { DateInput } from './DateInput';
 
 // Valores digitados aceitam vírgula ou ponto como decimal ("7.073,70", "7073,70", "7073.70")
 const parseBRLAmount = (val: string): number => parseMoney(val);
@@ -545,7 +546,7 @@ export const NewMovementModal: React.FC<NewMovementModalProps> = ({
                 </button>
               </div>
             </div>
-            <input
+            <DateInput
               id="mov-date"
               type="date"
               className="form-input"

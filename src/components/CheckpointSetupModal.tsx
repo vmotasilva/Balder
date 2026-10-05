@@ -22,6 +22,7 @@ import {
 import type { CreditCardItem, CheckpointBankDebt, InvoiceNatureItemBreakdown, FinancialCheckpoint } from '../types';
 import { NumberInput } from './NumberInput';
 import { InfoButton } from './InfoButton';
+import { DateInput } from './DateInput';
 
 interface CheckpointSetupModalProps {
   isOpen: boolean;
@@ -969,7 +970,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                 </button>
               </div>
             </label>
-            <input
+            <DateInput
               type="date"
               required
               className="form-input"
@@ -1260,7 +1261,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                               />
                             </div>
 
-                            <input
+                            <DateInput
                               type="date"
                               value={currentInvoice.dueDate}
                               onChange={(e) => handleInvoiceDueDateChange(b.id, currentInvoice.id, e.target.value)}
@@ -1483,7 +1484,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                                   />
                                 </div>
 
-                                <input
+                                <DateInput
                                   type="date"
                                   value={inv.dueDate}
                                   onChange={(e) => handleInvoiceDueDateChange(b.id, inv.id, e.target.value)}
