@@ -259,16 +259,38 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     return null;
   };
 
-  // Compra de item de natureza: abre o pop-up do item (pagamentos feitos, com desfazer; e a situação)
+  // Mapeamento em modo Resumo: a linha é o próprio mapeamento (o id do item é o do mapeamento)
+  const summaryMappingOf = (item: PeriodItem) => {
+    if (item.movementId || !item.natureId) return null;
+    const nat = natures.find((n) => n.id === item.natureId);
+    const mapping = nat?.mappings.find((m) => m.id === item.id);
+    return nat && mapping ? { nat, mapping } : null;
+  };
+
+  // Compra de item de natureza: abre o pop-up do item (pagamentos feitos, com desfazer; e a situação).
+  // Em modo Resumo abre o pagamento do mapeamento, o mesmo do "Lançar" da lista "Em aberto".
   const openPurchase = (item: PeriodItem, purchase: PeriodPurchase) => {
     if (item.movementId || !item.natureId) return;
+    const summary = summaryMappingOf(item);
+    if (summary) {
+      setMappingPayment({
+        natureId: summary.nat.id,
+        mappingId: summary.mapping.id,
+        itemIds: summary.mapping.items.filter((it) => it.paymentMethod !== 'CARTAO').map((it) => it.id),
+        monthKey: purchase.date.slice(0, 7),
+        title: summary.mapping.name,
+      });
+      return;
+    }
     const nat = natures.find((n) => n.id === item.natureId);
     const mapping = nat?.mappings.find((m) => m.items.some((it) => it.id === item.id));
     if (!nat || !mapping) return;
     setItemState({ natureId: nat.id, mappingId: mapping.id, itemId: item.id, monthKey: purchase.date.slice(0, 7), occurrenceDate: purchase.date });
   };
   const canOpenPurchase = (item: PeriodItem) =>
-    !item.movementId && !!item.natureId && !!natures.find((n) => n.id === item.natureId)?.mappings.some((m) => m.items.some((it) => it.id === item.id));
+    !item.movementId &&
+    !!item.natureId &&
+    (!!summaryMappingOf(item) || !!natures.find((n) => n.id === item.natureId)?.mappings.some((m) => m.items.some((it) => it.id === item.id)));
 
   const renderTaskAction = (entry: ForecastEntry) => {
     // Fatura: confirma o pagamento aqui mesmo (valor e data conferidos no pop-up), sem sair da Home
