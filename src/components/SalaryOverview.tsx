@@ -7,9 +7,11 @@ import { NumberInput } from './NumberInput';
 import { MovementDetailModal } from './MovementDetailModal';
 import {
   SalaryPartsEditor,
+  SalaryPaymentFields,
   SalaryRegimeDialog,
   futureSalaryMonths,
   planSalaryRegime,
+  salaryPartsFromMovements,
   salaryBaseTitle,
   salaryOfCompetence,
   type SalaryPart,
@@ -289,28 +291,16 @@ const SalaryReferenceEditDialog: React.FC<{
       subtitle={`${reference.base} · ${shortMonth(reference.startKey)} a ${shortMonth(reference.endKey)}`}
       maxWidth="440px"
     >
-      <div className="form-group">
-        <label>Valor (R$)</label>
-        <DecimalInput className="form-input" value={amount} onValueChange={setAmount} />
-      </div>
-      <div className="salary-register-row">
-        <div className="form-group">
-          <label>Dia do pagamento</label>
-          <input
-            type="number"
-            min={1}
-            max={31}
-            className="form-input"
-            value={day}
-            disabled={lastDay}
-            onChange={(e) => setDay(Number(e.target.value))}
-          />
-        </div>
-        <label className="receipt-change-future" style={{ alignSelf: 'end' }}>
-          <input type="checkbox" checked={lastDay} onChange={(e) => setLastDay(e.target.checked)} />
-          <span>Último dia do mês</span>
-        </label>
-      </div>
+      <SalaryPaymentFields
+        amount={amount}
+        day={day}
+        lastDay={lastDay}
+        onChange={(patch) => {
+          if (patch.amount !== undefined) setAmount(patch.amount);
+          if (patch.day !== undefined) setDay(patch.day);
+          if (patch.lastDay !== undefined) setLastDay(patch.lastDay);
+        }}
+      />
 
       {confirmDelete ? (
         <div className="receipt-delete-ask">
@@ -639,7 +629,7 @@ export const SalaryOverview: React.FC = () => {
         <SalaryRegimeDialog
           baseName={regime.base}
           currentTotal={regime.current.reduce((acc, m) => acc + m.amount, 0)}
-          currentParts={regime.current.map((m) => ({ amount: m.amount, day: Number(m.dueDate.slice(8, 10)) || 5 }))}
+          currentParts={salaryPartsFromMovements(regime.current)}
           hasRealizedThisMonth={regime.hasRealized}
           futureCount={regime.futureMonths.length}
           onApply={applyRegime}
