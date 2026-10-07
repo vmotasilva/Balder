@@ -1,0 +1,49 @@
+name: Aprendizado semanal da Forseti
+
+# Toda segunda-feira lê os relatórios diários da Forseti, atualiza os exemplos de classificação e
+# abre um PR para revisão. Nada é publicado sem aprovação.
+#
+# Configuração (uma vez):
+#   * Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ANTHROPIC_API_KEY
+#   * Settings > Actions > General > "Allow GitHub Actions to create and approve pull requests"
+#   * Opcional: secret FORSETI_PR_TOKEN (PAT) para que o CI rode no PR; com o GITHUB_TOKEN o GitHub não dispara o CI.
+
+on:
+  schedule:
+    - cron: '17 9 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  improve:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Gerar exemplos a partir dos relatórios
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: npx --yes tsx@4 scripts/forseti-weekly-improve.ts
+      - name: Conferir tipos
+        run: npx tsc -b
+      - name: Abrir PR
+        if: hashFiles('forseti-pr-body.md') != ''
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.FORSETI_PR_TOKEN || secrets.GITHUB_TOKEN }}
+          branch: forseti/aprendizado-semanal
+          base: main
+          add-paths: src/utils/forsetiExamples.ts
+          commit-message: 'Forseti: exemplos de classificação do aprendizado semanal'
+          title: 'Forseti: aprendizado semanal'
+          body-path: forseti-pr-body.md
+          labels: forseti
