@@ -22637,6 +22637,49 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   gap: 8px;
 }
 
+/* Pergunta "o restante do previsto se mantém?" depois de pagar menos que o previsto do período */
+.mapping-pay-rest {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mapping-pay-rest-question {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.mapping-pay-rest .btn {
+  justify-content: flex-start;
+  text-align: left;
+  height: auto;
+  padding: 10px 12px;
+}
+
+.mapping-pay-rest .btn small {
+  display: block;
+  opacity: 0.8;
+  font-weight: 400;
+}
+
+/* Mapeamento selecionável (check) e item só como memória de cálculo */
+.mapping-check-circle {
+  flex-shrink: 0;
+}
+
+.item-calc-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
 @media (max-width: 768px) {
   .mapping-pay-fields {
     flex-direction: column;

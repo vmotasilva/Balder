@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { parseDecimal, parseMoney } from '../utils/parseDecimal';
 import { useFinancial } from '../context/FinancialContext';
 import { userNatures } from '../utils/baseNatures';
-import { isExcludedState, resolveMappingItemMonth } from '../utils/mappingItemState';
+import { isExcludedState, resolveMappingItemMonth, resolveMappingMonth } from '../utils/mappingItemState';
 import { getPendingFixedBills, type PendingFixedBill } from '../utils/fixedBillsAlert';
 import type { Movement, MovementType, FixedExpenseMapping, NatureDetailMode } from '../types';
 import {
@@ -14,7 +14,6 @@ import {
   Calculator,
   Info,
   FileText,
-  Check,
   CheckCircle2,
   CreditCard,
   Edit2,
@@ -31,6 +30,7 @@ import {
   List,
   Sigma,
   MoreVertical,
+  Wallet,
 } from 'lucide-react';
 import { Modal } from '../components/Modal';
 import { NatureModal } from '../components/NatureModal';
@@ -38,6 +38,7 @@ import { MappingModal } from '../components/MappingModal';
 import { InfoButton } from '../components/InfoButton';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
 import { RealizationConfirmModal, type RealizationTarget } from '../components/RealizationConfirmModal';
+import { MappingPaymentModal, type MappingPaymentTarget } from '../components/MappingPaymentModal';
 import {
   WEEKDAY_OPTIONS,
   formatItemScheduleBadge,
@@ -77,6 +78,8 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
   const { confirm: confirmAction, dialogProps: confirmDialogProps } = useConfirmDialog();
   // Pop-up que confere valor e data antes de registrar o pagamento de uma conta fixa
   const [realization, setRealization] = useState<RealizationTarget | null>(null);
+  // Registro do real no mapeamento (os itens só compõem o previsto)
+  const [mappingPayTarget, setMappingPayTarget] = useState<MappingPaymentTarget | null>(null);
 
   // Selected Natureza
   const [selectedNatureId, setSelectedNatureId] = useState<string>(
@@ -1342,18 +1345,26 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                             <td>
                               <button
                                 className="btn btn-outline btn-xs"
-                                title="Marcar item como comprado/liquidado no mês"
+                                title="Registrar o valor real no mapeamento deste item"
                                 onClick={() => {
                                   const parentMap = selectedNature.mappings.find((m) =>
                                     m.items.some((it) => it.id === item.id)
                                   );
                                   if (parentMap) {
-                                    toggleItemFulfilled(selectedNature.id, parentMap.id, item.id);
+                                    const now = new Date();
+                                    setIsDiagnosticExpanded(false);
+                                    setMappingPayTarget({
+                                      natureId: selectedNature.id,
+                                      mappingId: parentMap.id,
+                                      itemIds: parentMap.items.map((it) => it.id),
+                                      monthKey: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
+                                      title: parentMap.name,
+                                    });
                                   }
                                 }}
                               >
-                                <Check size={12} className="text-emerald" />
-                                <span>Marcar Comprado</span>
+                                <Wallet size={12} className="text-emerald" />
+                                <span>Registrar real</span>
                               </button>
                             </td>
                           </tr>
@@ -1610,6 +1621,40 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                     const brlMobile = (v: number) =>
                       v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
 
+                    // O mapeamento é o que se marca como realizado; os itens só compõem o previsto dele
+                    const payMonthKey = (() => {
+                      const now = new Date();
+                      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                    })();
+                    const payMonth = resolveMappingMonth(mapping, payMonthKey);
+                    const mappingSettled = mobileStats.applies && payMonth.paid > 0.005 && payMonth.pending <= 0.005;
+                    const openMappingPayment = () =>
+                      setMappingPayTarget({
+                        natureId: selectedNature.id,
+                        mappingId: mapping.id,
+                        itemIds: (mapping.items || []).map((it) => it.id),
+                        monthKey: payMonthKey,
+                        title: mapping.name,
+                      });
+                    const mappingCheck = (
+                      <button
+                        type="button"
+                        className={`item-check-circle mapping-check-circle ${mappingSettled ? 'checked' : ''}`}
+                        title={
+                          !mobileStats.applies
+                            ? 'Este mapeamento não se aplica neste mês'
+                            : mappingSettled
+                            ? 'Realizado no mês: toque para ver ou desfazer os lançamentos'
+                            : 'Registrar o valor real deste mapeamento'
+                        }
+                        aria-label={mappingSettled ? 'Mapeamento realizado' : 'Registrar real do mapeamento'}
+                        disabled={!mobileStats.applies || (mapping.items || []).length === 0}
+                        onClick={openMappingPayment}
+                      >
+                        {mappingSettled ? '✓' : ''}
+                      </button>
+                    );
+
                     return (
                       <div
                         key={mapping.id}
@@ -1688,6 +1733,8 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                               </div>
                             </div>
 
+                            {mappingCheck}
+
                             {/* Emoji Próprio do Mapeamento */}
                             <div
                               className="mapping-icon-badge"
@@ -1712,7 +1759,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                               {mapping.icon || '📋'}
                             </div>
 
-                            <h5 className="mapping-card-title" style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                            <h5 className={`mapping-card-title ${mappingSettled ? 'line-through text-muted' : ''}`} style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                               {mapping.name}
                             </h5>
                           </div>
@@ -1739,6 +1786,17 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
 
                           {/* LINHA 3: Botões (Expandir, editar e Excluir) */}
                           <div className="mapping-card-actions-row">
+                            <button
+                              type="button"
+                              className="btn btn-outline text-emerald"
+                              title="Registrar o valor real deste mapeamento no mês"
+                              disabled={!mobileStats.applies || mapping.items.length === 0}
+                              onClick={openMappingPayment}
+                              style={{ fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                            >
+                              <Wallet size={13} />
+                              <span>Registrar real</span>
+                            </button>
                             <button
                               type="button"
                               className="btn btn-outline"
@@ -1792,10 +1850,11 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                         {/* Celular: linha 1 = emoji, título, palavras-chave e Detalhado/Resumo; linha 2 = Itens, Real e Previsto; menu de 3 pontos à direita e expandir no canto inferior direito */}
                         <div className="mapping-card-mobile-head">
                           <div className="mmh-row mmh-row-1">
+                            {mappingCheck}
                             <span className="mmh-emoji" onClick={() => handleOpenEditMapping(mapping)}>
                               {mapping.icon || '📋'}
                             </span>
-                            <h5 className="mmh-title">{mapping.name}</h5>
+                            <h5 className={`mmh-title ${mappingSettled ? 'line-through text-muted' : ''}`}>{mapping.name}</h5>
                             <button
                               type="button"
                               className="mmh-icon-btn text-cyan"
@@ -1849,6 +1908,17 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                               <>
                                 <div className="mmh-menu-backdrop" onClick={() => setMappingMenuId(null)} />
                                 <div className="mmh-menu-list" role="menu">
+                                  <button
+                                    type="button"
+                                    role="menuitem"
+                                    disabled={!mobileStats.applies || mapping.items.length === 0}
+                                    onClick={() => {
+                                      setMappingMenuId(null);
+                                      openMappingPayment();
+                                    }}
+                                  >
+                                    <Wallet size={14} /> Registrar real
+                                  </button>
                                   <button
                                     type="button"
                                     role="menuitem"
@@ -2098,36 +2168,13 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                 return (
                                   <tr
                                     key={item.id}
-                                    className={item.isFulfilled ? 'item-row-fulfilled' : ''}
                                   >
                                     <td>
                                       <div className="item-desc-cell" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                          <button
-                                          className={`item-check-circle ${
-                                            item.isFulfilled ? 'checked' : ''
-                                          }`}
-                                          title={
-                                            item.isFulfilled
-                                              ? 'Realizado no mês'
-                                              : 'Pendente de compra'
-                                          }
-                                          onClick={() =>
-                                            toggleItemFulfilled(
-                                              selectedNature.id,
-                                              mapping.id,
-                                              item.id
-                                            )
-                                          }
-                                        >
-                                          {item.isFulfilled ? '✓' : ''}
-                                        </button>
+                                          <span className="item-calc-dot" aria-hidden="true" />
                                         <span
-                                            className={
-                                              item.isFulfilled
-                                                ? 'line-through text-muted'
-                                                : 'font-semibold text-white'
-                                            }
+                                            className="font-semibold text-white"
                                           >
                                             {item.description}
                                           </span>
@@ -3083,6 +3130,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
       )}
       <ConfirmDialog {...confirmDialogProps} />
       <RealizationConfirmModal target={realization} onClose={() => setRealization(null)} />
+      <MappingPaymentModal target={mappingPayTarget} onClose={() => setMappingPayTarget(null)} />
     </div>
   );
 };

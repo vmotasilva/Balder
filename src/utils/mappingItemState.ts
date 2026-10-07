@@ -100,7 +100,8 @@ export interface MappingItemMonthSummary {
   base: number;        // previsto do mês
   paid: number;        // total pago no mês
   openBalance: number; // diferenças deixadas em aberto (SALDO_ABERTO)
-  pending: number;     // ainda a pagar no mês (datas não cobertas + saldos em aberto)
+  waived: number;      // previsto dispensado em pagamentos do mapeamento (não se mantém)
+  pending: number;    // ainda a pagar no mês (datas não cobertas + saldos em aberto)
   value: number;       // entra na projeção: pago + pendente (zero se pago por terceiros)
   isSettled: boolean;  // nada pendente no mês
 }
@@ -114,7 +115,7 @@ export function resolveMappingItemMonth(item: MappingItem, monthKey: string): Ma
   payments.forEach((p) => p.coveredDates.forEach((d) => coveredDates.set(d, p)));
 
   if (isExcludedState(state)) {
-    return { state, payments, coveredDates, base, paid: 0, openBalance: 0, pending: 0, value: 0, isSettled: true };
+    return { state, payments, coveredDates, base, paid: 0, openBalance: 0, waived: 0, pending: 0, value: 0, isSettled: true };
   }
 
   // Valor ainda agendado: as ocorrências (datas) do item que não foram cobertas por pagamento. Item com multiplicador
@@ -129,22 +130,24 @@ export function resolveMappingItemMonth(item: MappingItem, monthKey: string): Ma
     // Sem pagamentos registrados: "realizado" marca o mês inteiro como pago pelo valor previsto
     const paid = state.realized ? base : 0;
     const pending = state.realized ? 0 : hasSchedule ? round2(Math.min(base, scheduledTotal)) : base;
-    return { state, payments, coveredDates, base, paid, openBalance: 0, pending, value: round2(paid + pending), isSettled: pending === 0 };
+    return { state, payments, coveredDates, base, paid, openBalance: 0, waived: 0, pending, value: round2(paid + pending), isSettled: pending === 0 };
   }
 
   const paid = round2(payments.reduce((acc, p) => acc + p.amount, 0));
   const occurrenceValue = (item.quantity || 1) * itemUnitPrice(item, monthKey);
   // Partes de pagamentos do mapeamento (modo Resumo) abatem do previsto sem cobrir datas
   const mappingShares = payments.filter((p) => p.mappingPaymentId).reduce((acc, p) => acc + p.amount, 0);
+  // Previsto dispensado no pagamento do mapeamento ("o restante não se mantém"): sai do previsto, sem contar como pago
+  const mappingWaived = payments.filter((p) => p.mappingPaymentId).reduce((acc, p) => acc + (p.waived || 0), 0);
   const extras = carryExtras(item, monthKey);
   const totalCarry = [...extras.values()].reduce((acc, v) => acc + v, 0);
   // Redistribuído de uma data dispensada: o planejado cresce nas seguintes e cai na dispensada, fechando no mesmo total
   const coveredValue = [...coveredDates.keys()].reduce((acc, d) => acc + occurrenceValue + (extras.get(d) || 0), 0);
-  const pendingByBase = Math.max(0, base + totalCarry - coveredValue - mappingShares);
+  const pendingByBase = Math.max(0, base + totalCarry - coveredValue - mappingShares - mappingWaived);
   const pendingUncovered = state.realized
     ? 0
     : hasSchedule
-    ? Math.min(pendingByBase, Math.max(0, scheduledOpen(coveredDates) - mappingShares))
+    ? Math.min(pendingByBase, Math.max(0, scheduledOpen(coveredDates) - mappingShares - mappingWaived))
     : pendingByBase;
   const openBalance = payments
     .filter((p) => p.action === 'SALDO_ABERTO')
@@ -158,6 +161,7 @@ export function resolveMappingItemMonth(item: MappingItem, monthKey: string): Ma
     base,
     paid,
     openBalance: round2(openBalance),
+    waived: round2(mappingWaived),
     pending,
     value: round2(paid + pending),
     isSettled: pending <= 0.005,
@@ -299,6 +303,7 @@ export interface MappingMonthPayment {
   id: string;
   paidAt: string;
   amount: number;
+  waived: number; // previsto dispensado junto com este pagamento
 }
 
 export interface MappingMonthSummary {
@@ -319,13 +324,14 @@ export function resolveMappingMonth(mapping: MappingLike, monthKey: string): Map
   mapping.items.forEach((item) => {
     const s = resolveMappingItemMonth(item, monthKey);
     if (isExcludedState(s.state)) return;
-    planned += s.base;
+    planned += s.base - s.waived;
     paid += s.paid;
     pending += s.pending;
     s.payments.forEach((p) => {
       if (!p.mappingPaymentId) return;
-      const agg = byPayment.get(p.mappingPaymentId) || { id: p.mappingPaymentId, paidAt: p.paidAt, amount: 0 };
+      const agg = byPayment.get(p.mappingPaymentId) || { id: p.mappingPaymentId, paidAt: p.paidAt, amount: 0, waived: 0 };
       agg.amount = round2(agg.amount + p.amount);
+      agg.waived = round2(agg.waived + (p.waived || 0));
       byPayment.set(p.mappingPaymentId, agg);
     });
   });
@@ -340,27 +346,31 @@ export function resolveMappingMonth(mapping: MappingLike, monthKey: string): Map
 /**
  * Lança um pagamento no mapeamento. Devolve, por item, as alterações a gravar.
  * O valor é dividido na proporção do previsto de cada item no mês (o último fica com o arredondamento).
+ * `waive` é o restante do previsto que não se mantém: sai do previsto, dividido do mesmo jeito, sem contar como pago.
  */
 export function registerMappingPayment(
   mapping: MappingLike,
   monthKey: string,
-  input: { paidAt: string; amount: number }
+  input: { paidAt: string; amount: number; waive?: number }
 ): { itemId: string; patch: Partial<MappingItem> }[] {
   const amount = round2(input.amount);
   if (amount <= 0) return [];
+  const waive = round2(Math.max(0, input.waive || 0));
   const eligible = mapping.items
     .map((item) => ({ item, s: resolveMappingItemMonth(item, monthKey) }))
     .filter(({ s }) => !isExcludedState(s.state));
   if (eligible.length === 0) return [];
   const totalBase = eligible.reduce((acc, e) => acc + e.s.base, 0);
   const id = `mpay_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  const split = (total: number, s: { base: number }, i: number, remaining: number) =>
+    i === eligible.length - 1 ? remaining : round2(totalBase > 0 ? (total * s.base) / totalBase : total / eligible.length);
   let remaining = amount;
+  let remainingWaive = waive;
   return eligible.map(({ item, s }, i) => {
-    const share =
-      i === eligible.length - 1
-        ? remaining
-        : round2(totalBase > 0 ? (amount * s.base) / totalBase : amount / eligible.length);
+    const share = split(amount, s, i, remaining);
     remaining = round2(remaining - share);
+    const waivedShare = waive > 0 ? split(waive, s, i, remainingWaive) : 0;
+    remainingWaive = round2(remainingWaive - waivedShare);
     const payment: MappingItemPayment = {
       id: `${id}_${item.id}`,
       paidAt: input.paidAt,
@@ -368,10 +378,44 @@ export function registerMappingPayment(
       expectedAmount: share,
       coveredDates: [],
       mappingPaymentId: id,
+      ...(waivedShare > 0 ? { waived: waivedShare } : {}),
     };
     const existing = item.payments?.[monthKey] || [];
     return { itemId: item.id, patch: { payments: { ...(item.payments || {}), [monthKey]: [...existing, payment] } } };
   });
+}
+
+export interface MappingPeriodGap {
+  /** Previsto das compras do período (datas dos itens dentro dele), ainda não pago nem dispensado antes deste lançamento. */
+  expected: number;
+  /** Ocorrências previstas depois do período, no mesmo mês: onde o restante se encaixaria se for mantido. */
+  laterOccurrences: number;
+}
+
+/**
+ * Quanto do previsto do período de acompanhamento (semana, quinzena ou mês) ainda faltava antes de um lançamento.
+ * Sem compras previstas dentro do período, vale o que falta no mês inteiro.
+ */
+export function resolveMappingPeriodGap(
+  mapping: MappingLike,
+  monthKey: string,
+  range: { from: string; to: string }
+): MappingPeriodGap {
+  const month = resolveMappingMonth(mapping, monthKey);
+  let inPeriod = 0;
+  let later = 0;
+  mapping.items.forEach((item) => {
+    if (isExcludedState(resolveMappingItemState(item, monthKey))) return;
+    getItemOccurrences(item, monthKey).forEach((o) => {
+      if (o.date >= range.from && o.date <= range.to) inPeriod += o.value;
+      else if (o.date > range.to) later += 1;
+    });
+  });
+  const settledInPeriod = month.payments
+    .filter((p) => p.paidAt >= range.from && p.paidAt <= range.to)
+    .reduce((acc, p) => acc + p.amount + p.waived, 0);
+  const expected = inPeriod > 0.005 ? Math.max(0, inPeriod - settledInPeriod) : month.pending;
+  return { expected: round2(Math.min(expected, month.pending)), laterOccurrences: later };
 }
 
 /** Desfaz um pagamento lançado no mapeamento (remove a parte de cada item). */

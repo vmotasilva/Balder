@@ -1,10 +1,16 @@
 import React, { useMemo, useState } from 'react';
-import { CheckCircle2, Trash2, Wallet } from 'lucide-react';
+import { CheckCircle2, CircleHelp, Trash2, Wallet } from 'lucide-react';
 import { Modal } from './Modal';
 import { DecimalInput } from './DecimalInput';
 import { ConfirmDialog, useConfirmDialog } from './ConfirmDialog';
 import { useFinancial } from '../context/FinancialContext';
-import { registerMappingPayment, removeMappingPayment, resolveMappingMonth } from '../utils/mappingItemState';
+import {
+  registerMappingPayment,
+  removeMappingPayment,
+  resolveMappingMonth,
+  resolveMappingPeriodGap,
+} from '../utils/mappingItemState';
+import { periodRangeLabel, trackingPeriodRange, TRACKING_PERIOD_LABELS, type TrackingPeriod } from '../utils/periodSpending';
 import { DateInput } from './DateInput';
 
 /** Mapeamento em modo Resumo na competência (a linha de cobrança da natureza). */
@@ -28,6 +34,10 @@ const monthLabel = (monthKey: string) => {
   const [y, m] = monthKey.split('-').map(Number);
   return new Date(y, (m || 1) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 };
+const dateOf = (iso: string) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+};
 const defaultPaidAt = (monthKey: string) => {
   const n = new Date();
   const today = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
@@ -44,7 +54,7 @@ export const MappingPaymentModal: React.FC<MappingPaymentModalProps> = ({ target
 };
 
 const MappingPaymentForm: React.FC<{ target: MappingPaymentTarget; onClose: () => void }> = ({ target, onClose }) => {
-  const { natures, updateMappingItemState } = useFinancial();
+  const { natures, updateMappingItemState, viewPreferences } = useFinancial();
   const { confirm, dialogProps } = useConfirmDialog();
   const { monthKey } = target;
 
@@ -58,20 +68,44 @@ const MappingPaymentForm: React.FC<{ target: MappingPaymentTarget; onClose: () =
   const paidAmount = amount ?? month.pending;
   const [paidAt, setPaidAt] = useState(() => defaultPaidAt(monthKey));
   const [feedback, setFeedback] = useState<string | null>(null);
+  // Pagou menos que o previsto do período de acompanhamento: pergunta se o restante se mantém
+  const [askRest, setAskRest] = useState<{ rest: number; later: number } | null>(null);
+
+  const period: TrackingPeriod = viewPreferences.trackingPeriod || 'MES';
+  // O período que contém a data do pagamento, limitado à competência (o previsto é calculado mês a mês)
+  const range = useMemo(() => {
+    if (!paidAt.startsWith(monthKey)) return trackingPeriodRange('MES', dateOf(`${monthKey}-01`));
+    return trackingPeriodRange(period, dateOf(paidAt));
+  }, [paidAt, monthKey, period]);
+  const clippedRange = useMemo(() => {
+    const first = `${monthKey}-01`;
+    const last = trackingPeriodRange('MES', dateOf(first)).to;
+    return { from: range.from < first ? first : range.from, to: range.to > last ? last : range.to };
+  }, [range, monthKey]);
 
   const apply = (changes: { itemId: string; patch: Parameters<typeof updateMappingItemState>[3] }[]) =>
     changes.forEach((c) => updateMappingItemState(target.natureId, target.mappingId, c.itemId, c.patch));
 
-  const register = () => {
-    if (paidAmount <= 0) return;
-    apply(registerMappingPayment(scope, monthKey, { paidAt, amount: paidAmount }));
-    const left = Math.max(0, Math.round((month.pending - paidAmount) * 100) / 100);
+  const commit = (waive: number) => {
+    apply(registerMappingPayment(scope, monthKey, { paidAt, amount: paidAmount, waive }));
+    const left = Math.max(0, Math.round((month.pending - paidAmount - waive) * 100) / 100);
     setFeedback(
       left > 0.005
         ? `${formatBRL(paidAmount)} lançado em ${formatDate(paidAt)}. Ainda faltam ${formatBRL(left)} no mês.`
+        : waive > 0.005
+        ? `${formatBRL(paidAmount)} lançado em ${formatDate(paidAt)}. ${formatBRL(waive)} saiu do previsto; ${target.title} está quitado no mês.`
         : `${formatBRL(paidAmount)} lançado em ${formatDate(paidAt)}. ${target.title} está quitado no mês.`
     );
+    setAskRest(null);
     setAmount(null);
+  };
+
+  const register = () => {
+    if (paidAmount <= 0) return;
+    const gap = resolveMappingPeriodGap(scope, monthKey, clippedRange);
+    const rest = Math.round((gap.expected - paidAmount) * 100) / 100;
+    if (rest > 0.005) setAskRest({ rest, later: gap.laterOccurrences });
+    else commit(0);
   };
 
   return (
@@ -114,6 +148,7 @@ const MappingPaymentForm: React.FC<{ target: MappingPaymentTarget; onClose: () =
                 <li key={p.id}>
                   <span>{formatDate(p.paidAt)}</span>
                   <strong>{formatBRL(p.amount)}</strong>
+                  {p.waived > 0.005 && <small title="Parte do previsto descartada neste lançamento"> −{formatBRL(p.waived)} previsto</small>}
                   <button
                     type="button"
                     className="mapping-pay-undo"
@@ -139,15 +174,45 @@ const MappingPaymentForm: React.FC<{ target: MappingPaymentTarget; onClose: () =
           </div>
         )}
 
-        <div className="mapping-pay-actions">
-          <button type="button" className="btn btn-secondary" onClick={onClose}>
-            {feedback ? 'Fechar' : 'Cancelar'}
-          </button>
-          <button type="button" className="btn btn-primary" onClick={register} disabled={paidAmount <= 0}>
-            <Wallet size={16} />
-            <span>Registrar {paidAmount > 0 ? formatBRL(paidAmount) : ''}</span>
-          </button>
-        </div>
+        {askRest ? (
+          <div className="mapping-pay-rest" role="group" aria-label="O restante do previsto se mantém?">
+            <p className="mapping-pay-rest-question">
+              <CircleHelp size={16} className="text-amber" />
+              <span>
+                Faltaram <strong>{formatBRL(askRest.rest)}</strong> do previsto {period === 'MES' || !paidAt.startsWith(monthKey) ? 'deste mês' : `${TRACKING_PERIOD_LABELS[period].this} (${periodRangeLabel(period, range)})`}. O restante se mantém?
+              </span>
+            </p>
+            <button type="button" className="btn btn-primary" onClick={() => commit(0)}>
+              <span>
+                Sim, manter {formatBRL(askRest.rest)} no previsto
+                <small>
+                  {askRest.later > 0
+                    ? ` · fica para as próximas compras do mês (${askRest.later} ${askRest.later === 1 ? 'prevista' : 'previstas'})`
+                    : ' · não há mais compras previstas no mês: continua em aberto'}
+                </small>
+              </span>
+            </button>
+            <button type="button" className="btn btn-outline" onClick={() => commit(askRest.rest)}>
+              <span>
+                Não, descartar {formatBRL(askRest.rest)}
+                <small> · sai do previsto; o mês fecha com o que foi pago</small>
+              </span>
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={() => setAskRest(null)}>
+              Voltar
+            </button>
+          </div>
+        ) : (
+          <div className="mapping-pay-actions">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>
+              {feedback ? 'Fechar' : 'Cancelar'}
+            </button>
+            <button type="button" className="btn btn-primary" onClick={register} disabled={paidAmount <= 0}>
+              <Wallet size={16} />
+              <span>Registrar {paidAmount > 0 ? formatBRL(paidAmount) : ''}</span>
+            </button>
+          </div>
+        )}
       </div>
       <ConfirmDialog {...dialogProps} />
     </Modal>

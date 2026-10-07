@@ -474,6 +474,8 @@ export interface MappingItemPayment {
    * na proporção do previsto dele no mês. Todas as partes do mesmo pagamento têm o mesmo id.
    */
   mappingPaymentId?: string;
+  /** Parte do previsto que o pagamento do mapeamento dispensou ("o restante não se mantém"): sai do previsto sem contar como pago. */
+  waived?: number;
   /** Valor não pago que foi redistribuído para ocorrências seguintes da competência (data -> acréscimo). */
   carryTo?: Record<string, number>;
   /** Movimentação que originou o pagamento (evita contar duas vezes ao reconfirmar). */
