@@ -22671,14 +22671,6 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   flex-shrink: 0;
 }
 
-.item-calc-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--text-muted);
-  opacity: 0.6;
-  flex-shrink: 0;
-}
 
 @media (max-width: 768px) {
   .mapping-pay-fields {

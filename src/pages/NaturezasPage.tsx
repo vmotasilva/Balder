@@ -2172,7 +2172,6 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                     <td>
                                       <div className="item-desc-cell" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                          <span className="item-calc-dot" aria-hidden="true" />
                                         <span
                                             className="font-semibold text-white"
                                           >
