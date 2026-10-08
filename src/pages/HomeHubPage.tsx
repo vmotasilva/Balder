@@ -22,13 +22,12 @@ import { BalanceBreakdownModal } from '../components/BalanceBreakdownModal';
 import { ForecastBreakdownModal } from '../components/ForecastBreakdownModal';
 import { Modal } from '../components/Modal';
 import { SalaryOverview } from '../components/SalaryOverview';
-import { MovementDetailModal } from '../components/MovementDetailModal';
 import { ForsetiActivityModal } from '../components/ForsetiActivityModal';
 import { activityCutoffIso } from '../services/forsetiActivityService';
 import { PlanningSwitcher } from '../components/PlanningSwitcher';
 import type { TabId } from '../components/Sidebar';
-import { buildPeriodItems, periodRangeLabel, shiftPeriodDate, trackingPeriodRange, TRACKING_PERIOD_LABELS } from '../utils/periodSpending';
-import type { PeriodItem, PeriodPurchase, TrackingPeriod } from '../utils/periodSpending';
+import { periodRangeLabel, trackingPeriodRange, TRACKING_PERIOD_LABELS } from '../utils/periodSpending';
+import type { TrackingPeriod } from '../utils/periodSpending';
 import { getItemOccurrences } from '../utils/mappingItemState';
 import { MappingItemStateModal, type MappingItemStateTarget } from '../components/MappingItemStateModal';
 import { MappingPaymentModal, type MappingPaymentTarget } from '../components/MappingPaymentModal';
@@ -87,41 +86,9 @@ const groupEntries = (entries: ForecastEntry[], keyOf: (e: ForecastEntry) => str
   return groups;
 };
 
-/** Totais de um conjunto de itens do período (uma natureza, um item ou o período todo). */
-const sumItems = (list: PeriodItem[]) => ({
-  planned: list.reduce((acc, i) => acc + i.planned, 0),
-  spent: list.reduce((acc, i) => acc + i.spent, 0),
-  done: list.reduce((acc, i) => acc + i.done, 0),
-  total: list.reduce((acc, i) => acc + i.total, 0),
-  overdue: list.filter((i) => i.overdue).length,
-  nextDate: list
-    .map((i) => i.nextDate)
-    .filter((d): d is string => !!d)
-    .sort()[0],
-});
-type SpendingTotals = ReturnType<typeof sumItems>;
-
-/** Linha do card de gastos: um item (com suas compras) ou uma natureza que abre os itens dela. */
-type SpendingRow = { overdue: boolean; nextDate?: string } & (
-  | { type: 'ITEM'; item: PeriodItem }
-  | { type: 'NATURE'; id: string; title: string; items: PeriodItem[] }
-);
-
-// Atrasados primeiro, depois pela próxima compra em aberto; o que já foi todo feito vai para o fim
-const byOpenDate = (a: { overdue: boolean; nextDate?: string }, b: { overdue: boolean; nextDate?: string }) =>
-  Number(b.overdue) - Number(a.overdue) || (a.nextDate || '9999').localeCompare(b.nextDate || '9999');
-
-const PURCHASE_PILL: Record<PeriodPurchase['status'], string> = {
-  FEITA: 'Feita',
-  PREVISTA: 'Prevista',
-  ATRASADA: 'Atrasada',
-  NAO_VAI: 'Não vai',
-  TERCEIROS: 'Terceiros',
-};
-
 /**
  * Início: o hub do Balder. Responde "o que aconteceu?" (Forseti), "como estou?" (3 números),
- * "o que faço agora?" (tarefas do período), "como vão os gastos?" (resumo do período preferido)
+ * "o que faço agora?" (tarefas do período), "como vão os gastos?" (Naturezas)
  * e "para onde vou?" (módulos com status). Para quem ainda não configurou, mostra a conversa guiada.
  */
 export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenForseti, onPlanWithOthers }) => {
@@ -143,7 +110,6 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     sendMessageToCopilot,
     forsetiActivity,
     sharedScenario,
-    natureDetailModes,
   } = useFinancial();
   const { viewing } = useAccountScope();
 
@@ -154,21 +120,12 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   const [mappingPayment, setMappingPayment] = useState<MappingPaymentTarget | null>(null);
   const [realization, setRealization] = useState<RealizationTarget | null>(null);
   const [finishedSetup, setFinishedSetup] = useState(false);
-  // Quantos períodos para trás o card de gastos está mostrando (0 = período atual)
-  const [spendingOffset, setSpendingOffset] = useState(0);
-  const [spendingNatureId, setSpendingNatureId] = useState<string | null>(null);
-  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
-  const [showAllSpending, setShowAllSpending] = useState(false);
-  // No celular, "Em aberto" e "Gastos no período" dividem o mesmo espaço, em abas
-  const [homePane, setHomePane] = useState<'FAZER' | 'GASTOS' | 'NATUREZAS'>('FAZER');
+  // No celular, "Em aberto" e "Naturezas" dividem o mesmo espaço, em abas
+  const [homePane, setHomePane] = useState<'FAZER' | 'NATUREZAS'>('FAZER');
   // Metas e Salário abrem em pop-up, pelos ícones ao lado do período
   const [showGoals, setShowGoals] = useState(false);
   const [itemState, setItemState] = useState<MappingItemStateTarget | null>(null);
   const [showSalary, setShowSalary] = useState(false);
-  // Período corrente (semana, quinzena ou mês) só do início até hoje: o que já aconteceu na competência
-  const [monthToDate, setMonthToDate] = useState(false);
-  // Conta avulsa aberta para revisar natureza, mapeamento e item
-  const [reviewMovementId, setReviewMovementId] = useState<string | null>(null);
 
   const period: TrackingPeriod = viewPreferences.trackingPeriod || 'MES';
   const labels = TRACKING_PERIOD_LABELS[period];
@@ -260,39 +217,6 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     }
     return null;
   };
-
-  // Mapeamento em modo Resumo: a linha é o próprio mapeamento (o id do item é o do mapeamento)
-  const summaryMappingOf = (item: PeriodItem) => {
-    if (item.movementId || !item.natureId) return null;
-    const nat = natures.find((n) => n.id === item.natureId);
-    const mapping = nat?.mappings.find((m) => m.id === item.id);
-    return nat && mapping ? { nat, mapping } : null;
-  };
-
-  // Compra de item de natureza: abre o pop-up do item (pagamentos feitos, com desfazer; e a situação).
-  // Em modo Resumo abre o pagamento do mapeamento, o mesmo do "Lançar" da lista "Em aberto".
-  const openPurchase = (item: PeriodItem, purchase: PeriodPurchase) => {
-    if (item.movementId || !item.natureId) return;
-    const summary = summaryMappingOf(item);
-    if (summary) {
-      setMappingPayment({
-        natureId: summary.nat.id,
-        mappingId: summary.mapping.id,
-        itemIds: summary.mapping.items.filter((it) => it.paymentMethod !== 'CARTAO').map((it) => it.id),
-        monthKey: purchase.date.slice(0, 7),
-        title: summary.mapping.name,
-      });
-      return;
-    }
-    const nat = natures.find((n) => n.id === item.natureId);
-    const mapping = nat?.mappings.find((m) => m.items.some((it) => it.id === item.id));
-    if (!nat || !mapping) return;
-    setItemState({ natureId: nat.id, mappingId: mapping.id, itemId: item.id, monthKey: purchase.date.slice(0, 7), occurrenceDate: purchase.date });
-  };
-  const canOpenPurchase = (item: PeriodItem) =>
-    !item.movementId &&
-    !!item.natureId &&
-    (!!summaryMappingOf(item) || !!natures.find((n) => n.id === item.natureId)?.mappings.some((m) => m.items.some((it) => it.id === item.id)));
 
   const renderTaskAction = (entry: ForecastEntry) => {
     // Fatura: confirma o pagamento aqui mesmo (valor e data conferidos no pop-up), sem sair da Home
@@ -433,105 +357,6 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     if (entry.date === isoOf(tomorrow)) return 'amanhã';
     return shortDate(entry.date);
   };
-
-  // ── Compras do período, item a item (o atual, um anterior ou a previsão de um futuro, escolhido nas setas) ──
-  const toDateView = monthToDate && spendingOffset === 0;
-  // Último dia do período: o prazo das compras previstas (mesmo no modo "até hoje")
-  const spendingDeadline = trackingPeriodRange(period, shiftPeriodDate(period, new Date(), spendingOffset)).to;
-  const spendingRange = useMemo(() => {
-    const range = trackingPeriodRange(period, shiftPeriodDate(period, new Date(), spendingOffset));
-    return toDateView ? { ...range, to: todayIso } : range;
-  }, [period, spendingOffset, toDateView, todayIso]);
-  const { tense: spendingTense, items: periodItems } = useMemo(
-    () =>
-      buildPeriodItems({ natures, movements, range: spendingRange, startDate: activeCheckpoint?.startDate, natureDetailModes, deadline: spendingDeadline }),
-    [natures, movements, spendingRange, activeCheckpoint?.startDate, natureDetailModes, spendingDeadline]
-  );
-  // Antes do marco não há o que mostrar: a seta para trás para no período em que o marco começa
-  const atSpendingStart = !!activeCheckpoint?.startDate && spendingRange.from <= activeCheckpoint.startDate;
-  const isCurrentSpending = spendingOffset === 0;
-  const isFutureSpending = spendingTense === 'FUTURO';
-  const spendingWhen = isCurrentSpending ? labels.this : labels.that;
-  const nextPeriodLabel = period === 'MES' ? 'Próximo mês' : `Próxima ${labels.name.toLowerCase()}`;
-
-  // "Gastos essa semana", "Gastos essa quinzena", "Gastos no mês"; fora do período atual, "na semana"…
-  const CURRENT_SPENDING: Record<TrackingPeriod, string> = { SEMANA: 'essa semana', QUINZENA: 'essa quinzena', MES: 'no mês' };
-  const spendingTitle = isFutureSpending
-    ? `Gastos previstos ${labels.that}`
-    : `Gastos ${isCurrentSpending ? CURRENT_SPENDING[period] : labels.that}`;
-
-  const goToSpending = (offset: number) => {
-    setSpendingOffset(offset);
-    setExpandedItemId(null);
-  };
-
-  const spendingTotals = sumItems(periodItems);
-
-  // Nível aberto: os itens de uma natureza (volta sozinho quando a natureza não tem compras no período)
-  const spendingNature = spendingNatureId ? natures.find((n) => n.id === spendingNatureId) : undefined;
-  const openSpendingNature = spendingNature && periodItems.some((i) => i.natureId === spendingNature.id) ? spendingNature : undefined;
-
-  const spendingRows = useMemo<SpendingRow[]>(() => {
-    if (openSpendingNature) {
-      return periodItems
-        .filter((i) => i.natureId === openSpendingNature.id)
-        .sort(byOpenDate)
-        .map((item) => ({ type: 'ITEM' as const, item, overdue: item.overdue, nextDate: item.nextDate }));
-    }
-    const groups = new Map<string, PeriodItem[]>();
-    periodItems.forEach((i) => {
-      if (i.natureId) groups.set(i.natureId, [...(groups.get(i.natureId) || []), i]);
-    });
-    return [
-      ...periodItems.filter((i) => !i.natureId).map((item) => ({ type: 'ITEM' as const, item, overdue: item.overdue, nextDate: item.nextDate })),
-      ...[...groups].map(([natureId, items]) => {
-        const nat = natures.find((n) => n.id === natureId);
-        const totals = sumItems(items);
-        return {
-          type: 'NATURE' as const,
-          id: natureId,
-          title: nat ? `${nat.icon ? `${nat.icon} ` : ''}${nat.name}` : 'Natureza',
-          items,
-          overdue: totals.overdue > 0,
-          nextDate: totals.nextDate,
-        };
-      }),
-    ].sort(byOpenDate);
-  }, [periodItems, natures, openSpendingNature]);
-  const visibleSpendingRows = !openSpendingNature && !showAllSpending ? spendingRows.slice(0, 5) : spendingRows;
-
-  const describePurchase = (p: PeriodPurchase) => {
-    if (p.status === 'FEITA') {
-      const diff = (p.paidAmount || 0) - p.plannedAmount;
-      return (
-        <>
-          {p.paidAt ? `Paga em ${shortDate(p.paidAt)}` : 'Paga'} · {formatBRL(p.paidAmount || 0)}
-          {p.plannedAmount > 0 && Math.abs(diff) >= 0.01 && (
-            <span className={diff > 0 ? 'text-rose' : 'text-emerald'}> (previsto {formatBRL(p.plannedAmount)})</span>
-          )}
-        </>
-      );
-    }
-    // Mapeamento em Resumo pago em parte
-    const partial = p.paidAmount ? ` · ${formatBRL(p.paidAmount)} já pagos` : '';
-    if (p.status === 'ATRASADA') {
-      return (
-        <span className="text-rose">
-          {p.deadline ? `Prazo venceu ${shortDate(p.deadline)}` : `Venceu ${shortDate(p.date)}`} {p.paidAmount ? 'sem quitar' : 'sem registro'} · {formatBRL(p.plannedAmount)}
-          {partial}
-        </span>
-      );
-    }
-    if (p.status === 'NAO_VAI') return `Não vai acontecer${p.note ? `: ${p.note}` : ''}`;
-    if (p.status === 'TERCEIROS') return `Paga por ${p.note || 'outra pessoa'}`;
-    if (p.deadline) return `Prazo até ${whenLabel({ date: p.deadline, overdue: false })} · ${formatBRL(p.plannedAmount)}${partial}`;
-    return `Prevista para ${whenLabel({ date: p.date, overdue: false })} · ${formatBRL(p.plannedAmount)}${partial}`;
-  };
-
-  const groupSummary = (t: SpendingTotals) =>
-    isFutureSpending
-      ? `${t.total} ${t.total === 1 ? 'compra prevista' : 'compras previstas'} · ${formatBRL(t.planned)}`
-      : `${t.done} de ${t.total} ${t.total === 1 ? 'feita' : 'feitas'} · ${formatBRL(t.spent)} de ${formatBRL(t.planned)}`;
 
   // ── Próximo recebimento ──
   const nextIncome = useMemo(
@@ -773,10 +598,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
               key={p}
               type="button"
               className={p === period ? 'is-active' : ''}
-              onClick={() => {
-                setViewPreferences({ trackingPeriod: p });
-                goToSpending(0);
-              }}
+              onClick={() => setViewPreferences({ trackingPeriod: p })}
             >
               {TRACKING_PERIOD_LABELS[p].name}
             </button>
@@ -806,7 +628,6 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
       <div className="home-tabs home-tabs-mobile" role="tablist" aria-label="Seções do Início">
         {([
           ['FAZER', `Em aberto${tasks.length > 0 ? ` · ${tasks.length}` : ''}`],
-          ['GASTOS', 'Previstos'],
           ['NATUREZAS', 'Naturezas'],
         ] as const).map(([id, label]) => (
           <button key={id} type="button" role="tab" aria-selected={homePane === id} className={homePane === id ? 'is-active' : ''} onClick={() => setHomePane(id)}>
@@ -895,229 +716,12 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
       </section>
 
       <div className="home-right">
-      {/* Como vão os gastos no período? */}
-      <section className="home-card home-pane-gastos">
-        <div className="home-card-frozen">
-        <div className="home-card-head">
-          <h2>{spendingTitle}</h2>
-        </div>
-        <div className="home-period-nav">
-          <button
-            type="button"
-            onClick={() => goToSpending(spendingOffset - 1)}
-            disabled={atSpendingStart}
-            aria-label={`${labels.name} anterior`}
-            title={atSpendingStart ? 'Início do marco: não há lançamentos antes dele' : `${labels.name} anterior`}
-          >
-            <ChevronLeft size={16} />
-          </button>
-          <span className="home-period-label">
-            {periodRangeLabel(period, spendingRange)}
-            {toDateView && period === 'MES' && ` · 1 a ${Number(todayIso.slice(8, 10))}`}
-            {isCurrentSpending ? (
-              <small>atual</small>
-            ) : (
-              <button type="button" className="link-button" onClick={() => goToSpending(0)}>
-                Voltar para a atual
-              </button>
-            )}
-          </span>
-          {isCurrentSpending && (
-            <button
-              type="button"
-              className={`link-button ${toDateView ? 'is-active' : ''}`}
-              aria-pressed={toDateView}
-              title="Ver só do início do período até hoje"
-              onClick={() => {
-                setMonthToDate((v) => !v);
-                setExpandedItemId(null);
-              }}
-            >
-              {toDateView ? (period === 'MES' ? 'Mês todo' : `${labels.name} toda`) : 'Até hoje'}
-            </button>
-          )}
-          <button type="button" onClick={() => goToSpending(spendingOffset + 1)} aria-label={nextPeriodLabel} title={nextPeriodLabel}>
-            <ChevronRight size={16} />
-          </button>
-        </div>
-        </div>
-        <div className="home-card-scroll">
-        {periodItems.length === 0 ? (
-          <p className="home-empty">
-            {isFutureSpending ? `Nenhuma compra prevista ${labels.that}.` : `Nenhuma compra prevista ou registrada ${spendingWhen}.`}
-          </p>
-        ) : (
-          <>
-            <p className="home-spending-summary">
-              {isFutureSpending ? (
-                <>
-                  <strong>{formatBRL(spendingTotals.planned)}</strong> previstos em {spendingTotals.total}{' '}
-                  {spendingTotals.total === 1 ? 'compra' : 'compras'}
-                </>
-              ) : (
-                <>
-                  <strong>{formatBRL(spendingTotals.spent)}</strong> gastos de {formatBRL(spendingTotals.planned)} previstos ·{' '}
-                  {spendingTotals.done} de {spendingTotals.total} compras feitas
-                  {spendingTotals.overdue > 0 && (
-                    <span className="text-rose">
-                      {' '}
-                      · {spendingTotals.overdue} {spendingTotals.overdue === 1 ? 'item atrasado' : 'itens atrasados'}
-                    </span>
-                  )}
-                </>
-              )}
-            </p>
-            {openSpendingNature && (
-              <nav className="home-task-trail" aria-label="Nível da lista de gastos">
-                <button type="button" onClick={() => setSpendingNatureId(null)} aria-label="Voltar para as naturezas">
-                  <ChevronLeft size={15} />
-                </button>
-                <button type="button" onClick={() => setSpendingNatureId(null)}>
-                  Naturezas
-                </button>
-                <ChevronRight size={12} aria-hidden="true" />
-                <strong>
-                  {openSpendingNature.icon} {openSpendingNature.name}
-                </strong>
-              </nav>
-            )}
-            <ul className="home-task-list">
-              {visibleSpendingRows.map((row) => {
-                if (row.type === 'NATURE') {
-                  const t = sumItems(row.items);
-                  return (
-                    <li key={`n_${row.id}`} className={`home-task-group ${row.overdue ? 'is-overdue' : ''}`}>
-                      <button
-                        type="button"
-                        className="home-task-drill"
-                        onClick={() => {
-                          setSpendingNatureId(row.id);
-                          setExpandedItemId(null);
-                        }}
-                      >
-                        <div className="home-task-main">
-                          <span className="home-task-title">{row.title}</span>
-                          <span className="home-task-meta">
-                            {groupSummary(t)}
-                            {t.nextDate && ` · até ${whenLabel({ date: t.nextDate, overdue: false })}`}
-                          </span>
-                        </div>
-                        <ChevronRight size={16} aria-hidden="true" />
-                      </button>
-                    </li>
-                  );
-                }
-                const { item } = row;
-                if (item.purchases.length === 1) {
-                  const only = item.purchases[0];
-                  return (
-                    <li key={`i_${item.id}`} className={item.overdue ? 'is-overdue' : ''}>
-                      {item.movementId ? (
-                        <button
-                          type="button"
-                          className="home-task-drill"
-                          onClick={() => setReviewMovementId(item.movementId!)}
-                          title="Revisar natureza, mapeamento e item"
-                        >
-                          <div className="home-task-main">
-                            <span className="home-task-title">{item.title}</span>
-                            <span className="home-task-meta">{describePurchase(only)}</span>
-                          </div>
-                          <span className={`home-purchase-pill is-${only.status.toLowerCase()}`}>{PURCHASE_PILL[only.status]}</span>
-                          <ChevronRight size={16} aria-hidden="true" />
-                        </button>
-                      ) : canOpenPurchase(item) ? (
-                        <button
-                          type="button"
-                          className="home-task-drill"
-                          onClick={() => openPurchase(item, only)}
-                          title="Ver o lançamento e desfazer, se precisar"
-                        >
-                          <div className="home-task-main">
-                            <span className="home-task-title">{item.title}</span>
-                            <span className="home-task-meta">{describePurchase(only)}</span>
-                          </div>
-                          <span className={`home-purchase-pill is-${only.status.toLowerCase()}`}>{PURCHASE_PILL[only.status]}</span>
-                          <ChevronRight size={16} aria-hidden="true" />
-                        </button>
-                      ) : (
-                        <>
-                          <div className="home-task-main">
-                            <span className="home-task-title">{item.title}</span>
-                            <span className="home-task-meta">{describePurchase(only)}</span>
-                          </div>
-                          <span className={`home-purchase-pill is-${only.status.toLowerCase()}`}>{PURCHASE_PILL[only.status]}</span>
-                        </>
-                      )}
-                    </li>
-                  );
-                }
-                // Item com várias compras no período: resumo que abre a lista de datas
-                const expanded = expandedItemId === item.id;
-                const itemPill = item.total > 0 && item.done === item.total ? 'is-feita' : item.overdue ? 'is-atrasada' : 'is-prevista';
-                return (
-                  <li key={`i_${item.id}`} className={`home-purchase-item ${item.overdue ? 'is-overdue' : ''}`}>
-                    <button
-                      type="button"
-                      className="home-task-drill"
-                      onClick={() => setExpandedItemId(expanded ? null : item.id)}
-                      aria-expanded={expanded}
-                    >
-                      <div className="home-task-main">
-                        <span className="home-task-title">{item.title}</span>
-                        <span className="home-task-meta">
-                          {groupSummary(sumItems([item]))}
-                          {item.nextDate && ` · até ${whenLabel({ date: item.nextDate, overdue: false })}`}
-                        </span>
-                      </div>
-                      <span className={`home-purchase-pill ${itemPill}`}>
-                        {item.done}/{item.total}
-                      </span>
-                      <ChevronRight size={16} aria-hidden="true" className={`home-purchase-chevron ${expanded ? 'is-open' : ''}`} />
-                    </button>
-                    {expanded && (
-                      <ul className="home-purchase-list">
-                        {item.purchases.map((p) => (
-                          <li
-                            key={p.key}
-                            className={canOpenPurchase(item) ? 'is-clickable' : undefined}
-                            onClick={canOpenPurchase(item) ? () => openPurchase(item, p) : undefined}
-                            title={canOpenPurchase(item) ? 'Ver o lançamento e desfazer, se precisar' : undefined}
-                          >
-                            <span className="home-purchase-date">{shortDate(p.date)}</span>
-                            <span className="home-task-meta">{describePurchase(p)}</span>
-                            <span className={`home-purchase-pill is-${p.status.toLowerCase()}`}>{PURCHASE_PILL[p.status]}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-            {!openSpendingNature && spendingRows.length > 5 && (
-              <button type="button" className="link-button" onClick={() => setShowAllSpending((v) => !v)}>
-                {showAllSpending ? 'Mostrar menos' : `Ver todas (${spendingRows.length})`}
-              </button>
-            )}
-          </>
-        )}
-        </div>
-      </section>
-
       <section className="home-card home-pane-naturezas">
         <NatureBudgetGrid onNavigateToNatures={() => onNavigate('NATUREZAS')} />
       </section>
       </div>
       </div>
 
-      {reviewMovementId && (
-        <MovementDetailModal
-          isOpen
-          movement={movements.find((m) => m.id === reviewMovementId) || null}
-          onClose={() => setReviewMovementId(null)}
-        />
-      )}
       <MappingItemStateModal target={itemState} onClose={() => setItemState(null)} />
       <MappingPaymentModal target={mappingPayment} onClose={() => setMappingPayment(null)} />
       <RealizationConfirmModal target={realization} onClose={() => setRealization(null)} />
