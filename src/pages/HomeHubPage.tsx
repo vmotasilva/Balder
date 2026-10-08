@@ -598,10 +598,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
               key={p}
               type="button"
               className={p === period ? 'is-active' : ''}
-              onClick={() => {
-                setViewPreferences({ trackingPeriod: p });
-                goToSpending(0);
-              }}
+              onClick={() => setViewPreferences({ trackingPeriod: p })}
             >
               {TRACKING_PERIOD_LABELS[p].name}
             </button>
