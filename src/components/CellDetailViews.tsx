@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { ChevronLeft, Layers, CalendarDays, CalendarRange, List, ChevronRight, Search } from 'lucide-react';
 import type { CellBreakdownSubItem } from './GridCellDetailModal';
+import type { MappingPaidEntry } from '../utils/mappingPaidEntries';
 
 /** Estilos de visualização do detalhamento da grade. */
 export type DetailViewStyle = 'NATUREZAS' | 'CALENDARIO' | 'SEMANA' | 'DATA';
@@ -149,6 +150,30 @@ const DrillRow: React.FC<{ symbol?: string; title: string; count: number; items:
   );
 };
 
+/** Lançamentos já pagos de um mapeamento em modo Resumo, na ordem em que aconteceram. */
+const PaidEntriesList: React.FC<{ entries: MappingPaidEntry[]; formatBRL: FormatBRL }> = ({ entries, formatBRL }) => (
+  <div className="paid-entries">
+    <div className="paid-entries-title">Lançamentos pagos</div>
+    {entries.length === 0 ? (
+      <p className="text-[11px] text-muted">Nenhum pagamento lançado neste mês.</p>
+    ) : (
+      entries.map((e) => (
+        <div key={e.id} className="paid-entry">
+          <div className="min-w-0 flex-1">
+            <div className="paid-entry-text">{e.text}</div>
+            <div className="paid-entry-meta">
+              {e.date ? ddmm(e.date) : 'Sem data'}
+              {e.viaForseti ? ' · via Forseti' : ''}
+              {e.detail ? ` · ${e.detail}` : ''}
+            </div>
+          </div>
+          <span className="font-mono paid-entry-amount">{formatBRL(e.amount)}</span>
+        </div>
+      ))
+    )}
+  </div>
+);
+
 // ─── Naturezas → Mapeamentos → Itens (padrão) ────────────────────────────────
 
 const mappingKeyOf = (s: CellBreakdownSubItem) => s.natureItemRef?.mappingId || s.mappingName || '—';
@@ -161,7 +186,9 @@ export const NatureDrillView: React.FC<{
   onOpenMapping: (key: string | null) => void;
   renderItem: RenderItem;
   formatBRL: FormatBRL;
-}> = ({ groups, activeGroupId, onOpenGroup, mappingKey, onOpenMapping, renderItem, formatBRL }) => {
+  /** Lançamentos já pagos de uma linha-resumo (texto usado no registro, data e valor). */
+  paidEntriesOf?: (summary: CellBreakdownSubItem) => MappingPaidEntry[];
+}> = ({ groups, activeGroupId, onOpenGroup, mappingKey, onOpenMapping, renderItem, formatBRL, paidEntriesOf }) => {
   const group = activeGroupId ? groups.find((g) => g.id === activeGroupId) : undefined;
 
   const mappings = useMemo(() => {
@@ -290,6 +317,7 @@ export const NatureDrillView: React.FC<{
         </p>
       )}
       <div className="sticky-date-items-list">{mapping.items.map(renderItem)}</div>
+      {isSummary && paidEntriesOf && <PaidEntriesList entries={mapping.items.flatMap(paidEntriesOf)} formatBRL={formatBRL} />}
       <div className="drill-subtotal">
         <span>Subtotal do mapeamento · Real | Previsto</span>
         {(() => {

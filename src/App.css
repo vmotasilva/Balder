@@ -17320,6 +17320,41 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   color: var(--text-muted);
 }
 
+/* Lançamentos pagos de um mapeamento em modo Resumo */
+.paid-entries {
+  margin-top: 12px;
+  padding: 0 4px;
+}
+.paid-entries-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  padding: 0 8px;
+}
+.paid-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border-color, rgba(148, 163, 184, 0.15));
+}
+.paid-entry-text {
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.paid-entry-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.paid-entry-amount {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--emerald, #10b981);
+  flex-shrink: 0;
+}
+
 /* Real | Previsto nas linhas de natureza/mapeamento: colunas fixas para alinhar com a legenda */
 .drill-rp {
   display: inline-grid;

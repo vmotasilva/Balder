@@ -54,6 +54,7 @@ import {
   resolveMappingItemMonth,
   resolveMappingItemState,
 } from '../utils/mappingItemState';
+import { collectMappingPaidEntries } from '../utils/mappingPaidEntries';
 import { MappingItemStateModal, type MappingItemStateTarget } from './MappingItemStateModal';
 import { MappingPaymentModal, type MappingPaymentTarget } from './MappingPaymentModal';
 import { RealizationConfirmModal, realizedMovementUpdates, reopenConfirmOptions, reopenedMovementUpdates, type RealizationTarget } from './RealizationConfirmModal';
@@ -3832,6 +3833,13 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                 onOpenMapping={setDrillMappingKey}
                 renderItem={renderSubItemRow}
                 formatBRL={formatBRL}
+                paidEntriesOf={(summary) => {
+                  const ref = summary.mappingPaymentRef;
+                  if (!ref || !currentRow) return [];
+                  const mapping = natures.find((n) => n.id === ref.natureId)?.mappings.find((mp) => mp.id === ref.mappingId);
+                  const items = (mapping?.items || []).filter((it) => ref.itemIds.includes(it.id));
+                  return collectMappingPaidEntries(items, currentRow.monthKey, movements);
+                }}
               />
             ) : viewStyle === 'CALENDARIO' ? (
               <CalendarView
