@@ -330,6 +330,8 @@ export interface ForsetiActivity {
   cardName?: string;
   rating?: 'UTIL' | 'NAO_UTIL';
   undoneAt?: string;
+  /** Só a IA entendeu a frase (as regras não). Vai para o estudo, não para o histórico da pessoa. */
+  via?: 'IA';
 }
 
 /** Ação (abrir tela, criar natureza ou mapeamento) esperando a confirmação da pessoa no chat. */
