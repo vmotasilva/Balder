@@ -24614,3 +24614,67 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
     grid-template-columns: 1fr;
   }
 }
+
+/* Pop-up com os itens que um aviso da Central sinaliza */
+.notif-details-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.notif-details-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.notif-details-row.is-overdue {
+  border-color: rgba(244, 63, 94, 0.3);
+}
+
+.notif-details-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.notif-details-title {
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+.notif-details-sub,
+.notif-details-when {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.notif-details-row.is-overdue .notif-details-when {
+  color: var(--accent-rose);
+}
+
+.notif-details-amount {
+  font-family: var(--font-mono, monospace);
+  white-space: nowrap;
+}
+
+.notif-details-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}

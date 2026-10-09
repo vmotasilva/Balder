@@ -1,8 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { ForecastBreakdownModal, forecastPeriodLabel, formatBRL, useForecastPeriod } from './ForecastBreakdownModal';
-import type { useHubNotifications } from '../hooks/useHubNotifications';
-import { Sparkles, CheckCircle2, ArrowRight, X, Bell, Calendar, RefreshCw } from 'lucide-react';
+import type { HubNotification, useHubNotifications } from '../hooks/useHubNotifications';
+import { NotificationDetailsModal } from './NotificationDetailsModal';
+import { Sparkles, CheckCircle2, ArrowRight, X, Bell, Calendar, RefreshCw, ListChecks } from 'lucide-react';
 
 interface BalderHubModalProps {
   isOpen: boolean;
@@ -24,6 +25,9 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
 }) => {
   const { forecasts } = useFinancial();
   const [forecastPeriod, setForecastPeriod] = useForecastPeriod('MES');
+  // Aviso cujos itens estão abertos no pop-up de detalhes (guarda o id: a lista acompanha as mudanças)
+  const [detailsId, setDetailsId] = useState<string | null>(null);
+  const detailsNotif: HubNotification | null = hub.notifications.find((n) => n.id === detailsId) || null;
 
   // Abrir a Central conta como leitura: o número do sino some
   useEffect(() => {
@@ -86,6 +90,11 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
                         key={notif.id}
                         className={`hub-notif-card notif-${notif.type.toLowerCase()}`}
                         onClick={() => {
+                          // Com itens sinalizados, tocar no aviso mostra quais são
+                          if (notif.details && notif.details.length > 0) {
+                            setDetailsId(notif.id);
+                            return;
+                          }
                           if (!notif.action) return;
                           onClose();
                           notif.action();
@@ -100,8 +109,22 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
                           </div>
                           <p className="hub-notif-desc">{notif.description}</p>
 
-                          {notif.actionLabel && (
+                          {(notif.actionLabel || (notif.details && notif.details.length > 0)) && (
                             <div className="hub-notif-action-row">
+                              {notif.details && notif.details.length > 0 && (
+                                <button
+                                  type="button"
+                                  className="hub-notif-inline-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDetailsId(notif.id);
+                                  }}
+                                >
+                                  <ListChecks size={12} />
+                                  <span>Ver os {notif.details.length} itens</span>
+                                </button>
+                              )}
+                              {notif.actionLabel && (
                               <button
                                 type="button"
                                 className="hub-notif-inline-btn"
@@ -114,6 +137,7 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
                                 <span>{notif.actionLabel}</span>
                                 <ArrowRight size={12} />
                               </button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -188,6 +212,20 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
         </div>
       )}
 
+      <NotificationDetailsModal
+        notification={detailsNotif}
+        onClose={() => setDetailsId(null)}
+        onOpenAction={
+          detailsNotif?.action
+            ? () => {
+                const action = detailsNotif.action;
+                setDetailsId(null);
+                onClose();
+                action?.();
+              }
+            : undefined
+        }
+      />
       <ForecastBreakdownModal
         isOpen={isForecastOpen}
         onClose={() => onForecastOpenChange(false)}

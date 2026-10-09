@@ -6,6 +6,17 @@ import { usePlans, scopedUserId } from '../context/PlanScopeContext';
 import { useOpportunities } from './useOpportunities';
 import { OPPORTUNITY_LABEL, watchStats } from '../utils/opportunity';
 
+/** Um lançamento que compõe o aviso (conta atrasada, a vencer ou recebimento a confirmar). */
+export interface HubNotificationDetail {
+  id: string;
+  title: string;
+  /** Natureza, mapeamento ou categoria de onde vem o valor. */
+  detail?: string;
+  date: string; // YYYY-MM-DD
+  amount: number;
+  overdue: boolean;
+}
+
 export interface HubNotification {
   /** Muda quando a situação muda (ex.: outra conta vence): assim volta a contar como não lida. */
   id: string;
@@ -16,6 +27,8 @@ export interface HubNotification {
   actionLabel?: string;
   action?: () => void;
   icon?: React.ReactNode;
+  /** Itens que o aviso sinaliza: abrem num pop-up de detalhes. */
+  details?: HubNotificationDetail[];
 }
 
 export interface HubNotificationActions {
@@ -36,6 +49,11 @@ const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', 
 const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 const isoOf = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+const toDetails = (list: { id: string; title: string; detail?: string; date: string; amount: number; overdue: boolean }[]): HubNotificationDetail[] =>
+  list
+    .map((e) => ({ id: `${e.id}@${e.date}`, title: e.title, detail: e.detail, date: e.date, amount: e.amount, overdue: e.overdue }))
+    .sort((a, b) => a.date.localeCompare(b.date) || b.amount - a.amount);
 
 /** Assinatura curta de um conjunto de lançamentos, para o id acompanhar a situação. */
 const signature = (parts: string[]) => {
@@ -102,6 +120,7 @@ export function useHubNotifications(actions: HubNotificationActions) {
         actionLabel: 'Ver no Início',
         action: actions.onGoToHome,
         icon: <AlertTriangle size={16} className="text-rose" />,
+        details: toDetails(overdueOut),
       });
     }
 
@@ -119,6 +138,7 @@ export function useHubNotifications(actions: HubNotificationActions) {
         actionLabel: 'Confirmar no Início',
         action: actions.onGoToHome,
         icon: <HandCoins size={16} className="text-amber" />,
+        details: toDetails(overdueIn),
       });
     }
 
@@ -136,6 +156,7 @@ export function useHubNotifications(actions: HubNotificationActions) {
         actionLabel: 'Ver no Início',
         action: actions.onGoToHome,
         icon: <CalendarClock size={16} className={dueToday ? 'text-rose' : 'text-amber'} />,
+        details: toDetails(dueSoon),
       });
     }
 
