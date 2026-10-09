@@ -62,3 +62,37 @@ export function findMappingItemForTitle(title: string, natures: ExpenseNature[])
   const found = best as { match: MappingItemMatch; score: number } | null;
   return found && found.score >= 50 ? found.match : null;
 }
+
+export interface MappingMatch {
+  natureId: string;
+  mappingId: string;
+}
+
+/**
+ * Acha o mapeamento (natureza → mapeamento) pelo nome ou pelas palavras-chave dele ("Dentista para Luísa" ↔ "Dentista").
+ * Serve a mapeamentos sem itens, que não têm descrição de item para comparar. Devolve null quando nada combina com segurança.
+ */
+export function findMappingForTitle(title: string, natures: ExpenseNature[]): MappingMatch | null {
+  const t = compact(title);
+  if (t.length < 3) return null;
+  const titleTokens = tokens(title);
+  let best: { match: MappingMatch; score: number } | null = null;
+  for (const nat of natures) {
+    for (const map of nat.mappings || []) {
+      for (const text of [map.name, ...(map.keywords || [])]) {
+        const c = compact(text);
+        if (c.length < 3) continue;
+        let score = 0;
+        if (c === t) score = 100;
+        else if (c.length >= 4 && (t.includes(c) || (t.length >= 4 && c.includes(t)))) score = 80;
+        else {
+          const common = tokens(text).filter((tk) => titleTokens.includes(tk));
+          if (common.length > 0) score = 40 + common.length * 10;
+        }
+        if (score > 0 && (!best || score > best.score)) best = { match: { natureId: nat.id, mappingId: map.id }, score };
+      }
+    }
+  }
+  const found = best as { match: MappingMatch; score: number } | null;
+  return found && found.score >= 50 ? found.match : null;
+}

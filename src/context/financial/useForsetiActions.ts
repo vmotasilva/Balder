@@ -4,7 +4,7 @@ import {
   OPTION_REGISTER_CARD, brl, installmentSchedule,
 } from '../../utils/forsetiAssistant';
 import { addCardPurchaseToInvoices, firstInvoiceDueDate } from '../../utils/cardPurchase';
-import { findMappingItemForTitle } from '../../utils/mappingMatch';
+import { findMappingForTitle, findMappingItemForTitle } from '../../utils/mappingMatch';
 import { learnReceiptItemAssociation } from '../../services/receiptMemoryService';
 import { listPaymentInstitutions } from '../../utils/paymentInstitutions';
 import { matchNatureForTransaction } from '../../services/invoiceFileParser';
@@ -406,12 +406,19 @@ export function useForsetiActions({
     // Se a pessoa já confirmou/ajustou a sugestão no resumo, vale a escolha dela (inclusive "nenhuma")
     const confirmedLink = isIncome || pending.natureId === undefined ? null : pending.natureId;
     const itemLink = isIncome || confirmedLink !== null ? null : findMappingItemForTitle(pending.rawTitle, userNatures(natures));
+    const mappingLink = isIncome || confirmedLink !== null || itemLink ? null : findMappingForTitle(pending.rawTitle, userNatures(natures));
     const natureLink: Partial<Movement> = confirmedLink !== null
       ? confirmedLink
-        ? { natureId: confirmedLink, ...(pending.mappingItemId ? { mappingItemId: pending.mappingItemId } : {}) }
+        ? {
+            natureId: confirmedLink,
+            ...(pending.mappingId ? { mappingId: pending.mappingId } : {}),
+            ...(pending.mappingItemId ? { mappingItemId: pending.mappingItemId } : {}),
+          }
         : {}
       : itemLink
-      ? { natureId: itemLink.natureId, mappingItemId: itemLink.itemId }
+      ? { natureId: itemLink.natureId, mappingId: itemLink.mappingId, mappingItemId: itemLink.itemId }
+      : mappingLink
+      ? { natureId: mappingLink.natureId, mappingId: mappingLink.mappingId }
       : isIncome
       ? {}
       : (() => {
@@ -427,7 +434,11 @@ export function useForsetiActions({
     if (isCredit && !isIncome) {
       // Compra no cartão não é um lançamento solto: entra na fatura do banco, com a natureza e o item escolhidos
       const nature = natureLink.natureId ? natures.find((n) => n.id === natureLink.natureId) : undefined;
-      const mapping = natureLink.mappingItemId ? nature?.mappings?.find((mp) => (mp.items || []).some((it) => it.id === natureLink.mappingItemId)) : undefined;
+      const mapping = natureLink.mappingId
+        ? nature?.mappings?.find((mp) => mp.id === natureLink.mappingId)
+        : natureLink.mappingItemId
+        ? nature?.mappings?.find((mp) => (mp.items || []).some((it) => it.id === natureLink.mappingItemId))
+        : undefined;
       addCardPurchaseToInvoices(
         {
           institution: finalBank,

@@ -22637,6 +22637,41 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   gap: 8px;
 }
 
+/* Pergunta "o restante do previsto se mantém?" depois de pagar menos que o previsto do período */
+.mapping-pay-rest {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mapping-pay-rest-question {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.mapping-pay-rest .btn {
+  justify-content: flex-start;
+  text-align: left;
+  height: auto;
+  padding: 10px 12px;
+}
+
+.mapping-pay-rest .btn small {
+  display: block;
+  opacity: 0.8;
+  font-weight: 400;
+}
+
+/* Mapeamento selecionável (check) e item só como memória de cálculo */
+.mapping-check-circle {
+  flex-shrink: 0;
+}
+
+
 @media (max-width: 768px) {
   .mapping-pay-fields {
     flex-direction: column;
@@ -24487,3 +24522,60 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
 .plan-settings-icons button { width: 36px; height: 36px; border-radius: var(--radius-sm); border: 1px solid var(--border-default); background: var(--bg-card); font-size: 18px; cursor: pointer; }
 .plan-settings-icons button.is-active { border-color: var(--accent-cyan); box-shadow: 0 0 0 1px var(--accent-cyan); }
 .plan-settings-danger { color: var(--accent-rose); border-color: var(--accent-rose); }
+
+/* Previsto direto do mapeamento (sem lista de itens) */
+.mapping-direct {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  margin-top: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+}
+
+.mapping-direct.is-editing {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.mapping-direct-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mapping-direct-label,
+.mapping-direct-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.mapping-direct-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mapping-direct-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.mapping-direct-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+@media (max-width: 768px) {
+  .mapping-direct-fields {
+    grid-template-columns: 1fr;
+  }
+}

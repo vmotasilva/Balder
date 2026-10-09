@@ -6,7 +6,7 @@ import { getBankBranding } from '../utils/bankBranding';
 import { parseMoney } from '../utils/parseDecimal';
 import { defaultClosingDay } from '../utils/setupCatalog';
 import { firstInvoiceDueDate } from '../utils/cardPurchase';
-import { findMappingItemForTitle } from '../utils/mappingMatch';
+import { findMappingForTitle, findMappingItemForTitle } from '../utils/mappingMatch';
 import { userNatures } from '../utils/baseNatures';
 import { matchNatureForTransaction } from '../services/invoiceFileParser';
 import type { CopilotPendingConfirmation, PaymentWizardState } from '../types';
@@ -49,15 +49,28 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
     if (isIncome || wizard.step !== 'SUMMARY' || data.natureId !== undefined) return;
     const item = findMappingItemForTitle(data.rawTitle, ownNatures);
     if (item) {
-      updatePaymentWizard(messageId, undefined, { natureId: item.natureId, mappingItemId: item.itemId });
+      updatePaymentWizard(messageId, undefined, { natureId: item.natureId, mappingId: item.mappingId, mappingItemId: item.itemId });
+      return;
+    }
+    // Mapeamento sem itens (ou que não bate com nenhum item): liga pelo nome ou pelas palavras-chave dele
+    const mapping = findMappingForTitle(data.rawTitle, ownNatures);
+    if (mapping) {
+      updatePaymentWizard(messageId, undefined, { natureId: mapping.natureId, mappingId: mapping.mappingId, mappingItemId: '' });
       return;
     }
     const m = matchNatureForTransaction(data.rawTitle, undefined, ownNatures);
-    updatePaymentWizard(messageId, undefined, { natureId: m.natureId !== 'OUTROS' && m.confidence >= 0.9 ? m.natureId : '', mappingItemId: '' });
+    updatePaymentWizard(messageId, undefined, { natureId: m.natureId !== 'OUTROS' && m.confidence >= 0.9 ? m.natureId : '', mappingId: '', mappingItemId: '' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wizard.step]);
   const chosenNature = ownNatures.find((n) => n.id === data.natureId);
-  const natureItems = (chosenNature?.mappings || []).flatMap((mp) => (mp.items || []).map((it) => ({ id: it.id, label: `${mp.name} › ${it.description}` })));
+  // Os itens só compõem o previsto: o vínculo é com o mapeamento (inclusive os que ainda não têm itens)
+  const natureMappings = chosenNature?.mappings || [];
+  const chosenMappingId =
+    data.mappingId ||
+    natureMappings.find((mp) => data.mappingItemId && (mp.items || []).some((it) => it.id === data.mappingItemId))?.id ||
+    '';
+  const chooseMapping = (mappingId: string) =>
+    updatePaymentWizard(messageId, undefined, { mappingId, mappingItemId: '' });
 
   const back = () => {
     if (wizard.step === 'BANK') go({ step: 'WHERE', where: undefined });
@@ -264,7 +277,7 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
                 <dd>
                   <select
                     value={data.natureId || ''}
-                    onChange={(e) => updatePaymentWizard(messageId, undefined, { natureId: e.target.value, mappingItemId: '' })}
+                    onChange={(e) => updatePaymentWizard(messageId, undefined, { natureId: e.target.value, mappingId: '', mappingItemId: '' })}
                     aria-label="Natureza do gasto"
                   >
                     <option value="">Sem natureza</option>
@@ -273,18 +286,18 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
                     ))}
                   </select>
                 </dd>
-                {natureItems.length > 0 && (
+                {natureMappings.length > 0 && (
                   <>
-                    <dt>Item do teto</dt>
+                    <dt>Mapeamento</dt>
                     <dd>
                       <select
-                        value={data.mappingItemId || ''}
-                        onChange={(e) => updatePaymentWizard(messageId, undefined, { mappingItemId: e.target.value })}
-                        aria-label="Item do teto"
+                        value={chosenMappingId}
+                        onChange={(e) => chooseMapping(e.target.value)}
+                        aria-label="Mapeamento do teto"
                       >
-                        <option value="">Sem item</option>
-                        {natureItems.map((it) => (
-                          <option key={it.id} value={it.id}>{it.label}</option>
+                        <option value="">Sem mapeamento</option>
+                        {natureMappings.map((mp) => (
+                          <option key={mp.id} value={mp.id}>{mp.name}</option>
                         ))}
                       </select>
                     </dd>

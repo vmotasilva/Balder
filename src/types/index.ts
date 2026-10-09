@@ -253,6 +253,7 @@ export interface CopilotPendingConfirmation {
     request?: string;
     /** Natureza e item do teto sugeridos pela Forseti e confirmados pela pessoa ('' = nenhum; undefined = ainda não sugerido). */
     natureId?: string;
+    mappingId?: string;
     mappingItemId?: string;
   };
   question: string;
@@ -428,6 +429,8 @@ export interface BankInstitution {
 
 export interface MappingItem {
   id: string;
+  /** Previsto direto do mapeamento (sem memória de cálculo): item interno, fora da lista de itens, que vale como o valor do mapeamento. */
+  isMappingBase?: boolean;
   description: string;
   quantity: number;
   price: number;
@@ -474,6 +477,8 @@ export interface MappingItemPayment {
    * na proporção do previsto dele no mês. Todas as partes do mesmo pagamento têm o mesmo id.
    */
   mappingPaymentId?: string;
+  /** Parte do previsto que o pagamento do mapeamento dispensou ("o restante não se mantém"): sai do previsto sem contar como pago. */
+  waived?: number;
   /** Valor não pago que foi redistribuído para ocorrências seguintes da competência (data -> acréscimo). */
   carryTo?: Record<string, number>;
   /** Movimentação que originou o pagamento (evita contar duas vezes ao reconfirmar). */
