@@ -38,6 +38,7 @@ import { MappingModal } from '../components/MappingModal';
 import { InfoButton } from '../components/InfoButton';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
 import { RealizationConfirmModal, type RealizationTarget } from '../components/RealizationConfirmModal';
+import { MappingDirectPlanned } from '../components/MappingDirectPlanned';
 import { MappingPaymentModal, type MappingPaymentTarget } from '../components/MappingPaymentModal';
 import {
   WEEKDAY_OPTIONS,
@@ -1634,6 +1635,9 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                     const brlMobile = (v: number) =>
                       v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
 
+                    // O previsto direto é um item interno: não conta nem aparece como item da lista
+                    const calcItemCount = (mapping.items || []).filter((it) => !it.isMappingBase).length;
+
                     // O mapeamento é o que se marca como realizado; os itens só compõem o previsto dele
                     const payMonthKey = (() => {
                       const now = new Date();
@@ -1781,8 +1785,8 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                           <div className="mapping-card-meta-row">
                             {rpBadge}
                             <span className="badge badge-emerald" style={{ fontSize: '12px', padding: '4px 10px', fontWeight: 600 }}>
-                              {mapping.items.length}{' '}
-                              {mapping.items.length === 1 ? 'ITEM' : 'ITENS'}
+                              {calcItemCount}{' '}
+                              {calcItemCount === 1 ? 'ITEM' : 'ITENS'}
                             </span>
                             <button
                               type="button"
@@ -1882,8 +1886,8 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
 
                           <div className="mmh-stats">
                             <div className="mmh-stat">
-                              <strong className="mmh-stat-value">{mapping.items.length}</strong>
-                              <span className="mmh-stat-label">{mapping.items.length === 1 ? 'item' : 'itens'}</span>
+                              <strong className="mmh-stat-value">{calcItemCount}</strong>
+                              <span className="mmh-stat-label">{calcItemCount === 1 ? 'item' : 'itens'}</span>
                             </div>
                             <div className="mmh-stat">
                               <span className="mmh-stat-label">Real</span>
@@ -1990,6 +1994,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                         {!isCollapsed && (
                           <>
                             {/* TABELA DE ITENS DO MAPEAMENTO COM EDIÇÃO INLINE */}
+                            <MappingDirectPlanned natureId={selectedNature.id} mapping={mapping} />
                             <div className="mapping-items-table-wrapper mt-3">
                               <table className="natureza-items-table">
                             <thead>
@@ -2004,7 +2009,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                               </tr>
                             </thead>
                             <tbody>
-                              {mapping.items.map((item) => {
+                              {mapping.items.filter((it) => !it.isMappingBase).map((item) => {
                                 const isEditing = editingItemId === item.id;
 
                                 if (isEditing) {

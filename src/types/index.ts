@@ -429,6 +429,8 @@ export interface BankInstitution {
 
 export interface MappingItem {
   id: string;
+  /** Previsto direto do mapeamento (sem memória de cálculo): item interno, fora da lista de itens, que vale como o valor do mapeamento. */
+  isMappingBase?: boolean;
   description: string;
   quantity: number;
   price: number;
