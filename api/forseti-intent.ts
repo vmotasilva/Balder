@@ -1,9 +1,48 @@
 // Função do servidor (Vercel): entende a frase da pessoa e devolve só a INTENÇÃO (uma da lista fechada).
 // Não recebe nem devolve dados financeiros: a resposta com números é montada no aplicativo.
 // Precisa da variável ANTHROPIC_API_KEY na Vercel; sem ela responde 501 e a Forseti segue só com as regras.
+// Exige o login do Supabase (cabeçalho Authorization), limita o uso por pessoa e guarda respostas repetidas.
+// Limite e cache ficam na memória da instância: bastam para barrar abuso, sem criar tabela.
+import { normalizePhrase } from '../src/utils/forsetiLearning.js';
 import { FORSETI_INTENTS, SPEND_PERIODS, isForsetiIntent, isSpendPeriod } from '../src/utils/forsetiIntents.js';
 
 const MODEL = 'claude-haiku-4-5-20251001';
+
+// Mesmos valores (públicos) usados pelo aplicativo em src/lib/supabase.ts
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://zlwghcqisnejjqugsxvp.supabase.co';
+const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'sb_publishable_dTZJs1GDyT9jOIc3JA3yRQ_0q3NpIzY';
+
+const LIMIT_PER_HOUR = 30;
+const CACHE_MAX = 500;
+const calls = new Map<string, number[]>();
+const cache = new Map<string, { intent: string; period?: string }>();
+
+/** Confere o login no Supabase e devolve o id da pessoa (null se o token não vale). */
+async function userIdFrom(request: Request): Promise<string | null> {
+  const auth = request.headers.get('authorization') || '';
+  if (!auth.startsWith('Bearer ')) return null;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SUPABASE_KEY, authorization: auth } });
+    if (!res.ok) return null;
+    const user = (await res.json()) as { id?: string };
+    return user.id || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Registra a chamada e diz se ainda cabe no limite da última hora. */
+function withinLimit(userId: string): boolean {
+  const since = Date.now() - 3600_000;
+  const recent = (calls.get(userId) || []).filter((t) => t > since);
+  if (recent.length >= LIMIT_PER_HOUR) {
+    calls.set(userId, recent);
+    return false;
+  }
+  recent.push(Date.now());
+  calls.set(userId, recent);
+  return true;
+}
 
 const SYSTEM = `Você classifica mensagens de um app de finanças pessoais em português do Brasil.
 Escolha a intenção que melhor representa o que a pessoa quer VER ou SABER. Intenções:
@@ -33,6 +72,8 @@ Nunca responda à pessoa; apenas classifique.`;
 export async function POST(request: Request): Promise<Response> {
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) return Response.json({ error: 'sem chave' }, { status: 501 });
+  const userId = await userIdFrom(request);
+  if (!userId) return Response.json({ error: 'não autorizado' }, { status: 401 });
 
   let text = '';
   let context = '';
@@ -48,6 +89,11 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({ error: 'corpo inválido' }, { status: 400 });
   }
   if (!text) return Response.json({ intent: 'DESCONHECIDO' });
+
+  const cacheKey = `${context}|${normalizePhrase(text)}`;
+  const cached = cache.get(cacheKey);
+  if (cached) return Response.json(cached, { headers: { 'Cache-Control': 'no-store' } });
+  if (!withinLimit(userId)) return Response.json({ error: 'limite de uso' }, { status: 429 });
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -80,5 +126,8 @@ export async function POST(request: Request): Promise<Response> {
   const input = data.content?.find((c) => c.type === 'tool_use')?.input;
   const intent = isForsetiIntent(input?.intent) ? input!.intent : 'DESCONHECIDO';
   const period = isSpendPeriod(input?.period) ? input!.period : undefined;
+  // Só guarda respostas com intenção: um erro ou um "não sei" passageiro não pode ficar preso
+  if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value!);
+  if (intent !== 'DESCONHECIDO') cache.set(cacheKey, { intent, period });
   return Response.json({ intent, period }, { headers: { 'Cache-Control': 'no-store' } });
 }

@@ -20,7 +20,8 @@ export const ForsetiTranscriptService = {
         conversation_id: conversationId || null,
         user_id: userId,
         created_at: activity.at,
-        kind: activity.kind,
+        // CONVERSA_IA: frase que as regras não entenderam e a IA resolveu (candidata a virar regra)
+        kind: activity.via === 'IA' && activity.kind === 'CONVERSA' ? 'CONVERSA_IA' : activity.kind,
         request: activity.request,
         result: activity.result,
         rating: activity.rating || null,
