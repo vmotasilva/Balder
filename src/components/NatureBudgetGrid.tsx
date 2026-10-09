@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { isExcludedState } from '../utils/mappingItemState';
 import { useFinancial } from '../context/FinancialContext';
 import {
@@ -843,7 +844,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
       )}
 
       {/* Pop-up com as descrições dos alertas da natureza */}
-      {alertRow && (
+      {alertRow && createPortal(
         <div className="modal-backdrop animate-fade-in" onClick={() => setAlertRow(null)}>
           <div
             className="glass-card p-4 rounded-xl max-w-md w-full"
@@ -912,7 +913,8 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal de Detalhamento da Célula ao Clicar na Linha */}
