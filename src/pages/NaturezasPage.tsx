@@ -74,6 +74,19 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
   } = useFinancial();
   const natures = useMemo(() => userNatures(allNatures), [allNatures]);
 
+  // Real do mês de pagamentos ligados direto ao mapeamento (sem item): mapeamentos sem itens também têm Real
+  const linkedMappingReal = (mappingId: string, monthKey: string) =>
+    movements
+      .filter(
+        (mv) =>
+          mv.type === 'PAGAR' &&
+          mv.status === 'REALIZADA' &&
+          mv.mappingId === mappingId &&
+          !mv.mappingItemId &&
+          (mv.paymentDate || mv.dueDate || '').startsWith(monthKey)
+      )
+      .reduce((acc, mv) => acc + (mv.actualAmount ?? mv.amount), 0);
+
   // Confirm Dialog
   const { confirm: confirmAction, dialogProps: confirmDialogProps } = useConfirmDialog();
   // Pop-up que confere valor e data antes de registrar o pagamento de uma conta fixa
@@ -1555,7 +1568,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                   if (isExcludedState(s.state)) return acc;
                                   return { real: acc.real + s.paid, planned: acc.planned + s.pending };
                                 },
-                                { real: 0, planned: 0 }
+                                { real: linkedMappingReal(mapping.id, monthKey), planned: 0 }
                               );
                               return (
                                 <span
@@ -1614,7 +1627,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                           if (isExcludedState(st.state)) return acc;
                           return { real: acc.real + st.paid, planned: acc.planned + st.pending };
                         },
-                        { real: 0, planned: 0 }
+                        { real: linkedMappingReal(mapping.id, monthKey), planned: 0 }
                       );
                       return { applies, ...split };
                     })();
@@ -1627,7 +1640,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                       return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
                     })();
                     const payMonth = resolveMappingMonth(mapping, payMonthKey);
-                    const mappingSettled = mobileStats.applies && payMonth.paid > 0.005 && payMonth.pending <= 0.005;
+                    const mappingSettled = mobileStats.applies && mobileStats.real > 0.005 && payMonth.pending <= 0.005;
                     const openMappingPayment = () =>
                       setMappingPayTarget({
                         natureId: selectedNature.id,

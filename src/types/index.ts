@@ -253,6 +253,7 @@ export interface CopilotPendingConfirmation {
     request?: string;
     /** Natureza e item do teto sugeridos pela Forseti e confirmados pela pessoa ('' = nenhum; undefined = ainda não sugerido). */
     natureId?: string;
+    mappingId?: string;
     mappingItemId?: string;
   };
   question: string;
