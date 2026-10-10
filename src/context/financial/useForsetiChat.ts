@@ -12,7 +12,7 @@ import {
   type BankInvoiceInfo, CHIP_DUVIDA, CHIP_PAGAR, CHIP_RECEBER, type DoubtId,
   EXPENSE_CATEGORY_CHIPS, FALLBACK_REPLY, type ForsetiData, type ForsetiReply, MAIN_CHIPS,
   NEW_CARD_DUE_CHIPS, OPTION_OTHER_PAYMENT, OPTION_REGISTER_CARD, RECEIVE_DATE_CHIPS, TOPIC_TTL_MS,
-  answerDoubt, brl, categoryFromChip, describeAction, detectAction, detectAmbiguity, detectDoubt,
+  answerDoubt, brl, categoryFromChip, describeAction, detectAction, detectAmbiguity, detectDoubt, detectLooseAmount,
   inferExpenseCategory, isPastReceive, isScheduledPayment, mentionedCard, parseAmount, parseDate,
   parseInstallments, paymentOptions, pickPaymentOptions, registrationKind, resolveFollowUp,
   spendPeriodFrom, titleFrom,
@@ -827,13 +827,13 @@ export function useForsetiChat({
         if (wordCount >= 3) {
           classifyIntent(trimmed, topicBefore ? { intent: topicBefore.intent, period: topicBefore.period, previous: topicBefore.text } : undefined).then((found) => {
             if (found) answerIntent(found.intent, found.period, undefined, 'IA');
-            else reply(detectAmbiguity(trimmed) || FALLBACK_REPLY);
+            else reply(detectLooseAmount(trimmed) || detectAmbiguity(trimmed) || FALLBACK_REPLY);
           });
           return;
         }
 
         // 4. Palavra solta que pode querer dizer mais de uma coisa: pergunta qual (A, B ou C)
-        reply(detectAmbiguity(trimmed) || FALLBACK_REPLY);
+        reply(detectLooseAmount(trimmed) || detectAmbiguity(trimmed) || FALLBACK_REPLY);
         return;
       }
 

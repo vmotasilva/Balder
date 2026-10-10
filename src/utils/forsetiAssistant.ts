@@ -69,8 +69,11 @@ const isQuestion = (text: string) =>
 export function registrationKind(text: string): 'RECEBER' | 'PAGAR' | null {
   if (isQuestion(text) || isPlannedVsReal(text)) return null;
   const t = stripAccents(text);
-  if (/\b(receberei|vou receber|recebi|ganhei|vou ganhar|vai entrar|entrou|caiu na conta)\b/.test(t)) return 'RECEBER';
-  if (/\b(paguei|gastei|comprei)\b/.test(t)) return 'PAGAR';
+  if (/\b(receberei|vou receber|recebi|recebeu|recebemos|ganhei|ganhou|vou ganhar|vai entrar|entrou|caiu na conta)\b/.test(t)) return 'RECEBER';
+  // Qualquer pessoa: "paguei", "pagou", "gastamos"…
+  if (/\b(pag(?:uei|ou|amos)|gast(?:ei|ou|amos)|compr(?:ei|ou|amos)|desembols(?:ei|ou))\b/.test(t)) return 'PAGAR';
+  // Jeito coloquial ("deu R$ 30 de gasolina", "saiu 50 no mercado"): só vale com valor, e "me deu" é outra coisa
+  if (/(?<!\bme\s)\b(deu|saiu|custou)\b/.test(t) && parseAmount(text) !== null) return 'PAGAR';
   if (isScheduledPayment(text)) return 'PAGAR';
   return null;
 }
@@ -94,7 +97,7 @@ export const RECEIVE_DATE_CHIPS =['Hoje', 'Amanhã', 'Dia 5', 'Dia 10', 'Dia 15'
 const EXPENSE_CATEGORIES: { chip: string; title: string; category: string; keywords: string[] }[] = [
   { chip: '🛒 Mercado', title: 'Mercado', category: 'Alimentação & Mercado', keywords: ['mercado', 'supermercado', 'atacad', 'padaria', 'acougue', 'açougue'] },
   { chip: '🥬 Feira / hortifrúti', title: 'Feira', category: 'Alimentação & Mercado (Feira Livre & Hortifrúti)', keywords: ['feira', 'hortifruti', 'hortifrúti', 'quitanda', 'sacolao', 'sacolão', 'verdura', 'legume', 'fruta'] },
-  { chip: '🍽️ Restaurante / lanche', title: 'Restaurante', category: 'Alimentação fora de casa', keywords: ['restaurante', 'lanche', 'ifood', 'pizza', 'almoço', 'almoco', 'jantar', 'cafe', 'café', 'pastel'] },
+  { chip: '🍽️ Restaurante / lanche', title: 'Restaurante', category: 'Alimentação fora de casa', keywords: ['restaurante', 'lanche', 'ifood', 'pizza', 'almoço', 'almoco', 'jantar', 'cafe', 'café', 'pastel', 'refei', 'bebida', 'marmita', 'comida'] },
   { chip: '🚗 Transporte', title: 'Transporte', category: 'Transporte', keywords: ['uber', 'combustivel', 'combustível', 'gasolina', 'etanol', 'transporte', 'onibus', 'ônibus', 'estacionamento', 'pedagio', 'pedágio', '99'] },
   { chip: '💊 Farmácia / saúde', title: 'Farmácia', category: 'Saúde', keywords: ['farmacia', 'farmácia', 'remedio', 'remédio', 'saude', 'saúde', 'medico', 'médico', 'consulta', 'exame', 'dentista'] },
   { chip: '🏠 Contas da casa', title: 'Conta da casa', category: 'Utilidades / Moradia', keywords: ['energia', 'luz', 'agua', 'água', 'aluguel', 'internet', 'condominio', 'condomínio', 'gas', 'gás', 'telefone', 'celular'] },
@@ -131,7 +134,7 @@ export function parseAmount(text: string): number | null {
 export function extractTitle(text: string): string {
   return withoutDates(text)
     .replace(/(?:r\$\s*)?\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|(?:r\$\s*)?\d+(?:[.,]\d{1,2})?\s*(?:mil\b)?/gi, ' ')
-    .replace(/\b(?:eu|vou|receber|receberei|recebi|ganhei|paguei|gastei|comprei|pago|pagar|pagarei|agendei|agendarei|agendar|agendado|programei|reais|real|hoje|ontem)\b/gi, ' ')
+    .replace(/\b(?:eu|vou|receber|receberei|recebi|recebeu|ganhei|ganhou|paguei|pagou|pagamos|gastei|gastou|gastamos|comprei|comprou|compramos|deu|saiu|custou|pago|pagar|pagarei|agendei|agendarei|agendar|agendado|programei|reais|real|hoje|ontem)\b/gi, ' ')
     // \b não funciona depois de "ã"
     .replace(/\bamanh[ãa](?![\p{L}\d])/giu, ' ')
     .replace(/\b(?:no|pelo|por|com)\s+valor(?:\s+de)?\b/gi, ' ')
@@ -139,7 +142,7 @@ export function extractTitle(text: string): string {
     // A forma de pagamento citada não faz parte do título ("TV no cartão Inter" → "TV")
     .replace(PAYMENT_TAIL, ' ')
     .replace(BANK_TAIL, ' ')
-    .replace(/^\s*(?:de|do|da|no|na|em|com|pelo|pela|um|uma)\s+/i, '')
+    .replace(/^\s*(?:de|do|da|no|na|em|com|pelo|pela|um|uma|para|pra)\s+/i, '')
     .replace(/\s+/g, ' ')
     .replace(/[.!?,\s]+$/, '')
     .replace(/(?:\s+(?:de|do|da|no|na|em|por|com|e|para|pra))+$/i, '')
@@ -1177,6 +1180,30 @@ const AMBIGUOUS: { keys: RegExp; question: string; options: { chip: string; mean
     ],
   },
 ];
+
+/**
+ * Frase com valor que nenhuma regra nem a IA entendeu ("30 bebidas da refeição"): em vez de "não entendi",
+ * pergunta se é gasto ou recebimento. Cada opção reenvia a frase já limpa (valor e título), no formato que as regras entendem.
+ */
+export function detectLooseAmount(text: string): ForsetiReply | null {
+  if (isQuestion(text)) return null;
+  const amount = parseAmount(text);
+  if (amount === null) return null;
+  // Sem "R$"/"reais", o número pode ser outra coisa ("parcela 12"): deixa as perguntas de ambiguidade responderem
+  if (!/r\$|\breais?\b/i.test(text) && detectAmbiguity(text)) return null;
+  const title = titleFrom(text);
+  const what = `**${brl(amount)}**${title ? ` (${title})` : ''}`;
+  const rest = `${brl(amount)}${title ? ` ${title}` : ''}`;
+  return {
+    text: `Entendi o valor ${what}. É um:\n\nToque na opção ou escreva de outro jeito.`,
+    badge: 'SÓ PARA CONFIRMAR',
+    chips: [],
+    choices: [
+      { label: 'A) gasto que eu paguei', send: `Paguei ${rest}` },
+      { label: 'B) valor que eu recebi', send: `Recebi ${rest}` },
+    ],
+  };
+}
 
 export function detectAmbiguity(text: string): ForsetiReply | null {
   const t = stripAccents(text);
