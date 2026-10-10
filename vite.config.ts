@@ -1,5 +1,6 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig, type Plugin } from 'vite'
+import type { Plugin } from 'vite'
+import { defineConfig } from 'vitest/config'
 import { fetchProduct } from './src/services/priceExtraction.ts'
 import { searchProducts } from './src/services/productSearch.ts'
 
@@ -35,4 +36,7 @@ const productSearchDev = (): Plugin => ({
 export default defineConfig({
   plugins: [react(), priceCheckDev(), productSearchDev()],
   envPrefix: ['VITE_', 'SUPABASE_', 'NEXT_PUBLIC_'],
+  test: {
+    include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
+  },
 })
