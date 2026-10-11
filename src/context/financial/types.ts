@@ -24,6 +24,8 @@ export interface FinancialContextType {
   goals: Goal[];
   criticalEvents: CriticalEvent[];
   chatHistory: CopilotMessage[];
+  /** Começa uma nova conversa com a Forseti (limpa a tela e o histórico guardado). */
+  resetForsetiChat: () => void;
   natures: ExpenseNature[];
 
   // Marco de Acompanhamento Financeiro & Planejamento / Cenários

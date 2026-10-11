@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { useAccountScope } from '../context/AccountScopeContext';
 import { ReceiptReconciliationCard } from '../components/ReceiptReconciliationCard';
-import { Send, Sparkles, User, Image as ImageIcon, X, Paperclip, UploadCloud, Info, Plus, ArrowLeft, ArrowRight, ShieldCheck, Mic } from 'lucide-react';
+import { Send, Sparkles, User, Image as ImageIcon, X, Paperclip, UploadCloud, Info, Plus, ArrowLeft, ArrowRight, ShieldCheck, Mic, MessageSquarePlus } from 'lucide-react';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import type { TabId } from '../components/Sidebar';
 import type { CopilotAttachment } from '../types';
@@ -38,7 +38,7 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
   initialDraft = '',
   onOpenOnboarding,
 }) => {
-  const { chatHistory, sendMessageToCopilot, respondToCopilotOption, confirmForsetiAction, reconcileReceiptData, natures, activeCheckpoint, movements } = useFinancial();
+  const { chatHistory, resetForsetiChat, sendMessageToCopilot, respondToCopilotOption, confirmForsetiAction, reconcileReceiptData, natures, activeCheckpoint, movements } = useFinancial();
   const { viewing } = useAccountScope();
   const [inputQuery, setInputQuery] = useState(initialDraft);
   const [attachedImages, setAttachedImages] = useState<CopilotAttachment[]>([]);
@@ -258,6 +258,20 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
           </div>
 
           <div className="copilot-topbar-actions">
+            {chatHistory.length > 1 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm('Começar uma nova conversa? As mensagens desta conversa saem da tela e do histórico guardado neste aparelho.')) resetForsetiChat();
+                }}
+                className="copilot-info-icon-btn cursor-pointer"
+                title="Nova conversa"
+                aria-label="Nova conversa"
+              >
+                <MessageSquarePlus size={15} />
+                <span className="copilot-info-btn-text">Nova conversa</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setShowRolesModal(true)}

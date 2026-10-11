@@ -1,6 +1,7 @@
 import { ForsetiActivityService } from '../../services/forsetiActivityService';
 import { ForsetiTranscriptService } from '../../services/forsetiTranscriptService';
 import { type CopilotMessage, type ForsetiActivity } from '../../types';
+import { chatStorageKey, readChat, removeChat, restoreChat, serializeChat, writeChat } from '../../utils/forsetiChatStore';
 import {
   type ForsetiFlow, type ForsetiTopic, MAIN_CHIPS, canUndoActivity, createdMovementsOf,
 } from '../../utils/forsetiAssistant';
@@ -20,23 +21,26 @@ type Deps =
     'deleteMovement'
   >;
 
+type Viewing = ReturnType<typeof useCoreData>['viewing'];
+
+/** A mensagem de abertura da conversa (diz em qual planejamento a Forseti está atuando). */
+const welcomeMessage = (viewing: Viewing): CopilotMessage => ({
+  id: 'msg_welcome',
+  role: 'assistant',
+  content: (viewing
+    ? `📍 **Estou atuando no planejamento de ${viewing.ownerName}**, onde você entrou como **${
+        viewing.role === 'COLABORADOR' ? 'colaborador(a)' : 'visualizador(a)'
+      }**. Tudo o que eu consultar ou registrar aqui é desse planejamento, não do seu.\n\n`
+    : '') + 'Olá! Eu sou a Forseti, sua auxiliar de IA no Balder. ⚖️\n\nMe conte o que entrou ou saiu do seu jeito (ex.: *"paguei 50 na farmácia"*), mande a **foto de um comprovante ou cupom** para eu ler, ou tire uma dúvida — respondo com os números do seu planejamento.',
+  timestamp: 'Agora',
+  suggestedFollowUps: MAIN_CHIPS,
+});
+
 /** Histórico do chat e das solicitações da Forseti (avaliar e desfazer). */
 export function useForsetiActivity({
   authUser, cards, deleteCard, deleteMovement, movements, viewing,
 }: Deps) {
-  const [chatHistory, setChatHistory] = useState<CopilotMessage[]>([
-    {
-      id: 'msg_welcome',
-      role: 'assistant',
-      content: (viewing
-        ? `📍 **Estou atuando no planejamento de ${viewing.ownerName}**, onde você entrou como **${
-            viewing.role === 'COLABORADOR' ? 'colaborador(a)' : 'visualizador(a)'
-          }**. Tudo o que eu consultar ou registrar aqui é desse planejamento, não do seu.\n\n`
-        : '') + 'Olá! Eu sou a Forseti, sua auxiliar de IA no Balder. ⚖️\n\nMe conte o que entrou ou saiu do seu jeito (ex.: *"paguei 50 na farmácia"*), mande a **foto de um comprovante ou cupom** para eu ler, ou tire uma dúvida — respondo com os números do seu planejamento.',
-      timestamp: 'Agora',
-      suggestedFollowUps: MAIN_CHIPS,
-    },
-  ]);
+  const [chatHistory, setChatHistory] = useState<CopilotMessage[]>(() => [welcomeMessage(viewing)]);
   // Registro guiado em andamento (valor → data/categoria → conta)
 
   const forsetiFlowRef = useRef<ForsetiFlow | null>(null);
@@ -72,6 +76,73 @@ export function useForsetiActivity({
   // Último assunto respondido: dá contexto a frases curtas ("e dessa semana?") e à IA de reserva
 
   const lastTopicRef = useRef<ForsetiTopic | null>(null);
+
+  // ── Conversa guardada neste aparelho (48 h), uma por pessoa e planejamento ──
+  const chatKey = activityUserId ? chatStorageKey(activityUserId, viewing?.ownerId) : null;
+  const chatLoadedKey = useRef<string | null>(null);
+  // Hora em que cada mensagem apareceu (a tela só diz "Agora")
+  const chatSeen = useRef<Record<string, number>>({});
+  // Conversa que acabou de ser posta na tela (restaurada ou nova): ela não deve ser gravada de volta
+  // (regravar renovaria o prazo sem ninguém ter falado) nem ser confundida com a anterior
+  const chatJustSet = useRef<CopilotMessage[] | null>(null);
+
+  useEffect(() => {
+    if (!chatKey) return;
+    const previous = chatLoadedKey.current;
+    chatLoadedKey.current = chatKey;
+    const switched = !!previous && previous !== chatKey;
+    const saved = restoreChat(readChat(chatKey));
+    chatSeen.current = saved?.seen || {};
+    if (saved) {
+      // O assunto da última resposta volta junto: "e no mês passado?" continua depois de recarregar
+      lastTopicRef.current = saved.topic || null;
+      chatJustSet.current = saved.messages;
+      setChatHistory(saved.messages);
+    } else if (switched) {
+      // Outro planejamento sem conversa guardada: começa uma nova, não leva a conversa do planejamento anterior
+      const fresh = [welcomeMessage(viewing)];
+      chatJustSet.current = fresh;
+      setChatHistory(fresh);
+    }
+    if (switched) {
+      forsetiFlowRef.current = null;
+      lastTopicRef.current = null;
+      requestTrailRef.current = [];
+    }
+    // Só quando a pessoa ou o planejamento muda: viewing entra aqui apenas para a mensagem de abertura
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatKey]);
+
+  useEffect(() => {
+    if (!chatKey || chatLoadedKey.current !== chatKey) return;
+    if (chatJustSet.current) {
+      // Enquanto a tela ainda mostra a conversa anterior, não grava; quando mostra a nova, também não
+      const shown = chatHistory === chatJustSet.current;
+      if (shown) chatJustSet.current = null;
+      return;
+    }
+    // Só a abertura, sem ninguém ter falado: nada a guardar
+    if (chatHistory.length === 1 && chatHistory[0].id === 'msg_welcome') {
+      removeChat(chatKey);
+      return;
+    }
+    const stored = serializeChat(chatHistory, chatSeen.current, Date.now(), lastTopicRef.current);
+    chatSeen.current = Object.fromEntries(stored.messages.map((m) => [m.id, m.at]));
+    writeChat(chatKey, stored);
+  }, [chatHistory, chatKey]);
+
+  /** "Nova conversa": limpa a tela e o que estava guardado, e esquece o passo que estava em andamento. */
+  const resetForsetiChat = () => {
+    const fresh = [welcomeMessage(viewing)];
+    chatJustSet.current = fresh;
+    chatSeen.current = {};
+    setChatHistory(fresh);
+    forsetiFlowRef.current = null;
+    lastTopicRef.current = null;
+    requestTrailRef.current = [];
+    conversationIdRef.current = crypto.randomUUID();
+    if (chatKey) removeChat(chatKey);
+  };
 
   const saveActivity = (activity: ForsetiActivity) => {
     if (!activityUserId) return;
@@ -137,6 +208,6 @@ export function useForsetiActivity({
 
   return {
     chatHistory, setChatHistory, forsetiFlowRef, requestTrailRef, forsetiActivity, lastTopicRef,
-    logForsetiActivity, rateForsetiActivity, undoForsetiActivity,
+    logForsetiActivity, rateForsetiActivity, undoForsetiActivity, resetForsetiChat,
   };
 }

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { clearAllChats } from '../utils/forsetiChatStore';
 
 export interface AppUser {
   $id: string; // Mapeado a partir de user.id do Supabase para total compatibilidade retroativa
@@ -219,6 +220,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Logout error', error);
     } finally {
       sessionStorage.removeItem('balder_guest_user');
+      // A conversa com a Forseti não fica no aparelho depois de sair da conta
+      clearAllChats();
       setUser(null);
     }
   };
