@@ -358,531 +358,529 @@ export function useForsetiChat({
 
     setChatHistory((prev) => [...prev, userMessage]);
 
-    // Análise Cognitiva da Pergunta / Comando
-    setTimeout(() => {
-      let responseText = '';
-      let actionBadge = '';
-      let suggestedFollowUps: string[] = [];
+    // Interpreta a pergunta ou o comando e responde na hora: as regras são calculadas no aparelho, sem espera
+    let responseText = '';
+    let actionBadge = '';
+    let suggestedFollowUps: string[] = [];
 
-      // via: 'IA' marca a resposta que só saiu porque a IA entendeu a frase (as regras não entenderam)
-      let viaAi = false;
-      const reply = (r: ForsetiReply, extra?: Partial<CopilotMessage>, via?: 'IA') => {
-        const by = via ?? (viaAi ? 'IA' : undefined);
-        logForsetiActivity({ kind: 'CONVERSA', request: trimmed, result: r.text.replace(/\{(?:ok|bad)\|([^}]*)\}/g, '$1'), ...(by ? { via: by } : {}) });
-        setChatHistory((prev) => [
-          ...(r.pendingAction ? prev.map((m) => (m.pendingAction ? { ...m, pendingAction: undefined } : m)) : prev),
-          {
-            id: `ast_${Date.now()}`,
-            role: 'assistant',
-            content: r.text,
-            timestamp: 'Agora',
-            actionBadge: r.badge,
-            suggestedFollowUps: r.chips,
-            ...(r.choices ? { choices: r.choices } : {}),
-            ...(r.pendingAction ? { pendingAction: r.pendingAction } : {}),
-            ...extra,
-          },
-        ]);
-      };
+    // via: 'IA' marca a resposta que só saiu porque a IA entendeu a frase (as regras não entenderam)
+    let viaAi = false;
+    const reply = (r: ForsetiReply, extra?: Partial<CopilotMessage>, via?: 'IA') => {
+      const by = via ?? (viaAi ? 'IA' : undefined);
+      logForsetiActivity({ kind: 'CONVERSA', request: trimmed, result: r.text.replace(/\{(?:ok|bad)\|([^}]*)\}/g, '$1'), ...(by ? { via: by } : {}) });
+      setChatHistory((prev) => [
+        ...(r.pendingAction ? prev.map((m) => (m.pendingAction ? { ...m, pendingAction: undefined } : m)) : prev),
+        {
+          id: `ast_${Date.now()}`,
+          role: 'assistant',
+          content: r.text,
+          timestamp: 'Agora',
+          actionBadge: r.badge,
+          suggestedFollowUps: r.chips,
+          ...(r.choices ? { choices: r.choices } : {}),
+          ...(r.pendingAction ? { pendingAction: r.pendingAction } : {}),
+          ...extra,
+        },
+      ]);
+    };
 
-      const todayIso = parseDate('hoje') as string;
-      const dateLabel = (iso: string) =>
-        iso === todayIso ? 'hoje' : iso === parseDate('amanhã') ? 'amanhã' : `em ${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+    const todayIso = parseDate('hoje') as string;
+    const dateLabel = (iso: string) =>
+      iso === todayIso ? 'hoje' : iso === parseDate('amanhã') ? 'amanhã' : `em ${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
-      // ── Registro guiado: cada passo pergunta só o que falta ──
-      const askReceiveAccount = (title: string, amount: number, date: string, status: 'PREVISTA' | 'REALIZADA') => {
-        forsetiFlowRef.current = null;
-        const done = status === 'REALIZADA';
-        reply(
-          {
-            text: `Certo: **${brl(amount)}**${title ? ` (${title})` : ''} ${done ? 'recebido' : 'entrando'} **${dateLabel(date)}**.\n\n**Em qual conta esse dinheiro ${done ? 'entrou' : 'vai entrar'}?**`,
-            badge: 'SELEÇÃO DE CONTA',
-            chips: [],
-          },
-          {
-            pendingConfirmation: {
-              step: 'ACCOUNT',
-              pendingData: {
-                rawTitle: title || 'Recebimento',
-                amount,
-                dueDate: date,
-                type: 'RECEBER',
-                category: 'Receita Operacional',
-                status,
-                request: requestTrailRef.current.join(' → '),
-              },
-              question: 'Em qual conta?',
-              options: [],
-              wizard: { step: 'WHERE', installments: 1 },
+    // ── Registro guiado: cada passo pergunta só o que falta ──
+    const askReceiveAccount = (title: string, amount: number, date: string, status: 'PREVISTA' | 'REALIZADA') => {
+      forsetiFlowRef.current = null;
+      const done = status === 'REALIZADA';
+      reply(
+        {
+          text: `Certo: **${brl(amount)}**${title ? ` (${title})` : ''} ${done ? 'recebido' : 'entrando'} **${dateLabel(date)}**.\n\n**Em qual conta esse dinheiro ${done ? 'entrou' : 'vai entrar'}?**`,
+          badge: 'SELEÇÃO DE CONTA',
+          chips: [],
+        },
+        {
+          pendingConfirmation: {
+            step: 'ACCOUNT',
+            pendingData: {
+              rawTitle: title || 'Recebimento',
+              amount,
+              dueDate: date,
+              type: 'RECEBER',
+              category: 'Receita Operacional',
+              status,
+              request: requestTrailRef.current.join(' → '),
             },
-          }
-        );
-      };
-      // hint: frase original, onde pode estar a forma de pagamento ("no cartão Inter", "no Pix")
-      type PayContext = { installments?: number; hint?: string; date?: string; scheduled?: boolean };
-      const askPaymentMethod = (title: string, amount: number, category: string, ctx: PayContext = {}) => {
-        // Pagamento agendado sem data na frase: pergunta para quando é, antes da forma de pagamento
-        if (ctx.scheduled && !ctx.date) {
-          forsetiFlowRef.current = {
-            kind: 'PAGAR',
-            step: 'DATA',
-            title,
-            amount,
-            category: { title, category },
-            installments: ctx.installments,
-            hint: ctx.hint,
-            scheduled: true,
-          };
+            question: 'Em qual conta?',
+            options: [],
+            wizard: { step: 'WHERE', installments: 1 },
+          },
+        }
+      );
+    };
+    // hint: frase original, onde pode estar a forma de pagamento ("no cartão Inter", "no Pix")
+    type PayContext = { installments?: number; hint?: string; date?: string; scheduled?: boolean };
+    const askPaymentMethod = (title: string, amount: number, category: string, ctx: PayContext = {}) => {
+      // Pagamento agendado sem data na frase: pergunta para quando é, antes da forma de pagamento
+      if (ctx.scheduled && !ctx.date) {
+        forsetiFlowRef.current = {
+          kind: 'PAGAR',
+          step: 'DATA',
+          title,
+          amount,
+          category: { title, category },
+          installments: ctx.installments,
+          hint: ctx.hint,
+          scheduled: true,
+        };
+        reply({
+          text: `**${brl(amount)}**${title ? ` (${title})` : ''}. **Para quando está agendado?**\n\nEscolha uma opção ou escreva a data (ex.: *dia 12* ou *15/10*).`,
+          badge: 'DATA DO PAGAMENTO',
+          chips: RECEIVE_DATE_CHIPS,
+        });
+        return;
+      }
+      forsetiFlowRef.current = null;
+      const installments = ctx.installments && ctx.installments >= 2 ? ctx.installments : undefined;
+      const plan = installments ? { count: installments, total: amount } : undefined;
+      const pick = pickPaymentOptions(ctx.hint || '', accounts, cards, category, plan);
+      const parcelas = plan ? ` em **${plan.count}x de ${brl(Math.round((amount / plan.count) * 100) / 100)}**` : '';
+      // Cartão citado e não cadastrado: segue o cadastro na conversa; senão, o registro em etapas
+      const needsRegister = pick.options.some((o) => o.payload.action === OPTION_REGISTER_CARD);
+      let wizard: PaymentWizardState | undefined;
+      if (!needsRegister) {
+        wizard = { step: 'WHERE', installments: plan?.count ?? 1 };
+        // A forma de pagamento já estava clara na frase: vai direto ao resumo, para conferir
+        const real = pick.options.filter((o) => o.payload.action !== OPTION_OTHER_PAYMENT);
+        if (real.length === 1 && pick.question.startsWith('Confirma')) {
+          const insts = listPaymentInstitutions(accounts, cards, banks);
+          const o = real[0];
+          const byCard = insts.find((i) => i.card && o.id === `opt_pay_card_${i.card.id}`);
+          const byAccount = insts.find((i) => i.account && o.id === `opt_pay_${i.account.id}`);
+          if (byCard) wizard = { step: 'SUMMARY', where: 'BANK', institution: byCard.name, method: 'CREDITO', installments: plan?.count ?? 1 };
+          else if (byAccount) wizard = { step: 'SUMMARY', where: 'BANK', institution: byAccount.name, method: 'DEBITO', installments: 1 };
+          else if (o.payload.bank === CASH_IN_HAND) wizard = { step: 'SUMMARY', where: 'CASH', installments: 1 };
+        }
+      }
+      reply(
+        {
+          text: `Anotado: **${brl(amount)}** em **${title}**${parcelas}${ctx.scheduled && ctx.date ? `, agendado para **${ctx.date.slice(8, 10)}/${ctx.date.slice(5, 7)}**` : ''}.${needsRegister ? `${pick.note ? ` ${pick.note}` : ''}\n\n**${pick.question}**` : ''}`,
+          badge: 'FORMA DE PAGAMENTO',
+          chips: [],
+        },
+        {
+          pendingConfirmation: {
+            step: 'PAYMENT_METHOD',
+            pendingData: {
+              rawTitle: title,
+              amount,
+              dueDate: ctx.scheduled && ctx.date ? ctx.date : todayIso,
+              type: 'PAGAR',
+              category,
+              installments,
+              ...(ctx.scheduled && ctx.date ? { status: 'PREVISTA' as const } : {}),
+              request: requestTrailRef.current.join(' → '),
+            },
+            question: pick.question,
+            options: wizard ? [] : pick.options,
+            wizard,
+          },
+        }
+      );
+    };
+    const continueReceive = (title: string, amount: number, date: string | null, status: 'PREVISTA' | 'REALIZADA') => {
+      if (date) return askReceiveAccount(title, amount, date, status);
+      forsetiFlowRef.current = { kind: 'RECEBER', step: 'DATA', title, amount, status };
+      reply({
+        text: `**${brl(amount)}**${title ? ` (${title})` : ''}. **E quando esse valor entra?**\n\nEscolha uma opção ou escreva a data (ex.: *dia 12* ou *15/10*).`,
+        badge: 'DATA DO RECEBIMENTO',
+        chips: RECEIVE_DATE_CHIPS,
+      });
+    };
+    const continuePay = (title: string, amount: number, cat: { title: string; category: string } | null, ctx: PayContext = {}) => {
+      if (cat) return askPaymentMethod(title || cat.title, amount, cat.category, ctx);
+      if (title) return askPaymentMethod(title, amount, 'Outros', ctx);
+      forsetiFlowRef.current = { kind: 'PAGAR', step: 'CATEGORIA', amount, ...ctx };
+      // Sugestões = naturezas cadastradas pelo usuário; sem nenhuma, vale a lista padrão
+      const ownNames = userNatures(natures).map((n) => n.name);
+      reply({
+        text: `**${brl(amount)}**. **Com o que foi esse gasto?**`,
+        badge: 'CATEGORIA DO GASTO',
+        chips: ownNames.length > 0 ? [...ownNames.slice(0, 10), 'Outro'] : EXPENSE_CATEGORY_CHIPS,
+      });
+    };
+    // "em 6x de 295,87" sem o total: o total é parcela × vezes
+    const readPurchase = (text: string) => {
+      const inst = parseInstallments(text);
+      const base = inst ? inst.rest : text;
+      const amount = parseAmount(base) ?? (inst?.perInstallment ? Math.round(inst.perInstallment * inst.count * 100) / 100 : null);
+      return { base, amount, installments: inst?.count };
+    };
+    // hint: a frase que a pessoa escreveu, onde pode estar a forma de pagamento (text pode ser a versão limpa da IA)
+    const startRegistration = (kind: 'RECEBER' | 'PAGAR', text: string, hint: string = text) => {
+      requestTrailRef.current = [trimmed];
+      const amount = parseAmount(text);
+      const title = titleFrom(text);
+      if (kind === 'RECEBER') {
+        const past = isPastReceive(text);
+        const status = past ? 'REALIZADA' : 'PREVISTA';
+        const date = parseDate(text) || (past ? todayIso : null);
+        if (amount === null) {
+          forsetiFlowRef.current = { kind, step: 'VALOR', title, date: date || undefined, status };
           reply({
-            text: `**${brl(amount)}**${title ? ` (${title})` : ''}. **Para quando está agendado?**\n\nEscolha uma opção ou escreva a data (ex.: *dia 12* ou *15/10*).`,
-            badge: 'DATA DO PAGAMENTO',
-            chips: RECEIVE_DATE_CHIPS,
+            text: `${past ? 'Que bom! ' : 'Vamos registrar. '}**Qual é o valor ${past ? 'que você recebeu' : 'que você vai receber'}?**\n\nPode escrever só o número (ex.: *1.500*) ou com a origem (ex.: *1.500 do freela*).`,
+            badge: 'VALOR DO RECEBIMENTO',
+            chips: [],
           });
           return;
         }
+        continueReceive(title, amount, date, status);
+        return;
+      }
+      const purchase = readPurchase(text);
+      const payTitle = titleFrom(purchase.base);
+      const cat = inferExpenseCategory(purchase.base);
+      const scheduled = isScheduledPayment(text);
+      const ctx: PayContext = { installments: purchase.installments, hint, scheduled, date: scheduled ? parseDate(text) || undefined : undefined };
+      if (purchase.amount === null) {
+        forsetiFlowRef.current = { kind, step: 'VALOR', title: payTitle, category: cat || undefined, ...ctx };
+        reply({
+          text: `Vamos registrar. **Qual foi o valor ${purchase.installments && purchase.installments >= 2 ? 'total da compra' : 'pago'}?**\n\nPode escrever só o número (ex.: *85,90*) ou com o que foi (ex.: *85,90 na farmácia*).`,
+          badge: 'VALOR DO PAGAMENTO',
+          chips: [],
+        });
+        return;
+      }
+      continuePay(payTitle, purchase.amount, cat, ctx);
+    };
+
+    // Resposta a uma pergunta do registro em andamento (sair dele é só mudar de assunto)
+    const flow = forsetiFlowRef.current;
+    if (/^(cancela|cancelar|esquece|deixa|nao quero|não quero)/i.test(trimmed)) {
+      forsetiFlowRef.current = null;
+      reply({
+        text: flow ? 'Tudo bem, cancelei. Se precisar, é só chamar.' : 'Tudo bem! Não há nada em andamento. Se precisar, é só chamar.',
+        badge: 'CANCELADO',
+        chips: MAIN_CHIPS,
+      });
+      return;
+    }
+    if (flow) {
+      // No cadastro do cartão, "vence dia 10" é resposta, não a dúvida "o que vence"
+      const cardStep = flow.step.startsWith('CARTAO_');
+      const changedSubject =
+        MAIN_CHIPS.includes(trimmed) ||
+        !!registrationKind(trimmed) ||
+        !!detectAction(trimmed, natures) ||
+        (!cardStep && !!detectDoubt(trimmed) && parseAmount(trimmed) === null);
+      if (!changedSubject) requestTrailRef.current.push(trimmed);
+      if (changedSubject) {
         forsetiFlowRef.current = null;
-        const installments = ctx.installments && ctx.installments >= 2 ? ctx.installments : undefined;
-        const plan = installments ? { count: installments, total: amount } : undefined;
-        const pick = pickPaymentOptions(ctx.hint || '', accounts, cards, category, plan);
-        const parcelas = plan ? ` em **${plan.count}x de ${brl(Math.round((amount / plan.count) * 100) / 100)}**` : '';
-        // Cartão citado e não cadastrado: segue o cadastro na conversa; senão, o registro em etapas
-        const needsRegister = pick.options.some((o) => o.payload.action === OPTION_REGISTER_CARD);
-        let wizard: PaymentWizardState | undefined;
-        if (!needsRegister) {
-          wizard = { step: 'WHERE', installments: plan?.count ?? 1 };
-          // A forma de pagamento já estava clara na frase: vai direto ao resumo, para conferir
-          const real = pick.options.filter((o) => o.payload.action !== OPTION_OTHER_PAYMENT);
-          if (real.length === 1 && pick.question.startsWith('Confirma')) {
-            const insts = listPaymentInstitutions(accounts, cards, banks);
-            const o = real[0];
-            const byCard = insts.find((i) => i.card && o.id === `opt_pay_card_${i.card.id}`);
-            const byAccount = insts.find((i) => i.account && o.id === `opt_pay_${i.account.id}`);
-            if (byCard) wizard = { step: 'SUMMARY', where: 'BANK', institution: byCard.name, method: 'CREDITO', installments: plan?.count ?? 1 };
-            else if (byAccount) wizard = { step: 'SUMMARY', where: 'BANK', institution: byAccount.name, method: 'DEBITO', installments: 1 };
-            else if (o.payload.bank === CASH_IN_HAND) wizard = { step: 'SUMMARY', where: 'CASH', installments: 1 };
+      } else if (flow.step === 'CARTAO_NOME' || flow.step === 'CARTAO_VENCIMENTO' || flow.step === 'CARTAO_FECHAMENTO') {
+        const newCard = flow.newCard || { name: '' };
+        if (flow.step === 'CARTAO_NOME') {
+          const name =
+            mentionedCard(`cartão ${trimmed}`)?.label ||
+            trimmed.replace(/^(?:(?:o|a|meu|minha)\s+)?(?:cart[aã]o\s+)?(?:de\s+cr[eé]dito\s+)?(?:d[oa]\s+)?/i, '').trim();
+          if (!name) {
+            reply({ text: 'Qual é o nome ou o banco do cartão? (ex.: *Itaú*, *Renner*)', badge: 'NOVO CARTÃO', chips: [] });
+            return;
           }
+          forsetiFlowRef.current = { ...flow, step: 'CARTAO_VENCIMENTO', newCard: { name } };
+          reply({ text: `Cartão **${name}**. **Em que dia vence a fatura?**`, badge: 'NOVO CARTÃO', chips: NEW_CARD_DUE_CHIPS });
+          return;
         }
+        const dayMatch = trimmed.match(/\b(\d{1,2})\b/);
+        const day = dayMatch ? Number(dayMatch[1]) : 0;
+        const validDay = day >= 1 && day <= 31;
+        if (flow.step === 'CARTAO_VENCIMENTO') {
+          if (!validDay) {
+            reply({ text: 'Não entendi o dia. Escreva só o número do vencimento, por exemplo **10**.', badge: 'NOVO CARTÃO', chips: NEW_CARD_DUE_CHIPS });
+            return;
+          }
+          const suggested = defaultClosingDay(day);
+          forsetiFlowRef.current = { ...flow, step: 'CARTAO_FECHAMENTO', newCard: { ...newCard, dueDay: day } };
+          reply({
+            text: `Vence dia **${day}**. **E em que dia a fatura fecha?** Compras depois do fechamento vão para a fatura seguinte.\n\nSe não souber, costuma ser uma semana antes: **dia ${suggested}**.`,
+            badge: 'NOVO CARTÃO',
+            chips: [`Dia ${suggested}`, 'Não sei'],
+          });
+          return;
+        }
+        const dueDay = newCard.dueDay || 10;
+        const unknown = /n[aã]o sei|semana antes/i.test(trimmed);
+        if (!unknown && !validDay) {
+          reply({ text: 'Não entendi o dia. Escreva só o número do fechamento, por exemplo **3** (ou *não sei*).', badge: 'NOVO CARTÃO', chips: [`Dia ${defaultClosingDay(dueDay)}`, 'Não sei'] });
+          return;
+        }
+        const closingDay = unknown ? defaultClosingDay(dueDay) : day;
+        forsetiFlowRef.current = null;
+        const purchase = flow.purchase;
+        const cardData: Omit<CreditCardItem, 'id'> = {
+          name: newCard.name,
+          bank: newCard.name,
+          brand: 'OUTRA',
+          // Limite ainda desconhecido: pelo menos o valor da compra (ajustável em Cartões)
+          limitTotal: Math.max(1000, Math.ceil(purchase?.amount || 0)),
+          closingDay,
+          dueDay,
+          color: getBankBranding(newCard.name).primaryColor,
+        };
+        addCard(cardData);
+        logForsetiActivity({
+          kind: 'CARTAO',
+          request: requestTrailRef.current.join(' → '),
+          result: `Cartão ${newCard.name} cadastrado · fecha dia ${closingDay}, vence dia ${dueDay}`,
+          cardName: newCard.name,
+        });
+        const saved = `✓ Cartão **${newCard.name}** cadastrado: fecha dia **${closingDay}**${unknown ? ' *(estimado)*' : ''} e vence dia **${dueDay}**. ${unknown ? 'Confira o fechamento real no app do banco e ajuste em **Cartões**: ele define em qual fatura cada compra cai. ' : ''}O limite você ajusta em **Cartões**.`;
+        if (!purchase) {
+          reply({ text: saved, badge: 'CARTÃO CADASTRADO', chips: MAIN_CHIPS });
+          return;
+        }
+        const plan = purchase.installments && purchase.installments >= 2 ? { count: purchase.installments, total: purchase.amount } : undefined;
+        const cardOption = paymentOptions([], [{ ...cardData, id: `novo_${Date.now()}` }], purchase.category || 'Outros', plan).filter(
+          (o) => o.payload.type === 'CARTAO'
+        );
+        const parcelas = plan ? ` em **${plan.count}x de ${brl(Math.round((plan.total / plan.count) * 100) / 100)}**` : '';
         reply(
           {
-            text: `Anotado: **${brl(amount)}** em **${title}**${parcelas}${ctx.scheduled && ctx.date ? `, agendado para **${ctx.date.slice(8, 10)}/${ctx.date.slice(5, 7)}**` : ''}.${needsRegister ? `${pick.note ? ` ${pick.note}` : ''}\n\n**${pick.question}**` : ''}`,
-            badge: 'FORMA DE PAGAMENTO',
+            text: `${saved}\n\nAgora a compra: **${brl(purchase.amount)}** em **${purchase.rawTitle}**${parcelas}.\n\n**Confirma neste cartão?**`,
+            badge: 'CARTÃO CADASTRADO',
             chips: [],
           },
           {
             pendingConfirmation: {
               step: 'PAYMENT_METHOD',
-              pendingData: {
-                rawTitle: title,
-                amount,
-                dueDate: ctx.scheduled && ctx.date ? ctx.date : todayIso,
-                type: 'PAGAR',
-                category,
-                installments,
-                ...(ctx.scheduled && ctx.date ? { status: 'PREVISTA' as const } : {}),
-                request: requestTrailRef.current.join(' → '),
-              },
-              question: pick.question,
-              options: wizard ? [] : pick.options,
-              wizard,
+              pendingData: purchase,
+              question: 'Confirma a compra neste cartão?',
+              options: [
+                ...cardOption,
+                { id: 'opt_pay_other', label: 'Outra forma de pagamento', icon: '↔️', description: 'Ver todas as contas e cartões', payload: { action: OPTION_OTHER_PAYMENT } },
+              ],
             },
           }
         );
-      };
-      const continueReceive = (title: string, amount: number, date: string | null, status: 'PREVISTA' | 'REALIZADA') => {
-        if (date) return askReceiveAccount(title, amount, date, status);
-        forsetiFlowRef.current = { kind: 'RECEBER', step: 'DATA', title, amount, status };
-        reply({
-          text: `**${brl(amount)}**${title ? ` (${title})` : ''}. **E quando esse valor entra?**\n\nEscolha uma opção ou escreva a data (ex.: *dia 12* ou *15/10*).`,
-          badge: 'DATA DO RECEBIMENTO',
-          chips: RECEIVE_DATE_CHIPS,
-        });
-      };
-      const continuePay = (title: string, amount: number, cat: { title: string; category: string } | null, ctx: PayContext = {}) => {
-        if (cat) return askPaymentMethod(title || cat.title, amount, cat.category, ctx);
-        if (title) return askPaymentMethod(title, amount, 'Outros', ctx);
-        forsetiFlowRef.current = { kind: 'PAGAR', step: 'CATEGORIA', amount, ...ctx };
-        // Sugestões = naturezas cadastradas pelo usuário; sem nenhuma, vale a lista padrão
-        const ownNames = userNatures(natures).map((n) => n.name);
-        reply({
-          text: `**${brl(amount)}**. **Com o que foi esse gasto?**`,
-          badge: 'CATEGORIA DO GASTO',
-          chips: ownNames.length > 0 ? [...ownNames.slice(0, 10), 'Outro'] : EXPENSE_CATEGORY_CHIPS,
-        });
-      };
-      // "em 6x de 295,87" sem o total: o total é parcela × vezes
-      const readPurchase = (text: string) => {
-        const inst = parseInstallments(text);
-        const base = inst ? inst.rest : text;
-        const amount = parseAmount(base) ?? (inst?.perInstallment ? Math.round(inst.perInstallment * inst.count * 100) / 100 : null);
-        return { base, amount, installments: inst?.count };
-      };
-      // hint: a frase que a pessoa escreveu, onde pode estar a forma de pagamento (text pode ser a versão limpa da IA)
-      const startRegistration = (kind: 'RECEBER' | 'PAGAR', text: string, hint: string = text) => {
-        requestTrailRef.current = [trimmed];
-        const amount = parseAmount(text);
-        const title = titleFrom(text);
-        if (kind === 'RECEBER') {
-          const past = isPastReceive(text);
-          const status = past ? 'REALIZADA' : 'PREVISTA';
-          const date = parseDate(text) || (past ? todayIso : null);
-          if (amount === null) {
-            forsetiFlowRef.current = { kind, step: 'VALOR', title, date: date || undefined, status };
-            reply({
-              text: `${past ? 'Que bom! ' : 'Vamos registrar. '}**Qual é o valor ${past ? 'que você recebeu' : 'que você vai receber'}?**\n\nPode escrever só o número (ex.: *1.500*) ou com a origem (ex.: *1.500 do freela*).`,
-              badge: 'VALOR DO RECEBIMENTO',
-              chips: [],
-            });
-            return;
-          }
-          continueReceive(title, amount, date, status);
-          return;
-        }
-        const purchase = readPurchase(text);
-        const payTitle = titleFrom(purchase.base);
-        const cat = inferExpenseCategory(purchase.base);
-        const scheduled = isScheduledPayment(text);
-        const ctx: PayContext = { installments: purchase.installments, hint, scheduled, date: scheduled ? parseDate(text) || undefined : undefined };
-        if (purchase.amount === null) {
-          forsetiFlowRef.current = { kind, step: 'VALOR', title: payTitle, category: cat || undefined, ...ctx };
+        return;
+      } else if (flow.step === 'VALOR') {
+        const purchase = flow.kind === 'PAGAR' ? readPurchase(trimmed) : null;
+        const amount = purchase ? purchase.amount : parseAmount(trimmed);
+        if (amount === null) {
           reply({
-            text: `Vamos registrar. **Qual foi o valor ${purchase.installments && purchase.installments >= 2 ? 'total da compra' : 'pago'}?**\n\nPode escrever só o número (ex.: *85,90*) ou com o que foi (ex.: *85,90 na farmácia*).`,
-            badge: 'VALOR DO PAGAMENTO',
+            text: 'Não consegui entender o valor 🤔. Digite só o número, por exemplo **150** ou **1.250,90** (ou *cancelar* para desistir).',
+            badge: 'VALOR',
             chips: [],
           });
           return;
         }
-        continuePay(payTitle, purchase.amount, cat, ctx);
+        const title = titleFrom(purchase ? purchase.base : trimmed) || flow.title || '';
+        if (flow.kind === 'RECEBER') continueReceive(title, amount, parseDate(trimmed) || flow.date || null, flow.status || 'PREVISTA');
+        else
+          continuePay(title, amount, inferExpenseCategory(purchase!.base) || flow.category || null, {
+            installments: purchase!.installments || flow.installments,
+            hint: `${flow.hint || ''} ${trimmed}`,
+            scheduled: flow.scheduled,
+            date: (flow.scheduled ? parseDate(trimmed) : null) || flow.date,
+          });
+        return;
+      } else if (flow.step === 'DATA') {
+        const date = parseDate(trimmed, true);
+        if (!date) {
+          reply({
+            text: 'Não entendi a data. Escolha uma opção ou escreva, por exemplo, **dia 12** ou **15/10**.',
+            badge: 'DATA',
+            chips: RECEIVE_DATE_CHIPS,
+          });
+          return;
+        }
+        if (flow.kind === 'PAGAR') {
+          askPaymentMethod(flow.title || flow.category?.title || '', flow.amount || 0, flow.category?.category || 'Outros', {
+            installments: flow.installments,
+            hint: flow.hint,
+            scheduled: true,
+            date,
+          });
+          return;
+        }
+        askReceiveAccount(flow.title || '', flow.amount || 0, date, flow.status || 'PREVISTA');
+        return;
+      } else if (flow.step === 'CATEGORIA') {
+        if (trimmed === 'Outro') {
+          forsetiFlowRef.current = { ...flow, step: 'DESCRICAO' };
+          reply({ text: 'O que foi? Escreva uma descrição curta (ex.: *presente*, *barbeiro*).', badge: 'DESCRIÇÃO', chips: [] });
+          return;
+        }
+        const ownNature = userNatures(natures).find((n) => n.name.trim().toLowerCase() === trimmed.toLowerCase());
+        const cat = ownNature
+          ? { title: ownNature.name, category: ownNature.name }
+          : categoryFromChip(trimmed) || inferExpenseCategory(trimmed);
+        askPaymentMethod(cat ? cat.title : trimmed, flow.amount || 0, cat ? cat.category : 'Outros', flow);
+        return;
+      } else {
+        askPaymentMethod(trimmed, flow.amount || 0, inferExpenseCategory(trimmed)?.category || 'Outros', flow);
+        return;
+      }
+    }
+
+    if (trimmed === CHIP_RECEBER || trimmed === CHIP_PAGAR) {
+      startRegistration(trimmed === CHIP_RECEBER ? 'RECEBER' : 'PAGAR', '');
+      return;
+    }
+
+    const isNewLoan = /novo empr[eé]stimo|pegar empr[eé]stimo|tomar empr[eé]stimo/i.test(trimmed);
+    const isScreenAnalysis = /analis|auditar|diagn[oó]stico|esta tela|tela de/i.test(trimmed);
+    if (!isNewLoan && !isScreenAnalysis) {
+      // 0. Ações (abrir tela, criar natureza ou mapeamento): a Forseti propõe e só faz depois do "Confirmar"
+      const bankInvoiceInfo: BankInvoiceInfo[] = listPaymentInstitutions(accounts, cards, banks)
+        .filter((i) => i.card || banks.some((b) => b.name === i.name))
+        .map((i) => ({
+          name: i.name,
+          closingDay: i.terms?.closingDay,
+          dueDay: i.terms?.dueDay,
+          openInvoices: movements.filter(
+            (m) => m.type === 'CARTAO' && m.status === 'PREVISTA' && canonicalBankName(m.bank, banks, cards).toLowerCase() === i.name.toLowerCase()
+          ).length,
+        }));
+      const action = detectAction(trimmed, natures, bankInvoiceInfo);
+      if (action) {
+        if (action.kind === 'NEED_INFO') {
+          reply(action.reply);
+          return;
+        }
+        if (action.kind === 'SET_BANK_INVOICE') {
+          if (forsetiBlockedInShared('ajusto as datas da fatura', undefined, ['REGISTRAR_PAGAMENTOS'])) return;
+        } else if (action.kind !== 'NAVIGATE' && forsetiBlockedInShared('crio naturezas nem mapeamentos')) return;
+        const { title, details } = describeAction(action);
+        const pendingAction = { ...action, request: trimmed, title, details };
+        logForsetiActivity({ kind: 'CONVERSA', request: trimmed, result: title.replace(/\*\*/g, '') });
+        setChatHistory((prev) => [
+          ...prev.map((m) => (m.pendingAction ? { ...m, pendingAction: undefined } : m)),
+          {
+            id: `ast_${Date.now()}`,
+            role: 'assistant',
+            content: `${title}${details.length > 0 ? `\n\n${details.map((d) => `• ${d}`).join('\n')}` : ''}`,
+            timestamp: 'Agora',
+            actionBadge: 'CONFIRMAR AÇÃO',
+            pendingAction,
+          },
+        ]);
+        return;
+      }
+
+      // 1. Registro em linguagem natural ("paguei 50 no mercado", "vou receber 1.200 dia 10")
+      const kind = registrationKind(trimmed);
+      if (kind) {
+        startRegistration(kind, trimmed);
+        return;
+      }
+
+      // 2. Dúvidas respondidas com os números do planejamento
+      const answerIntent = (doubt: DoubtId, period?: SpendPeriod, note?: string, via?: 'IA', spend?: SpendQuery) => {
+        const withMonth = doubt === 'GASTEI';
+        const key = todayIso.slice(0, 7);
+        const opts = { startDate: activeCheckpoint?.startDate, horizonMonths: projectionHorizonMonths };
+        const init = activeCheckpoint ? activeCheckpoint.initialBalance : 0;
+        const monthRow = (mode: 'PROJETADO' | 'REALIZADO') =>
+          buildMonthlyProjectionGrid(movements, natures, init, monthlyClosings, mode, opts).find((r) => r.monthKey === key);
+        // Sem natureza: sugere a natureza provável de cada despesa (palavras-chave e nomes, como nas faturas)
+        const natureSuggestions: Record<string, { natureId: string; natureName: string }> = {};
+        if (doubt === 'SEM_NATUREZA') {
+          movements
+            .filter((m) => m.type === 'PAGAR' && !resolveMovementNatureId(m, natures))
+            .forEach((m) => {
+              const match = matchNatureForTransaction(m.title, m.category, natures);
+              if (match.natureId && match.natureId.toLowerCase() !== 'outros' && match.confidence >= 0.8) {
+                natureSuggestions[m.id] = { natureId: match.natureId, natureName: match.natureName };
+              }
+            });
+        }
+        const data: ForsetiData = {
+          natureSuggestions,
+          natures,
+          availableBalance,
+          forecasts,
+          monthProjected: withMonth ? monthRow('PROJETADO') : undefined,
+          monthRealized: withMonth ? monthRow('REALIZADO') : undefined,
+          goals,
+          movements,
+          emergencyReserveAmount,
+          emergencyReserveMonths,
+          monthlyFreeCashflow,
+        };
+        const answer = answerDoubt(doubt, trimmed, data, { period, spend });
+        lastTopicRef.current = { intent: doubt, period: period ?? spendPeriodFrom(trimmed) ?? undefined, text: trimmed, at: Date.now(), ...(answer.spendQuery ? { query: answer.spendQuery } : {}) };
+        reply(note ? { ...answer, text: `${note}\n\n${answer.text}` } : answer, undefined, via);
       };
 
-      // Resposta a uma pergunta do registro em andamento (sair dele é só mudar de assunto)
-      const flow = forsetiFlowRef.current;
-      if (/^(cancela|cancelar|esquece|deixa|nao quero|não quero)/i.test(trimmed)) {
-        forsetiFlowRef.current = null;
-        reply({
-          text: flow ? 'Tudo bem, cancelei. Se precisar, é só chamar.' : 'Tudo bem! Não há nada em andamento. Se precisar, é só chamar.',
-          badge: 'CANCELADO',
-          chips: MAIN_CHIPS,
+      const doubt = detectDoubt(trimmed);
+      if (doubt) {
+        answerIntent(doubt);
+        return;
+      }
+
+      // 2b. Continuação do assunto anterior ("me mostre os dessa semana" depois de "gastos por natureza")
+      const follow = resolveFollowUp(trimmed, topicBefore);
+      if (follow) {
+        answerIntent(follow.intent, follow.period, follow.note, undefined, follow.query);
+        return;
+      }
+
+      // 2c. Valor + o que foi, sem verbo ("30 mercado", "5000 salário"): registro, que o fluxo guiado pergunta e confirma
+      const shorthand = shorthandRegistration(trimmed);
+      if (shorthand) {
+        startRegistration(shorthand, trimmed);
+        return;
+      }
+
+      // 3. Frase que as regras não entenderam: a IA só escolhe a intenção (sem enviar seus dados);
+      // sem chave, offline ou sem certeza, segue para a pergunta de confirmação / resposta padrão
+      const wordCount = trimmed.split(/\s+/).length;
+      if (wordCount >= 3) {
+        classifyIntent(trimmed, topicBefore ? { intent: topicBefore.intent, period: topicBefore.period, previous: topicBefore.text } : undefined).then((found) => {
+          // A IA entendeu um gasto/recebimento: segue o registro guiado de sempre (pergunta o que falta e confirma)
+          if (found?.registration && !isQuestion(trimmed)) {
+            viaAi = true;
+            startRegistration(found.registration.kind, registrationPhrase(found.registration), trimmed);
+          } else if (found?.intent) answerIntent(found.intent, found.period, undefined, 'IA', found.spend ? spendQueryFrom(found.spend) : undefined);
+          else reply(detectLooseAmount(trimmed) || detectAmbiguity(trimmed) || FALLBACK_REPLY);
         });
         return;
       }
-      if (flow) {
-        // No cadastro do cartão, "vence dia 10" é resposta, não a dúvida "o que vence"
-        const cardStep = flow.step.startsWith('CARTAO_');
-        const changedSubject =
-          MAIN_CHIPS.includes(trimmed) ||
-          !!registrationKind(trimmed) ||
-          !!detectAction(trimmed, natures) ||
-          (!cardStep && !!detectDoubt(trimmed) && parseAmount(trimmed) === null);
-        if (!changedSubject) requestTrailRef.current.push(trimmed);
-        if (changedSubject) {
-          forsetiFlowRef.current = null;
-        } else if (flow.step === 'CARTAO_NOME' || flow.step === 'CARTAO_VENCIMENTO' || flow.step === 'CARTAO_FECHAMENTO') {
-          const newCard = flow.newCard || { name: '' };
-          if (flow.step === 'CARTAO_NOME') {
-            const name =
-              mentionedCard(`cartão ${trimmed}`)?.label ||
-              trimmed.replace(/^(?:(?:o|a|meu|minha)\s+)?(?:cart[aã]o\s+)?(?:de\s+cr[eé]dito\s+)?(?:d[oa]\s+)?/i, '').trim();
-            if (!name) {
-              reply({ text: 'Qual é o nome ou o banco do cartão? (ex.: *Itaú*, *Renner*)', badge: 'NOVO CARTÃO', chips: [] });
-              return;
-            }
-            forsetiFlowRef.current = { ...flow, step: 'CARTAO_VENCIMENTO', newCard: { name } };
-            reply({ text: `Cartão **${name}**. **Em que dia vence a fatura?**`, badge: 'NOVO CARTÃO', chips: NEW_CARD_DUE_CHIPS });
-            return;
-          }
-          const dayMatch = trimmed.match(/\b(\d{1,2})\b/);
-          const day = dayMatch ? Number(dayMatch[1]) : 0;
-          const validDay = day >= 1 && day <= 31;
-          if (flow.step === 'CARTAO_VENCIMENTO') {
-            if (!validDay) {
-              reply({ text: 'Não entendi o dia. Escreva só o número do vencimento, por exemplo **10**.', badge: 'NOVO CARTÃO', chips: NEW_CARD_DUE_CHIPS });
-              return;
-            }
-            const suggested = defaultClosingDay(day);
-            forsetiFlowRef.current = { ...flow, step: 'CARTAO_FECHAMENTO', newCard: { ...newCard, dueDay: day } };
-            reply({
-              text: `Vence dia **${day}**. **E em que dia a fatura fecha?** Compras depois do fechamento vão para a fatura seguinte.\n\nSe não souber, costuma ser uma semana antes: **dia ${suggested}**.`,
-              badge: 'NOVO CARTÃO',
-              chips: [`Dia ${suggested}`, 'Não sei'],
-            });
-            return;
-          }
-          const dueDay = newCard.dueDay || 10;
-          const unknown = /n[aã]o sei|semana antes/i.test(trimmed);
-          if (!unknown && !validDay) {
-            reply({ text: 'Não entendi o dia. Escreva só o número do fechamento, por exemplo **3** (ou *não sei*).', badge: 'NOVO CARTÃO', chips: [`Dia ${defaultClosingDay(dueDay)}`, 'Não sei'] });
-            return;
-          }
-          const closingDay = unknown ? defaultClosingDay(dueDay) : day;
-          forsetiFlowRef.current = null;
-          const purchase = flow.purchase;
-          const cardData: Omit<CreditCardItem, 'id'> = {
-            name: newCard.name,
-            bank: newCard.name,
-            brand: 'OUTRA',
-            // Limite ainda desconhecido: pelo menos o valor da compra (ajustável em Cartões)
-            limitTotal: Math.max(1000, Math.ceil(purchase?.amount || 0)),
-            closingDay,
-            dueDay,
-            color: getBankBranding(newCard.name).primaryColor,
-          };
-          addCard(cardData);
-          logForsetiActivity({
-            kind: 'CARTAO',
-            request: requestTrailRef.current.join(' → '),
-            result: `Cartão ${newCard.name} cadastrado · fecha dia ${closingDay}, vence dia ${dueDay}`,
-            cardName: newCard.name,
-          });
-          const saved = `✓ Cartão **${newCard.name}** cadastrado: fecha dia **${closingDay}**${unknown ? ' *(estimado)*' : ''} e vence dia **${dueDay}**. ${unknown ? 'Confira o fechamento real no app do banco e ajuste em **Cartões**: ele define em qual fatura cada compra cai. ' : ''}O limite você ajusta em **Cartões**.`;
-          if (!purchase) {
-            reply({ text: saved, badge: 'CARTÃO CADASTRADO', chips: MAIN_CHIPS });
-            return;
-          }
-          const plan = purchase.installments && purchase.installments >= 2 ? { count: purchase.installments, total: purchase.amount } : undefined;
-          const cardOption = paymentOptions([], [{ ...cardData, id: `novo_${Date.now()}` }], purchase.category || 'Outros', plan).filter(
-            (o) => o.payload.type === 'CARTAO'
-          );
-          const parcelas = plan ? ` em **${plan.count}x de ${brl(Math.round((plan.total / plan.count) * 100) / 100)}**` : '';
-          reply(
-            {
-              text: `${saved}\n\nAgora a compra: **${brl(purchase.amount)}** em **${purchase.rawTitle}**${parcelas}.\n\n**Confirma neste cartão?**`,
-              badge: 'CARTÃO CADASTRADO',
-              chips: [],
-            },
-            {
-              pendingConfirmation: {
-                step: 'PAYMENT_METHOD',
-                pendingData: purchase,
-                question: 'Confirma a compra neste cartão?',
-                options: [
-                  ...cardOption,
-                  { id: 'opt_pay_other', label: 'Outra forma de pagamento', icon: '↔️', description: 'Ver todas as contas e cartões', payload: { action: OPTION_OTHER_PAYMENT } },
-                ],
-              },
-            }
-          );
-          return;
-        } else if (flow.step === 'VALOR') {
-          const purchase = flow.kind === 'PAGAR' ? readPurchase(trimmed) : null;
-          const amount = purchase ? purchase.amount : parseAmount(trimmed);
-          if (amount === null) {
-            reply({
-              text: 'Não consegui entender o valor 🤔. Digite só o número, por exemplo **150** ou **1.250,90** (ou *cancelar* para desistir).',
-              badge: 'VALOR',
-              chips: [],
-            });
-            return;
-          }
-          const title = titleFrom(purchase ? purchase.base : trimmed) || flow.title || '';
-          if (flow.kind === 'RECEBER') continueReceive(title, amount, parseDate(trimmed) || flow.date || null, flow.status || 'PREVISTA');
-          else
-            continuePay(title, amount, inferExpenseCategory(purchase!.base) || flow.category || null, {
-              installments: purchase!.installments || flow.installments,
-              hint: `${flow.hint || ''} ${trimmed}`,
-              scheduled: flow.scheduled,
-              date: (flow.scheduled ? parseDate(trimmed) : null) || flow.date,
-            });
-          return;
-        } else if (flow.step === 'DATA') {
-          const date = parseDate(trimmed, true);
-          if (!date) {
-            reply({
-              text: 'Não entendi a data. Escolha uma opção ou escreva, por exemplo, **dia 12** ou **15/10**.',
-              badge: 'DATA',
-              chips: RECEIVE_DATE_CHIPS,
-            });
-            return;
-          }
-          if (flow.kind === 'PAGAR') {
-            askPaymentMethod(flow.title || flow.category?.title || '', flow.amount || 0, flow.category?.category || 'Outros', {
-              installments: flow.installments,
-              hint: flow.hint,
-              scheduled: true,
-              date,
-            });
-            return;
-          }
-          askReceiveAccount(flow.title || '', flow.amount || 0, date, flow.status || 'PREVISTA');
-          return;
-        } else if (flow.step === 'CATEGORIA') {
-          if (trimmed === 'Outro') {
-            forsetiFlowRef.current = { ...flow, step: 'DESCRICAO' };
-            reply({ text: 'O que foi? Escreva uma descrição curta (ex.: *presente*, *barbeiro*).', badge: 'DESCRIÇÃO', chips: [] });
-            return;
-          }
-          const ownNature = userNatures(natures).find((n) => n.name.trim().toLowerCase() === trimmed.toLowerCase());
-          const cat = ownNature
-            ? { title: ownNature.name, category: ownNature.name }
-            : categoryFromChip(trimmed) || inferExpenseCategory(trimmed);
-          askPaymentMethod(cat ? cat.title : trimmed, flow.amount || 0, cat ? cat.category : 'Outros', flow);
-          return;
-        } else {
-          askPaymentMethod(trimmed, flow.amount || 0, inferExpenseCategory(trimmed)?.category || 'Outros', flow);
-          return;
-        }
-      }
 
-      if (trimmed === CHIP_RECEBER || trimmed === CHIP_PAGAR) {
-        startRegistration(trimmed === CHIP_RECEBER ? 'RECEBER' : 'PAGAR', '');
-        return;
-      }
+      // 4. Palavra solta que pode querer dizer mais de uma coisa: pergunta qual (A, B ou C)
+      reply(detectLooseAmount(trimmed) || detectAmbiguity(trimmed) || FALLBACK_REPLY);
+      return;
+    }
 
-      const isNewLoan = /novo empr[eé]stimo|pegar empr[eé]stimo|tomar empr[eé]stimo/i.test(trimmed);
-      const isScreenAnalysis = /analis|auditar|diagn[oó]stico|esta tela|tela de/i.test(trimmed);
-      if (!isNewLoan && !isScreenAnalysis) {
-        // 0. Ações (abrir tela, criar natureza ou mapeamento): a Forseti propõe e só faz depois do "Confirmar"
-        const bankInvoiceInfo: BankInvoiceInfo[] = listPaymentInstitutions(accounts, cards, banks)
-          .filter((i) => i.card || banks.some((b) => b.name === i.name))
-          .map((i) => ({
-            name: i.name,
-            closingDay: i.terms?.closingDay,
-            dueDay: i.terms?.dueDay,
-            openInvoices: movements.filter(
-              (m) => m.type === 'CARTAO' && m.status === 'PREVISTA' && canonicalBankName(m.bank, banks, cards).toLowerCase() === i.name.toLowerCase()
-            ).length,
-          }));
-        const action = detectAction(trimmed, natures, bankInvoiceInfo);
-        if (action) {
-          if (action.kind === 'NEED_INFO') {
-            reply(action.reply);
-            return;
-          }
-          if (action.kind === 'SET_BANK_INVOICE') {
-            if (forsetiBlockedInShared('ajusto as datas da fatura', undefined, ['REGISTRAR_PAGAMENTOS'])) return;
-          } else if (action.kind !== 'NAVIGATE' && forsetiBlockedInShared('crio naturezas nem mapeamentos')) return;
-          const { title, details } = describeAction(action);
-          const pendingAction = { ...action, request: trimmed, title, details };
-          logForsetiActivity({ kind: 'CONVERSA', request: trimmed, result: title.replace(/\*\*/g, '') });
-          setChatHistory((prev) => [
-            ...prev.map((m) => (m.pendingAction ? { ...m, pendingAction: undefined } : m)),
-            {
-              id: `ast_${Date.now()}`,
-              role: 'assistant',
-              content: `${title}${details.length > 0 ? `\n\n${details.map((d) => `• ${d}`).join('\n')}` : ''}`,
-              timestamp: 'Agora',
-              actionBadge: 'CONFIRMAR AÇÃO',
-              pendingAction,
-            },
-          ]);
-          return;
-        }
+    if (isNewLoan) {
+      const sim = runSimulation('NOVO_EMPRESTIMO');
+      responseText = `Simulação de Novo Empréstimo: ${sim.verdict === 'COM_RESTRICAO' ? '⚠️ Viável com Restrições' : 'Simulação Concluída'}.\n\n${sim.explanation}\n\nRecomendações:\n• ${sim.actionRecommendations.join('\n• ')}`;
+      actionBadge = 'SIMULAÇÃO DE CRÉDITO';
+    } else {
+      // Só números reais do planejamento: a Forseti não enxerga a tela aberta, então o resumo é sempre o geral
+      const screenAnalysis = [
+        '📊 **Resumo do seu planejamento:**',
+        `• **Saldo disponível:** ${brl(availableBalance)}`,
+        `• **Próximos 30 dias:** entradas de ${brl(forecast30d.income)} e saídas de ${brl(forecast30d.expenses)}, resultado ${forecast30d.net >= 0 ? '+' : '-'}${brl(Math.abs(forecast30d.net))}, saldo final previsto de ${brl(forecast30d.projectedBalance)}`,
+        `• **Reserva de emergência:** ${brl(emergencyReserveAmount)}, o que cobre cerca de ${emergencyReserveMonths.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} meses de gastos`,
+        `• **Metas ativas:** ${goals.length}`,
+        `• **Atenção:** ${nextCriticalEvent ? `'${nextCriticalEvent.title}' em ${nextCriticalEvent.daysRemaining} dias.` : 'nenhum evento crítico à vista.'}`,
+      ].join('\n');
+      responseText = screenAnalysis;
+      actionBadge = 'RESUMO DO PLANEJAMENTO';
+      suggestedFollowUps = ['Por que meu saldo previsto caiu?', 'O que vence nos próximos dias?', CHIP_DUVIDA];
+    }
 
-        // 1. Registro em linguagem natural ("paguei 50 no mercado", "vou receber 1.200 dia 10")
-        const kind = registrationKind(trimmed);
-        if (kind) {
-          startRegistration(kind, trimmed);
-          return;
-        }
+    const assistantMessage: CopilotMessage = {
+      id: `ast_${Date.now()}`,
+      role: 'assistant',
+      content: responseText,
+      timestamp: 'Agora',
+      actionBadge,
+      suggestedFollowUps,
+    };
 
-        // 2. Dúvidas respondidas com os números do planejamento
-        const answerIntent = (doubt: DoubtId, period?: SpendPeriod, note?: string, via?: 'IA', spend?: SpendQuery) => {
-          const withMonth = doubt === 'GASTEI';
-          const key = todayIso.slice(0, 7);
-          const opts = { startDate: activeCheckpoint?.startDate, horizonMonths: projectionHorizonMonths };
-          const init = activeCheckpoint ? activeCheckpoint.initialBalance : 0;
-          const monthRow = (mode: 'PROJETADO' | 'REALIZADO') =>
-            buildMonthlyProjectionGrid(movements, natures, init, monthlyClosings, mode, opts).find((r) => r.monthKey === key);
-          // Sem natureza: sugere a natureza provável de cada despesa (palavras-chave e nomes, como nas faturas)
-          const natureSuggestions: Record<string, { natureId: string; natureName: string }> = {};
-          if (doubt === 'SEM_NATUREZA') {
-            movements
-              .filter((m) => m.type === 'PAGAR' && !resolveMovementNatureId(m, natures))
-              .forEach((m) => {
-                const match = matchNatureForTransaction(m.title, m.category, natures);
-                if (match.natureId && match.natureId.toLowerCase() !== 'outros' && match.confidence >= 0.8) {
-                  natureSuggestions[m.id] = { natureId: match.natureId, natureName: match.natureName };
-                }
-              });
-          }
-          const data: ForsetiData = {
-            natureSuggestions,
-            natures,
-            availableBalance,
-            forecasts,
-            monthProjected: withMonth ? monthRow('PROJETADO') : undefined,
-            monthRealized: withMonth ? monthRow('REALIZADO') : undefined,
-            goals,
-            movements,
-            emergencyReserveAmount,
-            emergencyReserveMonths,
-            monthlyFreeCashflow,
-          };
-          const answer = answerDoubt(doubt, trimmed, data, { period, spend });
-          lastTopicRef.current = { intent: doubt, period: period ?? spendPeriodFrom(trimmed) ?? undefined, text: trimmed, at: Date.now(), ...(answer.spendQuery ? { query: answer.spendQuery } : {}) };
-          reply(note ? { ...answer, text: `${note}\n\n${answer.text}` } : answer, undefined, via);
-        };
-
-        const doubt = detectDoubt(trimmed);
-        if (doubt) {
-          answerIntent(doubt);
-          return;
-        }
-
-        // 2b. Continuação do assunto anterior ("me mostre os dessa semana" depois de "gastos por natureza")
-        const follow = resolveFollowUp(trimmed, topicBefore);
-        if (follow) {
-          answerIntent(follow.intent, follow.period, follow.note, undefined, follow.query);
-          return;
-        }
-
-        // 2c. Valor + o que foi, sem verbo ("30 mercado", "5000 salário"): registro, que o fluxo guiado pergunta e confirma
-        const shorthand = shorthandRegistration(trimmed);
-        if (shorthand) {
-          startRegistration(shorthand, trimmed);
-          return;
-        }
-
-        // 3. Frase que as regras não entenderam: a IA só escolhe a intenção (sem enviar seus dados);
-        // sem chave, offline ou sem certeza, segue para a pergunta de confirmação / resposta padrão
-        const wordCount = trimmed.split(/\s+/).length;
-        if (wordCount >= 3) {
-          classifyIntent(trimmed, topicBefore ? { intent: topicBefore.intent, period: topicBefore.period, previous: topicBefore.text } : undefined).then((found) => {
-            // A IA entendeu um gasto/recebimento: segue o registro guiado de sempre (pergunta o que falta e confirma)
-            if (found?.registration && !isQuestion(trimmed)) {
-              viaAi = true;
-              startRegistration(found.registration.kind, registrationPhrase(found.registration), trimmed);
-            } else if (found?.intent) answerIntent(found.intent, found.period, undefined, 'IA', found.spend ? spendQueryFrom(found.spend) : undefined);
-            else reply(detectLooseAmount(trimmed) || detectAmbiguity(trimmed) || FALLBACK_REPLY);
-          });
-          return;
-        }
-
-        // 4. Palavra solta que pode querer dizer mais de uma coisa: pergunta qual (A, B ou C)
-        reply(detectLooseAmount(trimmed) || detectAmbiguity(trimmed) || FALLBACK_REPLY);
-        return;
-      }
-
-      if (isNewLoan) {
-        const sim = runSimulation('NOVO_EMPRESTIMO');
-        responseText = `Simulação de Novo Empréstimo: ${sim.verdict === 'COM_RESTRICAO' ? '⚠️ Viável com Restrições' : 'Simulação Concluída'}.\n\n${sim.explanation}\n\nRecomendações:\n• ${sim.actionRecommendations.join('\n• ')}`;
-        actionBadge = 'SIMULAÇÃO DE CRÉDITO';
-      } else {
-        // Só números reais do planejamento: a Forseti não enxerga a tela aberta, então o resumo é sempre o geral
-        const screenAnalysis = [
-          '📊 **Resumo do seu planejamento:**',
-          `• **Saldo disponível:** ${brl(availableBalance)}`,
-          `• **Próximos 30 dias:** entradas de ${brl(forecast30d.income)} e saídas de ${brl(forecast30d.expenses)}, resultado ${forecast30d.net >= 0 ? '+' : '-'}${brl(Math.abs(forecast30d.net))}, saldo final previsto de ${brl(forecast30d.projectedBalance)}`,
-          `• **Reserva de emergência:** ${brl(emergencyReserveAmount)}, o que cobre cerca de ${emergencyReserveMonths.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} meses de gastos`,
-          `• **Metas ativas:** ${goals.length}`,
-          `• **Atenção:** ${nextCriticalEvent ? `'${nextCriticalEvent.title}' em ${nextCriticalEvent.daysRemaining} dias.` : 'nenhum evento crítico à vista.'}`,
-        ].join('\n');
-        responseText = screenAnalysis;
-        actionBadge = 'RESUMO DO PLANEJAMENTO';
-        suggestedFollowUps = ['Por que meu saldo previsto caiu?', 'O que vence nos próximos dias?', CHIP_DUVIDA];
-      }
-
-      const assistantMessage: CopilotMessage = {
-        id: `ast_${Date.now()}`,
-        role: 'assistant',
-        content: responseText,
-        timestamp: 'Agora',
-        actionBadge,
-        suggestedFollowUps,
-      };
-
-      logForsetiActivity({ kind: 'CONVERSA', request: trimmed, result: responseText });
-      setChatHistory((prev) => [...prev, assistantMessage]);
-    }, 400);
+    logForsetiActivity({ kind: 'CONVERSA', request: trimmed, result: responseText });
+    setChatHistory((prev) => [...prev, assistantMessage]);
   };
 
   // Responder a uma opção interativa do Copilot
