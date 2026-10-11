@@ -544,7 +544,11 @@ export function isPlannedVsReal(text: string): boolean {
 /** "O que é esse gasto da natureza Outros": quer ver o que há em "Outros", não a definição de natureza. */
 export function isOthersQuestion(text: string): boolean {
   const t = stripAccents(text);
-  return (/\boutros\b/.test(t) && /(natureza|categoria|gasto|valor|item|itens|lancamento)/.test(t)) || /sem natureza/.test(t);
+  return (
+    (/\boutros\b/.test(t) && /(natureza|categoria|gasto|valor|item|itens|lancamento)/.test(t)) ||
+    /\bo que (tem|ha|esta|ta) (la )?(dentro )?(d[eo]|em|no)s? outros\b/.test(t) ||
+    /sem natureza/.test(t)
+  );
 }
 
 /** Reconhece uma dúvida no texto (antes de tentar ler como gasto/recebimento: "quanto já gastei" não é um gasto). */
