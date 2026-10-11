@@ -4,7 +4,7 @@
 // Exige o login do Supabase (cabeçalho Authorization), limita o uso por pessoa e guarda respostas repetidas.
 // Limite e cache ficam na memória da instância: bastam para barrar abuso, sem criar tabela.
 import { normalizePhrase } from '../src/utils/forsetiLearning.js';
-import { FORSETI_INTENTS, SPEND_PERIODS, type ForsetiRegistration, isForsetiIntent, isSpendPeriod, parseRegistration } from '../src/utils/forsetiIntents.js';
+import { FORSETI_INTENTS, SPEND_PERIODS, type ForsetiRegistration, type ForsetiSpendQuery, isForsetiIntent, isSpendPeriod, parseRegistration, parseSpendQuery } from '../src/utils/forsetiIntents.js';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 
@@ -15,7 +15,7 @@ const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_
 const LIMIT_PER_HOUR = 30;
 const CACHE_MAX = 500;
 const calls = new Map<string, number[]>();
-const cache = new Map<string, { intent: string; period?: string; registration?: ForsetiRegistration }>();
+const cache = new Map<string, { intent: string; period?: string; registration?: ForsetiRegistration; spend?: ForsetiSpendQuery }>();
 
 /** Hoje no Brasil (AAAA-MM-DD): a IA precisa dele para entender "amanhã" e "dia 12". */
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
@@ -63,6 +63,9 @@ Escolha a intenção que melhor representa o que a pessoa quer VER ou SABER. Int
 - GLOSSARIO: significado de um termo (natureza, mapeamento, competência...)
 - ULTIMAS: últimas compras/gastos/saídas feitas
 - GASTOS_PERIODO: gastos de um período (informe period: HOJE, SEMANA, QUINZENA ou MES)
+- GASTOS_DETALHE: gastos com um assunto específico (natureza, loja, pessoa, produto) e/ou de um período específico (mês pelo nome,
+  mês passado, semana passada, últimos N dias, ano). Preencha "spend": subject = só o assunto, sem datas (vazio se for o total);
+  from e to = AAAA-MM-DD do período, quando a frase disser (use "hoje" do contexto); sem período, omita from e to.
 - PREVISTO_REAL: o que estava previsto e não foi registrado/pago, ou foi pago a menos que o previsto
 - SEM_NATUREZA: o que há dentro de "Outros" / gastos sem natureza
 - DESCONHECIDO: qualquer outra coisa ou conversa fora do tema.
@@ -124,6 +127,11 @@ export async function POST(request: Request): Promise<Response> {
             properties: {
               intent: { type: 'string', enum: [...FORSETI_INTENTS, 'DESCONHECIDO'] },
               period: { type: 'string', enum: [...SPEND_PERIODS] },
+              spend: {
+                type: 'object',
+                properties: { subject: { type: 'string' }, from: { type: 'string' }, to: { type: 'string' } },
+                required: ['subject'],
+              },
               registration: {
                 type: 'object',
                 properties: {
@@ -146,13 +154,14 @@ export async function POST(request: Request): Promise<Response> {
   });
   if (!res.ok) return Response.json({ error: 'falha na IA' }, { status: 502 });
 
-  const data = (await res.json()) as { content?: { type: string; input?: { intent?: string; period?: string; registration?: unknown } }[] };
+  const data = (await res.json()) as { content?: { type: string; input?: { intent?: string; period?: string; registration?: unknown; spend?: unknown } }[] };
   const input = data.content?.find((c) => c.type === 'tool_use')?.input;
   const intent = isForsetiIntent(input?.intent) ? input!.intent : 'DESCONHECIDO';
   const period = isSpendPeriod(input?.period) ? input!.period : undefined;
   // Registro só vale com "DESCONHECIDO": uma frase não é consulta e registro ao mesmo tempo
   const registration = intent === 'DESCONHECIDO' ? parseRegistration(input?.registration) : undefined;
-  const answer = { intent, period, ...(registration ? { registration } : {}) };
+  const spend = intent === 'GASTOS_DETALHE' ? parseSpendQuery(input?.spend) : undefined;
+  const answer = { intent, period, ...(registration ? { registration } : {}), ...(spend ? { spend } : {}) };
   // Só guarda respostas com algo útil: um erro ou um "não sei" passageiro não pode ficar preso
   if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value!);
   if (intent !== 'DESCONHECIDO' || registration) cache.set(cacheKey, answer);

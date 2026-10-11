@@ -6,12 +6,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 let aiCalls = 0;
 let aiIntent = 'SALDO_HOJE';
 let aiRegistration: unknown;
+let aiSpend: unknown;
 let lastAiBody = '';
 
 beforeEach(() => {
   aiCalls = 0;
   aiIntent = 'SALDO_HOJE';
   aiRegistration = undefined;
+  aiSpend = undefined;
   lastAiBody = '';
   vi.resetModules();
   vi.stubEnv('ANTHROPIC_API_KEY', 'chave-de-teste');
@@ -24,7 +26,7 @@ beforeEach(() => {
       }
       aiCalls += 1;
       lastAiBody = String(init.body);
-      return Response.json({ content: [{ type: 'tool_use', input: { intent: aiIntent, registration: aiRegistration } }] });
+      return Response.json({ content: [{ type: 'tool_use', input: { intent: aiIntent, registration: aiRegistration, spend: aiSpend } }] });
     })
   );
 });
@@ -139,6 +141,52 @@ describe('/api/forseti-intent', () => {
       await call(await load(), { text: 'agenda 200 de luz pra amanhã' }, 'Bearer valido');
       expect(lastAiBody).toMatch(/hoje: \d{4}-\d{2}-\d{2}/);
       expect(lastAiBody).toMatch(/registration/);
+    });
+  });
+
+  describe('pergunta de gastos com detalhe entendida pela IA', () => {
+    const SPEND = { subject: 'mercado', from: '2026-09-01', to: '2026-09-30' };
+
+    it('devolve assunto e período junto da intenção GASTOS_DETALHE', async () => {
+      aiIntent = 'GASTOS_DETALHE';
+      aiSpend = SPEND;
+      const res = await call(await load(), { text: 'quanto foi o rancho do mês retrasado' }, 'Bearer valido');
+      expect(await res.json()).toEqual({ intent: 'GASTOS_DETALHE', spend: SPEND });
+    });
+
+    it('guarda a resposta com a pergunta (a mesma frase não chama a IA de novo)', async () => {
+      aiIntent = 'GASTOS_DETALHE';
+      aiSpend = SPEND;
+      const POST = await load();
+      await call(POST, { text: 'quanto foi o rancho do mês retrasado' }, 'Bearer valido');
+      const again = await call(POST, { text: 'quanto foi o rancho do mês retrasado' }, 'Bearer valido');
+      expect(aiCalls).toBe(1);
+      expect((await again.json()).spend).toEqual(SPEND);
+    });
+
+    it('descarta datas malformadas mas mantém o assunto', async () => {
+      aiIntent = 'GASTOS_DETALHE';
+      aiSpend = { subject: 'uber', from: 'setembro', to: '2026-09-30' };
+      expect(await (await call(await load(), { text: 'gastos de uber em setembro de novo' }, 'Bearer valido')).json()).toEqual({ intent: 'GASTOS_DETALHE', spend: { subject: 'uber' } });
+    });
+
+    it('sem a pergunta, a intenção segue e o app lê assunto e período da frase', async () => {
+      aiIntent = 'GASTOS_DETALHE';
+      aiSpend = 'lixo';
+      expect(await (await call(await load(), { text: 'gastos de algo qualquer por aí' }, 'Bearer valido')).json()).toEqual({ intent: 'GASTOS_DETALHE' });
+    });
+
+    it('a pergunta só vale com GASTOS_DETALHE (outra intenção nunca carrega gastos)', async () => {
+      aiIntent = 'SALDO_HOJE';
+      aiSpend = SPEND;
+      expect(await (await call(await load(), { text: 'qual meu saldo agora de verdade' }, 'Bearer valido')).json()).toEqual({ intent: 'SALDO_HOJE' });
+    });
+
+    it('descreve a intenção e o contrato "spend" à IA', async () => {
+      aiIntent = 'GASTOS_DETALHE';
+      await call(await load(), { text: 'quanto gastei com pet em agosto' }, 'Bearer valido');
+      expect(lastAiBody).toMatch(/GASTOS_DETALHE/);
+      expect(lastAiBody).toMatch(/spend/);
     });
   });
 });

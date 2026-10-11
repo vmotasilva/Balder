@@ -1,6 +1,7 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import {
-  isForsetiIntent, isSpendPeriod, parseRegistration, type ForsetiIntent, type ForsetiRegistration, type SpendPeriod,
+  isForsetiIntent, isSpendPeriod, parseRegistration, parseSpendQuery, type ForsetiIntent, type ForsetiRegistration, type ForsetiSpendQuery,
+  type SpendPeriod,
 } from '../utils/forsetiIntents';
 
 /** O que a IA entendeu: uma consulta (intent) ou um registro de gasto/recebimento (registration), nunca os dois. */
@@ -8,6 +9,8 @@ export interface ClassifiedIntent {
   intent?: ForsetiIntent;
   period?: SpendPeriod;
   registration?: ForsetiRegistration;
+  /** Assunto e período de uma pergunta de gastos com detalhe (intent GASTOS_DETALHE). */
+  spend?: ForsetiSpendQuery;
 }
 
 /**
@@ -37,8 +40,10 @@ export async function classifyIntent(text: string, context?: IntentContext): Pro
       signal: controller.signal,
     });
     if (!res.ok) return null;
-    const data = (await res.json()) as { intent?: string; period?: string; registration?: unknown };
-    if (isForsetiIntent(data.intent)) return { intent: data.intent, period: isSpendPeriod(data.period) ? data.period : undefined };
+    const data = (await res.json()) as { intent?: string; period?: string; registration?: unknown; spend?: unknown };
+    if (isForsetiIntent(data.intent)) {
+      return { intent: data.intent, period: isSpendPeriod(data.period) ? data.period : undefined, ...(data.intent === 'GASTOS_DETALHE' ? { spend: parseSpendQuery(data.spend) } : {}) };
+    }
     // A resposta é validada de novo aqui: o que vem da rede nunca é confiado como veio
     const registration = parseRegistration(data.registration);
     return registration ? { registration } : null;

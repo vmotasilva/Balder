@@ -23,6 +23,7 @@ import {
 } from '../../types';
 import { type SharePermissionKey, hasPermission } from '../../services/sharingService';
 import { type SpendPeriod } from '../../utils/forsetiIntents';
+import { type SpendQuery, spendQueryFrom } from '../../utils/forsetiSpend';
 import { userNatures } from '../../utils/baseNatures';
 import type { useCoreData } from './useCoreData';
 import type { useCheckpoints } from './useCheckpoints';
@@ -774,7 +775,7 @@ export function useForsetiChat({
         }
 
         // 2. Dúvidas respondidas com os números do planejamento
-        const answerIntent = (doubt: DoubtId, period?: SpendPeriod, note?: string, via?: 'IA') => {
+        const answerIntent = (doubt: DoubtId, period?: SpendPeriod, note?: string, via?: 'IA', spend?: SpendQuery) => {
           const withMonth = doubt === 'GASTEI';
           const key = todayIso.slice(0, 7);
           const opts = { startDate: activeCheckpoint?.startDate, horizonMonths: projectionHorizonMonths };
@@ -806,8 +807,8 @@ export function useForsetiChat({
             emergencyReserveMonths,
             monthlyFreeCashflow,
           };
-          const answer = answerDoubt(doubt, trimmed, data, { period });
-          lastTopicRef.current = { intent: doubt, period: period ?? spendPeriodFrom(trimmed) ?? undefined, text: trimmed, at: Date.now() };
+          const answer = answerDoubt(doubt, trimmed, data, { period, spend });
+          lastTopicRef.current = { intent: doubt, period: period ?? spendPeriodFrom(trimmed) ?? undefined, text: trimmed, at: Date.now(), ...(answer.spendQuery ? { query: answer.spendQuery } : {}) };
           reply(note ? { ...answer, text: `${note}\n\n${answer.text}` } : answer, undefined, via);
         };
 
@@ -820,7 +821,7 @@ export function useForsetiChat({
         // 2b. Continuação do assunto anterior ("me mostre os dessa semana" depois de "gastos por natureza")
         const follow = resolveFollowUp(trimmed, topicBefore);
         if (follow) {
-          answerIntent(follow.intent, follow.period, follow.note);
+          answerIntent(follow.intent, follow.period, follow.note, undefined, follow.query);
           return;
         }
 
@@ -833,7 +834,7 @@ export function useForsetiChat({
             if (found?.registration && !isQuestion(trimmed)) {
               viaAi = true;
               startRegistration(found.registration.kind, registrationPhrase(found.registration), trimmed);
-            } else if (found?.intent) answerIntent(found.intent, found.period, undefined, 'IA');
+            } else if (found?.intent) answerIntent(found.intent, found.period, undefined, 'IA', found.spend ? spendQueryFrom(found.spend) : undefined);
             else reply(detectLooseAmount(trimmed) || detectAmbiguity(trimmed) || FALLBACK_REPLY);
           });
           return;
