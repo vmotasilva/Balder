@@ -1,5 +1,6 @@
 import { CASH_IN_HAND } from '../../utils/cashInHand';
 import { PERMISSION_LABEL } from './sharedAccess';
+import { wizardForPaymentOption } from '../../utils/forsetiWizard';
 import { buildMonthlyProjectionGrid } from '../../utils/projectionMath';
 import { canonicalBankName, listPaymentInstitutions } from '../../utils/paymentInstitutions';
 import { classifyIntent } from '../../services/forsetiIntentService';
@@ -642,6 +643,17 @@ export function useForsetiChat({
           (o) => o.payload.type === 'CARTAO'
         );
         const parcelas = plan ? ` em **${plan.count}x de ${brl(Math.round((plan.total / plan.count) * 100) / 100)}**` : '';
+        // Pagamento agendado: vai direto ao resumo ("Confira o agendamento"), que já é a confirmação
+        if (purchase.status === 'PREVISTA') {
+          const wizard = wizardForPaymentOption(cardOption[0], listPaymentInstitutions(accounts, [...cards, { ...cardData, id: 'novo' }], banks), plan?.count ?? 1);
+          if (wizard) {
+            reply(
+              { text: `${saved}\n\nAgora o agendamento: **${brl(purchase.amount)}** em **${purchase.rawTitle}**${parcelas}.`, badge: 'CARTÃO CADASTRADO', chips: [] },
+              { pendingConfirmation: { step: 'PAYMENT_METHOD', pendingData: purchase, question: 'Confira o agendamento', options: [], wizard } }
+            );
+            return;
+          }
+        }
         reply(
           {
             text: `${saved}\n\nAgora a compra: **${brl(purchase.amount)}** em **${purchase.rawTitle}**${parcelas}.\n\n**Confirma neste cartão?**`,

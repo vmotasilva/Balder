@@ -6,6 +6,7 @@ import {
 import { addCardPurchaseToInvoices, firstInvoiceDueDate } from '../../utils/cardPurchase';
 import { findMappingForTitle, findMappingItemForTitle } from '../../utils/mappingMatch';
 import { learnReceiptItemAssociation } from '../../services/receiptMemoryService';
+import { wizardForPaymentOption } from '../../utils/forsetiWizard';
 import { listPaymentInstitutions } from '../../utils/paymentInstitutions';
 import { matchNatureForTransaction } from '../../services/invoiceFileParser';
 import { resolveMovementNatureId } from '../../utils/movementNature';
@@ -308,6 +309,18 @@ export function useForsetiActions({
       return;
     }
 
+    // Pagamento agendado: tocar numa forma de pagamento mostra o resumo ("Confira o agendamento") em vez de gravar na hora.
+    // O "Confirmar agendamento" do resumo volta aqui com outra opção (opt_wizard*), que aí sim grava.
+    if (pending.status === 'PREVISTA' && pending.type !== 'RECEBER') {
+      const wizard = wizardForPaymentOption(option, listPaymentInstitutions(accounts, cards, banks), pending.installments && pending.installments >= 2 ? pending.installments : 1);
+      if (wizard) {
+        setChatHistory((prev) =>
+          prev.map((m) => (m.id === messageId && m.pendingConfirmation ? { ...m, pendingConfirmation: { ...m.pendingConfirmation, options: [], wizard } } : m))
+        );
+        return;
+      }
+    }
+
     // Confirmar cria lançamento (conforme as permissões) ou altera fatura (só quem compartilhou)
     const confirmType = option.payload.type || pending?.type;
     if (
@@ -505,39 +518,37 @@ export function useForsetiActions({
       movements: created,
     });
 
-    setTimeout(() => {
-      let confirmationText = '';
-      if (count) {
-        const first = schedule[0];
-        const last = schedule[schedule.length - 1];
-        confirmationText = isCredit
-          ? `✓ **Compra parcelada lançada no cartão!**\n\n**${brl(pending.amount)}** (${pending.rawTitle}) em **${count}x de ${brl(first.amount)}** no **${option.label}**.\n\n• **1ª parcela:** fatura que vence em **${ddmmOf(first.dueDate)}**\n• **Última:** fatura de **${ddmmOf(last.dueDate)}**\n• **Categoria:** ${finalCategory}\n• Cada parcela entra na previsão do seu mês; o saldo só muda quando a fatura for paga.`
-          : `✓ **Pagamento parcelado registrado!**\n\n**${brl(pending.amount)}** (${pending.rawTitle}) em **${count}x de ${brl(first.amount)}** com **${option.label}**.\n\n• **1ª parcela:** paga hoje\n• **As outras:** todo dia ${first.dueDate.slice(8, 10)}, até **${ddmmOf(last.dueDate)}**\n• **Categoria:** ${finalCategory}`;
-      } else if (isCredit) {
-        confirmationText = `✓ **Compra lançada no cartão!**\n\n**${brl(pending.amount)}** (${pending.rawTitle}) entrou na fatura do **${option.label}** que vence em **${whenLabel}**.\n\n• **Categoria:** ${finalCategory}\n• O saldo da conta só muda quando a fatura for paga.`;
-      } else if (isIncome) {
-        confirmationText =
-          finalStatus === 'REALIZADA'
-            ? `✓ **Recebimento registrado!**\n\n**${brl(pending.amount)}** entrou em **${option.label}** em ${whenLabel} e já está no seu saldo de hoje.`
-            : `✓ **Recebimento agendado!**\n\n**${brl(pending.amount)}** vai entrar em **${option.label}** em **${whenLabel}**. Já considerei no saldo previsto; quando cair na conta, é só confirmar.`;
-      } else {
-        confirmationText =
-          finalStatus === 'PREVISTA'
-            ? `✓ **Pagamento agendado!**\n\n**${brl(pending.amount)}** (${pending.rawTitle}) será pago com **${option.label}** em **${whenLabel}**.\n\n• **Categoria:** ${finalCategory}\n• Já considerei no saldo previsto; quando pagar, é só confirmar.`
-            : `✓ **Pagamento registrado!**\n\n**${brl(pending.amount)}** (${pending.rawTitle}) pago com **${option.label}**.\n\n• **Categoria:** ${finalCategory}\n• O saldo de hoje já foi atualizado.`;
-      }
+    let confirmationText = '';
+    if (count) {
+      const first = schedule[0];
+      const last = schedule[schedule.length - 1];
+      confirmationText = isCredit
+        ? `✓ **Compra parcelada lançada no cartão!**\n\n**${brl(pending.amount)}** (${pending.rawTitle}) em **${count}x de ${brl(first.amount)}** no **${option.label}**.\n\n• **1ª parcela:** fatura que vence em **${ddmmOf(first.dueDate)}**\n• **Última:** fatura de **${ddmmOf(last.dueDate)}**\n• **Categoria:** ${finalCategory}\n• Cada parcela entra na previsão do seu mês; o saldo só muda quando a fatura for paga.`
+        : `✓ **Pagamento parcelado registrado!**\n\n**${brl(pending.amount)}** (${pending.rawTitle}) em **${count}x de ${brl(first.amount)}** com **${option.label}**.\n\n• **1ª parcela:** paga hoje\n• **As outras:** todo dia ${first.dueDate.slice(8, 10)}, até **${ddmmOf(last.dueDate)}**\n• **Categoria:** ${finalCategory}`;
+    } else if (isCredit) {
+      confirmationText = `✓ **Compra lançada no cartão!**\n\n**${brl(pending.amount)}** (${pending.rawTitle}) entrou na fatura do **${option.label}** que vence em **${whenLabel}**.\n\n• **Categoria:** ${finalCategory}\n• O saldo da conta só muda quando a fatura for paga.`;
+    } else if (isIncome) {
+      confirmationText =
+        finalStatus === 'REALIZADA'
+          ? `✓ **Recebimento registrado!**\n\n**${brl(pending.amount)}** entrou em **${option.label}** em ${whenLabel} e já está no seu saldo de hoje.`
+          : `✓ **Recebimento agendado!**\n\n**${brl(pending.amount)}** vai entrar em **${option.label}** em **${whenLabel}**. Já considerei no saldo previsto; quando cair na conta, é só confirmar.`;
+    } else {
+      confirmationText =
+        finalStatus === 'PREVISTA'
+          ? `✓ **Pagamento agendado!**\n\n**${brl(pending.amount)}** (${pending.rawTitle}) será pago com **${option.label}** em **${whenLabel}**.\n\n• **Categoria:** ${finalCategory}\n• Já considerei no saldo previsto; quando pagar, é só confirmar.`
+          : `✓ **Pagamento registrado!**\n\n**${brl(pending.amount)}** (${pending.rawTitle}) pago com **${option.label}**.\n\n• **Categoria:** ${finalCategory}\n• O saldo de hoje já foi atualizado.`;
+    }
 
-      const botConfirmMsg: CopilotMessage = {
-        id: `ast_${Date.now()}`,
-        role: 'assistant',
-        content: confirmationText,
-        timestamp: 'Agora',
-        actionBadge: 'LANÇAMENTO REGISTRADO',
-        suggestedFollowUps: ['Quanto ainda posso gastar este mês?', isIncome ? CHIP_RECEBER : CHIP_PAGAR, CHIP_DUVIDA],
-      };
+    const botConfirmMsg: CopilotMessage = {
+      id: `ast_${Date.now()}`,
+      role: 'assistant',
+      content: confirmationText,
+      timestamp: 'Agora',
+      actionBadge: 'LANÇAMENTO REGISTRADO',
+      suggestedFollowUps: ['Quanto ainda posso gastar este mês?', isIncome ? CHIP_RECEBER : CHIP_PAGAR, CHIP_DUVIDA],
+    };
 
-      setChatHistory((prev) => [...prev, botConfirmMsg]);
-    }, 300);
+    setChatHistory((prev) => [...prev, botConfirmMsg]);
   };
 
   // Conciliar Cupom / Nota Fiscal com Mapeamento de Gastos Fixos e Aprendizado Contínuo
