@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import type { ForsetiRegistration } from './forsetiIntents';
 import {
   detectAction, detectAmbiguity, detectDoubt, detectLooseAmount, inferExpenseCategory, installmentSchedule,
-  parseAmount, parseDate, parseInstallments, registrationKind, resolveFollowUp, titleFrom,
+  parseAmount, parseDate, parseInstallments, registrationKind, registrationPhrase, resolveFollowUp, titleFrom,
   type DoubtId, type ForsetiTopic,
 } from './forsetiAssistant';
 
@@ -222,4 +223,41 @@ describe('detectAction: só propõe, nunca executa', () => {
   });
   it('abrir uma tela', () => expect(detectAction('abrir início', natures)).toMatchObject({ kind: 'NAVIGATE', tab: 'INICIO' }));
   it.each(['quanto custa criar uma natureza?', 'paguei 50 na farmácia'])('não é ação: %s', (text) => expect(detectAction(text, natures)).toBeNull());
+});
+
+// A IA só interpreta; quem registra é o fluxo guiado das regras. Então a frase que montamos a partir do registro
+// da IA precisa ser entendida pelas regras do mesmo jeito: tipo, valor, título e data.
+describe('registrationPhrase: do registro da IA para o fluxo guiado', () => {
+  const reg = (over: Partial<ForsetiRegistration>): ForsetiRegistration => ({ kind: 'PAGAR', amount: 100, title: '', future: false, ...over });
+
+  it.each([
+    [reg({ title: 'Pix para minha sogra' }), 'Paguei R$ 100,00 Pix para minha sogra'],
+    [reg({ title: 'Mercado', amount: 85.9 }), 'Paguei R$ 85,90 Mercado'],
+    [reg({ kind: 'RECEBER', title: 'Freela', amount: 1500 }), 'Recebi R$ 1.500,00 Freela'],
+    [reg({ future: true, title: 'Aluguel', amount: 1200, date: '2026-10-12' }), 'Agendei R$ 1.200,00 Aluguel 12/10/2026'],
+    [reg({ kind: 'RECEBER', future: true, title: 'Salário', amount: 5000, date: '2026-11-05' }), 'Vou receber R$ 5.000,00 Salário 05/11/2026'],
+    [reg({ title: 'Farmácia', date: '2026-10-01' }), 'Paguei R$ 100,00 Farmácia'], // pagamento feito conta hoje: a data é ignorada
+    [reg({ title: '' }), 'Paguei R$ 100,00'],
+  ])('%j', (r, phrase) => expect(registrationPhrase(r).replace(/\u00a0/g, ' ')).toBe(phrase));
+
+  it.each([
+    reg({ title: 'Pix para minha sogra' }),
+    reg({ title: 'Mercado', amount: 85.9 }),
+    reg({ title: 'Bebidas na refeição', amount: 30 }),
+    reg({ kind: 'RECEBER', title: 'Freela', amount: 1500 }),
+    reg({ kind: 'RECEBER', future: true, title: 'Salário', amount: 5000, date: '2026-11-05' }),
+    reg({ future: true, title: 'Aluguel', amount: 1200, date: '2026-10-12' }),
+  ])('as regras leem a frase de volta igual: %j', (r) => {
+    const phrase = registrationPhrase(r);
+    expect(registrationKind(phrase)).toBe(r.kind);
+    expect(parseAmount(phrase)).toBe(r.amount);
+    expect(titleFrom(phrase)).toBe(r.title);
+    if (r.future && r.kind === 'PAGAR') expect(parseDate(phrase)).toBe(r.date);
+    if (r.future && r.kind === 'RECEBER') expect(parseDate(phrase)).toBe(r.date);
+  });
+
+  it('pagamento agendado sem data é lido como agendado (o fluxo pergunta "para quando")', () => {
+    expect(registrationKind(registrationPhrase(reg({ future: true, title: 'Boleto' })))).toBe('PAGAR');
+    expect(parseDate(registrationPhrase(reg({ future: true, title: 'Boleto' })))).toBeNull();
+  });
 });

@@ -4,7 +4,7 @@
 // Exige o login do Supabase (cabeçalho Authorization), limita o uso por pessoa e guarda respostas repetidas.
 // Limite e cache ficam na memória da instância: bastam para barrar abuso, sem criar tabela.
 import { normalizePhrase } from '../src/utils/forsetiLearning.js';
-import { FORSETI_INTENTS, SPEND_PERIODS, isForsetiIntent, isSpendPeriod } from '../src/utils/forsetiIntents.js';
+import { FORSETI_INTENTS, SPEND_PERIODS, type ForsetiRegistration, isForsetiIntent, isSpendPeriod, parseRegistration } from '../src/utils/forsetiIntents.js';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 
@@ -15,7 +15,10 @@ const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_
 const LIMIT_PER_HOUR = 30;
 const CACHE_MAX = 500;
 const calls = new Map<string, number[]>();
-const cache = new Map<string, { intent: string; period?: string }>();
+const cache = new Map<string, { intent: string; period?: string; registration?: ForsetiRegistration }>();
+
+/** Hoje no Brasil (AAAA-MM-DD): a IA precisa dele para entender "amanhã" e "dia 12". */
+const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 
 /** Confere o login no Supabase e devolve o id da pessoa (null se o token não vale). */
 async function userIdFrom(request: Request): Promise<string | null> {
@@ -62,7 +65,15 @@ Escolha a intenção que melhor representa o que a pessoa quer VER ou SABER. Int
 - GASTOS_PERIODO: gastos de um período (informe period: HOJE, SEMANA, QUINZENA ou MES)
 - PREVISTO_REAL: o que estava previsto e não foi registrado/pago, ou foi pago a menos que o previsto
 - SEM_NATUREZA: o que há dentro de "Outros" / gastos sem natureza
-- DESCONHECIDO: qualquer outra coisa, ou registrar/lançar algo, ou conversa fora do tema.
+- DESCONHECIDO: qualquer outra coisa ou conversa fora do tema.
+REGISTRO: quando a pessoa CONTA um gasto, pagamento, transferência/Pix ou recebimento com valor (não pergunta), responda intent DESCONHECIDO e
+preencha "registration":
+- kind: PAGAR (saiu dinheiro: gasto, compra, conta paga, Pix/transferência para alguém) ou RECEBER (entrou dinheiro; "me pagou", "me mandou" também).
+- amount: valor em reais como número ("cem reais" → 100, "1,5 mil" → 1500, "R$ 30" → 30).
+- title: o que foi ou para quem, curto e sem valor nem forma de pagamento ("Mercado", "Pix para minha sogra", "Freela"). Vazio se não disser.
+- future: true se ainda vai acontecer (agendado, "vou pagar", "vou receber"); false se já aconteceu.
+- date: AAAA-MM-DD só se a frase disser o dia (use "hoje" do contexto para "amanhã", "dia 12"…).
+Pergunta ("quanto gastei…?") nunca é registro. Sem valor na frase, não é registro.
 Se vier "contexto" (assunto da resposta anterior), frases curtas ou incompletas, SEM assunto próprio, continuam esse assunto
 (ex.: contexto GASTOS_PERIODO e a frase "me mostre os dessa semana" → GASTOS_PERIODO com period SEMANA).
 Se a frase trouxer um assunto novo (salário, metas, fatura, empréstimo, registrar algo…), IGNORE o contexto e classifique só a frase.
@@ -90,7 +101,9 @@ export async function POST(request: Request): Promise<Response> {
   }
   if (!text) return Response.json({ intent: 'DESCONHECIDO' });
 
-  const cacheKey = `${context}|${normalizePhrase(text)}`;
+  // A data entra na chave: "amanhã" guardado ontem apontaria para o dia errado
+  const day = today();
+  const cacheKey = `${day}|${context}|${normalizePhrase(text)}`;
   const cached = cache.get(cacheKey);
   if (cached) return Response.json(cached, { headers: { 'Cache-Control': 'no-store' } });
   if (!withinLimit(userId)) return Response.json({ error: 'limite de uso' }, { status: 429 });
@@ -100,7 +113,7 @@ export async function POST(request: Request): Promise<Response> {
     headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
       model: MODEL,
-      max_tokens: 100,
+      max_tokens: 250,
       system: SYSTEM,
       tools: [
         {
@@ -111,23 +124,37 @@ export async function POST(request: Request): Promise<Response> {
             properties: {
               intent: { type: 'string', enum: [...FORSETI_INTENTS, 'DESCONHECIDO'] },
               period: { type: 'string', enum: [...SPEND_PERIODS] },
+              registration: {
+                type: 'object',
+                properties: {
+                  kind: { type: 'string', enum: ['PAGAR', 'RECEBER'] },
+                  amount: { type: 'number' },
+                  title: { type: 'string' },
+                  future: { type: 'boolean' },
+                  date: { type: 'string' },
+                },
+                required: ['kind', 'amount'],
+              },
             },
             required: ['intent'],
           },
         },
       ],
       tool_choice: { type: 'tool', name: 'classificar' },
-      messages: [{ role: 'user', content: context ? `contexto: ${context}\nfrase: ${text}` : text }],
+      messages: [{ role: 'user', content: `hoje: ${day}\n${context ? `contexto: ${context}\n` : ''}frase: ${text}` }],
     }),
   });
   if (!res.ok) return Response.json({ error: 'falha na IA' }, { status: 502 });
 
-  const data = (await res.json()) as { content?: { type: string; input?: { intent?: string; period?: string } }[] };
+  const data = (await res.json()) as { content?: { type: string; input?: { intent?: string; period?: string; registration?: unknown } }[] };
   const input = data.content?.find((c) => c.type === 'tool_use')?.input;
   const intent = isForsetiIntent(input?.intent) ? input!.intent : 'DESCONHECIDO';
   const period = isSpendPeriod(input?.period) ? input!.period : undefined;
-  // Só guarda respostas com intenção: um erro ou um "não sei" passageiro não pode ficar preso
+  // Registro só vale com "DESCONHECIDO": uma frase não é consulta e registro ao mesmo tempo
+  const registration = intent === 'DESCONHECIDO' ? parseRegistration(input?.registration) : undefined;
+  const answer = { intent, period, ...(registration ? { registration } : {}) };
+  // Só guarda respostas com algo útil: um erro ou um "não sei" passageiro não pode ficar preso
   if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value!);
-  if (intent !== 'DESCONHECIDO') cache.set(cacheKey, { intent, period });
-  return Response.json({ intent, period }, { headers: { 'Cache-Control': 'no-store' } });
+  if (intent !== 'DESCONHECIDO' || registration) cache.set(cacheKey, answer);
+  return Response.json(answer, { headers: { 'Cache-Control': 'no-store' } });
 }

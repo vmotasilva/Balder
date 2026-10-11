@@ -1,13 +1,17 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { isForsetiIntent, isSpendPeriod, type ForsetiIntent, type SpendPeriod } from '../utils/forsetiIntents';
+import {
+  isForsetiIntent, isSpendPeriod, parseRegistration, type ForsetiIntent, type ForsetiRegistration, type SpendPeriod,
+} from '../utils/forsetiIntents';
 
+/** O que a IA entendeu: uma consulta (intent) ou um registro de gasto/recebimento (registration), nunca os dois. */
 export interface ClassifiedIntent {
-  intent: ForsetiIntent;
+  intent?: ForsetiIntent;
   period?: SpendPeriod;
+  registration?: ForsetiRegistration;
 }
 
 /**
- * Pede à IA (api/forseti-intent) a intenção de uma frase que as regras não entenderam.
+ * Pede à IA (api/forseti-intent) a intenção, ou o registro de gasto/recebimento, de uma frase que as regras não entenderam.
  * Só o texto da mensagem sai do aparelho. Exige login (visitante usa só as regras).
  * Devolve null sem chave configurada, sem login, offline, lento ou sem intenção.
  */
@@ -33,9 +37,11 @@ export async function classifyIntent(text: string, context?: IntentContext): Pro
       signal: controller.signal,
     });
     if (!res.ok) return null;
-    const data = (await res.json()) as { intent?: string; period?: string };
-    if (!isForsetiIntent(data.intent)) return null;
-    return { intent: data.intent, period: isSpendPeriod(data.period) ? data.period : undefined };
+    const data = (await res.json()) as { intent?: string; period?: string; registration?: unknown };
+    if (isForsetiIntent(data.intent)) return { intent: data.intent, period: isSpendPeriod(data.period) ? data.period : undefined };
+    // A resposta é validada de novo aqui: o que vem da rede nunca é confiado como veio
+    const registration = parseRegistration(data.registration);
+    return registration ? { registration } : null;
   } catch {
     return null;
   } finally {
