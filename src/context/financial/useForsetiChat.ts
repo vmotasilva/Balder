@@ -12,9 +12,9 @@ import {
   type BankInvoiceInfo, CHIP_DUVIDA, CHIP_PAGAR, CHIP_RECEBER, type DoubtId,
   EXPENSE_CATEGORY_CHIPS, FALLBACK_REPLY, type ForsetiData, type ForsetiReply, MAIN_CHIPS,
   NEW_CARD_DUE_CHIPS, OPTION_OTHER_PAYMENT, OPTION_REGISTER_CARD, RECEIVE_DATE_CHIPS, TOPIC_TTL_MS,
-  answerDoubt, brl, categoryFromChip, describeAction, detectAction, detectAmbiguity, detectDoubt, detectLooseAmount,
+  answerDoubt, brl, categoryFromChip, describeAction, detectAction, detectAmbiguity, detectDoubt, detectLooseAmount, isQuestion,
   inferExpenseCategory, isPastReceive, isScheduledPayment, mentionedCard, parseAmount, parseDate,
-  parseInstallments, paymentOptions, pickPaymentOptions, registrationKind, resolveFollowUp,
+  parseInstallments, paymentOptions, pickPaymentOptions, registrationKind, registrationPhrase, resolveFollowUp,
   spendPeriodFrom, titleFrom,
 } from '../../utils/forsetiAssistant';
 import {
@@ -364,8 +364,10 @@ export function useForsetiChat({
       let suggestedFollowUps: string[] = [];
 
       // via: 'IA' marca a resposta que só saiu porque a IA entendeu a frase (as regras não entenderam)
+      let viaAi = false;
       const reply = (r: ForsetiReply, extra?: Partial<CopilotMessage>, via?: 'IA') => {
-        logForsetiActivity({ kind: 'CONVERSA', request: trimmed, result: r.text.replace(/\{(?:ok|bad)\|([^}]*)\}/g, '$1'), ...(via ? { via } : {}) });
+        const by = via ?? (viaAi ? 'IA' : undefined);
+        logForsetiActivity({ kind: 'CONVERSA', request: trimmed, result: r.text.replace(/\{(?:ok|bad)\|([^}]*)\}/g, '$1'), ...(by ? { via: by } : {}) });
         setChatHistory((prev) => [
           ...(r.pendingAction ? prev.map((m) => (m.pendingAction ? { ...m, pendingAction: undefined } : m)) : prev),
           {
@@ -513,7 +515,8 @@ export function useForsetiChat({
         const amount = parseAmount(base) ?? (inst?.perInstallment ? Math.round(inst.perInstallment * inst.count * 100) / 100 : null);
         return { base, amount, installments: inst?.count };
       };
-      const startRegistration = (kind: 'RECEBER' | 'PAGAR', text: string) => {
+      // hint: a frase que a pessoa escreveu, onde pode estar a forma de pagamento (text pode ser a versão limpa da IA)
+      const startRegistration = (kind: 'RECEBER' | 'PAGAR', text: string, hint: string = text) => {
         requestTrailRef.current = [trimmed];
         const amount = parseAmount(text);
         const title = titleFrom(text);
@@ -537,7 +540,7 @@ export function useForsetiChat({
         const payTitle = titleFrom(purchase.base);
         const cat = inferExpenseCategory(purchase.base);
         const scheduled = isScheduledPayment(text);
-        const ctx: PayContext = { installments: purchase.installments, hint: text, scheduled, date: scheduled ? parseDate(text) || undefined : undefined };
+        const ctx: PayContext = { installments: purchase.installments, hint, scheduled, date: scheduled ? parseDate(text) || undefined : undefined };
         if (purchase.amount === null) {
           forsetiFlowRef.current = { kind, step: 'VALOR', title: payTitle, category: cat || undefined, ...ctx };
           reply({
@@ -826,7 +829,11 @@ export function useForsetiChat({
         const wordCount = trimmed.split(/\s+/).length;
         if (wordCount >= 3) {
           classifyIntent(trimmed, topicBefore ? { intent: topicBefore.intent, period: topicBefore.period, previous: topicBefore.text } : undefined).then((found) => {
-            if (found) answerIntent(found.intent, found.period, undefined, 'IA');
+            // A IA entendeu um gasto/recebimento: segue o registro guiado de sempre (pergunta o que falta e confirma)
+            if (found?.registration && !isQuestion(trimmed)) {
+              viaAi = true;
+              startRegistration(found.registration.kind, registrationPhrase(found.registration), trimmed);
+            } else if (found?.intent) answerIntent(found.intent, found.period, undefined, 'IA');
             else reply(detectLooseAmount(trimmed) || detectAmbiguity(trimmed) || FALLBACK_REPLY);
           });
           return;

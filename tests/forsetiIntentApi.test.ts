@@ -5,21 +5,26 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 let aiCalls = 0;
 let aiIntent = 'SALDO_HOJE';
+let aiRegistration: unknown;
+let lastAiBody = '';
 
 beforeEach(() => {
   aiCalls = 0;
   aiIntent = 'SALDO_HOJE';
+  aiRegistration = undefined;
+  lastAiBody = '';
   vi.resetModules();
   vi.stubEnv('ANTHROPIC_API_KEY', 'chave-de-teste');
   vi.stubGlobal(
     'fetch',
-    vi.fn(async (url: string, init: { headers: Record<string, string> }) => {
+    vi.fn(async (url: string, init: { headers: Record<string, string>; body?: string }) => {
       if (String(url).includes('/auth/v1/user')) {
         const auth = init.headers.authorization;
         return auth === 'Bearer valido' ? Response.json({ id: 'u1' }) : auth === 'Bearer outro' ? Response.json({ id: 'u2' }) : new Response('{}', { status: 401 });
       }
       aiCalls += 1;
-      return Response.json({ content: [{ type: 'tool_use', input: { intent: aiIntent } }] });
+      lastAiBody = String(init.body);
+      return Response.json({ content: [{ type: 'tool_use', input: { intent: aiIntent, registration: aiRegistration } }] });
     })
   );
 });
@@ -96,4 +101,45 @@ describe('/api/forseti-intent', () => {
     // outra pessoa tem o próprio limite
     expect((await call(POST, { text: 'frase de outra pessoa' }, 'Bearer outro')).status).toBe(200);
   });
+
+  describe('registro de gasto/recebimento entendido pela IA', () => {
+    const PIX = { kind: 'PAGAR', amount: 100, title: 'Pix para minha sogra', future: false };
+
+    it('devolve o registro quando a IA entende a frase como gasto ou recebimento', async () => {
+      aiIntent = 'DESCONHECIDO';
+      aiRegistration = PIX;
+      const res = await call(await load(), { text: 'manda cem reais de pix pra minha sogra' }, 'Bearer valido');
+      expect(await res.json()).toEqual({ intent: 'DESCONHECIDO', registration: PIX });
+    });
+
+    it('guarda a resposta com registro (a mesma frase não chama a IA de novo)', async () => {
+      aiIntent = 'DESCONHECIDO';
+      aiRegistration = PIX;
+      const POST = await load();
+      await call(POST, { text: 'manda cem reais de pix pra minha sogra' }, 'Bearer valido');
+      const again = await call(POST, { text: 'manda cem reais de pix pra minha sogra' }, 'Bearer valido');
+      expect(aiCalls).toBe(1);
+      expect((await again.json()).registration).toEqual(PIX);
+    });
+
+    it('descarta registro malformado e o devolve como simples DESCONHECIDO', async () => {
+      aiIntent = 'DESCONHECIDO';
+      aiRegistration = { kind: 'APAGAR', amount: -5 };
+      expect(await (await call(await load(), { text: 'faz algo com meu dinheiro' }, 'Bearer valido')).json()).toEqual({ intent: 'DESCONHECIDO' });
+    });
+
+    it('registro só vale com DESCONHECIDO: uma consulta nunca vira registro', async () => {
+      aiIntent = 'SALDO_HOJE';
+      aiRegistration = PIX;
+      expect(await (await call(await load(), { text: 'qual meu saldo agora' }, 'Bearer valido')).json()).toEqual({ intent: 'SALDO_HOJE' });
+    });
+
+    it('manda "hoje" para a IA entender "amanhã" e "dia 12", e o título e valor ficam no contrato da ferramenta', async () => {
+      aiIntent = 'DESCONHECIDO';
+      await call(await load(), { text: 'agenda 200 de luz pra amanhã' }, 'Bearer valido');
+      expect(lastAiBody).toMatch(/hoje: \d{4}-\d{2}-\d{2}/);
+      expect(lastAiBody).toMatch(/registration/);
+    });
+  });
 });
+

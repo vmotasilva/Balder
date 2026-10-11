@@ -31,3 +31,30 @@ export const isSpendPeriod = (v: unknown): v is SpendPeriod => SPEND_PERIODS.inc
 
 /** Trechos que identificam as respostas em que a Forseti não entendeu a frase (resposta padrão ou pergunta A/B/C). */
 export const NOT_UNDERSTOOD_MARKERS = ['Não entendi bem', 'Toque na opção ou escreva de outro jeito'] as const;
+
+/** Registro que a IA entendeu na frase ("cem reais de pix pra minha sogra"). Quem grava é o fluxo guiado, com confirmação. */
+export interface ForsetiRegistration {
+  kind: 'PAGAR' | 'RECEBER';
+  amount: number;
+  /** O que foi ou para quem (sem valor nem forma de pagamento), curto. */
+  title: string;
+  /** Ainda vai acontecer (agendado, "vou receber"). */
+  future: boolean;
+  /** AAAA-MM-DD, quando a frase diz o dia. */
+  date?: string;
+}
+
+const MAX_REGISTRATION_AMOUNT = 10_000_000;
+
+/** Aceita só um registro bem formado (a resposta da IA nunca é confiada como veio). */
+export function parseRegistration(value: unknown): ForsetiRegistration | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const r = value as Record<string, unknown>;
+  if (r.kind !== 'PAGAR' && r.kind !== 'RECEBER') return undefined;
+  const amount = Number(r.amount);
+  if (!Number.isFinite(amount) || amount <= 0 || amount > MAX_REGISTRATION_AMOUNT) return undefined;
+  // Sem números no título: o valor já está em "amount" e um número a mais seria lido como outro valor
+  const title = typeof r.title === 'string' ? r.title.replace(/\d+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) : '';
+  const date = typeof r.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.date) && !Number.isNaN(Date.parse(r.date)) ? r.date : undefined;
+  return { kind: r.kind, amount: Math.round(amount * 100) / 100, title, future: r.future === true, ...(date ? { date } : {}) };
+}

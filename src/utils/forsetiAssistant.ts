@@ -5,7 +5,7 @@ import type { ForecastEntry, ForecastPeriod, ForecastWindow } from './forecastWi
 import { CASH_IN_HAND } from './cashInHand';
 import { trackingPeriodRange } from './periodSpending';
 import { resolveMovementNatureId } from './movementNature';
-import type { SpendPeriod } from './forsetiIntents';
+import type { ForsetiRegistration, SpendPeriod } from './forsetiIntents';
 
 /**
  * Conversa guiada da Forseti: sugestões rápidas, registro passo a passo (valor → data/categoria → conta)
@@ -79,7 +79,7 @@ function transferTitle(text: string): string | null {
   return `${/\bpix\b/.test(t) ? 'Pix' : 'Transferência'} para ${who}`;
 }
 
-const isQuestion = (text: string) =>
+export const isQuestion = (text: string) =>
   text.includes('?') || /^(quanto|quando|como|o que|qual|quais|por ?que|posso|vale|onde|devo|consigo)\b/i.test(stripAccents(text.trim()));
 
 /** Frase de registro ("paguei 50 no mercado", "vou receber 1.200 dia 10"); perguntas nunca contam. */
@@ -1230,6 +1230,18 @@ export function detectLooseAmount(text: string): ForsetiReply | null {
       { label: 'B) um recebimento (entrou dinheiro)', send: `Recebi ${rest}` },
     ],
   };
+}
+
+/**
+ * Frase limpa a partir do registro que a IA entendeu ("Paguei R$ 100,00 Pix para minha sogra"), no formato
+ * que as regras já entendem: assim a IA só interpreta e o registro segue o mesmo fluxo guiado, com confirmação.
+ */
+export function registrationPhrase(r: ForsetiRegistration): string {
+  const verb = r.kind === 'PAGAR' ? (r.future ? 'Agendei' : 'Paguei') : r.future ? 'Vou receber' : 'Recebi';
+  const amount = brl(r.amount).replace(/\u00a0/g, ' ');
+  // Pagamento feito conta hoje; só o que vai acontecer (ou o recebimento) leva a data da frase
+  const date = r.date && (r.future || r.kind === 'RECEBER') ? `${r.date.slice(8, 10)}/${r.date.slice(5, 7)}/${r.date.slice(0, 4)}` : '';
+  return [verb, amount, r.title, date].filter(Boolean).join(' ');
 }
 
 export function detectAmbiguity(text: string): ForsetiReply | null {
