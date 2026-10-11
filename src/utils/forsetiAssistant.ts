@@ -106,6 +106,26 @@ export function registrationKind(text: string): 'RECEBER' | 'PAGAR' | null {
   return null;
 }
 
+const INCOME_WORDS = /\b(salario|freela|freelance|renda|rendimentos?|bonus|comissao|reembolso|restituicao|decimo terceiro|13o|venda|recebid[ao]|recebimento)\b/;
+
+/**
+ * Valor + o que foi, sem verbo ("30 mercado", "mercado 30", "5000 salário"): o jeito mais curto de registrar.
+ * Só vale quando o assunto é reconhecível (uma categoria de gasto ou uma palavra de renda): "parcela 12" ou "cartão 3000"
+ * podem ser outra coisa e seguem para as perguntas de ambiguidade. Quem registra é o fluxo guiado, que confirma tudo.
+ * Fica de fora do `registrationKind` de propósito: dentro de um registro em andamento, "85,90 na farmácia" é a resposta
+ * à pergunta do valor, não um registro novo.
+ */
+export function shorthandRegistration(text: string): 'PAGAR' | 'RECEBER' | null {
+  if (isQuestion(text)) return null;
+  const t = stripAccents(text).trim();
+  if (t.split(/\s+/).length > 5) return null;
+  // Parcelamento ("3x mercado") e mais de um valor ("mercado 30 farmácia 20") pedem a conversa completa
+  if (/\d\s*(x|vezes)\b/.test(t)) return null;
+  if ((withoutDates(t).match(/\d+(?:[.,]\d+)*/g) || []).length !== 1 || parseAmount(text) === null) return null;
+  if (INCOME_WORDS.test(t)) return 'RECEBER';
+  return inferExpenseCategory(text) ? 'PAGAR' : null;
+}
+
 /**
  * Pagamento por vir: "agendei um pagamento para amanhã de 178,31", "programei o boleto", "vou pagar 200 dia 10".
  * "vou pagar" e "pagarei" só valem com um valor na frase (sem ele podem ser outro assunto).

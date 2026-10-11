@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ForsetiRegistration } from './forsetiIntents';
 import {
   detectAction, detectAmbiguity, detectDoubt, detectLooseAmount, inferExpenseCategory, installmentSchedule,
-  parseAmount, parseDate, parseInstallments, registrationKind, registrationPhrase, resolveFollowUp, scheduleNote, titleFrom,
+  parseAmount, parseDate, parseInstallments, registrationKind, registrationPhrase, resolveFollowUp, scheduleNote, shorthandRegistration, titleFrom,
   type DoubtId, type ForsetiTopic,
 } from './forsetiAssistant';
 
@@ -281,5 +281,70 @@ describe('scheduleNote: o resumo do agendamento diz que ainda não aconteceu', (
     expect(note).toMatch(/Recebimento agendado/);
     expect(note).toMatch(/ainda não entrou/);
     expect(note).toContain('05/11/2026');
+  });
+});
+
+// "30 mercado": o jeito mais curto de registrar. Só vale com assunto reconhecível; o resto segue com as perguntas de antes.
+describe('shorthandRegistration: valor + o que foi, sem verbo', () => {
+  it.each([
+    '30 mercado',
+    'mercado 30',
+    'r$ 30 mercado',
+    '85,90 farmácia',
+    'uber 18,50',
+    '1.200 aluguel',
+    'conta de luz 150',
+    '30 bebidas', // refeição/bebida é restaurante
+    '45 almoço no restaurante',
+    '30 Mercado', // maiúscula
+  ])('PAGAR: %s', (text) => expect(shorthandRegistration(text)).toBe('PAGAR'));
+
+  it.each(['5000 salário', 'salário 5000', '1.200 freela', '300 reembolso', 'bônus 800', '2 mil comissão', '150 venda'])('RECEBER: %s', (text) =>
+    expect(shorthandRegistration(text)).toBe('RECEBER')
+  );
+
+  it.each([
+    ['parcela 12', 'pode ser o número da parcela'],
+    ['cartão 3000', 'pode ser limite, fatura ou compra'],
+    ['reserva 10000', 'assunto sem categoria'],
+    ['metas 2026', 'ano, não valor'],
+    ['dia 10 mercado', 'só data, sem valor'],
+    ['10/10 mercado', 'só data, sem valor'],
+    ['mercado 30 farmácia 20', 'mais de um valor'],
+    ['3x mercado', 'parcelamento'],
+    ['mercado em 6 vezes', 'parcelamento'],
+    ['quanto custa mercado 30?', 'pergunta'],
+    ['quanto gastei com mercado 30', 'pergunta'],
+    ['mercado', 'sem valor'],
+    ['30', 'sem assunto'],
+    ['30 presente do João', 'assunto sem categoria: pergunta gasto ou recebimento'],
+    ['eu fui ao mercado hoje e comprei um monte de coisa 30', 'frase longa'],
+    ['oi tudo bem', 'sem valor'],
+  ])('não registra sozinho: %s (%s)', (text) => expect(shorthandRegistration(text)).toBeNull());
+
+  it('o registro lê valor, título e categoria da própria frase, como no fluxo guiado', () => {
+    for (const [text, amount, title, category] of [
+      ['30 mercado', 30, 'Mercado', 'Alimentação & Mercado'],
+      ['mercado 30', 30, 'Mercado', 'Alimentação & Mercado'],
+      ['85,90 farmácia', 85.9, 'Farmácia', 'Saúde'],
+      ['conta de luz 150', 150, 'Luz', 'Utilidades / Moradia'],
+    ] as const) {
+      expect(parseAmount(text)).toBe(amount);
+      expect(titleFrom(text)).toBe(title);
+      expect(inferExpenseCategory(text)?.category).toBe(category);
+    }
+    expect(titleFrom('5000 salário')).toBe('Salário');
+  });
+
+  it('não muda o que já era registro nem dúvida: o que tem verbo segue como antes', () => {
+    expect(registrationKind('30 mercado')).toBeNull(); // dentro de um registro em andamento isto é resposta, não registro novo
+    expect(registrationKind('paguei 30 no mercado')).toBe('PAGAR');
+    expect(detectDoubt('30 mercado')).toBeNull();
+  });
+
+  it('o que não registra sozinho continua com as perguntas de ambiguidade (parcela, cartão) ou gasto/recebimento (com R$)', () => {
+    expect(detectAmbiguity('parcela 12')).not.toBeNull();
+    expect(detectAmbiguity('cartão 3000')).not.toBeNull();
+    expect(detectLooseAmount('30 reais de presente')?.choices).toHaveLength(2);
   });
 });
