@@ -176,10 +176,14 @@ describe('continuação do assunto (resolveFollowUp)', () => {
   });
 
   it.each([
-    ['semana passada'], // período que não sabemos responder: não adivinha
     ['salário dessa semana'], // assunto novo
     ['o que eu quero ver dessa semana com tudo que eu gastei no mercado e na farmácia'], // frase longa
   ])('não continua: %s', (text) => expect(resolveFollowUp(text, topic('GASTOS_PERIODO'), now)).toBeNull());
+
+  it('"semana passada" e "mês passado" não são das respostas por período, mas continuam como gastos com detalhe', () => {
+    expect(resolveFollowUp('semana passada', topic('GASTOS_PERIODO'), now)).toMatchObject({ intent: 'GASTOS_DETALHE', query: { range: { label: 'da semana passada' } } });
+    expect(resolveFollowUp('e no mês passado?', topic('GASTEI'), now)).toMatchObject({ intent: 'GASTOS_DETALHE' });
+  });
 
   it('assunto expirado (15 min) ou sem período não continua', () => {
     expect(resolveFollowUp('e hoje?', topic('GASTOS_PERIODO', 16 * 60_000), now)).toBeNull();

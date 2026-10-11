@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseRegistration } from './forsetiIntents';
+import { isForsetiIntent, parseRegistration, parseSpendQuery } from './forsetiIntents';
 
 // A resposta da IA nunca é confiada como veio: só passa um registro bem formado.
 describe('parseRegistration', () => {
@@ -45,4 +45,29 @@ describe('parseRegistration', () => {
     expect(parseRegistration({ kind: 'PAGAR', amount: 10, future: 'true' })?.future).toBe(false);
     expect(parseRegistration({ kind: 'PAGAR', amount: 10, future: true })?.future).toBe(true);
   });
+});
+
+describe('parseSpendQuery (pergunta de gastos com detalhe entendida pela IA)', () => {
+  it('aceita assunto e período completos', () => {
+    expect(parseSpendQuery({ subject: 'mercado', from: '2026-09-01', to: '2026-09-30' })).toEqual({ subject: 'mercado', from: '2026-09-01', to: '2026-09-30' });
+  });
+  it('assunto sozinho vale (o período é o mês atual)', () => expect(parseSpendQuery({ subject: 'uber' })).toEqual({ subject: 'uber' }));
+  it('período sozinho vale (todos os gastos do período)', () => {
+    expect(parseSpendQuery({ subject: '', from: '2026-09-01', to: '2026-09-30' })).toEqual({ subject: '', from: '2026-09-01', to: '2026-09-30' });
+  });
+  it('datas fora de ordem são colocadas em ordem', () => {
+    expect(parseSpendQuery({ subject: 'x', from: '2026-09-30', to: '2026-09-01' })).toMatchObject({ from: '2026-09-01', to: '2026-09-30' });
+  });
+  it('uma data só não diz o período: é ignorada, não adivinhada', () => {
+    expect(parseSpendQuery({ subject: 'mercado', from: '2026-09-01' })).toEqual({ subject: 'mercado' });
+  });
+  it.each(['setembro', '01/09/2026', '2026-13-45', 20260901])('data inválida (%s) é ignorada junto com o par', (bad) => {
+    expect(parseSpendQuery({ subject: 'mercado', from: bad, to: '2026-09-30' })).toEqual({ subject: 'mercado' });
+  });
+  it('limpa espaços e corta o assunto em 40 caracteres', () => {
+    expect(parseSpendQuery({ subject: '  mercado   do   bairro  ' })?.subject).toBe('mercado do bairro');
+    expect(parseSpendQuery({ subject: 'a'.repeat(100) })?.subject).toHaveLength(40);
+  });
+  it.each([[null], [undefined], ['mercado'], [42]])('rejeita %j', (v) => expect(parseSpendQuery(v)).toBeUndefined());
+  it('GASTOS_DETALHE está na lista fechada de intenções', () => expect(isForsetiIntent('GASTOS_DETALHE')).toBe(true));
 });

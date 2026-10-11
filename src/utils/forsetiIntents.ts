@@ -19,6 +19,7 @@ export const FORSETI_INTENTS = [
   'GASTOS_PERIODO',
   'PREVISTO_REAL',
   'SEM_NATUREZA',
+  'GASTOS_DETALHE',
 ] as const;
 
 export type ForsetiIntent = (typeof FORSETI_INTENTS)[number];
@@ -57,4 +58,25 @@ export function parseRegistration(value: unknown): ForsetiRegistration | undefin
   const title = typeof r.title === 'string' ? r.title.replace(/\d+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) : '';
   const date = typeof r.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r.date) && !Number.isNaN(Date.parse(r.date)) ? r.date : undefined;
   return { kind: r.kind, amount: Math.round(amount * 100) / 100, title, future: r.future === true, ...(date ? { date } : {}) };
+}
+
+/** Pergunta de gastos com detalhe entendida pela IA: o assunto e, se a frase disser, o período. Os números são calculados no app. */
+export interface ForsetiSpendQuery {
+  /** Só o assunto ("mercado", "uber"); vazio = todos os gastos. */
+  subject: string;
+  from?: string;
+  to?: string;
+}
+
+/** Aceita só uma pergunta bem formada: período precisa vir completo (as duas datas, em ordem) ou é descartado. */
+export function parseSpendQuery(value: unknown): ForsetiSpendQuery | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const r = value as Record<string, unknown>;
+  const subject = typeof r.subject === 'string' ? r.subject.replace(/\s+/g, ' ').trim().slice(0, 40) : '';
+  const iso = (x: unknown) => (typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x) && !Number.isNaN(Date.parse(x)) ? x : undefined);
+  const a = iso(r.from);
+  const b = iso(r.to);
+  // Uma data só não diz o período: melhor ignorar do que adivinhar
+  const range = a && b ? (a <= b ? { from: a, to: b } : { from: b, to: a }) : {};
+  return { subject, ...range };
 }

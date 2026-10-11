@@ -6,6 +6,11 @@ import { CASH_IN_HAND } from './cashInHand';
 import { trackingPeriodRange } from './periodSpending';
 import { resolveMovementNatureId } from './movementNature';
 import type { ForsetiRegistration, SpendPeriod } from './forsetiIntents';
+import { brl, ddmm, isIncomeMovement, isoDay, outflowDate, outflowValue, stripAccents } from './forsetiMoney';
+import { type SpendQuery, type SpendRange, answerSpendDetail, detectSpendDetail, parseSpendRange, spendSubjectWords } from './forsetiSpend';
+
+// brl e ddmm continuam saindo daqui para quem já importa deste módulo
+export { brl, ddmm };
 
 /**
  * Conversa guiada da Forseti: sugestões rápidas, registro passo a passo (valor → data/categoria → conta)
@@ -140,11 +145,8 @@ const EXPENSE_CATEGORIES: { chip: string; title: string; category: string; keywo
 export const EXPENSE_CATEGORY_CHIPS = [...EXPENSE_CATEGORIES.map((c) => c.chip), 'Outro'];
 
 // ── Utilidades ────────────────────────────────────────────────────────────────
-export const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const isoOf = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-export const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
-const stripAccents = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 const DATE_PATTERNS = [/\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/g, /\bdia\s+\d{1,2}\b/gi];
 
@@ -560,7 +562,8 @@ export type DoubtId =
   | 'ULTIMAS'
   | 'GASTOS_PERIODO'
   | 'PREVISTO_REAL'
-  | 'SEM_NATUREZA';
+  | 'SEM_NATUREZA'
+  | 'GASTOS_DETALHE';
 
 /** Período citado numa pergunta de gastos ("hoje", "esta semana", "na quinzena", "este mês"). */
 export function spendPeriodFrom(text: string): SpendPeriod | null {
@@ -600,6 +603,8 @@ export function detectDoubt(text: string): DoubtId | null {
   if (isPlannedVsReal(t)) return 'PREVISTO_REAL';
   if (isOthersQuestion(t)) return 'SEM_NATUREZA';
   if (/ultim[oa]s? (compras?|gastos?|saidas?|despesas?|pagamentos?|lancamentos?|movimentac)|(compras?|gastos?) recentes?|o que (eu )?(comprei|gastei|paguei) (recentemente|ultimamente)/.test(t)) return 'ULTIMAS';
+  // Gastos com assunto ou período específico ("com mercado em setembro", "no mês passado"): a resposta com detalhe
+  if (detectSpendDetail(text)) return 'GASTOS_DETALHE';
   // "Gastos por natureza / categoria" (com ou sem período): quebra dos gastos por natureza
   if (/(gastos?|despesas?|saidas?|gastei)/.test(t) && /(por|de cada|em cada|em quais) (natureza|categoria|origem)/.test(t)) return 'GASTOS_PERIODO';
   // "Este mês" segue para a resposta do mês (GASTEI), que traz a projeção completa
@@ -625,6 +630,8 @@ export interface ForsetiReply {
   choices?: { label: string; send: string }[];
   /** Ação proposta junto da resposta (botões Confirmar / Cancelar). */
   pendingAction?: ForsetiPendingAction;
+  /** Assunto e período respondidos numa pergunta de gastos com detalhe ("e no mês passado?" continua daqui). */
+  spendQuery?: SpendQuery & { range: SpendRange };
 }
 
 export interface ForsetiData {
@@ -653,12 +660,6 @@ const NO_NATURE = 'Sem natureza';
 // "Sem natureza" segue a mesma regra do resto do app (vínculo direto, mapeamento/item ou categoria com o nome da natureza)
 const natureIdOf = (m: Movement, natures?: ExpenseNature[]): string | undefined =>
   natures ? resolveMovementNatureId(m, natures) : m.natureId && m.natureId.toLowerCase() !== 'outros' ? m.natureId : undefined;
-const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-/** Recebimentos (inclusive empréstimo recebido) não são gasto. */
-const isIncomeMovement = (m: Movement) => m.type === 'RECEBER' || (m.type === 'EMPRESTIMO' && m.category === 'Recebimento');
-/** Dia em que a saída conta: o pagamento, se já aconteceu; senão o vencimento. */
-const outflowDate = (m: Movement) => (m.status === 'REALIZADA' && m.paymentDate ? m.paymentDate : m.dueDate);
-const outflowValue = (m: Movement) => (m.status === 'REALIZADA' ? m.actualAmount ?? m.amount : m.amount);
 
 const GLOSSARY: { keys: string[]; text: string }[] = [
   {
@@ -687,7 +688,7 @@ const GLOSSARY: { keys: string[]; text: string }[] = [
   },
 ];
 
-export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { period?: SpendPeriod }): ForsetiReply {
+export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { period?: SpendPeriod; spend?: SpendQuery; today?: Date }): ForsetiReply {
   const month = d.forecasts.MES;
   switch (id) {
     case 'MENU':
@@ -784,6 +785,13 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
         badge: 'ÚLTIMAS SAÍDAS',
         chips: ['Quanto já gastei este mês?', 'Gastos desta semana', CHIP_PAGAR],
       };
+    }
+
+    case 'GASTOS_DETALHE': {
+      const today = opts?.today ?? new Date();
+      const query = opts?.spend ?? detectSpendDetail(text, today) ?? { subject: spendSubjectWords(text).subject, range: parseSpendRange(text, today) || undefined };
+      const answer = answerSpendDetail(query, d.movements, d.natures || [], today);
+      return { text: answer.text, badge: 'GASTOS COM DETALHE', chips: answer.chips, spendQuery: answer.query };
     }
 
     case 'GASTOS_PERIODO': {
@@ -1510,6 +1518,8 @@ export interface ForsetiTopic {
   period?: SpendPeriod;
   text: string; // frase que originou o assunto
   at: number; // quando foi respondido (ms)
+  /** Assunto e período de uma resposta de gastos com detalhe. */
+  query?: SpendQuery & { range: SpendRange };
 }
 
 export const TOPIC_TTL_MS = 15 * 60 * 1000;
@@ -1532,6 +1542,29 @@ const TOPIC_LABEL: Partial<Record<DoubtId, string>> = {
 };
 
 /**
+ * Continuação de uma pergunta de gastos com detalhe. Mudar o período não pede nada além do período; mudar o assunto
+ * só vale com uma deixa de continuação ("e com…", "agora…"), para uma frase solta não ser lida como continuação.
+ */
+function resolveSpendFollowUp(
+  text: string,
+  last: SpendQuery & { range: SpendRange },
+  now: number
+): { intent: DoubtId; note: string; query: SpendQuery & { range: SpendRange } } | null {
+  if (text.trim().split(/\s+/).length > 8) return null;
+  const today = new Date(now);
+  const range = parseSpendRange(text, today);
+  const { subject, shown } = spendSubjectWords(text);
+  const cue = /^\s*(e|mas|agora|tambem|so|somente)\b/.test(stripAccents(text));
+  if (!range && !subject) return null;
+  if (subject && !cue) return null;
+  const query: SpendQuery & { range: SpendRange } = subject
+    ? { subject, shown, range: range || last.range }
+    : { subject: last.subject, ...(last.shown ? { shown: last.shown } : {}), range: range || last.range };
+  const about = query.subject ? ` com ${query.shown || query.subject}` : '';
+  return { intent: 'GASTOS_DETALHE', query, note: `*Continuando nos gastos${about}, agora ${query.range.label}.*` };
+}
+
+/**
  * Frase curta com um período ("me mostre os dessa semana", "e hoje?", "só da quinzena") depois de um assunto de
  * gastos: continua o assunto com o período novo. Devolve null quando não dá para ligar ao assunto anterior.
  */
@@ -1539,13 +1572,21 @@ export function resolveFollowUp(
   text: string,
   last: ForsetiTopic | null | undefined,
   now: number = Date.now()
-): { intent: DoubtId; period: SpendPeriod; note: string } | null {
+): { intent: DoubtId; period?: SpendPeriod; note: string; query?: SpendQuery & { range: SpendRange } } | null {
   if (!last || now - last.at > TOPIC_TTL_MS) return null;
+  // Gastos com detalhe: "e no mês passado?" muda o período, "e com uber?" muda o assunto
+  if (last.intent === 'GASTOS_DETALHE' && last.query) return resolveSpendFollowUp(text, last.query, now);
+  // Depois das respostas de gastos do período, o que elas não cobrem ("e no mês passado?", "e em setembro?")
+  // segue como gastos com detalhe, a partir do mês atual
+  const viaDetail = () =>
+    ['GASTEI', 'GASTOS_PERIODO', 'ULTIMAS', 'SEM_NATUREZA'].includes(last.intent)
+      ? resolveSpendFollowUp(text, { subject: '', range: parseSpendRange('este mês', new Date(now))! }, now)
+      : null;
   const period = spendPeriodFrom(text);
-  if (!period) return null;
+  if (!period) return viaDetail();
   const t = stripAccents(text);
-  // Períodos que não sabemos responder ("semana passada", "mês anterior", "próxima semana"): melhor não adivinhar
-  if (/passad|anterior|proxim|ultim|seguinte|ontem|amanha/.test(t)) return null;
+  // Períodos que as respostas por período não cobrem ("semana passada", "mês anterior", "próxima semana")
+  if (/passad|anterior|proxim|ultim|seguinte|ontem|amanha/.test(t)) return viaDetail();
   // Assunto novo na frase ("salário dessa semana", "metas deste mês"): não é continuação
   const words = t.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
   if (words.length > 8) return null; // frase longa traz o assunto dela mesma
