@@ -112,6 +112,17 @@ export function isScheduledPayment(text: string): boolean {
   return /\b(vou pagar|pagarei)\b/.test(t) && parseAmount(text) !== null;
 }
 
+/**
+ * Aviso do resumo de um agendamento: deixa claro que ainda não aconteceu, só fica previsto na data.
+ * (Sem isso o resumo de um pagamento agendado parece o de um pagamento feito.)
+ */
+export function scheduleNote(income: boolean, dueDate: string): string {
+  const date = `${dueDate.slice(8, 10)}/${dueDate.slice(5, 7)}/${dueDate.slice(0, 4)}`;
+  return income
+    ? `📅 Recebimento agendado: o dinheiro ainda não entrou. Fica previsto em ${date} e já conta no saldo previsto.`
+    : `📅 Pagamento agendado: ainda não saiu da conta. Fica previsto em ${date} e já conta no saldo previsto.`;
+}
+
 /** "recebi", "ganhei", "entrou": o recebimento já aconteceu. */
 export const isPastReceive = (text: string) => /\b(recebi|ganhei|entrou|caiu na conta)\b/.test(stripAccents(text));
 
@@ -165,8 +176,12 @@ export function extractTitle(text: string): string {
     // A forma de pagamento citada não faz parte do título ("TV no cartão Inter" → "TV")
     .replace(PAYMENT_TAIL, ' ')
     .replace(BANK_TAIL, ' ')
-    .replace(/^\s*(?:de|do|da|no|na|em|com|pelo|pela|um|uma|para|pra)\s+/i, '')
+    .replace(/^\s*(?:de|do|da|no|na|em|com|pelo|pela|um|uma|o|a|os|as|para|pra)\s+/i, '')
     .replace(/\s+/g, ' ')
+    // "de" duplicado que sobra depois de tirar o valor ("pagamento de 200 de luz" → "pagamento de de luz")
+    .replace(/\b(de|do|da|dos|das)\s+\1\b/gi, '$1')
+    // "pagamento de luz" / "boleto da escola": o que importa é o que vem depois (sem nada depois, a palavra fica)
+    .replace(/^\s*(?:(?:um|uma|o|a)\s+)?(?:pagamento|pagto|boleto|conta)\s+d[eoa]s?\s+(?=\S)/i, '')
     .replace(/[.!?,\s]+$/, '')
     .replace(/(?:\s+(?:de|do|da|no|na|em|por|com|e|para|pra))+$/i, '')
     .trim();

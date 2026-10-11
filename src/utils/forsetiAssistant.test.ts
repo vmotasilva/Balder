@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ForsetiRegistration } from './forsetiIntents';
 import {
   detectAction, detectAmbiguity, detectDoubt, detectLooseAmount, inferExpenseCategory, installmentSchedule,
-  parseAmount, parseDate, parseInstallments, registrationKind, registrationPhrase, resolveFollowUp, titleFrom,
+  parseAmount, parseDate, parseInstallments, registrationKind, registrationPhrase, resolveFollowUp, scheduleNote, titleFrom,
   type DoubtId, type ForsetiTopic,
 } from './forsetiAssistant';
 
@@ -111,6 +111,9 @@ describe('título e categoria do gasto', () => {
     ['paguei 50 na farmácia', 'Farmácia'],
     ['recebi 1500 do freela', 'Freela'],
     ['vou pagar uma conta de 200', ''], // só sobra algo genérico
+    ['agendei um pagamento de 200 de luz para amanhã', 'Luz'], // sem "Pagamento de de luz"
+    ['agendei o boleto da escola de 450 dia 15', 'Escola'],
+    ['agendei o boleto', 'Boleto'], // sem nada depois, a palavra fica
     ['transferir r$ 100 via pix para minha sogra', 'Pix para minha sogra'], // o destinatário fica no título
     ['transferi 100 para a minha mãe', 'Transferência para a minha mãe'],
     ['fiz um pix de 50 para o João hoje', 'Pix para o João'],
@@ -259,5 +262,20 @@ describe('registrationPhrase: do registro da IA para o fluxo guiado', () => {
   it('pagamento agendado sem data é lido como agendado (o fluxo pergunta "para quando")', () => {
     expect(registrationKind(registrationPhrase(reg({ future: true, title: 'Boleto' })))).toBe('PAGAR');
     expect(parseDate(registrationPhrase(reg({ future: true, title: 'Boleto' })))).toBeNull();
+  });
+});
+
+describe('scheduleNote: o resumo do agendamento diz que ainda não aconteceu', () => {
+  it('pagamento: ainda não saiu da conta, fica previsto na data', () => {
+    const note = scheduleNote(false, '2026-10-12');
+    expect(note).toMatch(/Pagamento agendado/);
+    expect(note).toMatch(/ainda não saiu da conta/);
+    expect(note).toContain('12/10/2026');
+  });
+  it('recebimento: o dinheiro ainda não entrou', () => {
+    const note = scheduleNote(true, '2026-11-05');
+    expect(note).toMatch(/Recebimento agendado/);
+    expect(note).toMatch(/ainda não entrou/);
+    expect(note).toContain('05/11/2026');
   });
 });
