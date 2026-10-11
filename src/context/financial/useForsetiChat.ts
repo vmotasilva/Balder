@@ -14,7 +14,7 @@ import {
   NEW_CARD_DUE_CHIPS, OPTION_OTHER_PAYMENT, OPTION_REGISTER_CARD, RECEIVE_DATE_CHIPS, TOPIC_TTL_MS,
   answerDoubt, brl, categoryFromChip, describeAction, detectAction, detectAmbiguity, detectDoubt, detectLooseAmount, isQuestion,
   inferExpenseCategory, isPastReceive, isScheduledPayment, mentionedCard, parseAmount, parseDate,
-  parseInstallments, paymentOptions, pickPaymentOptions, registrationKind, registrationPhrase, resolveFollowUp,
+  parseInstallments, paymentOptions, pickPaymentOptions, registrationKind, registrationPhrase, resolveFollowUp, shorthandRegistration,
   spendPeriodFrom, titleFrom,
 } from '../../utils/forsetiAssistant';
 import {
@@ -822,6 +822,13 @@ export function useForsetiChat({
         const follow = resolveFollowUp(trimmed, topicBefore);
         if (follow) {
           answerIntent(follow.intent, follow.period, follow.note, undefined, follow.query);
+          return;
+        }
+
+        // 2c. Valor + o que foi, sem verbo ("30 mercado", "5000 salário"): registro, que o fluxo guiado pergunta e confirma
+        const shorthand = shorthandRegistration(trimmed);
+        if (shorthand) {
+          startRegistration(shorthand, trimmed);
           return;
         }
 
