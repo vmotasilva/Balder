@@ -17,9 +17,22 @@ describe('registrationKind: o que é registro de pagamento ou recebimento', () =
     'saiu 50 no mercado',
     'agendei um pagamento para amanhã de 178,31',
     'vou pagar 200 dia 10',
+    'transferir r$ 100 via pix para minha sogra',
+    'transferi 100 para a minha mãe',
+    'fiz um pix de 50 para o João',
+    'mandei 80 pro Pedro',
+    'pix de 200 para a escola',
   ])('PAGAR: %s', (text) => expect(registrationKind(text)).toBe('PAGAR'));
 
-  it.each(['recebi 1500 do freela', 'vou receber 1.200 dia 10', 'caiu na conta 300', 'ele recebeu 400'])('RECEBER: %s', (text) =>
+  it.each([
+    'recebi 1500 do freela',
+    'vou receber 1.200 dia 10',
+    'caiu na conta 300',
+    'ele recebeu 400',
+    'me deu 30 reais de presente', // alguém me deu: é entrada
+    'minha mãe me transferiu 100',
+    'o João me pagou 50',
+  ])('RECEBER: %s', (text) =>
     expect(registrationKind(text)).toBe('RECEBER')
   );
 
@@ -27,8 +40,10 @@ describe('registrationKind: o que é registro de pagamento ou recebimento', () =
     'quanto gastei este mês?',
     'quanto pagou de luz?',
     'por que meu saldo caiu',
-    'me deu 30 reais de presente', // alguém me deu: não é gasto
     'deu certo', // "deu" sem valor
+    'me deu um abraço', // "me deu" sem valor
+    'transferir para minha sogra', // transferir sem valor
+    'quanto transferi este mês?',
     'vou pagar a conta', // "vou pagar" sem valor pode ser outro assunto
     'qual o previsto que não foi pago',
     'oi tudo bem',
@@ -95,6 +110,10 @@ describe('título e categoria do gasto', () => {
     ['paguei 50 na farmácia', 'Farmácia'],
     ['recebi 1500 do freela', 'Freela'],
     ['vou pagar uma conta de 200', ''], // só sobra algo genérico
+    ['transferir r$ 100 via pix para minha sogra', 'Pix para minha sogra'], // o destinatário fica no título
+    ['transferi 100 para a minha mãe', 'Transferência para a minha mãe'],
+    ['fiz um pix de 50 para o João hoje', 'Pix para o João'],
+    ['agendei um pix de 200 para amanhã', 'Pix'], // "para amanhã" é data, não destinatário
   ])('%s → "%s"', (text, title) => expect(titleFrom(text)).toBe(title));
 
   it.each([
@@ -176,6 +195,7 @@ describe('palavra solta ou valor sem verbo', () => {
   it('valor com R$ e sem verbo conhecido pergunta gasto ou recebimento, com a frase já limpa', () => {
     const r = detectLooseAmount('30 reais de bebidas');
     // brl() separa o "R$" do número com espaço inseparável
+    expect(r?.text).toMatch(/gasto ou um recebimento/);
     expect(r?.choices?.map((c) => c.send.replace(/\u00a0/g, ' '))).toEqual(['Paguei R$ 30,00 Bebidas', 'Recebi R$ 30,00 Bebidas']);
     // a frase reenviada tem de ser entendida como registro
     expect(registrationKind(r!.choices![0].send)).toBe('PAGAR');
