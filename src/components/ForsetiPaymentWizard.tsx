@@ -8,6 +8,7 @@ import { defaultClosingDay } from '../utils/setupCatalog';
 import { firstInvoiceDueDate } from '../utils/cardPurchase';
 import { findMappingForTitle, findMappingItemForTitle } from '../utils/mappingMatch';
 import { userNatures } from '../utils/baseNatures';
+import { scheduleNote } from '../utils/forsetiAssistant';
 import { matchNatureForTransaction } from '../services/invoiceFileParser';
 import type { CopilotPendingConfirmation, PaymentWizardState } from '../types';
 import { DateInput } from './DateInput';
@@ -29,6 +30,8 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
   const wizard = pending.wizard as PaymentWizardState;
   const data = pending.pendingData;
   const isIncome = data.type === 'RECEBER';
+  // Agendamento (previsto numa data): o resumo precisa dizer que ainda não aconteceu
+  const scheduled = data.status === 'PREVISTA';
   const go = (patch: Partial<PaymentWizardState>) => updatePaymentWizard(messageId, patch);
 
   const [amountText, setAmountText] = useState(String(data.amount).replace('.', ','));
@@ -113,12 +116,12 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
           </button>
         )}
         <strong>
-          {wizard.step === 'WHERE' && (isIncome ? 'Onde o dinheiro entrou?' : 'Como você pagou?')}
+          {wizard.step === 'WHERE' && (isIncome ? (scheduled ? 'Onde o dinheiro vai entrar?' : 'Onde o dinheiro entrou?') : scheduled ? 'Como você vai pagar?' : 'Como você pagou?')}
           {wizard.step === 'BANK' && (isIncome ? 'Em qual conta?' : 'Qual banco?')}
           {wizard.step === 'METHOD' && `${wizard.institution}: débito ou crédito?`}
           {wizard.step === 'INVOICE' && `Fatura do ${wizard.institution}`}
           {wizard.step === 'INSTALLMENTS' && 'Em quantas vezes?'}
-          {wizard.step === 'SUMMARY' && 'Confira e confirme'}
+          {wizard.step === 'SUMMARY' && (scheduled ? 'Confira o agendamento' : 'Confira e confirme')}
         </strong>
       </div>
 
@@ -249,6 +252,7 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
 
       {wizard.step === 'SUMMARY' && (
         <>
+          {scheduled && <p className="pay-wizard-note">{scheduleNote(isIncome, data.dueDate)}</p>}
           <dl className="pay-wizard-summary">
             <dt>Descrição</dt>
             <dd>
@@ -267,7 +271,7 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
                 }}
               />
             </dd>
-            <dt>{credit ? 'Data da compra' : isIncome ? 'Data' : 'Data do pagamento'}</dt>
+            <dt>{credit ? 'Data da compra' : scheduled ? 'Agendado para' : isIncome ? 'Data' : 'Data do pagamento'}</dt>
             <dd>
               <DateInput type="date" showToday={!credit && !isIncome} value={data.dueDate} onChange={(e) => e.target.value && updatePaymentWizard(messageId, undefined, { dueDate: e.target.value })} />
             </dd>
@@ -344,7 +348,7 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
               Cancelar
             </button>
             <button type="button" className="pay-wizard-confirm" onClick={() => confirmPaymentWizard(messageId)}>
-              Confirmar
+              {scheduled ? 'Confirmar agendamento' : 'Confirmar'}
             </button>
           </div>
         </>
