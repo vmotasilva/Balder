@@ -57,9 +57,26 @@ const GENERIC_TITLES = ['conta', 'algo', 'coisa', 'pagamento', 'valor', 'gasto',
 
 /** Título útil do texto (vazio quando só sobra algo genérico como "uma conta" ou "um valor"). */
 export function titleFrom(text: string): string {
+  const transfer = transferTitle(text);
+  if (transfer) return transfer;
   const t = extractTitle(text).replace(/^[^\p{L}\d]+/u, '').trim();
   if (t.length < 2 || GENERIC_TITLES.includes(stripAccents(t))) return '';
   return t.length === 2 ? t.toUpperCase() : t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+/**
+ * Transferência ou Pix para alguém: o título guarda o destinatário ("Pix para minha sogra").
+ * Sem isso, "via pix para minha sogra" sairia do título junto com a forma de pagamento.
+ */
+function transferTitle(text: string): string | null {
+  const t = stripAccents(text);
+  if (!/\b(transfer\w*|pix|ted|doc|mand(?:ei|ar|ou)|envi(?:ei|ar|ou))\b/.test(t)) return null;
+  const m = withoutDates(text).match(/\b(?:para|pra|pro)\s+(.+?)[.!?\s]*$/i);
+  if (!m) return null;
+  const who = m[1].replace(/\s+(?:hoje|amanh[ãa]|ontem)(?![\p{L}\d]).*$/iu, '').trim();
+  // "para amanhã", "para 15" não são destinatários
+  if (who.length < 2 || /^(?:amanh|hoje|ontem|\d|dia\b)/i.test(stripAccents(who))) return null;
+  return `${/\bpix\b/.test(t) ? 'Pix' : 'Transferência'} para ${who}`;
 }
 
 const isQuestion = (text: string) =>
@@ -69,11 +86,17 @@ const isQuestion = (text: string) =>
 export function registrationKind(text: string): 'RECEBER' | 'PAGAR' | null {
   if (isQuestion(text) || isPlannedVsReal(text)) return null;
   const t = stripAccents(text);
+  const hasAmount = parseAmount(text) !== null;
   if (/\b(receberei|vou receber|recebi|recebeu|recebemos|ganhei|ganhou|vou ganhar|vai entrar|entrou|caiu na conta)\b/.test(t)) return 'RECEBER';
+  // Alguém fez para mim ("me pagou 100", "me transferiu 50", "me deu 30"): é entrada, e só vale com valor
+  if (hasAmount && /\bme\s+(pagou|pagaram|transferiu|transferiram|mandou|mandaram|enviou|enviaram|depositou|depositaram|deu|deram)\b/.test(t)) return 'RECEBER';
   // Qualquer pessoa: "paguei", "pagou", "gastamos"…
   if (/\b(pag(?:uei|ou|amos)|gast(?:ei|ou|amos)|compr(?:ei|ou|amos)|desembols(?:ei|ou))\b/.test(t)) return 'PAGAR';
-  // Jeito coloquial ("deu R$ 30 de gasolina", "saiu 50 no mercado"): só vale com valor, e "me deu" é outra coisa
-  if (/(?<!\bme\s)\b(deu|saiu|custou)\b/.test(t) && parseAmount(text) !== null) return 'PAGAR';
+  // Jeito coloquial ("deu R$ 30 de gasolina", "saiu 50 no mercado"): só vale com valor
+  if (hasAmount && /\b(deu|saiu|custou)\b/.test(t)) return 'PAGAR';
+  // Transferência e Pix para alguém ("transferi 100 para a minha mãe", "transferir R$ 100 via pix para minha sogra")
+  if (/\b(transferi|transferiu|transferimos|fiz (?:um |uma )?(?:pix|transferencia|ted|doc))\b/.test(t)) return 'PAGAR';
+  if (hasAmount && (/\b(transferir|transfira|transfere|mandei|enviei|mandar|enviar)\b/.test(t) || (/\b(pix|ted|doc|transferencia)\b/.test(t) && /\b(para|pra|pro)\b/.test(t)))) return 'PAGAR';
   if (isScheduledPayment(text)) return 'PAGAR';
   return null;
 }
@@ -1199,12 +1222,12 @@ export function detectLooseAmount(text: string): ForsetiReply | null {
   const what = `**${brl(amount)}**${title ? ` (${title})` : ''}`;
   const rest = `${brl(amount)}${title ? ` ${title}` : ''}`;
   return {
-    text: `Entendi o valor ${what}. É um:\n\nToque na opção ou escreva de outro jeito.`,
+    text: `Entendi o valor ${what}. Isso é um gasto ou um recebimento?\n\nToque na opção ou escreva de outro jeito.`,
     badge: 'SÓ PARA CONFIRMAR',
     chips: [],
     choices: [
-      { label: 'A) gasto que eu paguei', send: `Paguei ${rest}` },
-      { label: 'B) valor que eu recebi', send: `Recebi ${rest}` },
+      { label: 'A) um gasto (saiu dinheiro)', send: `Paguei ${rest}` },
+      { label: 'B) um recebimento (entrou dinheiro)', send: `Recebi ${rest}` },
     ],
   };
 }
