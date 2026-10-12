@@ -3,8 +3,9 @@ import type { ForsetiTopic } from './forsetiAssistant';
 import { isSpendPeriod } from './forsetiIntents';
 
 /**
- * Histórico da conversa com a Forseti, guardado neste aparelho para sobreviver a recarregar a página.
- * Fica 48 horas (como o histórico de solicitações) e nunca sai do aparelho. Só se guarda o que ainda faz sentido
+ * Histórico da conversa com a Forseti, guardado neste aparelho para sobreviver a recarregar a página e, com a
+ * tabela forseti_chat criada, também na nuvem (forsetiChatService), para ser a mesma no app e no navegador.
+ * Fica 48 horas (como o histórico de solicitações). Só se guarda o que ainda faz sentido
  * depois de recarregar: o texto da conversa. O que depende de um passo em andamento (botões de confirmação,
  * registro em etapas) e as fotos não voltam; no lugar, a mensagem avisa que a etapa ficou em aberto.
  */
@@ -117,6 +118,17 @@ export function restoreChat(raw: string | null, now: number = Date.now()): { mes
   });
   const topic = parseTopic(chat.topic);
   return messages.length > 0 ? { messages, seen, ...(topic ? { topic } : {}) } : null;
+}
+
+/** Quando a conversa foi guardada (0 se o texto não é uma conversa guardada). */
+export function chatSavedAt(raw: string | null): number {
+  if (!raw) return 0;
+  try {
+    const savedAt = (JSON.parse(raw) as Partial<StoredChat> | null)?.savedAt;
+    return typeof savedAt === 'number' ? savedAt : 0;
+  } catch {
+    return 0;
+  }
 }
 
 export const readChat = (key: string): string | null => {

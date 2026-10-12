@@ -1,7 +1,8 @@
 import { ForsetiActivityService } from '../../services/forsetiActivityService';
+import { ForsetiChatService } from '../../services/forsetiChatService';
 import { ForsetiTranscriptService } from '../../services/forsetiTranscriptService';
 import { type CopilotMessage, type ForsetiActivity } from '../../types';
-import { chatStorageKey, readChat, removeChat, restoreChat, serializeChat, writeChat } from '../../utils/forsetiChatStore';
+import { chatSavedAt, chatStorageKey, readChat, removeChat, restoreChat, serializeChat, writeChat, type StoredChat } from '../../utils/forsetiChatStore';
 import {
   type ForsetiFlow, type ForsetiTopic, MAIN_CHIPS, canUndoActivity, createdMovementsOf,
 } from '../../utils/forsetiAssistant';
@@ -90,13 +91,46 @@ export function useForsetiActivity({
   // Conversa que acabou de ser posta na tela (restaurada ou nova): ela não deve ser gravada de volta
   // (regravar renovaria o prazo sem ninguém ter falado) nem ser confundida com a anterior
   const chatJustSet = useRef<CopilotMessage[] | null>(null);
+  // O que a tela mostra agora (para saber se a pessoa já mexeu quando a conversa da nuvem chega)
+  const latestChat = useRef(chatHistory);
+  latestChat.current = chatHistory;
+  // Planejamento da conversa: o próprio ou o do dono do planejamento aberto
+  const chatScope = viewing?.ownerId || 'proprio';
+  // Envio à nuvem: espera a conversa assentar (1,5 s) e sai também quando o app vai para segundo plano
+  const pendingCloudSave = useRef<{ userId: string; guest: boolean; scope: string; stored: StoredChat } | null>(null);
+  const cloudSaveTimer = useRef<number | null>(null);
+  const flushCloudSave = () => {
+    if (cloudSaveTimer.current !== null) {
+      window.clearTimeout(cloudSaveTimer.current);
+      cloudSaveTimer.current = null;
+    }
+    const p = pendingCloudSave.current;
+    pendingCloudSave.current = null;
+    if (p) void ForsetiChatService.save(p.userId, p.guest, p.scope, p.stored);
+  };
+  const flushCloudSaveRef = useRef(flushCloudSave);
+  flushCloudSaveRef.current = flushCloudSave;
+
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') flushCloudSaveRef.current();
+    };
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', onHide);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', onHide);
+      flushCloudSaveRef.current();
+    };
+  }, []);
 
   useEffect(() => {
     if (!chatKey) return;
     const previous = chatLoadedKey.current;
     chatLoadedKey.current = chatKey;
     const switched = !!previous && previous !== chatKey;
-    const saved = restoreChat(readChat(chatKey));
+    const localRaw = readChat(chatKey);
+    const saved = restoreChat(localRaw);
     chatSeen.current = saved?.seen || {};
     if (saved) {
       // O assunto da última resposta volta junto: "e no mês passado?" continua depois de recarregar
@@ -114,6 +148,46 @@ export function useForsetiActivity({
       lastTopicRef.current = null;
       requestTrailRef.current = [];
     }
+
+    // Conversa da nuvem: a mais recente vence. Vale a da nuvem só se a pessoa ainda não mexeu na que está na tela.
+    if (!activityUserId || !ForsetiChatService.enabled(activityGuest)) return;
+    let cancelled = false;
+    const userId = activityUserId;
+    const scope = chatScope;
+    const shownLocal = saved?.messages ?? null;
+    void ForsetiChatService.load(userId, activityGuest, scope).then((cloudRaw) => {
+      if (cancelled) return;
+      const cloudAt = chatSavedAt(cloudRaw);
+      const localAt = saved ? chatSavedAt(localRaw) : 0;
+      if (localAt > cloudAt) {
+        // O aparelho tem a mais nova (ou a nuvem ainda não tem nada): sobe
+        void ForsetiChatService.save(userId, activityGuest, scope, JSON.parse(localRaw as string) as StoredChat);
+        return;
+      }
+      if (cloudAt <= localAt) return;
+      const shown = latestChat.current;
+      const untouched = shown === shownLocal || (shown.length === 1 && shown[0].id === 'msg_welcome');
+      if (!untouched) return;
+      const cloud = restoreChat(cloudRaw);
+      if (cloud) {
+        chatSeen.current = cloud.seen;
+        lastTopicRef.current = cloud.topic || null;
+        chatJustSet.current = cloud.messages;
+        setChatHistory(cloud.messages);
+        writeChat(chatKey, JSON.parse(cloudRaw as string) as StoredChat);
+      } else if (saved) {
+        // Limpada em outro aparelho ("Nova conversa"): aqui também recomeça
+        removeChat(chatKey);
+        const fresh = [welcomeMessage(viewing)];
+        chatJustSet.current = fresh;
+        chatSeen.current = {};
+        lastTopicRef.current = null;
+        setChatHistory(fresh);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
     // Só quando a pessoa ou o planejamento muda: viewing entra aqui apenas para a mensagem de abertura
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatKey]);
@@ -134,6 +208,12 @@ export function useForsetiActivity({
     const stored = serializeChat(chatHistory, chatSeen.current, Date.now(), lastTopicRef.current);
     chatSeen.current = Object.fromEntries(stored.messages.map((m) => [m.id, m.at]));
     writeChat(chatKey, stored);
+    if (activityUserId && ForsetiChatService.enabled(activityGuest)) {
+      pendingCloudSave.current = { userId: activityUserId, guest: activityGuest, scope: chatScope, stored };
+      if (cloudSaveTimer.current !== null) window.clearTimeout(cloudSaveTimer.current);
+      cloudSaveTimer.current = window.setTimeout(flushCloudSave, 1500);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatHistory, chatKey]);
 
   /** "Nova conversa": limpa a tela e o que estava guardado, e esquece o passo que estava em andamento. */
@@ -147,6 +227,9 @@ export function useForsetiActivity({
     requestTrailRef.current = [];
     conversationIdRef.current = crypto.randomUUID();
     if (chatKey) removeChat(chatKey);
+    // Cancela o envio pendente e avisa a nuvem que a conversa foi limpa
+    pendingCloudSave.current = null;
+    if (activityUserId) void ForsetiChatService.clear(activityUserId, activityGuest, chatScope);
   };
 
   const saveActivity = (activity: ForsetiActivity) => {
