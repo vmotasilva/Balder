@@ -112,7 +112,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginWithGoogleNative = () =>
     new Promise<'success' | 'cancelled' | 'unavailable'>((resolve) => {
       // Sem confirmação rápida do app, ele é uma versão sem login nativo: segue pelo fluxo web.
-      let timeout = window.setTimeout(() => finish('unavailable'), 1500);
+      let timeout = window.setTimeout(() => {
+        window.alert('O app não respondeu ao login nativo do Google (versão do app sem o recurso ou site em cache). Usando o login pelo navegador.');
+        finish('unavailable');
+      }, 1500);
       const finish = (result: 'success' | 'cancelled' | 'unavailable') => {
         window.clearTimeout(timeout);
         window.removeEventListener('balder-native-google', onResult);
