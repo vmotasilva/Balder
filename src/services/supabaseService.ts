@@ -107,19 +107,25 @@ export const SupabaseService = {
   // ============================================================================
   // MOVEMENTS
   // ============================================================================
-  async getMovements(scope?: PlanRef): Promise<Movement[]> {
+  /**
+   * `since` limita a carga à janela recente: o que vence a partir dessa data e tudo o que não foi realizado
+   * (vencidos em aberto e cancelados, de qualquer data). `olderThan` traz o complemento: os realizados anteriores
+   * a essa data. As duas leituras juntas cobrem tudo, sem repetir lançamento.
+   */
+  async getMovements(scope?: PlanRef, window?: { since?: string; olderThan?: string }): Promise<Movement[]> {
     if (!isSupabaseConfigured) return [];
     const userId = await getCurrentUserId();
     if (!userId) return [];
 
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from(TABLES.MOVEMENTS)
         .select('*')
         .eq('user_id', userId)
-        .filter(...planFilter(userId, scope))
-        .order('due_date', { ascending: false })
-        .limit(5000);
+        .filter(...planFilter(userId, scope));
+      if (window?.since) query = query.or(`due_date.gte.${window.since},status.neq.REALIZADA`);
+      if (window?.olderThan) query = query.lt('due_date', window.olderThan).eq('status', 'REALIZADA');
+      const { data, error } = await query.order('due_date', { ascending: false }).limit(5000);
 
       if (error) {
         console.error('[SupabaseService] Erro ao buscar movimentações:', error.message);
