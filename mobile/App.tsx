@@ -51,7 +51,7 @@ const requestAndroidPermissions = async () => {
 // Login com Google pelo seletor nativo do Android: lista as contas já adicionadas ao aparelho.
 // O resultado volta para o site como um evento `balder-native-google`.
 const signInWithGoogleNative = async (): Promise<Record<string, string>> => {
-  if (!GOOGLE_WEB_CLIENT_ID) return { status: 'unavailable' };
+  if (!GOOGLE_WEB_CLIENT_ID) return { status: 'unavailable', reason: 'Client ID Web ausente no app' };
   try {
     GoogleSignin.configure({ webClientId: GOOGLE_WEB_CLIENT_ID });
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
@@ -59,9 +59,13 @@ const signInWithGoogleNative = async (): Promise<Record<string, string>> => {
     if (isSuccessResponse(response) && response.data.idToken) {
       return { status: 'success', idToken: response.data.idToken };
     }
+    if (isSuccessResponse(response)) {
+      return { status: 'unavailable', reason: 'O Google não devolveu o id_token (confira o Client ID Web)' };
+    }
     return { status: 'cancelled' };
-  } catch {
-    return { status: 'unavailable' };
+  } catch (err) {
+    const e = err as { code?: string | number; message?: string };
+    return { status: 'unavailable', reason: `${e?.code ?? 'erro'}: ${e?.message ?? 'falha desconhecida'}` };
   }
 };
 
@@ -135,6 +139,10 @@ export default function App() {
       return;
     }
     if (message?.type !== 'balder:google-signin') return;
+    // Avisa a página que este app entende o login nativo (apps antigos não respondem).
+    webViewRef.current?.injectJavaScript(
+      `window.dispatchEvent(new CustomEvent('balder-native-google', { detail: { status: 'ack' } })); true;`,
+    );
     const detail = await signInWithGoogleNative();
     webViewRef.current?.injectJavaScript(
       `window.dispatchEvent(new CustomEvent('balder-native-google', { detail: ${JSON.stringify(detail)} })); true;`,
