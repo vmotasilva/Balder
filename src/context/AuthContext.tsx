@@ -107,9 +107,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // No APK (WebView) o login usa o seletor nativo de contas do Android; o app devolve o id_token
+  // como evento `balder-native-google`. Se o nativo não estiver disponível, cai no fluxo web.
+  const loginWithGoogleNative = () =>
+    new Promise<'success' | 'cancelled' | 'unavailable'>((resolve) => {
+      const timeout = window.setTimeout(() => finish('unavailable'), 120000);
+      const finish = (result: 'success' | 'cancelled' | 'unavailable') => {
+        window.clearTimeout(timeout);
+        window.removeEventListener('balder-native-google', onResult);
+        resolve(result);
+      };
+      const onResult = async (e: Event) => {
+        const detail = (e as CustomEvent<{ status?: string; idToken?: string }>).detail;
+        if (detail?.status === 'success' && detail.idToken) {
+          const { error } = await supabase.auth.signInWithIdToken({ provider: 'google', token: detail.idToken });
+          if (error) {
+            console.error('[Supabase Auth] Erro no login Google nativo:', error.message);
+            finish('unavailable');
+          } else {
+            finish('success');
+          }
+        } else {
+          finish(detail?.status === 'cancelled' ? 'cancelled' : 'unavailable');
+        }
+      };
+      window.addEventListener('balder-native-google', onResult);
+      (window as any).ReactNativeWebView.postMessage(JSON.stringify({ type: 'balder:google-signin' }));
+    });
+
   const loginWithGoogle = async () => {
     setIsLoading(true);
     try {
+      if ((window as any).ReactNativeWebView) {
+        const result = await loginWithGoogleNative();
+        if (result !== 'unavailable') return;
+      }
       const currentUrl = window.location.origin;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',

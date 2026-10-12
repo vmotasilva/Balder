@@ -14,10 +14,14 @@ import {
   type Permission,
 } from 'react-native';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
+import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/google-signin';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 const APP_URL = 'https://balder-one.vercel.app';
+
+// Client ID do tipo "Web" do Google Cloud (o mesmo configurado no provedor Google do Supabase).
+const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
 
 // Custom User Agent avoiding '; wv)' to enable Google OAuth sign-in seamlessly
 const CHROME_USER_AGENT =
@@ -39,6 +43,23 @@ const requestAndroidPermissions = async () => {
     await PermissionsAndroid.requestMultiple(wanted);
   } catch {
     // o usuário pode negar; a página mostra o aviso próprio
+  }
+};
+
+// Login com Google pelo seletor nativo do Android: lista as contas já adicionadas ao aparelho.
+// O resultado volta para o site como um evento `balder-native-google`.
+const signInWithGoogleNative = async (): Promise<Record<string, string>> => {
+  if (!GOOGLE_WEB_CLIENT_ID) return { status: 'unavailable' };
+  try {
+    GoogleSignin.configure({ webClientId: GOOGLE_WEB_CLIENT_ID });
+    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+    const response = await GoogleSignin.signIn();
+    if (isSuccessResponse(response) && response.data.idToken) {
+      return { status: 'success', idToken: response.data.idToken };
+    }
+    return { status: 'cancelled' };
+  } catch {
+    return { status: 'unavailable' };
   }
 };
 
@@ -104,6 +125,20 @@ export default function App() {
     return true;
   };
 
+  const handleWebMessage = async (event: { nativeEvent: { data: string } }) => {
+    let message: { type?: string } | null = null;
+    try {
+      message = JSON.parse(event.nativeEvent.data);
+    } catch {
+      return;
+    }
+    if (message?.type !== 'balder:google-signin') return;
+    const detail = await signInWithGoogleNative();
+    webViewRef.current?.injectJavaScript(
+      `window.dispatchEvent(new CustomEvent('balder-native-google', { detail: ${JSON.stringify(detail)} })); true;`,
+    );
+  };
+
   const reloadApp = () => {
     setHasError(false);
     setIsLoading(true);
@@ -141,6 +176,7 @@ export default function App() {
               userAgent={CHROME_USER_AGENT}
               onNavigationStateChange={handleNavigationStateChange}
               onShouldStartLoadWithRequest={handleShouldStartLoadWithRequest}
+              onMessage={handleWebMessage}
               onLoadStart={() => setHasError(false)}
               onLoadEnd={() => setIsLoading(false)}
               onError={() => {
