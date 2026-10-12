@@ -1,0 +1,85 @@
+import { describe, expect, it } from 'vitest';
+import type { ForsetiActivity, Movement } from '../types';
+import { addCardPurchaseToInvoices, invoiceAfterRemovingItems } from './cardPurchase';
+import { createdMovementsOf, invoiceItemsOf } from './forsetiAssistant';
+
+const invoice = (over: Partial<Movement> = {}): Movement => ({
+  id: 'inv1',
+  title: 'Fatura Nubank (Novembro)',
+  type: 'CARTAO',
+  amount: 1000,
+  dueDate: '2026-11-10',
+  bank: 'Nubank',
+  status: 'PREVISTA',
+  category: 'Não Analisada',
+  invoiceBreakdown: [{ id: 'b1', natureId: 'OUTROS', natureName: 'Outros', description: 'Diversos', amount: 700, isAnalyzed: true }],
+  unanalyzedAmount: 300,
+  ...over,
+});
+
+const purchase = { institution: 'Nubank', title: 'Almoço', total: 50 };
+
+/** Aplica a compra como o app faz e devolve a fatura resultante. */
+function buy(movements: Movement[], amount: number, dueDate = '2026-11-10') {
+  const added: Omit<Movement, 'id'>[] = [];
+  const updates: Record<string, Partial<Movement>> = {};
+  const items = addCardPurchaseToInvoices(purchase, [{ dueDate, amount }], movements, {
+    addMovement: (m) => added.push(m),
+    updateMovement: (id, u) => (updates[id] = u),
+  });
+  return { items, added, updates };
+}
+
+describe('desfazer compra no cartão', () => {
+  it('na fatura que já existia, o total e o "não analisada" voltam ao que eram (compra que coube no que sobrava)', () => {
+    const inv = invoice();
+    const { items, updates } = buy([inv], 50);
+    expect(items[0].grow).toBe(0);
+    const after = { ...inv, ...updates.inv1 } as Movement;
+    expect(after.amount).toBe(1000);
+    const undone = invoiceAfterRemovingItems(after, [items[0].itemId], items[0].grow) as Partial<Movement>;
+    expect(undone.amount).toBe(1000);
+    expect(undone.unanalyzedAmount).toBe(300);
+    expect(undone.invoiceBreakdown?.map((i) => i.id)).toEqual(['b1']);
+  });
+
+  it('quando a compra passou do que sobrava, só o excedente sai do total', () => {
+    const inv = invoice({ unanalyzedAmount: 20, amount: 720 });
+    const { items, updates } = buy([inv], 50);
+    expect(items[0].grow).toBe(30);
+    const after = { ...inv, ...updates.inv1 } as Movement;
+    expect(after.amount).toBe(750);
+    const undone = invoiceAfterRemovingItems(after, [items[0].itemId], items[0].grow) as Partial<Movement>;
+    expect(undone.amount).toBe(720);
+    expect(undone.unanalyzedAmount).toBe(20);
+  });
+
+  it('a fatura criada pela compra some junto', () => {
+    const { items, added } = buy([], 50);
+    expect(items[0].grow).toBe(50);
+    const created = { ...invoice(), ...added[0], id: 'novo' } as Movement;
+    expect(invoiceAfterRemovingItems(created, [items[0].itemId], items[0].grow)).toBe('DELETE');
+  });
+});
+
+describe('itens de fatura de uma solicitação da Forseti', () => {
+  const activity = (): ForsetiActivity => ({
+    id: 'a1',
+    at: '2026-10-11T14:00:00Z',
+    kind: 'PAGAMENTO',
+    request: 'almoço 50 no nubank',
+    result: '',
+    movements: [{ title: 'Almoço', dueDate: '2026-11-10', type: 'PAGAR', bank: 'Nubank', invoiceItemId: 'b1', invoiceGrow: 0 }],
+  });
+
+  it('acha o item na fatura e não confunde com um lançamento solto de mesmo nome', () => {
+    const inv = invoice();
+    const solto: Movement = { ...inv, id: 'm2', title: 'Almoço', type: 'PAGAR', invoiceBreakdown: [] };
+    expect(invoiceItemsOf(activity(), [inv, solto]).map((x) => x.item.id)).toEqual(['b1']);
+    expect(createdMovementsOf(activity(), [inv, solto])).toEqual([]);
+  });
+
+  it('se o item já foi tirado da fatura, não há o que desfazer nela', () => {
+    expect(invoiceItemsOf(activity(), [invoice({ invoiceBreakdown: [] })])).toEqual([]);
+  });
+});

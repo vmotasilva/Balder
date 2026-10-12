@@ -442,6 +442,8 @@ export function useForsetiActions({
 
     // Compra parcelada: uma parcela por mês (no cartão, uma em cada fatura; na conta, a 1ª já sai hoje)
     const count = !isIncome && pending.installments && pending.installments >= 2 ? pending.installments : 0;
+    // Compra no cartão: os itens criados na fatura (para o "Desfazer" do histórico)
+    let invoiceItems: { itemId: string; grow: number }[] = [];
     const schedule = count ? installmentSchedule(pending.amount, count, finalDueDate, isCredit ? option.payload.dueDay : undefined) : [];
     // O pagamento no item da natureza (Real do mês) é lançado pela reconciliação de movimentações realizadas
     if (isCredit && !isIncome) {
@@ -452,7 +454,7 @@ export function useForsetiActions({
         : natureLink.mappingItemId
         ? nature?.mappings?.find((mp) => (mp.items || []).some((it) => it.id === natureLink.mappingItemId))
         : undefined;
-      addCardPurchaseToInvoices(
+      invoiceItems = addCardPurchaseToInvoices(
         {
           institution: finalBank,
           title: pending.rawTitle,
@@ -501,9 +503,11 @@ export function useForsetiActions({
       });
     }
 
-    const created = count
-      ? schedule.map((p, idx) => ({ title: `${movementTitle} (${idx + 1}/${count})`, dueDate: p.dueDate, type: finalType, bank: finalBank }))
-      : [{ title: movementTitle, dueDate: finalDueDate, type: finalType, bank: finalBank }];
+    const created = (
+      count
+        ? schedule.map((p, idx) => ({ title: `${movementTitle} (${idx + 1}/${count})`, dueDate: p.dueDate, type: finalType, bank: finalBank }))
+        : [{ title: movementTitle, dueDate: finalDueDate, type: finalType, bank: finalBank }]
+    ).map((c, idx) => (invoiceItems[idx] ? { ...c, invoiceItemId: invoiceItems[idx].itemId, invoiceGrow: invoiceItems[idx].grow } : c));
     logForsetiActivity({
       kind: isIncome ? 'RECEBIMENTO' : 'PAGAMENTO',
       request: pending.request || pending.rawTitle,

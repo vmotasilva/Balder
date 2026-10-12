@@ -1,6 +1,6 @@
 import { firstInvoiceDueDate } from './cardPurchase';
 import { defaultClosingDay } from './setupCatalog';
-import type { BankAccount, CopilotInteractiveOption, ExpenseNature, ForsetiPendingAction, CopilotPendingConfirmation, CreditCardItem, ForsetiActivity, Goal, MonthlyGridProjectionRow, Movement } from '../types';
+import type { BankAccount, CopilotInteractiveOption, ExpenseNature, ForsetiPendingAction, CopilotPendingConfirmation, CreditCardItem, ForsetiActivity, Goal, InvoiceNatureItemBreakdown, MonthlyGridProjectionRow, Movement } from '../types';
 import type { ForecastEntry, ForecastPeriod, ForecastWindow } from './forecastWindow';
 import { CASH_IN_HAND } from './cashInHand';
 import { trackingPeriodRange } from './periodSpending';
@@ -1303,8 +1303,21 @@ export function detectAmbiguity(text: string): ForsetiReply | null {
 // ── Histórico de solicitações ─────────────────────────────────────────────────
 /** Lançamentos que uma solicitação criou e ainda existem (título, vencimento, tipo e conta iguais). */
 export function createdMovementsOf(activity: ForsetiActivity, movements: Movement[]): Movement[] {
-  const created = activity.movements || [];
+  // Compra no cartão não é lançamento solto (é item de fatura): fica de fora, para não casar com outro lançamento
+  const created = (activity.movements || []).filter((c) => !c.invoiceItemId);
   return movements.filter((m) => created.some((c) => c.title === m.title && c.dueDate === m.dueDate && c.type === m.type && c.bank === m.bank));
+}
+
+/** Itens de fatura que uma compra no cartão criou e ainda estão na fatura (com quanto cada um subiu o total dela). */
+export function invoiceItemsOf(activity: ForsetiActivity, movements: Movement[]): { invoice: Movement; item: InvoiceNatureItemBreakdown; grow: number }[] {
+  const out: { invoice: Movement; item: InvoiceNatureItemBreakdown; grow: number }[] = [];
+  (activity.movements || []).forEach((c) => {
+    if (!c.invoiceItemId) return;
+    const invoice = movements.find((m) => m.type === 'CARTAO' && (m.invoiceBreakdown || []).some((i) => i.id === c.invoiceItemId));
+    const item = invoice?.invoiceBreakdown?.find((i) => i.id === c.invoiceItemId);
+    if (invoice && item) out.push({ invoice, item, grow: c.invoiceGrow ?? 0 });
+  });
+  return out;
 }
 
 /** Dá para desfazer pelo histórico: pagamentos, recebimentos e cartões cadastrados. */

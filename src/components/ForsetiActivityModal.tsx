@@ -4,7 +4,7 @@ import { useFinancial } from '../context/FinancialContext';
 import { ConfirmDialog, useConfirmDialog } from './ConfirmDialog';
 import { Modal } from './Modal';
 import { FORSETI_ACTIVITY_HOURS, activityCutoffIso } from '../services/forsetiActivityService';
-import { canUndoActivity, createdMovementsOf } from '../utils/forsetiAssistant';
+import { canUndoActivity, createdMovementsOf, invoiceItemsOf } from '../utils/forsetiAssistant';
 import type { ForsetiActivity, ForsetiActivityKind } from '../types';
 
 const KIND_ICON: Record<ForsetiActivityKind, string> = {
@@ -49,8 +49,12 @@ export const ForsetiActivityModal: React.FC<{ isOpen: boolean; onClose: () => vo
 
   const askUndo = (a: ForsetiActivity) => {
     const created = createdMovementsOf(a, movements);
+    const invoiceItems = invoiceItemsOf(a, movements);
     const lines = [
       created.length > 0 ? `${created.length} lançamento${created.length > 1 ? 's' : ''} (${created[0].title}${created.length > 1 ? '…' : ''})` : '',
+      invoiceItems.length > 0
+        ? `${invoiceItems.length} item${invoiceItems.length > 1 ? 's' : ''} da fatura (${invoiceItems[0].item.description}${invoiceItems.length > 1 ? '…' : ''})`
+        : '',
       a.cardName ? `o cartão ${a.cardName}` : '',
     ].filter(Boolean);
     confirm({
