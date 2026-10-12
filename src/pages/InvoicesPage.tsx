@@ -497,14 +497,19 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
     setInlineItemInstallments((prev) => ({ ...prev, [m.id]: 1 }));
   };
 
-  // Excluir item do detalhamento
+  // Excluir item do detalhamento: o valor do item sai também do total da fatura (fatura em aberto)
   const handleDeleteBreakdownItem = (m: Movement, itemId: string) => {
     const currentBreakdown = m.invoiceBreakdown || [];
+    const removedItem = currentBreakdown.find((i) => i.id === itemId);
     const updatedBreakdown = currentBreakdown.filter((i) => i.id !== itemId);
     const totalAllocated = updatedBreakdown.reduce((acc, i) => acc + i.amount, 0);
-    const unanalyzed = Math.max(0, m.amount - totalAllocated);
+    // Fatura já paga não muda de valor: o que foi pago continua valendo e a diferença fica em "Não Analisada"
+    const newAmount =
+      m.status === 'REALIZADA' || !removedItem ? m.amount : Math.max(0, Math.round((m.amount - removedItem.amount) * 100) / 100);
+    const unanalyzed = Math.max(0, Math.round((newAmount - totalAllocated) * 100) / 100);
 
     updateMovement(m.id, {
+      amount: newAmount,
       invoiceBreakdown: updatedBreakdown,
       unanalyzedAmount: unanalyzed,
       category: unanalyzed > 0.01 ? 'Não Analisada' : 'Fatura de Cartão',
@@ -1464,7 +1469,9 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                                       onClick={() => {
                                         confirmAction({
                                           title: 'Remover Item',
-                                          message: `Remover "${item.description}" do detalhamento da fatura?`,
+                                          message: m.status === 'REALIZADA'
+                                            ? `Remover "${item.description}" do detalhamento da fatura?`
+                                            : `Remover "${item.description}" do detalhamento? O valor da fatura diminui em ${item.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`,
                                           confirmLabel: 'Remover',
                                           onConfirm: () => handleDeleteBreakdownItem(m, item.id),
                                         });
