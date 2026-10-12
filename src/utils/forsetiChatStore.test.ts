@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CopilotMessage } from '../types';
 import type { ForsetiTopic } from './forsetiAssistant';
-import { CHAT_MAX_MESSAGES, CHAT_TTL_HOURS, chatStorageKey, chatTimeLabel, restoreChat, serializeChat } from './forsetiChatStore';
+import { CHAT_MAX_MESSAGES, CHAT_TTL_HOURS, chatSavedAt, chatStorageKey, chatTimeLabel, restoreChat, serializeChat } from './forsetiChatStore';
 
 const now = new Date(2026, 9, 11, 14, 30).getTime(); // 11/10/2026 14:30
 const msg = (id: string, over: Partial<CopilotMessage> = {}): CopilotMessage => ({ id, role: 'assistant', content: `texto ${id}`, timestamp: 'Agora', ...over });
@@ -182,5 +182,20 @@ describe('assunto da conversa (para "e no mês passado?" continuar depois de rec
   it('período e consulta inválidos são descartados, o assunto fica', () => {
     const back = restoreChat(withTopic({ intent: 'GASTEI', text: 'x', at: now, period: 'SEMPRE', query: { subject: 1 } }), now)!;
     expect(back.topic).toEqual({ intent: 'GASTEI', text: 'x', at: now });
+  });
+});
+
+describe('chatSavedAt', () => {
+  it('diz quando a conversa foi guardada, e 0 se o texto não é uma conversa', () => {
+    expect(chatSavedAt(JSON.stringify(serializeChat([msg('a')], {}, now)))).toBe(now);
+    expect(chatSavedAt(null)).toBe(0);
+    expect(chatSavedAt('não é json')).toBe(0);
+    expect(chatSavedAt(JSON.stringify({ messages: [] }))).toBe(0);
+  });
+
+  it('a conversa limpa em outro aparelho (sem mensagens) não volta como conversa', () => {
+    const cleared = JSON.stringify({ savedAt: now, messages: [] });
+    expect(chatSavedAt(cleared)).toBe(now);
+    expect(restoreChat(cleared, now)).toBeNull();
   });
 });
