@@ -42,17 +42,18 @@ export interface CardPurchaseInfo {
  * Compra no cartão: cada parcela entra como item da fatura do banco (a do mês do vencimento).
  * Se a fatura já existe, o item usa o que ela ainda tem sem detalhar e só o excedente aumenta o total;
  * senão, a fatura é criada já com o item. Nunca vira um lançamento solto.
+ * Devolve, por parcela, o item criado e quanto o total da fatura subiu (para poder desfazer).
  */
 export function addCardPurchaseToInvoices(
   purchase: CardPurchaseInfo,
   parts: { dueDate: string; amount: number }[],
   movements: Movement[],
   ops: { addMovement: (m: Omit<Movement, 'id'>) => void; updateMovement: (id: string, u: Partial<Movement>) => void }
-): void {
+): { itemId: string; grow: number }[] {
   const n = parts.length;
   const groupId = `purchase_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   const round = (v: number) => Math.round(v * 100) / 100;
-  parts.forEach(({ dueDate, amount }, idx) => {
+  return parts.map(({ dueDate, amount }, idx) => {
     const item: InvoiceNatureItemBreakdown = {
       id: `${groupId}_${idx + 1}`,
       natureId: purchase.natureId || 'OUTROS',
@@ -73,10 +74,12 @@ export function addCardPurchaseToInvoices(
         (inv.bank || '').trim().toLowerCase() === purchase.institution.trim().toLowerCase() &&
         inv.dueDate.startsWith(dueDate.substring(0, 7))
     );
+    let grow = amount;
     if (target) {
       const free = target.unanalyzedAmount ?? 0;
+      grow = Math.max(0, round(amount - free));
       ops.updateMovement(target.id, {
-        amount: round(target.amount + Math.max(0, round(amount - free))),
+        amount: round(target.amount + grow),
         invoiceBreakdown: [...(target.invoiceBreakdown || []), item],
         unanalyzedAmount: Math.max(0, round(free - amount)),
       });
@@ -95,5 +98,24 @@ export function addCardPurchaseToInvoices(
         unanalyzedAmount: 0,
       });
     }
+    return { itemId: item.id, grow };
   });
+}
+
+/**
+ * O que muda na fatura quando os itens de uma compra saem dela (desfazer): o total volta ao que era antes
+ * (menos o que subiu na entrada) e o que sobra sem detalhar é recalculado. Sem itens e sem valor, a fatura some.
+ */
+export function invoiceAfterRemovingItems(invoice: Movement, itemIds: string[], grow: number): Partial<Movement> | 'DELETE' {
+  const round = (v: number) => Math.round(v * 100) / 100;
+  const breakdown = (invoice.invoiceBreakdown || []).filter((i) => !itemIds.includes(i.id));
+  const amount = Math.max(0, round(invoice.amount - grow));
+  if (breakdown.length === 0 && amount <= 0.01) return 'DELETE';
+  const unanalyzed = Math.max(0, round(amount - breakdown.reduce((acc, i) => acc + i.amount, 0)));
+  return {
+    amount,
+    invoiceBreakdown: breakdown,
+    unanalyzedAmount: unanalyzed,
+    category: unanalyzed > 0.01 ? 'Não Analisada' : 'Fatura de Cartão',
+  };
 }

@@ -108,7 +108,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     chatHistory, setChatHistory, forsetiFlowRef, requestTrailRef, forsetiActivity,
     forsetiActivityLocalOnly, lastTopicRef, logForsetiActivity, rateForsetiActivity, undoForsetiActivity, resetForsetiChat,
   } = useForsetiActivity({
-    authUser, cards, deleteCard, deleteMovement, movements, viewing,
+    authUser, cards, deleteCard, deleteMovement, movements, updateMovement, viewing,
   });
 
   useCloudSync({

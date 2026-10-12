@@ -312,6 +312,10 @@ export interface ForsetiCreatedMovement {
   dueDate: string;
   type: MovementType;
   bank: string;
+  /** Compra no cartão: não é um lançamento solto, é este item da fatura (desfazer remove o item). */
+  invoiceItemId?: string;
+  /** Quanto o total da fatura subiu quando o item entrou (o que passou do que a fatura ainda tinha sem detalhar). */
+  invoiceGrow?: number;
 }
 
 export type ForsetiActivityKind = 'PAGAMENTO' | 'RECEBIMENTO' | 'CARTAO' | 'CUPOM' | 'FATURA' | 'DUVIDA' | 'CONVERSA';

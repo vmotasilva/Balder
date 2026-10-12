@@ -2,9 +2,10 @@ import { ForsetiActivityService } from '../../services/forsetiActivityService';
 import { ForsetiChatService } from '../../services/forsetiChatService';
 import { ForsetiTranscriptService } from '../../services/forsetiTranscriptService';
 import { type CopilotMessage, type ForsetiActivity } from '../../types';
+import { invoiceAfterRemovingItems } from '../../utils/cardPurchase';
 import { chatSavedAt, chatStorageKey, readChat, removeChat, restoreChat, serializeChat, writeChat, type StoredChat } from '../../utils/forsetiChatStore';
 import {
-  type ForsetiFlow, type ForsetiTopic, MAIN_CHIPS, canUndoActivity, createdMovementsOf,
+  type ForsetiFlow, type ForsetiTopic, MAIN_CHIPS, canUndoActivity, createdMovementsOf, invoiceItemsOf,
 } from '../../utils/forsetiAssistant';
 import { useEffect, useRef, useState } from 'react';
 import type { useCoreData } from './useCoreData';
@@ -19,7 +20,7 @@ type Deps =
     'deleteCard'
   > &
   Pick<ReturnType<typeof useMovementsAndGoals>,
-    'deleteMovement'
+    'deleteMovement' | 'updateMovement'
   >;
 
 type Viewing = ReturnType<typeof useCoreData>['viewing'];
@@ -39,7 +40,7 @@ const welcomeMessage = (viewing: Viewing): CopilotMessage => ({
 
 /** Histórico do chat e das solicitações da Forseti (avaliar e desfazer). */
 export function useForsetiActivity({
-  authUser, cards, deleteCard, deleteMovement, movements, viewing,
+  authUser, cards, deleteCard, deleteMovement, movements, updateMovement, viewing,
 }: Deps) {
   const [chatHistory, setChatHistory] = useState<CopilotMessage[]>(() => [welcomeMessage(viewing)]);
   // Registro guiado em andamento (valor → data/categoria → conta)
@@ -282,11 +283,29 @@ export function useForsetiActivity({
     if (card && movements.some((m) => m.bank === card.name && !created.includes(m))) {
       return { ok: false, message: `Ainda há lançamentos no cartão ${card.name}. Desfaça antes as compras feitas nele.` };
     }
+    // Compra no cartão: o item sai da fatura e o total dela volta ao que era (por fatura, se a compra foi parcelada)
+    const invoiceItems = invoiceItemsOf(activity, movements);
+    if (invoiceItems.some(({ invoice }) => invoice.status === 'REALIZADA')) {
+      return { ok: false, message: 'A fatura desta compra já foi paga. Reabra a fatura para desfazer.' };
+    }
     created.forEach((m) => deleteMovement(m.id));
+    const byInvoice = new Map<string, { invoice: (typeof invoiceItems)[number]['invoice']; itemIds: string[]; grow: number }>();
+    invoiceItems.forEach(({ invoice, item, grow }) => {
+      const entry = byInvoice.get(invoice.id) || { invoice, itemIds: [], grow: 0 };
+      entry.itemIds.push(item.id);
+      entry.grow += grow;
+      byInvoice.set(invoice.id, entry);
+    });
+    byInvoice.forEach(({ invoice, itemIds, grow }) => {
+      const after = invoiceAfterRemovingItems(invoice, itemIds, grow);
+      if (after === 'DELETE') deleteMovement(invoice.id);
+      else updateMovement(invoice.id, after);
+    });
     if (card) deleteCard(card.id);
     updateForsetiActivity(id, { undoneAt: new Date().toISOString() });
     const parts = [
       created.length > 0 ? `${created.length} lançamento${created.length > 1 ? 's' : ''} apagado${created.length > 1 ? 's' : ''}` : '',
+      invoiceItems.length > 0 ? `${invoiceItems.length} item${invoiceItems.length > 1 ? 's' : ''} removido${invoiceItems.length > 1 ? 's' : ''} da fatura` : '',
       card ? `cartão ${card.name} removido` : '',
     ].filter(Boolean);
     return { ok: true, message: parts.length > 0 ? `Desfeito: ${parts.join(' e ')}.` : 'Desfeito. Os lançamentos já tinham sido apagados.' };
