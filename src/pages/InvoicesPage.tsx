@@ -327,6 +327,12 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
     }
   };
 
+  // Ajusta o valor da fatura para a soma dos itens (tira o que sobrou em "Não Analisada", ex.: de um item já removido)
+  const handleShrinkInvoiceToItems = (m: Movement) => {
+    const total = Math.round((m.invoiceBreakdown || []).reduce((acc, i) => acc + i.amount, 0) * 100) / 100;
+    updateMovement(m.id, { amount: total, unanalyzedAmount: 0, category: 'Fatura de Cartão' });
+  };
+
   // Classificar restante como Outros diretamente
   const handleQuickAllocateRemainingAsOutros = (m: Movement) => {
     const currentBreakdown = m.invoiceBreakdown || [];
@@ -1306,6 +1312,32 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                         onClick={() => handleQuickAllocateRemainingAsOutros(m)}
                       >
                         Classificar restante ({fmtBRL(unallocated)}) como Outros
+                      </button>
+                    )}
+                    {unallocated > 0.01 && breakdown.length > 0 && !isPaid && (
+                      <button
+                        style={{
+                          display: 'block',
+                          marginTop: '8px',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          color: 'var(--accent-cyan)',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          textDecoration: 'underline',
+                          textUnderlineOffset: '3px',
+                        }}
+                        onClick={() =>
+                          confirmAction({
+                            title: 'Ajustar valor da fatura',
+                            message: `A soma dos itens é ${fmtBRL(totalAllocated)} e a fatura está em ${fmtBRL(m.amount)}. Ajustar o valor da fatura para ${fmtBRL(totalAllocated)}?`,
+                            confirmLabel: 'Ajustar',
+                            onConfirm: () => handleShrinkInvoiceToItems(m),
+                          })
+                        }
+                      >
+                        Ajustar fatura para {fmtBRL(totalAllocated)}
                       </button>
                     )}
                   </div>
