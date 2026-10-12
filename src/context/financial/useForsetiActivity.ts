@@ -55,6 +55,9 @@ export function useForsetiActivity({
   const activityGuest = !authUser || !!authUser.isGuest;
 
   const [forsetiActivity, setForsetiActivity] = useState<ForsetiActivity[]>([]);
+  // Tabela do histórico ainda não criada no Supabase: o histórico vale só neste aparelho
+
+  const [forsetiActivityLocalOnly, setForsetiActivityLocalOnly] = useState(false);
 
   useEffect(() => {
     if (!activityUserId) {
@@ -63,7 +66,9 @@ export function useForsetiActivity({
     }
     let alive = true;
     ForsetiActivityService.list(activityUserId, activityGuest).then((list) => {
-      if (alive) setForsetiActivity(list);
+      if (!alive) return;
+      setForsetiActivity(list);
+      setForsetiActivityLocalOnly(ForsetiActivityService.isLocalOnly(activityGuest));
     });
     return () => {
       alive = false;
@@ -207,7 +212,7 @@ export function useForsetiActivity({
   // Sincronização inicial com Supabase
 
   return {
-    chatHistory, setChatHistory, forsetiFlowRef, requestTrailRef, forsetiActivity, lastTopicRef,
-    logForsetiActivity, rateForsetiActivity, undoForsetiActivity, resetForsetiChat,
+    chatHistory, setChatHistory, forsetiFlowRef, requestTrailRef, forsetiActivity, forsetiActivityLocalOnly,
+    lastTopicRef, logForsetiActivity, rateForsetiActivity, undoForsetiActivity, resetForsetiChat,
   };
 }

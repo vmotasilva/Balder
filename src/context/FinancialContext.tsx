@@ -105,8 +105,8 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   });
 
   const {
-    chatHistory, setChatHistory, forsetiFlowRef, requestTrailRef, forsetiActivity, lastTopicRef,
-    logForsetiActivity, rateForsetiActivity, undoForsetiActivity, resetForsetiChat,
+    chatHistory, setChatHistory, forsetiFlowRef, requestTrailRef, forsetiActivity,
+    forsetiActivityLocalOnly, lastTopicRef, logForsetiActivity, rateForsetiActivity, undoForsetiActivity, resetForsetiChat,
   } = useForsetiActivity({
     authUser, cards, deleteCard, deleteMovement, movements, viewing,
   });
@@ -303,6 +303,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         confirmPaymentWizard,
         cancelPaymentWizard,
         forsetiActivity,
+        forsetiActivityLocalOnly,
         rateForsetiActivity,
         undoForsetiActivity,
         exportToCSV,

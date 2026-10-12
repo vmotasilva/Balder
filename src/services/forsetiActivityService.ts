@@ -84,8 +84,16 @@ const toRow = (a: ForsetiActivity, userId: string) => ({
 const cloudEnabled = (isGuest: boolean) => isSupabaseConfigured && !isGuest && !tableMissing;
 
 export const ForsetiActivityService = {
-  /** Últimos dias, mais recentes primeiro; apaga do servidor o que passou do período. */
+  /** O histórico está só neste aparelho porque a tabela do Supabase ainda não existe (supabase/forseti_activity.sql). */
+  isLocalOnly: (isGuest: boolean) => !isGuest && isSupabaseConfigured && tableMissing,
+
+  /**
+   * Últimos dias, mais recentes primeiro; apaga do servidor o que passou do período.
+   * Solicitações que só existem neste aparelho (feitas antes da tabela existir ou durante uma falha) sobem para a
+   * nuvem, para o app instalado e o navegador mostrarem o mesmo histórico.
+   */
   async list(userId: string, isGuest: boolean): Promise<ForsetiActivity[]> {
+    const local = readLocal(userId);
     if (cloudEnabled(isGuest)) {
       const { data, error } = await supabase
         .from(TABLE)
@@ -95,28 +103,34 @@ export const ForsetiActivityService = {
         .order('created_at', { ascending: false });
       if (!error) {
         supabase.from(TABLE).delete().eq('user_id', userId).lt('created_at', cutoffIso()).then(() => undefined);
-        return (data as Row[]).map(fromRow);
+        const cloud = (data as Row[]).map(fromRow);
+        const known = new Set(cloud.map((a) => a.id));
+        const onlyLocal = local.filter((a) => !known.has(a.id));
+        if (onlyLocal.length > 0) {
+          const { error: uploadError } = await supabase.from(TABLE).upsert(onlyLocal.map((a) => toRow(a, userId)));
+          if (uploadError) console.error('[ForsetiActivityService] Erro ao subir histórico local:', uploadError.message);
+        }
+        const merged = [...cloud, ...onlyLocal].sort((a, b) => b.at.localeCompare(a.at));
+        writeLocal(userId, merged);
+        return merged;
       }
       if (isMissingTable(error)) tableMissing = true;
       else console.error('[ForsetiActivityService] Erro ao buscar histórico:', error.message);
     }
-    return readLocal(userId).sort((a, b) => b.at.localeCompare(a.at));
+    return local.sort((a, b) => b.at.localeCompare(a.at));
   },
 
   async save(userId: string, isGuest: boolean, activity: ForsetiActivity): Promise<void> {
-    if (cloudEnabled(isGuest)) {
-      const { error } = await supabase.from(TABLE).upsert(toRow(activity, userId));
-      if (!error) return;
-      if (isMissingTable(error)) tableMissing = true;
-      else {
-        console.error('[ForsetiActivityService] Erro ao salvar histórico:', error.message);
-        return;
-      }
-    }
+    // Sempre guarda uma cópia aqui: se o envio falhar, a próxima abertura sobe o que ficou para trás
     const list = readLocal(userId);
     const i = list.findIndex((a) => a.id === activity.id);
     if (i >= 0) list[i] = activity;
     else list.unshift(activity);
     writeLocal(userId, list);
+    if (!cloudEnabled(isGuest)) return;
+    const { error } = await supabase.from(TABLE).upsert(toRow(activity, userId));
+    if (!error) return;
+    if (isMissingTable(error)) tableMissing = true;
+    else console.error('[ForsetiActivityService] Erro ao salvar histórico:', error.message);
   },
 };
