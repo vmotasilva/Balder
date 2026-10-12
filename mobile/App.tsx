@@ -21,7 +21,9 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 const APP_URL = 'https://balder-one.vercel.app';
 
 // Client ID do tipo "Web" do Google Cloud (o mesmo configurado no provedor Google do Supabase).
-const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
+const GOOGLE_WEB_CLIENT_ID =
+  process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
+  '303476978483-2711gh9dj8sob34ebra7in77p4inrpfb.apps.googleusercontent.com';
 
 // Custom User Agent avoiding '; wv)' to enable Google OAuth sign-in seamlessly
 const CHROME_USER_AGENT =
