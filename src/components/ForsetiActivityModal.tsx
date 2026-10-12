@@ -40,7 +40,7 @@ const whenLabel = (iso: string) => {
  * da caixa de texto da Forseti.
  */
 export const ForsetiActivityModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
-  const { forsetiActivity: allActivity, movements, rateForsetiActivity, undoForsetiActivity } = useFinancial();
+  const { forsetiActivity: allActivity, forsetiActivityLocalOnly, movements, rateForsetiActivity, undoForsetiActivity } = useFinancial();
   // Com o app aberto por muito tempo, o que passou do período some da lista (e do armazenamento no próximo carregamento)
   const cutoff = activityCutoffIso();
   const forsetiActivity = allActivity.filter((a) => a.at >= cutoff);
@@ -122,6 +122,12 @@ export const ForsetiActivityModal: React.FC<{ isOpen: boolean; onClose: () => vo
             </li>
           ))}
         </ul>
+      )}
+      {forsetiActivityLocalOnly && (
+        <p className="text-xs text-muted">
+          Este histórico está guardado só neste aparelho; no app e no navegador ele não aparece igual. Para sincronizar, crie a tabela
+          forseti_activity no Supabase (supabase/forseti_activity.sql).
+        </p>
       )}
       {feedback && <p className={`forseti-activity-feedback ${feedback.ok ? 'text-emerald' : 'text-rose'}`}>{feedback.message}</p>}
       <ConfirmDialog {...dialogProps} />

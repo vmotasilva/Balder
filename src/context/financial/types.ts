@@ -153,6 +153,8 @@ export interface FinancialContextType {
   cancelPaymentWizard: (messageId: string) => void;
   /** Últimas solicitações à Forseti (48 horas), com avaliação e desfazer. */
   forsetiActivity: ForsetiActivity[];
+  /** O histórico só existe neste aparelho (a tabela forseti_activity ainda não foi criada no Supabase). */
+  forsetiActivityLocalOnly: boolean;
   rateForsetiActivity: (id: string, rating: ForsetiActivity['rating']) => void;
   undoForsetiActivity: (id: string) => { ok: boolean; message: string };
   reconcileReceiptData: (messageId: string, data: ReceiptReconciliationData) => void;
