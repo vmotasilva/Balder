@@ -111,18 +111,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // como evento `balder-native-google`. Se o nativo não estiver disponível, cai no fluxo web.
   const loginWithGoogleNative = () =>
     new Promise<'success' | 'cancelled' | 'unavailable'>((resolve) => {
-      const timeout = window.setTimeout(() => finish('unavailable'), 120000);
+      // Sem confirmação rápida do app, ele é uma versão sem login nativo: segue pelo fluxo web.
+      let timeout = window.setTimeout(() => finish('unavailable'), 1500);
       const finish = (result: 'success' | 'cancelled' | 'unavailable') => {
         window.clearTimeout(timeout);
         window.removeEventListener('balder-native-google', onResult);
         resolve(result);
       };
       const onResult = async (e: Event) => {
-        const detail = (e as CustomEvent<{ status?: string; idToken?: string }>).detail;
+        const detail = (e as CustomEvent<{ status?: string; idToken?: string; reason?: string }>).detail;
+        if (detail?.status === 'ack') {
+          window.clearTimeout(timeout);
+          timeout = window.setTimeout(() => finish('unavailable'), 120000);
+          return;
+        }
+        if (detail?.reason) {
+          window.alert(`Login nativo do Google indisponível: ${detail.reason}`);
+        }
         if (detail?.status === 'success' && detail.idToken) {
           const { error } = await supabase.auth.signInWithIdToken({ provider: 'google', token: detail.idToken });
           if (error) {
             console.error('[Supabase Auth] Erro no login Google nativo:', error.message);
+            window.alert(`Login nativo do Google recusado pelo Supabase: ${error.message}`);
             finish('unavailable');
           } else {
             finish('success');
