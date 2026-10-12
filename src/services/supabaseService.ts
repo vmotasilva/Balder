@@ -86,8 +86,9 @@ export const msSinceProfileSave = () => Date.now() - lastProfileSaveAt;
 async function getAuthUserId(): Promise<string | null> {
   if (!isSupabaseConfigured) return null;
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    return user?.id || null;
+    // getSession lê a sessão guardada no aparelho; getUser faria uma ida ao servidor de autenticação em cada consulta
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.user?.id || null;
   } catch {
     return null;
   }

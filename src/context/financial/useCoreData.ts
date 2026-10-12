@@ -12,6 +12,18 @@ import { useAccountScope } from '../AccountScopeContext';
 import { useAuth } from '../AuthContext';
 import { useMemo, useRef, useState } from 'react';
 
+/** Há marcos e lançamentos guardados da última vez que o usuário abriu o app neste aparelho. */
+function hasLocalSnapshot(userId?: string): boolean {
+  if (!userId) return false;
+  try {
+    const checkpoints = JSON.parse(localStorage.getItem(`balder_checkpoints_${userId}`) || '[]');
+    const movements = JSON.parse(localStorage.getItem(`balder_movements_${userId}`) || 'null');
+    return Array.isArray(checkpoints) && checkpoints.length > 0 && Array.isArray(movements);
+  } catch {
+    return false;
+  }
+}
+
 /** Identidade, escopo da conta e estado base (contas, cartões, meios de pagamento, bancos, lançamentos, metas e naturezas). */
 export function useCoreData() {
   const { user: authUser } = useAuth();
@@ -41,7 +53,14 @@ export function useCoreData() {
   // Flag que indica se os dados já foram carregados da nuvem.
   // Enquanto false, o dashboard não deve renderizar valores (evita flash de DEMO).
 
-  const [isDataReady, setIsDataReady] = useState(!isCloudUser); // guest = já pronto
+  // Com cópia local do último acesso (marcos + lançamentos), a tela abre na hora com ela e a nuvem atualiza por cima.
+  // Sem cópia (primeiro acesso, outro aparelho), espera a nuvem para não mostrar a configuração inicial por engano.
+
+  const [isDataReady, setIsDataReady] = useState(() => !isCloudUser || hasLocalSnapshot(user?.$id));
+
+  // true só depois que a nuvem respondeu: rotinas que gravam dados não devem agir sobre a cópia local
+
+  const [isCloudSynced, setIsCloudSynced] = useState(!isCloudUser);
 
   // Contas Bancárias (armazenadas por usuário)
 
@@ -101,7 +120,15 @@ export function useCoreData() {
 
   // Marcos de Acompanhamento Financeiro
 
-  const [movements, setMovements] = useState<Movement[]>(() => (isCloudUser ? [] : DEMO_MOVEMENTS));
+  const [movements, setMovements] = useState<Movement[]>(() => {
+    if (!isCloudUser) return DEMO_MOVEMENTS;
+    try {
+      const saved = user ? JSON.parse(localStorage.getItem(`balder_movements_${user.$id}`) || '[]') : [];
+      return Array.isArray(saved) ? saved : [];
+    } catch {
+      return [];
+    }
+  });
 
   // Metas Financeiras
 
@@ -137,7 +164,7 @@ export function useCoreData() {
   // Gestão de Contas Bancárias
 
   return {
-    authUser, viewing, user, isDataReady, setIsDataReady, accounts, setAccounts, cards, setCards,
+    authUser, viewing, user, isDataReady, setIsDataReady, isCloudSynced, setIsCloudSynced, accounts, setAccounts, cards, setCards,
     paymentMethods, setPaymentMethods, banks, setBanks, movements, setMovements, goals, setGoals,
     natures, setNatures, lastLocalNatureMutationRef,
   };
