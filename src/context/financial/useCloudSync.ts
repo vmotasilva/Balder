@@ -40,6 +40,23 @@ type Deps =
     'setGoalStatusesState'
   >;
 
+const RECENT_MONTHS = 4;
+
+/** Início da janela da primeira carga de lançamentos (YYYY-MM-DD), ou undefined para carregar tudo. */
+function recentWindowStart(userId: string): string | undefined {
+  try {
+    const cps = JSON.parse(localStorage.getItem(`balder_checkpoints_${userId}`) || '[]') as { isActive?: boolean; startDate?: string }[];
+    const start = Array.isArray(cps) ? cps.find((cp) => cp.isActive)?.startDate : undefined;
+    if (!start) return undefined;
+    const d = new Date();
+    d.setMonth(d.getMonth() - RECENT_MONTHS);
+    const recent = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+    return start < recent ? start : recent;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Carga inicial dos dados da nuvem (Supabase) e persistência local. */
 export function useCloudSync({
   lastLocalNatureMutationRef, setAccounts, setArchivedLoanGroups, setBanks, setCards,
@@ -63,6 +80,9 @@ export function useCloudSync({
     }
 
     let isMounted = true;
+    // Janela da primeira carga: do marco ativo (o saldo conta desde ali) ou dos últimos 4 meses, o que for mais antigo.
+    // Sem marco guardado neste aparelho (primeiro acesso), carrega tudo de uma vez.
+    const since = recentWindowStart(user.$id);
     async function loadCloudData() {
       // Própria conta: mantém atualizados os espelhos lidos por quem tem acesso compartilhado
       if (!viewing) void SupabaseService.syncProfileMirror();
@@ -76,7 +96,7 @@ export function useCloudSync({
           cloudPaymentMethods,
           cloudProfileSettings,
         ] = await Promise.all([
-          SupabaseService.getMovements(),
+          SupabaseService.getMovements(undefined, since ? { since } : undefined),
           SupabaseService.getNatures(),
           SupabaseService.getGoals(),
           SupabaseService.getAccounts(),
@@ -495,7 +515,8 @@ export function useCloudSync({
                     !isLegacyOnboardingSalary(lm) &&
                     survivesFormat(lm.id, formattedAt[movementFormatCategory(lm.type)])
                 );
-                if (finalMovements.length === 0 && localMovs.length > 0) {
+                // Com janela, nuvem vazia não prova que não há histórico: não reenvia a cópia local (duplicaria)
+                if (finalMovements.length === 0 && localMovs.length > 0 && !since) {
                   finalMovements = localMovs;
                   if (!user.isGuest) {
                     localMovs.forEach((m) => {
@@ -558,12 +579,30 @@ export function useCloudSync({
           finalMovements = sanitizedMovements;
 
           setMovements(finalMovements);
-          if (user && !user.isGuest) {
+          // Com janela, a cópia local só é regravada quando o histórico completar (evita guardar a lista pela metade)
+          if (user && !user.isGuest && !since) {
             localStorage.setItem(`balder_movements_${user.$id}`, JSON.stringify(finalMovements));
           }
 
           setIsDataReady(true);
           setIsCloudSynced(true);
+
+          // Histórico mais antigo (realizados fora da janela): chega depois, sem segurar a tela
+          if (since) {
+            const older = await SupabaseService.getMovements(undefined, { olderThan: since });
+            if (isMounted) {
+              setMovements((prev) => {
+                const have = new Set(prev.map((m) => m.id));
+                const merged = [...prev, ...older.filter((m) => !have.has(m.id) && !isLegacyOnboardingSalary(m))];
+                if (user && !user.isGuest) {
+                  try {
+                    localStorage.setItem(`balder_movements_${user.$id}`, JSON.stringify(merged));
+                  } catch {}
+                }
+                return merged;
+              });
+            }
+          }
         }
       } catch (err) {
         console.error('Erro ao sincronizar com Supabase:', err);
