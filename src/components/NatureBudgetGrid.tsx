@@ -173,6 +173,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
       const natItems: Array<{
         natureName: string;
         natureColor: string;
+        mappingId: string;
         mappingName: string;
         item: MappingItem;
       }> = [];
@@ -189,6 +190,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
           natItems.push({
             natureName: nat.name,
             natureColor: nat.color,
+            mappingId: m.id,
             mappingName: m.name,
             item: it,
           });
@@ -209,6 +211,14 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
       const overages: { name: string; amount: number }[] = [];
       // Linhas (itens) que passaram do próprio previsto; avulsos não são linha, então ficam só em `overages`
       const lineOverages: { name: string; amount: number }[] = [];
+      // Os itens são só a memória de cálculo do mapeamento: a linha é o mapeamento, então o excedente se apura
+      // pela soma dos itens (um item acima do seu valor é compensado pelos demais) e leva o nome do mapeamento.
+      const mappingDelta = new Map<string, { name: string; amount: number }>();
+      const addDelta = (ni: (typeof natItems)[number], amount: number) => {
+        const cur = mappingDelta.get(ni.mappingId) || { name: ni.mappingName, amount: 0 };
+        cur.amount += amount;
+        mappingDelta.set(ni.mappingId, cur);
+      };
       natItems.forEach((ni) => {
         const summary = resolveMappingItemMonth(ni.item, selectedMonthKey);
         if (isExcludedState(summary.state)) return;
@@ -220,19 +230,20 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
             if (m.status === 'REALIZADA') real += m.amount;
             else pending += m.amount;
           });
-          if (launchedTotal - summary.base > 0.005) {
-            overages.push({ name: ni.item.description, amount: launchedTotal - summary.base });
-            lineOverages.push({ name: ni.item.description, amount: launchedTotal - summary.base });
-          }
+          addDelta(ni, launchedTotal - summary.base);
           return;
         }
         real += summary.paid;
         pending += summary.pending;
-        if (summary.paid + summary.pending - summary.base > 0.005) {
-          overages.push({ name: ni.item.description, amount: summary.paid + summary.pending - summary.base });
-          lineOverages.push({ name: ni.item.description, amount: summary.paid + summary.pending - summary.base });
-        }
+        addDelta(ni, summary.paid + summary.pending - summary.base);
         summary.payments.forEach((p) => payments.push({ date: p.paidAt, description: ni.item.description, amount: p.amount }));
+      });
+      mappingDelta.forEach(({ name, amount }) => {
+        const over = Math.round(amount * 100) / 100;
+        if (over > 0.005) {
+          overages.push({ name, amount: over });
+          lineOverages.push({ name, amount: over });
+        }
       });
       matchingMovements
         .filter((m) => !itemTitles.has(norm(m.title)) && !(m.mappingItemId && itemIds.has(m.mappingItemId)))
