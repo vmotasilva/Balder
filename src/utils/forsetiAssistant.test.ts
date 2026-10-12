@@ -348,3 +348,57 @@ describe('shorthandRegistration: valor + o que foi, sem verbo', () => {
     expect(detectLooseAmount('30 reais de presente')?.choices).toHaveLength(2);
   });
 });
+
+// A categoria vem de palavras-chave. Palavra curta só vale inteira: "gas" não é "gastei", "bar" não é "barbeiro".
+describe('inferExpenseCategory: palavra inteira, não pedaço de outra', () => {
+  it.each([
+    ['Gastei 39,90 em lazer', 'Lazer'], // antes: "Conta da casa" (gas em gastei)
+    ['gastei 30 com netflix', 'Lazer'],
+    ['gastei 25 no bar', 'Lazer'],
+    ['gastamos 80 em lazer', 'Lazer'],
+    ['paguei 99 na farmácia', 'Farmácia'], // antes: "Transporte" (o 99 do valor casava com o app 99)
+    ['paguei 99,90 no mercado', 'Mercado'],
+    ['conta de luz 150', 'Conta da casa'],
+    ['gás 80', 'Conta da casa'],
+    ['botijão de gás', 'Conta da casa'],
+  ])('%s → %s', (text, title) => expect(inferExpenseCategory(text)?.title).toBe(title));
+
+  it.each([
+    ['paguei 39,90 no barbeiro', 'bar dentro de barbeiro'],
+    ['gastei 50 com a Luzia', 'luz dentro de Luzia'],
+    ['paguei 99', 'só o valor'],
+    ['gastei 40 no gastrobar', 'bar dentro de gastrobar'],
+  ])('não casa por acidente: %s (%s)', (text) => expect(inferExpenseCategory(text)).toBeNull());
+
+  it.each([
+    ['39,90 assinatura', 'Lazer'],
+    ['assinatura do spotify 21,90', 'Lazer'],
+    ['50 ingresso', 'Lazer'],
+    ['180 hotel', 'Lazer'],
+    ['89 academia', 'Farmácia'],
+    ['150 psicólogo', 'Farmácia'],
+    ['40 taxi', 'Transporte'],
+    ['80 ipva', 'Transporte'],
+    ['250 oficina', 'Transporte'],
+    ['90 iptu', 'Conta da casa'],
+    ['120 diarista', 'Conta da casa'],
+    ['45 sushi', 'Restaurante'],
+    ['25 delivery', 'Restaurante'],
+  ])('vocabulário novo: %s → %s', (text, title) => expect(inferExpenseCategory(text)?.title).toBe(title));
+
+  it('as palavras novas fazem o registro curto funcionar sem perguntar', () => {
+    for (const t of ['39,90 assinatura', '40 taxi', '89 academia', '45 sushi', 'iptu 90']) expect(shorthandRegistration(t), t).toBe('PAGAR');
+  });
+
+  it('o que continua sem categoria segue com a pergunta (ou a IA, quando logado)', () => {
+    for (const t of ['50 barbeiro', '30 presente do João', '25 cabeleireiro']) {
+      expect(shorthandRegistration(t), t).toBeNull();
+      expect(detectLooseAmount(t), t).not.toBeNull();
+    }
+  });
+
+  it('palavras novas não viram categoria de verbos e números: o título e o valor ficam intactos', () => {
+    expect(parseAmount('Gastei 39,90 em lazer')).toBe(39.9);
+    expect(titleFrom('Gastei 39,90 em lazer')).toBe('Lazer');
+  });
+});
