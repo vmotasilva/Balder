@@ -28,7 +28,7 @@ const FinancialContext = createContext<FinancialContextType | undefined>(undefin
 
 export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const {
-    authUser, viewing, user, isDataReady, setIsDataReady, accounts, setAccounts, cards, setCards,
+    authUser, viewing, user, isDataReady, setIsDataReady, isCloudSynced, setIsCloudSynced, accounts, setAccounts, cards, setCards,
     paymentMethods, setPaymentMethods, banks, setBanks, movements, setMovements, goals, setGoals,
     natures, setNatures, lastLocalNatureMutationRef,
   } = useCoreData();
@@ -114,7 +114,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   useCloudSync({
     lastLocalNatureMutationRef, setAccounts, setArchivedLoanGroups, setBanks, setCards,
     setCheckpointCashInHandState, setCheckpoints, setDefaultTrackingScopeState,
-    setGoalStatusesState, setGoals, setIsDataReady, setMonthlyClosings, setMovements,
+    setGoalStatusesState, setGoals, setIsCloudSynced, setIsDataReady, setMonthlyClosings, setMovements,
     setNatureDetailModes, setNatures, setPaymentMethods, setProjectionHorizonState,
     setSharedScenario, setSharedSettlements, setViewPreferencesState, user, viewing,
   });
@@ -143,7 +143,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const reconciledMovementsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
-    if (!isDataReady || viewing || natures.length === 0) return;
+    if (!isCloudSynced || viewing || natures.length === 0) return;
     const groups = new Map<string, { mv: Movement; amount: number; paidAt: string; count: number }>();
     for (const mv of movements) {
       if (mv.type !== 'PAGAR' || mv.status !== 'REALIZADA' || !mv.natureId || !mv.mappingItemId) continue;

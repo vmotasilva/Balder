@@ -24,7 +24,7 @@ import type { useMovementsAndGoals } from './useMovementsAndGoals';
 type Deps =
   Pick<ReturnType<typeof useCoreData>,
     'lastLocalNatureMutationRef' | 'setAccounts' | 'setBanks' | 'setCards' | 'setGoals' |
-    'setIsDataReady' | 'setMovements' | 'setNatures' | 'setPaymentMethods' | 'user' | 'viewing'
+    'setIsDataReady' | 'setIsCloudSynced' | 'setMovements' | 'setNatures' | 'setPaymentMethods' | 'user' | 'viewing'
   > &
   Pick<ReturnType<typeof useCheckpoints>,
     'setCheckpoints' | 'setMonthlyClosings'
@@ -44,7 +44,7 @@ type Deps =
 export function useCloudSync({
   lastLocalNatureMutationRef, setAccounts, setArchivedLoanGroups, setBanks, setCards,
   setCheckpointCashInHandState, setCheckpoints, setDefaultTrackingScopeState, setGoalStatusesState,
-  setGoals, setIsDataReady, setMonthlyClosings, setMovements, setNatureDetailModes, setNatures,
+  setGoals, setIsCloudSynced, setIsDataReady, setMonthlyClosings, setMovements, setNatureDetailModes, setNatures,
   setPaymentMethods, setProjectionHorizonState, setSharedScenario, setSharedSettlements,
   setViewPreferencesState, user, viewing,
 }: Deps) {
@@ -58,6 +58,7 @@ export function useCloudSync({
       setGoals(DEMO_GOALS);
       setNatures(DEMO_NATURES);
       setIsDataReady(true);
+      setIsCloudSynced(true);
       return;
     }
 
@@ -562,11 +563,15 @@ export function useCloudSync({
           }
 
           setIsDataReady(true);
+          setIsCloudSynced(true);
         }
       } catch (err) {
         console.error('Erro ao sincronizar com Supabase:', err);
         // Mesmo em erro, libera o render para não travar a tela
-        if (isMounted) setIsDataReady(true);
+        if (isMounted) {
+          setIsDataReady(true);
+          setIsCloudSynced(true);
+        }
       }
     }
     loadCloudData();
