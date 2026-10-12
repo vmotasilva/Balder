@@ -753,6 +753,78 @@ button {
   background: rgba(255, 255, 255, 0.03);
 }
 
+/* Celular: cada item da fatura vira um cartão (sem rolagem lateral) */
+@media (max-width: 768px) {
+  .invoice-items-table,
+  .invoice-items-table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .invoice-items-table thead {
+    display: none;
+  }
+
+  .invoice-items-table tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      'nat act'
+      'desc desc'
+      'par val'
+      'final pct';
+    gap: 8px 12px;
+    align-items: center;
+    padding: 12px;
+    margin-bottom: 10px;
+    border: 1px solid var(--border-default);
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.35);
+  }
+
+  .invoice-items-table td {
+    padding: 0;
+    border-bottom: none;
+    min-width: 0;
+    text-align: left !important;
+  }
+
+  .invoice-items-table tr:hover td {
+    background: none;
+  }
+
+  .invoice-items-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 2px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .invoice-items-table .inv-c-nat { grid-area: nat; }
+  .invoice-items-table .inv-c-act { grid-area: act; justify-self: end; }
+  .invoice-items-table .inv-c-desc { grid-area: desc; font-size: 14px; }
+  .invoice-items-table .inv-c-par { grid-area: par; }
+  .invoice-items-table .inv-c-val { grid-area: val; text-align: right !important; }
+  .invoice-items-table .inv-c-final { grid-area: final; }
+  .invoice-items-table .inv-c-pct { grid-area: pct; text-align: right !important; }
+
+  .invoice-items-table .inv-c-nat .badge {
+    max-width: 100%;
+    white-space: normal;
+    border-radius: 12px;
+  }
+
+  .invoice-items-table .inv-c-act button {
+    padding: 8px !important;
+    min-width: 36px;
+    min-height: 36px;
+  }
+}
+
 
 
 
