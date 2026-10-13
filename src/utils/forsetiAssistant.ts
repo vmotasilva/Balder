@@ -156,11 +156,11 @@ export const RECEIVE_DATE_CHIPS =['Hoje', 'Amanhã', 'Dia 5', 'Dia 10', 'Dia 15'
 const EXPENSE_CATEGORIES: { chip: string; title: string; category: string; keywords: string[] }[] = [
   { chip: '🛒 Mercado', title: 'Mercado', category: 'Alimentação & Mercado', keywords: ['mercado', 'supermercado', 'atacad', 'padaria', 'acougue', 'açougue'] },
   { chip: '🥬 Feira / hortifrúti', title: 'Feira', category: 'Alimentação & Mercado (Feira Livre & Hortifrúti)', keywords: ['feira', 'hortifruti', 'hortifrúti', 'quitanda', 'sacolao', 'sacolão', 'verdura', 'legume', 'fruta'] },
-  { chip: '🍽️ Restaurante / lanche', title: 'Restaurante', category: 'Alimentação fora de casa', keywords: ['restaurante', 'lanche', 'ifood', 'pizza', 'almoço', 'almoco', 'jantar', 'cafe', 'café', 'pastel', 'refei', 'bebida', 'marmita', 'comida'] },
-  { chip: '🚗 Transporte', title: 'Transporte', category: 'Transporte', keywords: ['uber', 'combustivel', 'combustível', 'gasolina', 'etanol', 'transporte', 'onibus', 'ônibus', 'estacionamento', 'pedagio', 'pedágio', '99'] },
-  { chip: '💊 Farmácia / saúde', title: 'Farmácia', category: 'Saúde', keywords: ['farmacia', 'farmácia', 'remedio', 'remédio', 'saude', 'saúde', 'medico', 'médico', 'consulta', 'exame', 'dentista'] },
-  { chip: '🏠 Contas da casa', title: 'Conta da casa', category: 'Utilidades / Moradia', keywords: ['energia', 'luz', 'agua', 'água', 'aluguel', 'internet', 'condominio', 'condomínio', 'gas', 'gás', 'telefone', 'celular'] },
-  { chip: '🎉 Lazer', title: 'Lazer', category: 'Lazer', keywords: ['cinema', 'show', 'viagem', 'passeio', 'bar', 'lazer', 'streaming', 'netflix'] },
+  { chip: '🍽️ Restaurante / lanche', title: 'Restaurante', category: 'Alimentação fora de casa', keywords: ['restaurante', 'lanche', 'ifood', 'pizza', 'almoço', 'almoco', 'jantar', 'cafe', 'café', 'pastel', 'refei', 'bebida', 'marmita', 'comida', 'delivery', 'lanchonete', 'hamburguer', 'sushi', 'sorvete', 'acai', 'churrasco', 'rappi', 'cafeteria'] },
+  { chip: '🚗 Transporte', title: 'Transporte', category: 'Transporte', keywords: ['uber', 'combustivel', 'combustível', 'gasolina', 'etanol', 'transporte', 'onibus', 'ônibus', 'estacionamento', 'pedagio', 'pedágio', 'taxi', 'ipva', 'passagem', 'bilhete', 'mecanico', 'oficina', 'lavagem'] },
+  { chip: '💊 Farmácia / saúde', title: 'Farmácia', category: 'Saúde', keywords: ['farmacia', 'farmácia', 'remedio', 'remédio', 'saude', 'saúde', 'medico', 'médico', 'consulta', 'exame', 'dentista', 'academia', 'psicolog', 'terapia', 'fisioterap', 'hospital', 'laboratorio', 'oculos', 'otica'] },
+  { chip: '🏠 Contas da casa', title: 'Conta da casa', category: 'Utilidades / Moradia', keywords: ['energia', 'luz', 'agua', 'água', 'aluguel', 'internet', 'condominio', 'condomínio', 'gas', 'gás', 'telefone', 'celular', 'iptu', 'diarista', 'faxina'] },
+  { chip: '🎉 Lazer', title: 'Lazer', category: 'Lazer', keywords: ['cinema', 'show', 'viagem', 'passeio', 'bar', 'lazer', 'streaming', 'netflix', 'assinatura', 'spotify', 'disney', 'youtube', 'deezer', 'ingresso', 'teatro', 'festa', 'balada', 'hotel', 'pousada', 'parque', 'jogos', 'playstation', 'xbox', 'steam'] },
 ];
 export const EXPENSE_CATEGORY_CHIPS = [...EXPENSE_CATEGORIES.map((c) => c.chip), 'Outro'];
 
@@ -281,9 +281,18 @@ export function parseDate(text: string, allowBareDay = false, today: Date = new 
   return null;
 }
 
+/**
+ * A palavra-chave está no texto? Palavras curtas (luz, gás, bar) só valem inteiras: "gas" não é "gastei" e "bar" não é
+ * "barbeiro". As maiores valem também como início ou meio de palavra ("supermercado", "farmacêutico").
+ */
+const hasKeyword = (t: string, keyword: string) => {
+  const k = stripAccents(keyword);
+  return k.length <= 3 ? new RegExp(`(^|[^a-z0-9])${k}($|[^a-z0-9])`).test(t) : t.includes(k);
+};
+
 export function inferExpenseCategory(text: string): { title: string; category: string } | null {
   const t = stripAccents(text);
-  const found = EXPENSE_CATEGORIES.find((c) => c.keywords.some((k) => t.includes(stripAccents(k))));
+  const found = EXPENSE_CATEGORIES.find((c) => c.keywords.some((k) => hasKeyword(t, k)));
   return found ? { title: found.title, category: found.category } : null;
 }
 

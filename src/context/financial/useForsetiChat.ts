@@ -846,7 +846,8 @@ export function useForsetiChat({
       // 3. Frase que as regras não entenderam: a IA só escolhe a intenção (sem enviar seus dados);
       // sem chave, offline ou sem certeza, segue para a pergunta de confirmação / resposta padrão
       const wordCount = trimmed.split(/\s+/).length;
-      if (wordCount >= 3) {
+      // Frase curta com valor ("50 barbeiro") também vai à IA: ela entende o que as regras não têm na lista de palavras
+      if (wordCount >= 3 || (wordCount >= 2 && parseAmount(trimmed) !== null)) {
         classifyIntent(trimmed, topicBefore ? { intent: topicBefore.intent, period: topicBefore.period, previous: topicBefore.text } : undefined).then((found) => {
           // A IA entendeu um gasto/recebimento: segue o registro guiado de sempre (pergunta o que falta e confirma)
           if (found?.registration && !isQuestion(trimmed)) {
