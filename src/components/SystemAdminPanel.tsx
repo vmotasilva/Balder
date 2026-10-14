@@ -343,6 +343,8 @@ const PlanCard: React.FC<{
   const [maxPlannings, setMaxPlannings] = useState(limitToInput(plan.maxPlannings));
   const [maxShared, setMaxShared] = useState(limitToInput(plan.maxSharedMembers));
   const [forseti, setForseti] = useState(plan.forsetiEnabled);
+  const [consolidated, setConsolidated] = useState(plan.consolidatedEnabled);
+  const [opportunities, setOpportunities] = useState(plan.opportunitiesEnabled);
   const [active, setActive] = useState(plan.active);
 
   return (
@@ -363,8 +365,10 @@ const PlanCard: React.FC<{
       <div className="form-group"><label>Descrição</label><input className="form-input" value={description} onChange={(e) => setDescription(e.target.value)} /></div>
       <div className="form-group"><label>Benefícios (um por linha)</label><textarea className="form-input" rows={4} value={benefits} onChange={(e) => setBenefits(e.target.value)} /></div>
       <div className="flex gap-4" style={{ alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-        <div className="flex gap-4">
+        <div className="flex gap-4" style={{ flexWrap: 'wrap' }}>
           <label><input type="checkbox" checked={forseti} onChange={(e) => setForseti(e.target.checked)} /> Forseti liberada</label>
+          <label><input type="checkbox" checked={consolidated} onChange={(e) => setConsolidated(e.target.checked)} /> Visão consolidada</label>
+          <label><input type="checkbox" checked={opportunities} onChange={(e) => setOpportunities(e.target.checked)} /> Oportunidades e preços</label>
           <label><input type="checkbox" checked={active} disabled={plan.isDefault} onChange={(e) => setActive(e.target.checked)} /> Plano ativo</label>
         </div>
         <button
@@ -379,6 +383,8 @@ const PlanCard: React.FC<{
               maxPlannings: inputToLimit(maxPlannings),
               maxSharedMembers: inputToLimit(maxShared),
               forsetiEnabled: forseti,
+              consolidatedEnabled: consolidated,
+              opportunitiesEnabled: opportunities,
               active,
             })
           }

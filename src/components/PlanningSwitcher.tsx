@@ -199,7 +199,7 @@ export const PlanningSwitcher: React.FC<PlanningSwitcherProps> = ({ onPlanWithOt
               role="menuitemradio"
               aria-checked={consolidated}
               className="planning-switch-item"
-              disabled={compareIds.length < 2}
+              disabled={compareIds.length < 2 || !entitlements.consolidatedEnabled}
               onClick={() => {
                 setOpen(false);
                 setConsolidated(true);
@@ -209,7 +209,9 @@ export const PlanningSwitcher: React.FC<PlanningSwitcherProps> = ({ onPlanWithOt
               <span className="planning-switch-item-text">
                 <strong>Ver consolidado</strong>
                 <small>
-                  {compareIds.length < 2
+                  {!entitlements.consolidatedEnabled
+                    ? `${limitReason(entitlements)} A visão consolidada não está incluída.`
+                    : compareIds.length < 2
                     ? 'Marque 2 ou mais planejamentos (☐) para somar'
                     : `Soma de ${compareIds.length} planejamentos, somente leitura`}
                 </small>

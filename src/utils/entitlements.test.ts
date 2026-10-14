@@ -10,7 +10,7 @@ const sub = (over: Partial<SubscriptionSnapshot> = {}): SubscriptionSnapshot => 
   planDescription: '',
   planMonthlyPriceCents: 0,
   planBenefits: [],
-  limits: { maxPlannings: 3, maxSharedMembers: 2, forsetiEnabled: true },
+  limits: { maxPlannings: 3, maxSharedMembers: 2, forsetiEnabled: true, consolidatedEnabled: true, opportunitiesEnabled: true },
   ...over,
 });
 
@@ -37,7 +37,16 @@ describe('computeEntitlements', () => {
     }
   });
 
+  it('plano sem consolidado e oportunidades bloqueia os dois; assinatura restrita também', () => {
+    const essencial = sub({ limits: { maxPlannings: 2, maxSharedMembers: 1, forsetiEnabled: false, consolidatedEnabled: false, opportunitiesEnabled: false } });
+    const e = computeEntitlements(essencial);
+    expect([e.consolidatedEnabled, e.opportunitiesEnabled, e.forsetiEnabled]).toEqual([false, false, false]);
+    const r = computeEntitlements(sub({ status: 'SUSPENSA' }));
+    expect([r.consolidatedEnabled, r.opportunitiesEnabled]).toEqual([false, false]);
+    expect(computeEntitlements(sub()).consolidatedEnabled).toBe(true);
+  });
+
   it('limite zero de planejamentos ainda deixa o principal', () => {
-    expect(computeEntitlements(sub({ limits: { maxPlannings: 0, maxSharedMembers: null, forsetiEnabled: true } })).maxPlannings).toBe(1);
+    expect(computeEntitlements(sub({ limits: { maxPlannings: 0, maxSharedMembers: null, forsetiEnabled: true, consolidatedEnabled: true, opportunitiesEnabled: true } })).maxPlannings).toBe(1);
   });
 });

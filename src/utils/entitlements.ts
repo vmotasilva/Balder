@@ -9,6 +9,10 @@ export interface PlanLimits {
   /** Pessoas com convite pendente ou ativo na conta (null = sem limite). */
   maxSharedMembers: number | null;
   forsetiEnabled: boolean;
+  /** Visão consolidada (soma de planejamentos). */
+  consolidatedEnabled: boolean;
+  /** Oportunidades de compra e comparação de preços. */
+  opportunitiesEnabled: boolean;
 }
 
 export interface SubscriptionSnapshot {
@@ -32,10 +36,10 @@ export interface Entitlements extends PlanLimits {
   subscription: SubscriptionSnapshot | null;
 }
 
-export const UNLIMITED: Entitlements = { maxPlannings: null, maxSharedMembers: null, forsetiEnabled: true, restricted: false, planName: null, subscription: null };
+export const UNLIMITED: Entitlements = { maxPlannings: null, maxSharedMembers: null, forsetiEnabled: true, consolidatedEnabled: true, opportunitiesEnabled: true, restricted: false, planName: null, subscription: null };
 
 /** Assinatura suspensa, cancelada ou vencida: o usuário mantém os dados, mas não cria nada novo. */
-export const RESTRICTED_LIMITS: PlanLimits = { maxPlannings: 1, maxSharedMembers: 0, forsetiEnabled: false };
+export const RESTRICTED_LIMITS: PlanLimits = { maxPlannings: 1, maxSharedMembers: 0, forsetiEnabled: false, consolidatedEnabled: false, opportunitiesEnabled: false };
 
 export function computeEntitlements(sub: SubscriptionSnapshot | null, now = Date.now()): Entitlements {
   if (!sub) return UNLIMITED;
@@ -46,6 +50,8 @@ export function computeEntitlements(sub: SubscriptionSnapshot | null, now = Date
     maxPlannings: limits.maxPlannings === null ? null : Math.max(1, limits.maxPlannings),
     maxSharedMembers: limits.maxSharedMembers,
     forsetiEnabled: limits.forsetiEnabled,
+    consolidatedEnabled: limits.consolidatedEnabled,
+    opportunitiesEnabled: limits.opportunitiesEnabled,
     restricted,
     planName: sub.planName,
     subscription: sub,
@@ -73,6 +79,8 @@ export function snapshotFromRow(row: any): SubscriptionSnapshot | null {
       maxPlannings: plan.max_plannings ?? null,
       maxSharedMembers: plan.max_shared_members ?? null,
       forsetiEnabled: plan.forseti_enabled ?? true,
+      consolidatedEnabled: plan.consolidated_enabled ?? true,
+      opportunitiesEnabled: plan.opportunities_enabled ?? true,
     },
   };
 }

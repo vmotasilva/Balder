@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { BadgePercent, Receipt, Search, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { BadgePercent, Lock, Receipt, Search, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
+import { useEntitlements } from '../context/EntitlementsContext';
+import { limitReason } from '../utils/entitlements';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
 import { MovementDetailModal } from '../components/MovementDetailModal';
 import { OpportunitiesPage } from './OpportunitiesPage';
@@ -24,6 +26,7 @@ const isoOf = (d: Date) =>
 export const PurchasesPage: React.FC<PurchasesPageProps> = ({ onRegisterPurchase }) => {
   const { movements, deleteMovement } = useFinancial();
   const { confirm, dialogProps } = useConfirmDialog();
+  const entitlements = useEntitlements();
   const [tab, setTab] = useState<Tab>('REALIZADAS');
   const [windowDays, setWindowDays] = useState<Window>('30');
   const [query, setQuery] = useState('');
@@ -63,7 +66,7 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ onRegisterPurchase
               <span>Compras realizadas</span>
             </button>
             <button type="button" className={`tab-btn ${tab === 'OPORTUNIDADES' ? 'active' : ''}`} onClick={() => setTab('OPORTUNIDADES')}>
-              <BadgePercent size={16} />
+              {entitlements.opportunitiesEnabled ? <BadgePercent size={16} /> : <Lock size={16} />}
               <span>Oportunidades</span>
             </button>
           </div>
@@ -131,7 +134,19 @@ export const PurchasesPage: React.FC<PurchasesPageProps> = ({ onRegisterPurchase
         )}
       </div>
 
-      {tab === 'OPORTUNIDADES' && <OpportunitiesPage onRegisterPurchase={onRegisterPurchase} />}
+      {tab === 'OPORTUNIDADES' && entitlements.opportunitiesEnabled && <OpportunitiesPage onRegisterPurchase={onRegisterPurchase} />}
+      {tab === 'OPORTUNIDADES' && !entitlements.opportunitiesEnabled && (
+        <div className="page-container">
+          <div className="glass-card" style={{ padding: '1.5rem', textAlign: 'center' }}>
+            <Lock size={28} className="text-muted" />
+            <h3 style={{ marginTop: '0.5rem' }}>Oportunidades não incluídas no seu plano</h3>
+            <p className="text-muted">
+              {limitReason(entitlements)} O acompanhamento de preços e a comparação entre lojas ficam nos planos superiores.
+              Fale com o gestor do Balder para liberar.
+            </p>
+          </div>
+        </div>
+      )}
 
       <MovementDetailModal isOpen={!!selected} onClose={() => setSelected(null)} movement={selected} />
       <ConfirmDialog {...dialogProps} />

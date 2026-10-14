@@ -116,10 +116,16 @@ export const SubscriptionPanel: React.FC = () => {
               <span>{b}</span>
             </li>
           ))}
-          <li className="flex items-center gap-2" style={{ padding: '0.2rem 0' }}>
-            {ent.forsetiEnabled ? <Check size={14} className="text-emerald shrink-0" /> : <Minus size={14} className="text-muted shrink-0" />}
-            <span>{ent.forsetiEnabled ? 'Forseti (assistente) liberada' : 'Forseti (assistente) não incluída'}</span>
-          </li>
+          {[
+            { on: ent.forsetiEnabled, label: 'Forseti (assistente)' },
+            { on: ent.consolidatedEnabled, label: 'Visão consolidada' },
+            { on: ent.opportunitiesEnabled, label: 'Oportunidades e comparação de preços' },
+          ].map(({ on, label }) => (
+            <li key={label} className="flex items-center gap-2" style={{ padding: '0.2rem 0' }}>
+              {on ? <Check size={14} className="text-emerald shrink-0" /> : <Minus size={14} className="text-muted shrink-0" />}
+              <span className={on ? undefined : 'text-muted'}>{label}{on ? '' : ' — não incluída no seu plano'}</span>
+            </li>
+          ))}
         </ul>
       </div>
 

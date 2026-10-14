@@ -19,6 +19,8 @@ export interface SubscriptionPlan {
   maxPlannings: number | null;
   maxSharedMembers: number | null;
   forsetiEnabled: boolean;
+  consolidatedEnabled: boolean;
+  opportunitiesEnabled: boolean;
   isDefault: boolean;
   active: boolean;
   sortOrder: number;
@@ -60,6 +62,8 @@ const mapPlan = (r: any): SubscriptionPlan => ({
   maxPlannings: r.max_plannings ?? null,
   maxSharedMembers: r.max_shared_members ?? null,
   forsetiEnabled: r.forseti_enabled ?? true,
+  consolidatedEnabled: r.consolidated_enabled ?? true,
+  opportunitiesEnabled: r.opportunities_enabled ?? true,
   isDefault: !!r.is_default,
   active: r.active ?? true,
   sortOrder: r.sort_order ?? 0,
@@ -115,6 +119,8 @@ export const AdminService = {
     if (u.maxPlannings !== undefined) row.max_plannings = u.maxPlannings;
     if (u.maxSharedMembers !== undefined) row.max_shared_members = u.maxSharedMembers;
     if (u.forsetiEnabled !== undefined) row.forseti_enabled = u.forsetiEnabled;
+    if (u.consolidatedEnabled !== undefined) row.consolidated_enabled = u.consolidatedEnabled;
+    if (u.opportunitiesEnabled !== undefined) row.opportunities_enabled = u.opportunitiesEnabled;
     if (u.active !== undefined) row.active = u.active;
     const { error } = await supabase.from('subscription_plans').update(row).eq('code', code);
     if (error) throw fail(error, 'Não foi possível salvar o plano.');

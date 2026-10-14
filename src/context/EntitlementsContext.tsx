@@ -23,7 +23,7 @@ export const EntitlementsProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
     const { data, error } = await supabase
       .from('user_subscriptions')
-      .select('status, expires_at, started_at, custom_monthly_price_cents, subscription_plans(name, description, monthly_price_cents, benefits, max_plannings, max_shared_members, forseti_enabled)')
+      .select('status, expires_at, started_at, custom_monthly_price_cents, subscription_plans(name, description, monthly_price_cents, benefits, max_plannings, max_shared_members, forseti_enabled, consolidated_enabled, opportunities_enabled)')
       .eq('user_id', userId)
       .maybeSingle();
     // Falha de leitura (ou script ainda não rodado) não trava o app
