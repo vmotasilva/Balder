@@ -24715,3 +24715,24 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
   .admin-plan-new { flex-direction: column; }
   .admin-plan-new .form-input, .admin-plan-new .btn { max-width: none; width: 100%; min-height: 44px; justify-content: center; }
 }
+
+/* Plano & Assinatura (usuário) */
+.sub-panel-specs { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.75rem; margin-top: 0.75rem; }
+.sub-panel-list { list-style: none; padding: 0; margin: 0.5rem 0 0; }
+.sub-panel-list li { display: flex; align-items: center; gap: 0.5rem; padding: 0.2rem 0; }
+.sub-panel-usage { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 0.5rem; }
+.sub-panel-usage-row { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+@media (max-width: 768px) {
+  /* Cabeçalho do plano: nome e situação em cima, valor logo abaixo */
+  .subscription-active-spotlight .sub-spotlight-top { flex-direction: column; align-items: flex-start; gap: 0.35rem; margin-bottom: 0.75rem; }
+  .subscription-active-spotlight .sub-spotlight-renewal { font-size: 1.05rem; font-weight: 700; }
+  .sub-panel-specs { grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+  /* O que inclui: um item por linha, com divisórias e área de toque confortável */
+  .sub-panel-list { border: 1px solid var(--border-subtle); border-radius: 14px; background: var(--bg-card); overflow: hidden; }
+  .sub-panel-list li { padding: 0.7rem 0.85rem; min-height: 44px; border-bottom: 1px solid var(--border-subtle); }
+  .sub-panel-list li:last-child { border-bottom: 0; }
+  /* Uso do plano: cada limite num card */
+  .sub-panel-usage-item { border: 1px solid var(--border-subtle); border-radius: 14px; background: var(--bg-card); padding: 0.8rem 0.85rem; }
+  .sub-panel-usage-row { flex-direction: column; align-items: flex-start; gap: 0.1rem; margin-bottom: 0.4rem; }
+  .sub-panel-usage-row strong { font-size: 1.1rem; }
+}

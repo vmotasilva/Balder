@@ -95,7 +95,7 @@ export const SubscriptionPanel: React.FC = () => {
           </p>
         )}
 
-        <div className="spec-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', marginTop: '0.75rem' }}>
+        <div className="sub-panel-specs">
           <div className="spec-box">
             <span className="spec-label">Desde</span>
             <span className="spec-value">{fmtDate(sub.startedAt) || '—'}</span>
@@ -109,9 +109,9 @@ export const SubscriptionPanel: React.FC = () => {
 
       <div>
         <h4>O que o seu plano inclui</h4>
-        <ul style={{ listStyle: 'none', padding: 0, margin: '0.5rem 0 0' }}>
+        <ul className="sub-panel-list">
           {sub.planBenefits.map((b) => (
-            <li key={b} className="flex items-center gap-2" style={{ padding: '0.2rem 0' }}>
+            <li key={b}>
               <Check size={14} className="text-emerald shrink-0" />
               <span>{b}</span>
             </li>
@@ -121,7 +121,7 @@ export const SubscriptionPanel: React.FC = () => {
             { on: ent.consolidatedEnabled, label: 'Visão consolidada' },
             { on: ent.opportunitiesEnabled, label: 'Oportunidades e comparação de preços' },
           ].map(({ on, label }) => (
-            <li key={label} className="flex items-center gap-2" style={{ padding: '0.2rem 0' }}>
+            <li key={label}>
               {on ? <Check size={14} className="text-emerald shrink-0" /> : <Minus size={14} className="text-muted shrink-0" />}
               <span className={on ? undefined : 'text-muted'}>{label}{on ? '' : ' — não incluída no seu plano'}</span>
             </li>
@@ -131,12 +131,12 @@ export const SubscriptionPanel: React.FC = () => {
 
       <div>
         <h4>Uso do plano</h4>
-        <div className="space-y-3" style={{ marginTop: '0.5rem' }}>
+        <div className="sub-panel-usage">
           {limitRows.map(({ label, used, max }) => {
             const pct = max === null || used === null ? 0 : max === 0 ? 100 : Math.min(100, Math.round((used / max) * 100));
             return (
-              <div key={label}>
-                <div className="flex" style={{ justifyContent: 'space-between' }}>
+              <div key={label} className="sub-panel-usage-item">
+                <div className="sub-panel-usage-row">
                   <span>{label}</span>
                   <strong>
                     {used ?? '…'} de {max === null ? 'ilimitado' : max}
