@@ -3761,6 +3761,50 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   margin-top: 2px;
 }
 
+.pref-row {
+  gap: 12px;
+}
+
+.pref-row > :first-child {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.pref-row > :last-child {
+  flex-shrink: 0;
+}
+
+@media (max-width: 640px) {
+  .pref-row {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 14px;
+  }
+
+  .pref-row > :last-child {
+    flex-shrink: 1;
+    flex-wrap: wrap;
+    max-width: none !important;
+    width: 100%;
+  }
+
+  .pref-row > div.flex:last-child > .btn {
+    flex: 1 1 0;
+    justify-content: center;
+    min-width: 0;
+  }
+
+  .pref-row > input:last-child,
+  .pref-row > .badge:last-child {
+    align-self: flex-start;
+  }
+
+  .pref-row > input:last-child {
+    width: 100%;
+    max-width: none !important;
+  }
+}
+
 .export-card {
   padding: 24px;
   display: flex;
