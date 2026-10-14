@@ -41,6 +41,7 @@ import {
   Copy,
   Compass,
   Eye,
+  ShieldAlert,
 } from 'lucide-react';
 import { FinanceEntityModal, type EntityTab } from '../components/FinanceEntityModal';
 import { CheckpointSetupModal } from '../components/CheckpointSetupModal';
@@ -49,6 +50,7 @@ import type { FinancialCheckpoint, CheckpointBankDebt } from '../types';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
 import { DataFormatPanel } from '../components/DataFormatPanel';
 import { InfoButton } from '../components/InfoButton';
+import { SystemAdminPanel } from '../components/SystemAdminPanel';
 
 interface ProfilePageProps {
   onOpenOnboarding?: (stepIndex?: number) => void;
@@ -80,7 +82,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
     setViewPreferences,
   } = useFinancial();
   const { theme, setTheme } = useTheme();
-  const { user } = useAuth();
+  const { user, isManager } = useAuth();
 
   // Confirm Dialog
   const { confirm: confirmAction, dialogProps: confirmDialogProps } = useConfirmDialog();
@@ -102,7 +104,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
   const completedSteps = onboardingAudit.completedCount;
 
   const [activeSubTab, setActiveSubTab] = useState<
-    'PERFIL' | 'ASSINATURA' | 'DOWNLOAD' | 'SALARIO' | 'MARCOS' | 'CONTAS' | 'BANCOS' | 'PREFERENCIAS' | 'EXPORTACOES' | 'SEGURANCA' | 'FORMATAR'
+    'PERFIL' | 'ASSINATURA' | 'DOWNLOAD' | 'SALARIO' | 'MARCOS' | 'CONTAS' | 'BANCOS' | 'PREFERENCIAS' | 'EXPORTACOES' | 'SEGURANCA' | 'FORMATAR' | 'GESTAO'
   >('PERFIL');
   const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'YEARLY'>('MONTHLY');
   const [iosLinkCopied, setIosLinkCopied] = useState(false);
@@ -155,6 +157,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
     { id: 'EXPORTACOES' as const, label: 'Exportações (Excel & CSV)', icon: FileSpreadsheet, count: null },
     { id: 'SEGURANCA' as const, label: 'Segurança & Criptografia', icon: ShieldCheck, count: null },
     { id: 'FORMATAR' as const, label: 'Formatar Dados', icon: Eraser, count: null },
+    // Módulo exclusivo dos gestores do sistema (o banco também bloqueia os demais)
+    ...(isManager ? [{ id: 'GESTAO' as const, label: 'Gestão do Sistema', icon: ShieldAlert, count: null }] : []),
   ];
 
   // No mobile o perfil é uma lista de botões; tocar em um abre o conteúdo da seção (com botão de voltar)
@@ -2422,6 +2426,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
           )}
 
           {activeSubTab === 'FORMATAR' && <DataFormatPanel />}
+          {activeSubTab === 'GESTAO' && isManager && <SystemAdminPanel />}
         </div>
       </div>
 

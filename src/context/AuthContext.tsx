@@ -9,9 +9,15 @@ export interface AppUser {
   isGuest?: boolean;
 }
 
+export type SystemRole = 'USUARIO' | 'DESENVOLVEDOR' | 'GESTOR';
+
 interface AuthContextType {
   user: AppUser | null;
   isLoading: boolean;
+  /** Papel no sistema Balder (user_profiles.system_role). Convidado e deslogado são USUARIO. */
+  systemRole: SystemRole;
+  /** Só o GESTOR vê o módulo de gestão; o banco reforça a regra. */
+  isManager: boolean;
   loginWithGoogle: () => Promise<void>;
   loginWithEmail: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   registerWithEmail: (email: string, pass: string, name: string) => Promise<{ success: boolean; error?: string }>;
@@ -24,6 +30,27 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<AppUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [systemRole, setSystemRole] = useState<SystemRole>('USUARIO');
+
+  const userId = user && !user.isGuest ? user.$id : null;
+  useEffect(() => {
+    if (!userId || !isSupabaseConfigured) {
+      setSystemRole('USUARIO');
+      return;
+    }
+    let cancelled = false;
+    supabase
+      .from('user_profiles')
+      .select('system_role')
+      .eq('user_id', userId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setSystemRole((data?.system_role as SystemRole) || 'USUARIO');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   useEffect(() => {
     checkSession();
@@ -276,6 +303,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         isLoading,
+        systemRole,
+        isManager: systemRole === 'GESTOR',
         loginWithGoogle,
         loginWithEmail,
         registerWithEmail,
