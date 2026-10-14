@@ -351,11 +351,11 @@ const PlansEditor: React.FC<{
       {plans.map((p) => (
         <PlanCard key={p.code} plan={p} subscribers={users.filter((u) => u.planCode === p.code).length} onSave={(u) => run(() => AdminService.updatePlan(p.code, u))} />
       ))}
-      <div className="glass-card" style={{ padding: '1rem' }}>
+      <div className="glass-card admin-plan-card">
         <strong>Novo plano</strong>
-        <div className="flex gap-2 mt-2" style={{ flexWrap: 'wrap' }}>
-          <input className="form-input" style={{ maxWidth: 160 }} placeholder="Código (ex.: FAMILIA)" value={newCode} onChange={(e) => setNewCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))} />
-          <input className="form-input" style={{ maxWidth: 240 }} placeholder="Nome" value={newName} onChange={(e) => setNewName(e.target.value)} />
+        <div className="admin-plan-new">
+          <input className="form-input" placeholder="Código (ex.: FAMILIA)" value={newCode} onChange={(e) => setNewCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))} />
+          <input className="form-input" placeholder="Nome" value={newName} onChange={(e) => setNewName(e.target.value)} />
           <button
             className="btn btn-primary btn-sm"
             disabled={!newCode || !newName.trim()}
@@ -393,31 +393,31 @@ const PlanCard: React.FC<{
   const [active, setActive] = useState(plan.active);
 
   return (
-    <div className="glass-card" style={{ padding: '1rem' }}>
-      <div className="flex" style={{ justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+    <div className="glass-card admin-plan-card">
+      <div className="admin-plan-head">
         <strong>
           {plan.code} {plan.isDefault && <span className="badge badge-cyan">padrão dos novos usuários</span>}
         </strong>
         <small className="text-muted">{subscribers} usuário(s)</small>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginTop: '0.75rem' }}>
-        <div className="form-group"><label>Nome</label><input className="form-input" value={name} onChange={(e) => setName(e.target.value)} /></div>
+      <div className="admin-plan-grid">
+        <div className="form-group admin-plan-wide"><label>Nome</label><input className="form-input" value={name} onChange={(e) => setName(e.target.value)} /></div>
         <div className="form-group"><label>Mensal (R$)</label><input className="form-input" inputMode="decimal" value={monthly} onChange={(e) => setMonthly(e.target.value)} /></div>
         <div className="form-group"><label>Anual (R$)</label><input className="form-input" inputMode="decimal" placeholder="Sem plano anual" value={yearly} onChange={(e) => setYearly(e.target.value)} /></div>
-        <div className="form-group"><label>Máx. planejamentos (com o principal)</label><input className="form-input" inputMode="numeric" placeholder="Sem limite" value={maxPlannings} onChange={(e) => setMaxPlannings(e.target.value)} /></div>
-        <div className="form-group"><label>Máx. convites de compartilhamento</label><input className="form-input" inputMode="numeric" placeholder="Sem limite" value={maxShared} onChange={(e) => setMaxShared(e.target.value)} /></div>
+        <div className="form-group admin-plan-wide"><label>Máx. planejamentos (com o principal)</label><input className="form-input" inputMode="numeric" placeholder="Sem limite" value={maxPlannings} onChange={(e) => setMaxPlannings(e.target.value)} /></div>
+        <div className="form-group admin-plan-wide"><label>Máx. convites de compartilhamento</label><input className="form-input" inputMode="numeric" placeholder="Sem limite" value={maxShared} onChange={(e) => setMaxShared(e.target.value)} /></div>
       </div>
       <div className="form-group"><label>Descrição</label><input className="form-input" value={description} onChange={(e) => setDescription(e.target.value)} /></div>
       <div className="form-group"><label>Benefícios (um por linha)</label><textarea className="form-input" rows={4} value={benefits} onChange={(e) => setBenefits(e.target.value)} /></div>
-      <div className="flex gap-4" style={{ alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-        <div className="flex gap-4" style={{ flexWrap: 'wrap' }}>
+      <div className="admin-plan-footer">
+        <div className="admin-plan-checks">
           <label><input type="checkbox" checked={forseti} onChange={(e) => setForseti(e.target.checked)} /> Forseti liberada</label>
           <label><input type="checkbox" checked={consolidated} onChange={(e) => setConsolidated(e.target.checked)} /> Visão consolidada</label>
           <label><input type="checkbox" checked={opportunities} onChange={(e) => setOpportunities(e.target.checked)} /> Oportunidades e preços</label>
           <label><input type="checkbox" checked={active} disabled={plan.isDefault} onChange={(e) => setActive(e.target.checked)} /> Plano ativo</label>
         </div>
         <button
-          className="btn btn-primary btn-sm"
+          className="btn btn-primary btn-sm admin-plan-save"
           onClick={() =>
             onSave({
               name: name.trim() || plan.name,

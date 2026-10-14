@@ -24693,3 +24693,25 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
   .admin-users-table-wrap { display: none; }
   .admin-user-cards { display: flex; flex-direction: column; gap: 0.75rem; }
 }
+
+/* Gestão do Sistema: aba Planos */
+.admin-plan-card { padding: 1rem; }
+.admin-plan-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+.admin-plan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-top: 0.75rem; }
+.admin-plan-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; }
+.admin-plan-checks { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; }
+.admin-plan-checks label { display: flex; align-items: center; gap: 0.4rem; }
+.admin-plan-new { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+.admin-plan-new .form-input { max-width: 240px; }
+@media (max-width: 768px) {
+  .admin-plan-card { padding: 0.85rem; }
+  /* Mensal e anual lado a lado; nome e limites ocupam a linha toda */
+  .admin-plan-grid { grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+  .admin-plan-grid .admin-plan-wide { grid-column: 1 / -1; }
+  .admin-plan-footer { flex-direction: column; align-items: stretch; }
+  .admin-plan-checks { flex-direction: column; gap: 0; }
+  .admin-plan-checks label { min-height: 44px; border-bottom: 1px solid var(--border-subtle); }
+  .admin-plan-save { width: 100%; min-height: 44px; justify-content: center; }
+  .admin-plan-new { flex-direction: column; }
+  .admin-plan-new .form-input, .admin-plan-new .btn { max-width: none; width: 100%; min-height: 44px; justify-content: center; }
+}
