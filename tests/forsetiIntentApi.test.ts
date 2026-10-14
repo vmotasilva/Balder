@@ -8,6 +8,8 @@ let aiIntent = 'SALDO_HOJE';
 let aiRegistration: unknown;
 let aiSpend: unknown;
 let lastAiBody = '';
+// Linha de user_subscriptions devolvida pelo Supabase (vazio = sem assinatura cadastrada = liberado)
+let subscriptionRows: unknown[] = [];
 
 beforeEach(() => {
   aiCalls = 0;
@@ -15,6 +17,7 @@ beforeEach(() => {
   aiRegistration = undefined;
   aiSpend = undefined;
   lastAiBody = '';
+  subscriptionRows = [];
   vi.resetModules();
   vi.stubEnv('ANTHROPIC_API_KEY', 'chave-de-teste');
   vi.stubGlobal(
@@ -24,6 +27,7 @@ beforeEach(() => {
         const auth = init.headers.authorization;
         return auth === 'Bearer valido' ? Response.json({ id: 'u1' }) : auth === 'Bearer outro' ? Response.json({ id: 'u2' }) : new Response('{}', { status: 401 });
       }
+      if (String(url).includes('/rest/v1/user_subscriptions')) return Response.json(subscriptionRows);
       aiCalls += 1;
       lastAiBody = String(init.body);
       return Response.json({ content: [{ type: 'tool_use', input: { intent: aiIntent, registration: aiRegistration, spend: aiSpend } }] });
@@ -49,6 +53,22 @@ describe('/api/forseti-intent', () => {
     const res = await call(await load(), { text: 'qual meu saldo agora' }, auth);
     expect(res.status).toBe(401);
     expect(aiCalls).toBe(0);
+  });
+
+  it.each([
+    ['plano sem a Forseti', { status: 'TESTE', expires_at: null, subscription_plans: { name: 'Teste', forseti_enabled: false } }],
+    ['assinatura suspensa', { status: 'SUSPENSA', expires_at: null, subscription_plans: { name: 'Pro', forseti_enabled: true } }],
+    ['assinatura vencida', { status: 'ATIVA', expires_at: '2020-01-01T00:00:00Z', subscription_plans: { name: 'Pro', forseti_enabled: true } }],
+  ])('%s responde 403 e não chama a IA', async (_nome, row) => {
+    subscriptionRows = [row];
+    const res = await call(await load(), { text: 'qual meu saldo agora' }, 'Bearer valido');
+    expect(res.status).toBe(403);
+    expect(aiCalls).toBe(0);
+  });
+
+  it('plano com a Forseti liberada responde normalmente', async () => {
+    subscriptionRows = [{ status: 'ATIVA', expires_at: null, subscription_plans: { name: 'Pro', forseti_enabled: true } }];
+    expect((await call(await load(), { text: 'qual meu saldo agora' }, 'Bearer valido')).status).toBe(200);
   });
 
   it('com login devolve só a intenção', async () => {

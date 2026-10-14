@@ -5,6 +5,11 @@ const sub = (over: Partial<SubscriptionSnapshot> = {}): SubscriptionSnapshot => 
   status: 'TESTE',
   expiresAt: null,
   planName: 'Teste',
+  startedAt: null,
+  customMonthlyPriceCents: null,
+  planDescription: '',
+  planMonthlyPriceCents: 0,
+  planBenefits: [],
   limits: { maxPlannings: 3, maxSharedMembers: 2, forsetiEnabled: true },
   ...over,
 });
