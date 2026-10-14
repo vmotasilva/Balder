@@ -357,8 +357,8 @@ const PlanCard: React.FC<{
         <div className="form-group"><label>Nome</label><input className="form-input" value={name} onChange={(e) => setName(e.target.value)} /></div>
         <div className="form-group"><label>Mensal (R$)</label><input className="form-input" inputMode="decimal" value={monthly} onChange={(e) => setMonthly(e.target.value)} /></div>
         <div className="form-group"><label>Anual (R$)</label><input className="form-input" inputMode="decimal" placeholder="Sem plano anual" value={yearly} onChange={(e) => setYearly(e.target.value)} /></div>
-        <div className="form-group"><label>Máx. planejamentos</label><input className="form-input" inputMode="numeric" placeholder="Sem limite" value={maxPlannings} onChange={(e) => setMaxPlannings(e.target.value)} /></div>
-        <div className="form-group"><label>Máx. pessoas compartilhadas</label><input className="form-input" inputMode="numeric" placeholder="Sem limite" value={maxShared} onChange={(e) => setMaxShared(e.target.value)} /></div>
+        <div className="form-group"><label>Máx. planejamentos (com o principal)</label><input className="form-input" inputMode="numeric" placeholder="Sem limite" value={maxPlannings} onChange={(e) => setMaxPlannings(e.target.value)} /></div>
+        <div className="form-group"><label>Máx. convites de compartilhamento</label><input className="form-input" inputMode="numeric" placeholder="Sem limite" value={maxShared} onChange={(e) => setMaxShared(e.target.value)} /></div>
       </div>
       <div className="form-group"><label>Descrição</label><input className="form-input" value={description} onChange={(e) => setDescription(e.target.value)} /></div>
       <div className="form-group"><label>Benefícios (um por linha)</label><textarea className="form-input" rows={4} value={benefits} onChange={(e) => setBenefits(e.target.value)} /></div>

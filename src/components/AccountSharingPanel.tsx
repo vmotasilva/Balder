@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Check, Copy, ExternalLink, Link2, Mail, MessageCircle, MessageSquare, Share2, ShieldCheck, Star, Trash2, UserMinus, Users, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useFinancial } from '../context/FinancialContext';
+import { useEntitlements } from '../context/EntitlementsContext';
+import { limitReason } from '../utils/entitlements';
 import { useAccountScope } from '../context/AccountScopeContext';
 import { ConfirmDialog, useConfirmDialog } from './ConfirmDialog';
 import {
@@ -64,6 +66,9 @@ export const AccountSharingPanel: React.FC = () => {
   const [justCreated, setJustCreated] = useState<AccountShare | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  const entitlements = useEntitlements();
+  const activeInvites = myShares.filter((s) => s.status !== 'REVOGADO').length;
+  const shareLimitReached = entitlements.maxSharedMembers !== null && activeInvites >= entitlements.maxSharedMembers;
   const ownerName = user?.name || user?.email || 'Titular';
   const isGuest = !user || user.isGuest;
 
@@ -194,6 +199,12 @@ export const AccountSharingPanel: React.FC = () => {
       </p>
 
       {error && <p className="sharing-error">{error}</p>}
+      {shareLimitReached && (
+        <p className="sharing-error">
+          {limitReason(entitlements)} Você já usa {activeInvites} de {entitlements.maxSharedMembers} convite(s) permitidos.
+          Revogue um convite ou fale com o gestor do Balder.
+        </p>
+      )}
 
       {/* Novo convite */}
       <div className="sharing-form">
@@ -224,7 +235,8 @@ export const AccountSharingPanel: React.FC = () => {
         <button
           type="button"
           className="btn btn-primary btn-sm"
-          disabled={creating}
+          disabled={creating || shareLimitReached}
+          title={shareLimitReached ? `${limitReason(entitlements)} Limite: ${entitlements.maxSharedMembers} pessoa(s).` : undefined}
           onClick={async () => {
             setCreating(true);
             try {

@@ -3,6 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import { ThemeProvider } from './context/ThemeContext';
 import { FinancialProvider, useFinancial } from './context/FinancialContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { EntitlementsProvider, useEntitlements } from './context/EntitlementsContext';
 import { AccountScopeProvider, useAccountScope } from './context/AccountScopeContext';
 import { MAIN_PLAN_KEY, PlanScopeProvider, usePlans } from './context/PlanScopeContext';
 import { SharedAccountBanner } from './components/SharedAccountBanner';
@@ -109,6 +110,7 @@ export function AppContent() {
   // Na visão consolidada o lançamento precisa de um planejamento de destino, confirmado antes de começar
   const [planChoiceOpen, setPlanChoiceOpen] = useState(false);
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  const { forsetiEnabled, restricted, planName } = useEntitlements();
   // Texto que já abre escrito no campo do chat da Forseti (ex.: ditado na Início)
   const [forsetiDraft, setForsetiDraft] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -367,7 +369,17 @@ export function AppContent() {
       </div>
 
       {/* Pop-up Modal da Forseti sobrepondo a tela atual */}
-      {isCopilotOpen && (
+      {/* Plano sem a Forseti (ou assinatura suspensa/vencida): em vez do chat, um aviso */}
+      <Modal isOpen={isCopilotOpen && !forsetiEnabled} onClose={() => setIsCopilotOpen(false)} title="Forseti indisponível" maxWidth="420px">
+        <p>
+          {restricted
+            ? 'Sua assinatura está suspensa, cancelada ou vencida, por isso a Forseti está pausada.'
+            : `A Forseti não está incluída no seu plano${planName ? ` (${planName})` : ''}.`}
+        </p>
+        <p className="text-muted">Fale com o gestor do Balder para liberar o acesso.</p>
+      </Modal>
+
+      {isCopilotOpen && forsetiEnabled && (
         <div
           className="copilot-popup-overlay animate-fade-in"
           role="dialog"
@@ -484,7 +496,9 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <ProtectedApp />
+        <EntitlementsProvider>
+          <ProtectedApp />
+        </EntitlementsProvider>
       </AuthProvider>
     </ThemeProvider>
   );

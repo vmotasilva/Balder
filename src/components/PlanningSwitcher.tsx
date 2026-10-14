@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Briefcase, Check, CheckSquare, ChevronDown, Layers, Plus, Settings, Square, Star, User, UserPlus, Users } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useEntitlements } from '../context/EntitlementsContext';
+import { limitReason } from '../utils/entitlements';
 import { useAccountScope } from '../context/AccountScopeContext';
 import { MAIN_PLAN_KEY, MAX_EXTRA_PLANS, usePlans } from '../context/PlanScopeContext';
 import { SharingService, type AccountShare } from '../services/sharingService';
@@ -19,6 +21,7 @@ interface PlanningSwitcherProps {
  */
 export const PlanningSwitcher: React.FC<PlanningSwitcherProps> = ({ onPlanWithOthers }) => {
   const { user } = useAuth();
+  const entitlements = useEntitlements();
   const { viewing, openSharedAccount, backToOwnAccount } = useAccountScope();
   const { plans, activePlanId, activePlan, createPlan, mainPlan, setSettingsOpen, switchPlan, compareIds, toggleCompare, consolidated, setConsolidated } = usePlans();
   const [open, setOpen] = useState(false);
@@ -114,6 +117,8 @@ export const PlanningSwitcher: React.FC<PlanningSwitcherProps> = ({ onPlanWithOt
         ? 'Dê um nome com pelo menos 2 letras.'
         : result.error === 'LIMITE'
         ? `Você pode ter até ${MAX_EXTRA_PLANS} planejamentos além do principal.`
+        : result.error === 'PLANO'
+        ? `${limitReason(entitlements)} O limite é de ${entitlements.maxPlannings} planejamento(s), contando o principal. Fale com o gestor do Balder para ampliar.`
         : result.error === 'SQL_PENDENTE'
         ? 'Falta preparar o banco: rode o script supabase/plans.sql no Supabase (uma vez) e tente de novo.'
         : 'Não consegui criar agora. Tente de novo.'

@@ -1,6 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuth } from './AuthContext';
 import { useAccountScope } from './AccountScopeContext';
+import { useEntitlements } from './EntitlementsContext';
+import { extraPlansAllowed } from '../utils/entitlements';
 import { PlansService, setActivePlan, type CreatePlanError, type PlanItem } from '../services/supabaseService';
 
 /**
@@ -15,7 +17,7 @@ interface PlanScopeContextType {
   /** Planejamento em uso (null = o principal). Em conta compartilhada vale sempre o do dono. */
   activePlanId: string | null;
   activePlan: Plan | null;
-  createPlan: (name: string, icon?: string) => Promise<{ ok: true; plan: Plan } | { ok: false; error: CreatePlanError | 'NOME' | 'LIMITE' }>;
+  createPlan: (name: string, icon?: string) => Promise<{ ok: true; plan: Plan } | { ok: false; error: CreatePlanError | 'NOME' | 'LIMITE' | 'PLANO' }>;
   renamePlan: (id: string, name: string) => Promise<void>;
   /** Nome e ícone do planejamento principal. */
   mainPlan: { name: string; icon?: string };
@@ -83,6 +85,8 @@ export const scopedUserId = (userId: string, planId: string | null): string => (
 
 export const PlanScopeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+  const entitlements = useEntitlements();
+  const extraAllowed = extraPlansAllowed(entitlements);
   const { viewing } = useAccountScope();
   const userId = user && !user.isGuest ? user.$id : undefined;
 
@@ -199,6 +203,8 @@ export const PlanScopeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const clean = name.trim().slice(0, 40);
       if (clean.length < 2) return { ok: false, error: 'NOME' };
       if (plans.length >= MAX_EXTRA_PLANS) return { ok: false, error: 'LIMITE' };
+      // Limite do plano de assinatura (o gestor define; o principal conta como um)
+      if (extraAllowed !== null && plans.length >= extraAllowed) return { ok: false, error: 'PLANO' };
       // Sem a coluna plan_id nas tabelas os dados do novo planejamento se misturariam com os do principal
       if (!(await PlansService.isReady())) return { ok: false, error: 'SQL_PENDENTE' };
       const plan: Plan = { id: crypto.randomUUID().replace(/-/g, '').slice(0, 12), name: clean, icon: icon || '🏢', createdAt: new Date().toISOString() };
@@ -207,7 +213,7 @@ export const PlanScopeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       activate(plan.id, plans.length + 1);
       return { ok: true, plan };
     },
-    [plans, persistPlans, activate]
+    [plans, persistPlans, activate, extraAllowed]
   );
 
   const renamePlan = useCallback(

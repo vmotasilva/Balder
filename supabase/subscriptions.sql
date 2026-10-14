@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS public.subscription_plans (
   monthly_price_cents INTEGER NOT NULL DEFAULT 0 CHECK (monthly_price_cents >= 0),
   yearly_price_cents INTEGER CHECK (yearly_price_cents IS NULL OR yearly_price_cents >= 0),
   benefits TEXT[] NOT NULL DEFAULT '{}',
-  -- Limites do plano (NULL = sem limite). Ainda não aplicados pelo app.
+  -- Limites do plano (NULL = sem limite). max_plannings conta o principal; max_shared_members
+  -- conta convites pendentes e ativos. Aplicados pelo app e, nos convites, pelo banco.
   max_plannings INTEGER CHECK (max_plannings IS NULL OR max_plannings >= 0),
   max_shared_members INTEGER CHECK (max_shared_members IS NULL OR max_shared_members >= 0),
   forseti_enabled BOOLEAN NOT NULL DEFAULT TRUE,
@@ -209,3 +210,54 @@ WHERE system_role = 'GESTOR' AND lower(email) <> 'vmotasilva@gmail.com';
 
 UPDATE public.user_profiles SET system_role = 'GESTOR'
 WHERE lower(email) = 'vmotasilva@gmail.com';
+
+-- ------------------------------------------------------------------------------
+-- Limite de convites de compartilhamento (max_shared_members) imposto pelo banco.
+-- Conta convites PENDENTE e ATIVO do dono. Assinatura suspensa, cancelada ou vencida: 0.
+-- Sem assinatura cadastrada: sem limite. Chamadas sem usuário (service role) passam.
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.enforce_share_limit()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_status TEXT;
+  v_expires TIMESTAMPTZ;
+  v_limit INTEGER;
+  v_found BOOLEAN;
+  v_used INTEGER;
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT s.status, s.expires_at, p.max_shared_members, TRUE
+    INTO v_status, v_expires, v_limit, v_found
+  FROM public.user_subscriptions s
+  JOIN public.subscription_plans p ON p.code = s.plan_code
+  WHERE s.user_id = NEW.owner_id;
+
+  IF NOT COALESCE(v_found, FALSE) THEN
+    RETURN NEW;
+  END IF;
+
+  IF v_status IN ('SUSPENSA', 'CANCELADA') OR (v_expires IS NOT NULL AND v_expires < NOW()) THEN
+    v_limit := 0;
+  END IF;
+
+  IF v_limit IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT count(*) INTO v_used FROM public.account_shares
+  WHERE owner_id = NEW.owner_id AND status IN ('PENDENTE', 'ATIVO');
+
+  IF v_used >= v_limit THEN
+    RAISE EXCEPTION 'O plano atual permite % convite(s) de compartilhamento.', v_limit;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_enforce_share_limit ON public.account_shares;
+CREATE TRIGGER trg_enforce_share_limit
+  BEFORE INSERT ON public.account_shares
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_share_limit();
