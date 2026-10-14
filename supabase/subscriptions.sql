@@ -1,7 +1,7 @@
 -- ==============================================================================
 -- BALDER - PLANOS E ASSINATURAS (MÓDULO DE GESTÃO DO SISTEMA)
 -- ==============================================================================
--- Rode uma vez no SQL Editor do Supabase (depois do user_roles.sql).
+-- Rode uma vez no SQL Editor do Supabase, DEPOIS do user_roles.sql (obrigatório).
 -- Pode ser executado de novo sem problemas.
 --
 -- Cria:
@@ -17,6 +17,14 @@
 --
 -- Todo mundo começa no plano TESTE (gratuito). Quem já existe é migrado agora.
 -- ==============================================================================
+
+-- Pré-requisito: rode antes o supabase/user_roles.sql (cria user_profiles e has_system_role).
+DO $$
+BEGIN
+  IF to_regclass('public.user_profiles') IS NULL OR to_regprocedure('public.has_system_role(text)') IS NULL THEN
+    RAISE EXCEPTION 'Rode primeiro o supabase/user_roles.sql e depois este script.';
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS public.subscription_plans (
   code TEXT PRIMARY KEY,
