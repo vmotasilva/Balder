@@ -89,6 +89,20 @@ const toRow = (w: PriceWatch, userId: string) => ({
 
 const cloudEnabled = (isGuest: boolean) => isSupabaseConfigured && !isGuest && !tableMissing;
 
+/** Cabeçalho de login para as funções do servidor (/api/*), que exigem a conta. */
+async function authHeaders(): Promise<Record<string, string>> {
+  if (!isSupabaseConfigured) return {};
+  const { data } = await supabase.auth.getSession();
+  return data.session ? { Authorization: `Bearer ${data.session.access_token}` } : {};
+}
+
+/** Mensagem para a resposta de erro das funções do servidor. */
+function apiFailure(status: number, fallback: string): { ok: false; error: string } {
+  if (status === 401) return { ok: false, error: 'Entre com a sua conta para pesquisar preços.' };
+  if (status === 403) return { ok: false, error: 'Seu plano não inclui Oportunidades. Fale com o gestor do Balder.' };
+  return { ok: false, error: fallback };
+}
+
 export const OpportunityService = {
   storage(isGuest: boolean): WatchStorage {
     return cloudEnabled(isGuest) ? 'CLOUD' : 'LOCAL';
@@ -159,8 +173,8 @@ export const OpportunityService = {
   /** Busca produtos por nome pela função do servidor (/api/product-search). */
   async search(query: string): Promise<ProductSearchResponse> {
     try {
-      const res = await fetch(`/api/product-search?q=${encodeURIComponent(query)}`);
-      if (!res.ok) return { ok: false, error: 'O serviço de busca não respondeu. Tente de novo em instantes.' };
+      const res = await fetch(`/api/product-search?q=${encodeURIComponent(query)}`, { headers: await authHeaders() });
+      if (!res.ok) return apiFailure(res.status, 'O serviço de busca não respondeu. Tente de novo em instantes.');
       return (await res.json()) as ProductSearchResponse;
     } catch {
       return { ok: false, error: 'Sem conexão para buscar nas lojas agora.' };
@@ -171,8 +185,8 @@ export const OpportunityService = {
   async check(url: string, expectedTitle?: string): Promise<PriceCheckResult> {
     try {
       const expect = expectedTitle ? `&expect=${encodeURIComponent(expectedTitle.slice(0, 200))}` : '';
-      const res = await fetch(`/api/price-check?url=${encodeURIComponent(url)}${expect}`);
-      if (!res.ok) return { ok: false, error: 'O serviço de leitura de preços não respondeu. Tente de novo em instantes.' };
+      const res = await fetch(`/api/price-check?url=${encodeURIComponent(url)}${expect}`, { headers: await authHeaders() });
+      if (!res.ok) return apiFailure(res.status, 'O serviço de leitura de preços não respondeu. Tente de novo em instantes.');
       return (await res.json()) as PriceCheckResult;
     } catch {
       return { ok: false, error: 'Sem conexão para consultar a loja agora.' };

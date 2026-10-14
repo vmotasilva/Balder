@@ -130,7 +130,7 @@ export const SystemAdminPanel: React.FC = () => {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <div style={{ overflowX: 'auto' }}>
+          <div className="admin-users-table-wrap">
             <table className="movements-table" style={{ width: '100%' }}>
               <thead>
                 <tr>
@@ -172,6 +172,51 @@ export const SystemAdminPanel: React.FC = () => {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile: cada usuário vira um card */}
+          <div className="admin-user-cards">
+            {filtered.map((u) => (
+              <div key={u.userId} className="admin-user-card">
+                <div className="admin-user-card-head">
+                  <div className="admin-user-card-id">
+                    <strong>{u.name || u.email.split('@')[0]}</strong>
+                    {u.systemRole !== 'USUARIO' && <span className="badge badge-purple">{u.systemRole}</span>}
+                    <small className="text-muted">{u.email}</small>
+                  </div>
+                  <button className="btn btn-outline btn-xs" onClick={() => setEditing(u)} title="Ajustar assinatura" aria-label="Ajustar assinatura">
+                    <Pencil size={13} />
+                  </button>
+                </div>
+                <div className="admin-user-card-grid">
+                  <div>
+                    <span>Plano</span>
+                    <strong>{planName(u.planCode)}</strong>
+                  </div>
+                  <div>
+                    <span>Situação</span>
+                    <span className={`badge ${STATUS_BADGE[u.status]}`}>{STATUS_LABEL[u.status]}</span>
+                  </div>
+                  <div>
+                    <span>Mensal{u.customMonthlyPriceCents !== null ? ' (negociado)' : ''}</span>
+                    <strong>{formatBRL(effectiveMonthlyCents(u, plans))}</strong>
+                  </div>
+                  <div>
+                    <span>Vencimento</span>
+                    <strong>{fmtDate(u.expiresAt)}</strong>
+                  </div>
+                  <div>
+                    <span>Cadastro</span>
+                    <strong>{fmtDate(u.createdAt)}</strong>
+                  </div>
+                  <div>
+                    <span>Último acesso</span>
+                    <strong>{fmtDate(u.lastSignInAt)}</strong>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {filtered.length === 0 && <p className="text-muted">Nenhum usuário encontrado.</p>}
           </div>
         </div>
       )}

@@ -24662,3 +24662,34 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
     grid-template-columns: 1fr;
   }
 }
+
+/* Gestão do Sistema: usuários em tabela no desktop e em cards no celular */
+.admin-users-table-wrap { overflow-x: auto; }
+.admin-user-cards { display: none; }
+.admin-user-card {
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  border-radius: 14px;
+  padding: 0.85rem;
+}
+.admin-user-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+.admin-user-card-id { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; align-items: flex-start; }
+.admin-user-card-id small { overflow-wrap: anywhere; }
+.admin-user-card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem 0.75rem; }
+.admin-user-card-grid > div { display: flex; flex-direction: column; gap: 0.15rem; align-items: flex-start; min-width: 0; }
+.admin-user-card-grid > div > span:first-child {
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+@media (max-width: 768px) {
+  .admin-users-table-wrap { display: none; }
+  .admin-user-cards { display: flex; flex-direction: column; gap: 0.75rem; }
+}

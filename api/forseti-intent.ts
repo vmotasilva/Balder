@@ -3,15 +3,11 @@
 // Precisa da variável ANTHROPIC_API_KEY na Vercel; sem ela responde 501 e a Forseti segue só com as regras.
 // Exige o login do Supabase (cabeçalho Authorization), limita o uso por pessoa e guarda respostas repetidas.
 // Limite e cache ficam na memória da instância: bastam para barrar abuso, sem criar tabela.
-import { computeEntitlements, snapshotFromRow } from '../src/utils/entitlements.js';
+import { planAllows, userIdFrom } from './_access.js';
 import { normalizePhrase } from '../src/utils/forsetiLearning.js';
 import { FORSETI_INTENTS, SPEND_PERIODS, type ForsetiRegistration, type ForsetiSpendQuery, isForsetiIntent, isSpendPeriod, parseRegistration, parseSpendQuery } from '../src/utils/forsetiIntents.js';
 
 const MODEL = 'claude-haiku-4-5-20251001';
-
-// Mesmos valores (públicos) usados pelo aplicativo em src/lib/supabase.ts
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://zlwghcqisnejjqugsxvp.supabase.co';
-const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'sb_publishable_dTZJs1GDyT9jOIc3JA3yRQ_0q3NpIzY';
 
 const LIMIT_PER_HOUR = 30;
 const CACHE_MAX = 500;
@@ -20,33 +16,6 @@ const cache = new Map<string, { intent: string; period?: string; registration?: 
 
 /** Hoje no Brasil (AAAA-MM-DD): a IA precisa dele para entender "amanhã" e "dia 12". */
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
-
-/** Confere o login no Supabase e devolve o id da pessoa (null se o token não vale). */
-async function userIdFrom(request: Request): Promise<string | null> {
-  const auth = request.headers.get('authorization') || '';
-  if (!auth.startsWith('Bearer ')) return null;
-  try {
-    const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SUPABASE_KEY, authorization: auth } });
-    if (!res.ok) return null;
-    const user = (await res.json()) as { id?: string };
-    return user.id || null;
-  } catch {
-    return null;
-  }
-}
-
-/** O plano da pessoa inclui a Forseti? Falha de leitura libera: o banco/app não pode travar por isso. */
-async function forsetiAllowed(request: Request, userId: string): Promise<boolean> {
-  try {
-    const url = `${SUPABASE_URL}/rest/v1/user_subscriptions?user_id=eq.${userId}&select=status,expires_at,subscription_plans(name,max_plannings,max_shared_members,forseti_enabled)`;
-    const res = await fetch(url, { headers: { apikey: SUPABASE_KEY, authorization: request.headers.get('authorization') || '' } });
-    if (!res.ok) return true;
-    const rows = (await res.json()) as unknown[];
-    return computeEntitlements(snapshotFromRow(rows[0])).forsetiEnabled;
-  } catch {
-    return true;
-  }
-}
 
 /** Registra a chamada e diz se ainda cabe no limite da última hora. */
 function withinLimit(userId: string): boolean {
@@ -102,7 +71,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!key) return Response.json({ error: 'sem chave' }, { status: 501 });
   const userId = await userIdFrom(request);
   if (!userId) return Response.json({ error: 'não autorizado' }, { status: 401 });
-  if (!(await forsetiAllowed(request, userId))) return Response.json({ error: 'plano sem Forseti' }, { status: 403 });
+  if (!(await planAllows(request, userId, 'forsetiEnabled'))) return Response.json({ error: 'plano sem Forseti' }, { status: 403 });
 
   let text = '';
   let context = '';
