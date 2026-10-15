@@ -20028,6 +20028,34 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   color: var(--text-muted);
 }
 
+/* Atalho da Forseti na barra superior (web) */
+.navbar-forseti-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  margin-left: -6px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.navbar-forseti-btn:hover {
+  background: rgba(6, 182, 212, 0.1);
+  border-color: rgba(6, 182, 212, 0.5);
+}
+
+@media (max-width: 768px) {
+  .navbar-forseti-btn {
+    display: none;
+  }
+}
+
 /* Barra superior no celular: sem a divisão do saldo (fica no Dashboard) */
 @media (max-width: 768px) {
   .navbar-stat-item .stat-split {

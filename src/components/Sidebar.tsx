@@ -319,7 +319,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {!collapsed && <span className="nav-section-label">NAVEGAÇÃO PRINCIPAL</span>}
 
           <ul className="nav-list">
-            {desktopNavItems.map((item) => {
+            {/* A Forseti fica na barra superior (ao lado do nome Balder) na versão web */}
+            {desktopNavItems.filter((item) => item.id !== 'COPILOT').map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
 

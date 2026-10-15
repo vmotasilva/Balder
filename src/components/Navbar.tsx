@@ -101,6 +101,21 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span className="navbar-brand-title">BALDER</span>
           </button>
 
+          {/* Forseti: atalho na barra superior (no celular fica na barra de atalhos do rodapé) */}
+          {onNavigateToCopilot && (
+            <button
+              type="button"
+              className="navbar-forseti-btn"
+              onClick={onNavigateToCopilot}
+              title="Forseti · Assistente & Auditor"
+              aria-label="Abrir a Forseti"
+            >
+              <Sparkles size={15} />
+              <span>Forseti</span>
+              <span className="badge-pill badge-pill-cyan">IA</span>
+            </button>
+          )}
+
           {/* O seletor de planejamento fica no Início; aqui só quando a conta aberta mostra apenas o
               planejamento compartilhado (não há Início para voltar ao próprio planejamento) */}
           {planningOnly && <PlanningSwitcher onPlanWithOthers={onPlanWithOthers} />}
