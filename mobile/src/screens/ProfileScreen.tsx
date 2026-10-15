@@ -58,7 +58,7 @@ export const ProfileScreen: React.FC = () => {
             <User size={36} color={theme.colors.primary} />
           </View>
           <Text style={styles.userName}>{user?.name || 'Investidor Balder'}</Text>
-          <Text style={styles.userEmail}>{user?.email || 'contato@balder.app'}</Text>
+          <Text style={styles.userEmail}>{user?.email || 'contato@getbalder.com'}</Text>
 
           <View style={styles.badgeRow}>
             {user?.isGuest ? (

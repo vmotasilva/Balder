@@ -59,7 +59,7 @@ export function useSharedPlanning({ user }: Deps) {
         {
           id: user?.$id || 'user_owner',
           name: user?.name || 'Vinicius Mota Silva',
-          email: user?.email || 'vinicius@balder.app',
+          email: user?.email || 'vinicius@getbalder.com',
           role: 'OWNER',
           status: 'ACTIVE',
           monthlyIncome: 8500,

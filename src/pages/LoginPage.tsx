@@ -7,7 +7,7 @@ import { IosInstallModal, isIOS, isStandalone } from '../components/IosInstallMo
 export const LoginPage: React.FC = () => {
   const { loginWithGoogle } = useAuth();
   const [showAndroidModal, setShowAndroidModal] = useState(false);
-  // Link direto para as instruções do iPhone: balder-one.vercel.app/#iphone
+  // Link direto para as instruções do iPhone: getbalder.com/#iphone
   const [showIosModal, setShowIosModal] = useState(() => typeof window !== 'undefined' && window.location.hash === '#iphone');
   useEffect(() => {
     const onHash = () => {

@@ -111,7 +111,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser({
       $id: 'guest_mobile_user',
       name: 'Vinicius Mota (Demo)',
-      email: 'vinicius@balder.app',
+      email: 'vinicius@getbalder.com',
       isGuest: true,
     });
   };
