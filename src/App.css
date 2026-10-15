@@ -21197,6 +21197,73 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   font-size: 14px;
 }
 
+.home-digest {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-default);
+  background: var(--bg-card-elevated);
+}
+
+.home-digest-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.home-digest-close {
+  margin-left: auto;
+  display: inline-flex;
+  padding: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.home-digest-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.home-digest-list li {
+  padding-left: 10px;
+  border-left: 3px solid var(--border-default);
+}
+
+.home-digest-list li.is-alert {
+  border-left-color: var(--accent-rose);
+}
+
+.home-digest-list li.is-ok {
+  border-left-color: var(--accent-emerald);
+}
+
+.home-digest-list li.is-info {
+  border-left-color: var(--accent-cyan);
+}
+
+.home-digest-list strong {
+  color: var(--text-primary);
+}
+
+.home-digest-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .home-forseti-icon {
   display: inline-flex;
   align-items: center;

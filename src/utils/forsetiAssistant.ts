@@ -7,6 +7,7 @@ import { trackingPeriodRange } from './periodSpending';
 import { resolveMovementNatureId } from './movementNature';
 import type { ForsetiRegistration, SpendPeriod } from './forsetiIntents';
 import { brl, ddmm, isIncomeMovement, isoDay, outflowDate, outflowValue, stripAccents } from './forsetiMoney';
+import { buildDigest, isDigestRequest } from './forsetiDigest';
 import { type SpendQuery, type SpendRange, answerSpendDetail, detectSpendDetail, parseSpendRange, spendSubjectWords } from './forsetiSpend';
 
 // brl e ddmm continuam saindo daqui para quem já importa deste módulo
@@ -575,6 +576,7 @@ export function pickPaymentOptions(
 // ── Dúvidas ───────────────────────────────────────────────────────────────────
 export type DoubtId =
   | 'MENU'
+  | 'BOM_DIA'
   | 'SALDO_HOJE'
   | 'PROXIMO_RECEB'
   | 'SOBRA'
@@ -624,6 +626,7 @@ export function isOthersQuestion(text: string): boolean {
 /** Reconhece uma dúvida no texto (antes de tentar ler como gasto/recebimento: "quanto já gastei" não é um gasto). */
 export function detectDoubt(text: string): DoubtId | null {
   const t = stripAccents(text);
+  if (isDigestRequest(text)) return 'BOM_DIA';
   if (t.includes('tenho uma duvida') || t === 'duvida' || t === 'duvidas' || t.includes('outra duvida')) return 'MENU';
   if (/saldo (de )?hoje|quanto tenho|meu saldo( atual)?\??$|saldo atual|saldo em conta/.test(t)) return 'SALDO_HOJE';
   if (/quando (entra|recebo|cai|vou receber)|proximo recebimento|proxima entrada|quando o salario/.test(t)) return 'PROXIMO_RECEB';
@@ -664,6 +667,8 @@ export interface ForsetiReply {
 }
 
 export interface ForsetiData {
+  /** Nome de quem conversa (só para a saudação do briefing). */
+  userName?: string;
   /** Naturezas do planejamento (para mostrar gastos por natureza). */
   natures?: ExpenseNature[];
   /** Natureza sugerida (por palavras-chave e nomes) para cada lançamento sem natureza, por id do lançamento. */
@@ -725,6 +730,13 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
         text: 'Claro! Sobre o que é a sua dúvida? Escolha uma das opções abaixo ou escreva do seu jeito.',
         badge: 'DÚVIDAS',
         chips: DOUBT_CHIPS,
+      };
+
+    case 'BOM_DIA':
+      return {
+        text: buildDigest(d, opts?.today, d.userName).text,
+        badge: 'BOM DIA',
+        chips: ['O que vence nos próximos dias?', 'Quanto ainda posso gastar este mês?', CHIP_PAGAR],
       };
 
     case 'SALDO_HOJE':
