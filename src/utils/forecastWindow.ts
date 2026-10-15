@@ -162,6 +162,7 @@ export function buildForecastWindow(params: {
       const summarized = (mapping.detailMode ?? natureDetailModes[nat.id]) === 'MAPEAMENTOS';
       const mappingBuckets = new Map<string, { amount: number; count: number; first: string; overdue: boolean }>();
       const mappingItemIds = new Set<string>();
+      let mappingSettled = 0;
 
       mapping.items.forEach((item) => {
         if (item.paymentMethod === 'CARTAO') return;
@@ -182,13 +183,22 @@ export function buildForecastWindow(params: {
             ? []
             : getItemOccurrences(item, monthKey).filter((o) => !summary.coveredDates.has(o.date));
           const pendingUncovered = Math.max(0, summary.pending - summary.openBalance);
-          const perOccurrence = uncovered.length > 0 ? pendingUncovered / uncovered.length : 0;
+          // Resumo: cada semana vale o previsto das suas ocorrências; o que já foi pago/desconsiderado no mapeamento
+          // abate depois, das semanas mais antigas (senão o abatimento se espalharia e a semana vencida nunca zeraria)
+          const rawUncovered = uncovered.reduce((acc, o) => acc + o.value, 0);
+          const perOccurrence = summarized
+            ? 0
+            : uncovered.length > 0
+            ? pendingUncovered / uncovered.length
+            : 0;
+          let monthHasBucket = false;
 
           const add = (date: string, amount: number) => {
             if (amount <= 0) return;
             if (date > toDate || date < startDate) return;
             // Ocorrências vencidas só contam dentro da competência atual
             if (date < fromDate && monthKey !== currentMonthKey) return;
+            monthHasBucket = true;
             // Resumo: uma linha por semana do mapeamento, vencendo no último dia da semana (domingo)
             const dueDate = summarized ? weekEndIso(date) : date;
             const overdue = dueDate < fromDate;
@@ -202,7 +212,8 @@ export function buildForecastWindow(params: {
             buckets.set(key, bucket);
           };
 
-          uncovered.forEach((o) => add(o.date, perOccurrence));
+          uncovered.forEach((o) => add(o.date, summarized ? o.value : perOccurrence));
+          if (summarized && monthHasBucket) mappingSettled += Math.max(0, rawUncovered - pendingUncovered);
           // Diferenças deixadas em aberto (SALDO_ABERTO) ficam para hoje
           if (summary.openBalance > 0 && monthKey === currentMonthKey) add(fromDate, summary.openBalance);
         });
@@ -225,7 +236,16 @@ export function buildForecastWindow(params: {
         });
       });
 
+      [...mappingBuckets.keys()].sort().forEach((key) => {
+        if (mappingSettled <= 0.005) return;
+        const b = mappingBuckets.get(key)!;
+        const drained = Math.min(b.amount, mappingSettled);
+        b.amount -= drained;
+        mappingSettled -= drained;
+      });
+
       mappingBuckets.forEach((b, key) => {
+        if (b.amount <= 0.005) return;
         entries.push({
           id: `natmap_${mapping.id}_${key}`,
           date: b.first,
