@@ -23,7 +23,7 @@ export function cleanItemName(raw: string): string {
   const name = raw
     .replace(/r\$\s*[\d.,]+/gi, ' ')
     .replace(/\d{5,}/g, ' ') // código de barras, código do produto
-    .replace(/[^A-Za-zÀ-ÿ0-9\/.\- ]/g, ' ')
+    .replace(/[^A-Za-zÀ-ÿ0-9/.\- ]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, NAME_MAX)
