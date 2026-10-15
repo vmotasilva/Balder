@@ -18,10 +18,12 @@ import {
   Settings,
   Users,
   ShoppingBag,
+  Repeat,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useFinancial } from '../context/FinancialContext';
 import { displayName } from '../utils/displayName';
+import { AccountSwitcherModal } from './AccountSwitcherModal';
 
 export type TabId = 'INICIO' | 'DASHBOARD' | 'MOVIMENTACOES' | 'FATURAS' | 'NATUREZAS' | 'EMPRESTIMOS' | 'COPILOT' | 'METAS' | 'OPORTUNIDADES' | 'COMPARTILHADO' | 'PERFIL';
 
@@ -43,8 +45,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
   onOpenChange,
 }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, savedAccounts } = useAuth();
   const [internalOpen, setInternalOpen] = useState(false);
+  const [showSwitcher, setShowSwitcher] = useState(false);
+  // O seletor só aparece para quem tem conta real; com mais de uma salva, ganha destaque
+  const canSwitchAccount = Boolean(user && !user.isGuest);
 
   const isMenuOpen = isOpen !== undefined ? isOpen : internalOpen;
   const setIsMenuOpen = (open: boolean) => {
@@ -408,6 +413,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </span>
                 </div>
               </button>
+              {canSwitchAccount && (
+                <button
+                  type="button"
+                  onClick={() => setShowSwitcher(true)}
+                  title="Trocar de conta"
+                  aria-label="Trocar de conta"
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: savedAccounts.length > 1 ? 'var(--accent-cyan, #22d3ee)' : 'var(--text-muted, #94a3b8)',
+                    cursor: 'pointer',
+                    padding: '6px',
+                    borderRadius: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Repeat size={16} />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={logout}
@@ -557,7 +584,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
 
             {/* Atalhos: Início, perfil, Forseti e sair (ícone com o nome embaixo) */}
-            <div className="mobile-nav-sheet-footer mobile-nav-quickbar">
+            <div className={`mobile-nav-sheet-footer mobile-nav-quickbar ${canSwitchAccount ? 'has-switcher' : ''}`}>
               <button
                 type="button"
                 className={`mobile-nav-quick ${activeTab === 'INICIO' ? 'active' : ''}`}
@@ -603,6 +630,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <span className="mobile-nav-quick-label">IA auxiliar</span>
               </button>
 
+              {canSwitchAccount && (
+                <button
+                  type="button"
+                  className="mobile-nav-quick"
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    setShowSwitcher(true);
+                  }}
+                  title="Trocar de conta"
+                >
+                  <span className="mobile-nav-quick-icon">
+                    <Repeat size={18} />
+                  </span>
+                  <span className="mobile-nav-quick-label">Trocar</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 className="mobile-nav-quick is-logout"
@@ -621,6 +665,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
       </div>
+
+      <AccountSwitcherModal isOpen={showSwitcher} onClose={() => setShowSwitcher(false)} />
     </>
   );
 };
