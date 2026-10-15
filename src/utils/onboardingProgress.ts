@@ -43,6 +43,8 @@ export interface AuditInputData {
   accounts: BankAccount[];
   banks: BankInstitution[];
   natures: ExpenseNature[];
+  /** Pilares que a pessoa deu por concluídos na conversa de configuração (ex.: montou tudo à mão). */
+  acknowledged?: OnboardingStepAudit['id'][];
 }
 
 /**
@@ -246,8 +248,11 @@ export function auditOnboardingProgress(data: AuditInputData): OnboardingAuditRe
   const naturesWithMappings = (natures || []).filter(
     (n) => n.mappings && Array.isArray(n.mappings) && n.mappings.length > 0
   ).length;
+  // Palavras-chave da natureza ou das suas rotinas (mapeamentos montados à mão também as têm)
   const naturesWithKeywords = (natures || []).filter(
-    (n) => n.keywords && Array.isArray(n.keywords) && n.keywords.length > 0
+    (n) =>
+      (Array.isArray(n.keywords) && n.keywords.length > 0) ||
+      (n.mappings || []).some((m) => Array.isArray(m.keywords) && m.keywords.length > 0)
   ).length;
 
   if (naturesWithMappings > 0 && naturesWithKeywords > 0) {
@@ -294,6 +299,16 @@ export function auditOnboardingProgress(data: AuditInputData): OnboardingAuditRe
       importance: 'RECOMENDADO',
     });
   }
+
+  // Pilar que a pessoa já deu por concluído não volta como pendência
+  steps.forEach((s) => {
+    if (s.isComplete || !data.acknowledged?.includes(s.id)) return;
+    s.status = 'DONE';
+    s.isComplete = true;
+    s.score = 20;
+    s.missingHint = undefined;
+    s.actionLabel = 'Revisar';
+  });
 
   // --------------------------------------------------------------------------
   // CÁLCULO GERAL E PRÓXIMO PASSO SUGERIDO

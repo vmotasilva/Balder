@@ -3,6 +3,7 @@ import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { auditOnboardingProgress } from '../utils/onboardingProgress';
+import { useAcknowledgedSteps } from '../utils/setupAcknowledged';
 import {
   Share2,
   User,
@@ -95,6 +96,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
   const { confirm: confirmAction, dialogProps: confirmDialogProps } = useConfirmDialog();
 
   // Auditoria dinâmica dos pilares do Get Started
+  const { acknowledged } = useAcknowledgedSteps();
   const onboardingAudit = useMemo(
     () =>
       auditOnboardingProgress({
@@ -104,8 +106,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
         accounts,
         banks,
         natures,
+        acknowledged,
       }),
-    [activeCheckpoint, movements, cards, accounts, banks, natures]
+    [activeCheckpoint, movements, cards, accounts, banks, natures, acknowledged]
   );
   const completionPercentage = onboardingAudit.percent;
   const completedSteps = onboardingAudit.completedCount;
