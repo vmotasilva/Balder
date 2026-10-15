@@ -31,6 +31,11 @@ const SHARED_READ_ONLY_SAFE = new Set([
   'confirmPaymentWizard',
   'cancelPaymentWizard',
   'reconcileReceiptData',
+  // A memória da Forseti é da pessoa, não do planejamento aberto
+  'saveForsetiMemory',
+  'updateForsetiMemory',
+  'removeForsetiMemory',
+  'clearForsetiMemories',
 ]);
 // Ações do colaborador e a permissão que cada uma exige (o banco confere as mesmas regras)
 const COLLABORATOR_ACTIONS: Record<string, SharePermissionKey> = {

@@ -8,6 +8,7 @@ import { resolveMovementNatureId } from './movementNature';
 import type { ForsetiRegistration, SpendPeriod } from './forsetiIntents';
 import { brl, ddmm, isIncomeMovement, isoDay, outflowDate, outflowValue, stripAccents } from './forsetiMoney';
 import { buildDigest, isDigestRequest } from './forsetiDigest';
+import { type ForsetiMemory, memoriesText, memoryNote } from './forsetiMemory';
 import { type SpendQuery, type SpendRange, answerSpendDetail, detectSpendDetail, parseSpendRange, spendSubjectWords } from './forsetiSpend';
 
 // brl e ddmm continuam saindo daqui para quem já importa deste módulo
@@ -577,6 +578,7 @@ export function pickPaymentOptions(
 export type DoubtId =
   | 'MENU'
   | 'BOM_DIA'
+  | 'MEMORIAS'
   | 'SALDO_HOJE'
   | 'PROXIMO_RECEB'
   | 'SOBRA'
@@ -627,6 +629,7 @@ export function isOthersQuestion(text: string): boolean {
 export function detectDoubt(text: string): DoubtId | null {
   const t = stripAccents(text);
   if (isDigestRequest(text)) return 'BOM_DIA';
+  if (/o que (voce )?(sabe|lembra|guardou|anotou) (sobre|de) mim|minhas memorias|o que (voce )?lembra de mim|memoria da forseti/.test(t)) return 'MEMORIAS';
   if (t.includes('tenho uma duvida') || t === 'duvida' || t === 'duvidas' || t.includes('outra duvida')) return 'MENU';
   if (/saldo (de )?hoje|quanto tenho|meu saldo( atual)?\??$|saldo atual|saldo em conta/.test(t)) return 'SALDO_HOJE';
   if (/quando (entra|recebo|cai|vou receber)|proximo recebimento|proxima entrada|quando o salario/.test(t)) return 'PROXIMO_RECEB';
@@ -669,6 +672,8 @@ export interface ForsetiReply {
 export interface ForsetiData {
   /** Nome de quem conversa (só para a saudação do briefing). */
   userName?: string;
+  /** O que a pessoa pediu para a Forseti lembrar (entra no briefing e nas respostas de compra e quitação). */
+  memories?: ForsetiMemory[];
   /** Naturezas do planejamento (para mostrar gastos por natureza). */
   natures?: ExpenseNature[];
   /** Natureza sugerida (por palavras-chave e nomes) para cada lançamento sem natureza, por id do lançamento. */
@@ -737,6 +742,13 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
         text: buildDigest(d, opts?.today, d.userName).text,
         badge: 'BOM DIA',
         chips: ['O que vence nos próximos dias?', 'Quanto ainda posso gastar este mês?', CHIP_PAGAR],
+      };
+
+    case 'MEMORIAS':
+      return {
+        text: memoriesText(d.memories),
+        badge: 'MEMÓRIA',
+        chips: ['Como funciona o Balder?', CHIP_DUVIDA],
       };
 
     case 'SALDO_HOJE':
@@ -1119,7 +1131,7 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
       const what = /\bcarro\b/i.test(text) ? 'um carro' : 'essa compra';
       if (free <= 0) {
         return {
-          text: `Hoje eu não recomendo assumir ${what} parcelado: nos próximos 30 dias, o que sai é maior que o que entra (resultado de ${brl(free)}).\n\nO primeiro passo é abrir espaço no orçamento — posso te mostrar o que vence e quanto já gastou.`,
+          text: `Hoje eu não recomendo assumir ${what} parcelado: nos próximos 30 dias, o que sai é maior que o que entra (resultado de ${brl(free)}).\n\nO primeiro passo é abrir espaço no orçamento — posso te mostrar o que vence e quanto já gastou.${memoryNote(d.memories, 'COMPRA')}`,
           badge: 'DECISÃO DE COMPRA',
           chips: ['O que vence nos próximos dias?', 'Quanto já gastei este mês?', CHIP_DUVIDA],
         };
@@ -1127,7 +1139,7 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
       const safeInstallment = free * 0.3;
       const reserveOk = d.emergencyReserveMonths >= 6;
       return {
-        text: `Para ${what}, olho três coisas:\n\n• **Sobra mensal prevista:** ${brl(free)}\n• **Parcela confortável:** até **${brl(safeInstallment)}** (30% da sobra), para não travar suas metas\n• **Reserva de emergência:** ${months1(d.emergencyReserveMonths)} meses ${reserveOk ? '✅' : '⚠️ (o ideal é 6+ antes de assumir parcelas longas)'}\n\n${reserveOk ? 'Se a parcela couber nesse limite, a compra é viável.' : 'Antes de comprar, vale reforçar a reserva — ou dar uma entrada maior para a parcela ficar menor.'} Para testar valores exatos, use **Ações Rápidas › Simular decisão** no Painel.`,
+        text: `Para ${what}, olho três coisas:\n\n• **Sobra mensal prevista:** ${brl(free)}\n• **Parcela confortável:** até **${brl(safeInstallment)}** (30% da sobra), para não travar suas metas\n• **Reserva de emergência:** ${months1(d.emergencyReserveMonths)} meses ${reserveOk ? '✅' : '⚠️ (o ideal é 6+ antes de assumir parcelas longas)'}\n\n${reserveOk ? 'Se a parcela couber nesse limite, a compra é viável.' : 'Antes de comprar, vale reforçar a reserva — ou dar uma entrada maior para a parcela ficar menor.'} Para testar valores exatos, use **Ações Rápidas › Simular decisão** no Painel.${memoryNote(d.memories, 'COMPRA')}`,
         badge: 'DECISÃO DE COMPRA',
         chips: ['Como está minha reserva de emergência?', 'Vale a pena quitar meu empréstimo?', CHIP_DUVIDA],
       };
@@ -1146,7 +1158,7 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
       const last = open.reduce((max, m) => (m.dueDate > max ? m.dueDate : max), open[0].dueDate);
       const reserveOk = d.emergencyReserveMonths >= 6;
       return {
-        text: `Você tem **${open.length} parcela(s)** em aberto, somando **${brl(total)}**, até ${last.split('-').reverse().join('/')}.\n\nAo antecipar parcelas, o banco é obrigado a tirar os **juros das parcelas futuras** (Código de Defesa do Consumidor, art. 52, § 2º) — por isso quitar costuma valer a pena quando:\n• os juros do empréstimo são maiores que o rendimento do seu dinheiro guardado;\n• você **não** precisa usar a reserva de emergência para isso${reserveOk ? ' (a sua está em dia ✅)' : ' (a sua está abaixo de 6 meses ⚠️)'}.\n\nEm **Contratos › Empréstimos › Antecipar parcelas** você vê exatamente quanto economiza.`,
+        text: `Você tem **${open.length} parcela(s)** em aberto, somando **${brl(total)}**, até ${last.split('-').reverse().join('/')}.\n\nAo antecipar parcelas, o banco é obrigado a tirar os **juros das parcelas futuras** (Código de Defesa do Consumidor, art. 52, § 2º) — por isso quitar costuma valer a pena quando:\n• os juros do empréstimo são maiores que o rendimento do seu dinheiro guardado;\n• você **não** precisa usar a reserva de emergência para isso${reserveOk ? ' (a sua está em dia ✅)' : ' (a sua está abaixo de 6 meses ⚠️)'}.\n\nEm **Contratos › Empréstimos › Antecipar parcelas** você vê exatamente quanto economiza.${memoryNote(d.memories, 'QUITAR')}`,
         badge: 'EMPRÉSTIMOS',
         chips: ['Como está minha reserva de emergência?', 'Quanto ainda posso gastar este mês?', CHIP_DUVIDA],
       };

@@ -5,6 +5,7 @@
 // Limite e cache ficam na memória da instância: bastam para barrar abuso, sem criar tabela.
 import { planAllows, userIdFrom } from './_access.js';
 import { normalizePhrase } from '../src/utils/forsetiLearning.js';
+import { type MemoryDraft, parseMemory } from '../src/utils/forsetiMemory.js';
 import { FORSETI_INTENTS, SPEND_PERIODS, type ForsetiRegistration, type ForsetiSpendQuery, isForsetiIntent, isSpendPeriod, parseRegistration, parseSpendQuery } from '../src/utils/forsetiIntents.js';
 
 const MODEL = 'claude-haiku-4-5-20251001';
@@ -12,7 +13,7 @@ const MODEL = 'claude-haiku-4-5-20251001';
 const LIMIT_PER_HOUR = 30;
 const CACHE_MAX = 500;
 const calls = new Map<string, number[]>();
-const cache = new Map<string, { intent: string; period?: string; registration?: ForsetiRegistration; spend?: ForsetiSpendQuery }>();
+const cache = new Map<string, { intent: string; period?: string; registration?: ForsetiRegistration; memory?: MemoryDraft; spend?: ForsetiSpendQuery }>();
 
 /** Hoje no Brasil (AAAA-MM-DD): a IA precisa dele para entender "amanhã" e "dia 12". */
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
@@ -60,6 +61,12 @@ preencha "registration":
 - future: true se ainda vai acontecer (agendado, "vou pagar", "vou receber"); false se já aconteceu.
 - date: AAAA-MM-DD só se a frase disser o dia (use "hoje" do contexto para "amanhã", "dia 12"…).
 Pergunta ("quanto gastei…?") nunca é registro. Sem valor na frase, não é registro.
+MEMÓRIA: quando a pessoa CONTA algo duradouro sobre si ou sobre como lida com dinheiro (preferência, restrição, prioridade ou contexto
+familiar), sem pedir nada e sem registrar um gasto, responda intent DESCONHECIDO e preencha "memory":
+- kind: PREFERENCIA, RESTRICAO, CONTEXTO ou PRIORIDADE.
+- title: curto (até 60 caracteres). body: uma frase, nas palavras da pessoa (até 200 caracteres).
+NUNCA coloque em memory valores em reais, números de documento, conta ou cartão, e-mails ou links: se a frase tiver algum, omita memory.
+Um gasto ou recebimento pontual é registration, nunca memory. Pergunta nunca é memory.
 Se vier "contexto" (assunto da resposta anterior), frases curtas ou incompletas, SEM assunto próprio, continuam esse assunto
 (ex.: contexto GASTOS_PERIODO e a frase "me mostre os dessa semana" → GASTOS_PERIODO com period SEMANA).
 Se a frase trouxer um assunto novo (salário, metas, fatura, empréstimo, registrar algo…), IGNORE o contexto e classifique só a frase.
@@ -116,6 +123,15 @@ export async function POST(request: Request): Promise<Response> {
                 properties: { subject: { type: 'string' }, from: { type: 'string' }, to: { type: 'string' } },
                 required: ['subject'],
               },
+              memory: {
+                type: 'object',
+                properties: {
+                  kind: { type: 'string', enum: ['PREFERENCIA', 'RESTRICAO', 'CONTEXTO', 'PRIORIDADE'] },
+                  title: { type: 'string' },
+                  body: { type: 'string' },
+                },
+                required: ['kind', 'body'],
+              },
               registration: {
                 type: 'object',
                 properties: {
@@ -138,16 +154,18 @@ export async function POST(request: Request): Promise<Response> {
   });
   if (!res.ok) return Response.json({ error: 'falha na IA' }, { status: 502 });
 
-  const data = (await res.json()) as { content?: { type: string; input?: { intent?: string; period?: string; registration?: unknown; spend?: unknown } }[] };
+  const data = (await res.json()) as { content?: { type: string; input?: { intent?: string; period?: string; registration?: unknown; memory?: unknown; spend?: unknown } }[] };
   const input = data.content?.find((c) => c.type === 'tool_use')?.input;
   const intent = isForsetiIntent(input?.intent) ? input!.intent : 'DESCONHECIDO';
   const period = isSpendPeriod(input?.period) ? input!.period : undefined;
   // Registro só vale com "DESCONHECIDO": uma frase não é consulta e registro ao mesmo tempo
   const registration = intent === 'DESCONHECIDO' ? parseRegistration(input?.registration) : undefined;
+  // Memória também só vale com "DESCONHECIDO" e sem registro; passa pelo mesmo filtro de dado sensível do aplicativo
+  const memory = intent === 'DESCONHECIDO' && !registration ? parseMemory(input?.memory) : undefined;
   const spend = intent === 'GASTOS_DETALHE' ? parseSpendQuery(input?.spend) : undefined;
-  const answer = { intent, period, ...(registration ? { registration } : {}), ...(spend ? { spend } : {}) };
+  const answer = { intent, period, ...(registration ? { registration } : {}), ...(memory ? { memory } : {}), ...(spend ? { spend } : {}) };
   // Só guarda respostas com algo útil: um erro ou um "não sei" passageiro não pode ficar preso
   if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value!);
-  if (intent !== 'DESCONHECIDO' || registration) cache.set(cacheKey, answer);
+  if (intent !== 'DESCONHECIDO' || registration || memory) cache.set(cacheKey, answer);
   return Response.json(answer, { headers: { 'Cache-Control': 'no-store' } });
 }

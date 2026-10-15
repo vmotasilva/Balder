@@ -22,6 +22,8 @@ import type { useForsetiActivity } from './useForsetiActivity';
 import type { useMovementsAndGoals } from './useMovementsAndGoals';
 import type { useForsetiChat } from './useForsetiChat';
 import type { useNatures } from './useNatures';
+import type { useForsetiMemory } from './useForsetiMemory';
+import { MEMORY_LIMIT } from '../../utils/forsetiMemory';
 
 type Deps =
   Pick<ReturnType<typeof useCoreData>,
@@ -43,6 +45,9 @@ type Deps =
   > &
   Pick<ReturnType<typeof useNatures>,
     'addMappingToNature' | 'addNature' | 'saveNaturesData'
+  > &
+  Pick<ReturnType<typeof useForsetiMemory>,
+    'saveForsetiMemory'
   >;
 
 /** Ações da Forseti: etapas de pagamento, opções, confirmação e conciliação de recibos. */
@@ -50,7 +55,7 @@ export function useForsetiActions({
   accounts, addMappingToNature, addMovement, addMultipleMovements, addNature,
   applyBankDueDayToOpenInvoices, associateReceiptItemsToInvoice, authUser, banks, cards,
   chatHistory, forsetiBlockedInShared, forsetiFlowRef, logForsetiActivity, movements, natures,
-  requestTrailRef, saveNaturesData, setBankInvoiceTerms, setChatHistory, setNatures,
+  requestTrailRef, saveForsetiMemory, saveNaturesData, setBankInvoiceTerms, setChatHistory, setNatures,
   updateMovement, viewing,
 }: Deps) {
   const updatePaymentWizard = (
@@ -180,6 +185,21 @@ export function useForsetiActions({
         ['Abrir faturas', 'Registrar um gasto'],
         'FATURA AJUSTADA'
       );
+      return;
+    }
+
+    if (action.kind === 'SAVE_MEMORY') {
+      // A memória é da pessoa, não do planejamento aberto: vale também dentro de um planejamento compartilhado
+      const saved = saveForsetiMemory(action.memory);
+      if (saved.ok) {
+        say(`🧠 Guardei: *${saved.memory.body}*\n\nEu passo a usar isso nas minhas respostas. Você edita ou apaga no botão 🧠 do Início.`, ['O que você sabe sobre mim?'], 'MEMÓRIA GUARDADA');
+      } else if (saved.reason === 'DUPLICADA') {
+        say('Isso eu já tinha guardado. Não repeti.', ['O que você sabe sobre mim?'], 'JÁ EXISTE');
+      } else if (saved.reason === 'LIMITE') {
+        say(`Já guardei ${MEMORY_LIMIT} coisas sobre você, que é o limite. Apague alguma no botão 🧠 do Início para eu guardar esta.`, [], 'LIMITE');
+      } else {
+        say('Para eu guardar coisas sobre você, é preciso entrar na sua conta. Nada foi guardado.', [], 'NÃO FEITO');
+      }
       return;
     }
 

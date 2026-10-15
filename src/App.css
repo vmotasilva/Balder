@@ -24803,3 +24803,17 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
   .sub-panel-usage-row { flex-direction: column; align-items: flex-start; gap: 0.1rem; margin-bottom: 0.4rem; }
   .sub-panel-usage-row strong { font-size: 1.1rem; }
 }
+
+.forseti-memory-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.forseti-memory-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}

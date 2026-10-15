@@ -34,6 +34,8 @@ import type { useFinancialMetrics } from './useFinancialMetrics';
 import type { useForsetiActivity } from './useForsetiActivity';
 import type { useMovementsAndGoals } from './useMovementsAndGoals';
 import type { useSimulations } from './useSimulations';
+import type { useForsetiMemory } from './useForsetiMemory';
+import { type MemoryDraft, MEMORY_KIND_LABEL, detectMemoryStatement, findDuplicateMemory } from '../../utils/forsetiMemory';
 
 type Deps =
   Pick<ReturnType<typeof useCoreData>,
@@ -61,13 +63,16 @@ type Deps =
   > &
   Pick<ReturnType<typeof useSimulations>,
     'runSimulation'
+  > &
+  Pick<ReturnType<typeof useForsetiMemory>,
+    'forsetiMemories'
   >;
 
 /** Conversa com a Forseti: interpreta o pedido, responde e propõe ações. */
 export function useForsetiChat({
   accounts, activeCheckpoint, addCard, associateReceiptItemsToInvoice, availableBalance, banks,
   cards, emergencyReserveAmount, emergencyReserveMonths, forecast30d, forecasts, forsetiFlowRef,
-  goals, lastTopicRef, logForsetiActivity, monthlyClosings, monthlyFreeCashflow, movements,
+  forsetiMemories, goals, lastTopicRef, logForsetiActivity, monthlyClosings, monthlyFreeCashflow, movements,
   natures, nextCriticalEvent, projectionHorizonMonths, requestTrailRef, runSimulation,
   setChatHistory, viewing,
 }: Deps) {
@@ -778,6 +783,28 @@ export function useForsetiChat({
         return;
       }
 
+      // 0b. Algo duradouro que a pessoa conta sobre si ("evito parcelar", "lembra que divido o aluguel"): a Forseti só
+      // guarda depois do "Confirmar", e nunca com valores ou documentos (o filtro está em detectMemoryStatement)
+      const proposeMemory = (draft: MemoryDraft) => {
+        if (findDuplicateMemory(forsetiMemories, draft)) {
+          reply({ text: '🧠 Isso eu já tenho guardado. Você vê e edita tudo no botão 🧠 do Início.', badge: 'MEMÓRIA', chips: ['O que você sabe sobre mim?', CHIP_DUVIDA] });
+          return;
+        }
+        const title = 'Posso guardar isso na minha memória?';
+        const details = [`**${MEMORY_KIND_LABEL[draft.kind]}:** ${draft.body}`, 'Eu uso isso para te responder melhor. Você edita ou apaga quando quiser, no botão 🧠 do Início.'];
+        reply({
+          text: `${title}\n\n${details.map((d) => `• ${d}`).join('\n')}`,
+          badge: 'CONFIRMAR MEMÓRIA',
+          chips: [],
+          pendingAction: { kind: 'SAVE_MEMORY', memory: draft, request: trimmed, title, details },
+        });
+      };
+      const memoryDraft = !isQuestion(trimmed) && parseAmount(trimmed) === null && !registrationKind(trimmed) ? detectMemoryStatement(trimmed) : null;
+      if (memoryDraft) {
+        proposeMemory(memoryDraft);
+        return;
+      }
+
       // 1. Registro em linguagem natural ("paguei 50 no mercado", "vou receber 1.200 dia 10")
       const kind = registrationKind(trimmed);
       if (kind) {
@@ -817,6 +844,7 @@ export function useForsetiChat({
           emergencyReserveAmount,
           emergencyReserveMonths,
           monthlyFreeCashflow,
+          memories: forsetiMemories,
         };
         const answer = answerDoubt(doubt, trimmed, data, { period, spend });
         lastTopicRef.current = { intent: doubt, period: period ?? spendPeriodFrom(trimmed) ?? undefined, text: trimmed, at: Date.now(), ...(answer.spendQuery ? { query: answer.spendQuery } : {}) };
@@ -853,6 +881,9 @@ export function useForsetiChat({
           if (found?.registration && !isQuestion(trimmed)) {
             viaAi = true;
             startRegistration(found.registration.kind, registrationPhrase(found.registration), trimmed);
+          } else if (found?.memory && !isQuestion(trimmed)) {
+            viaAi = true;
+            proposeMemory(found.memory);
           } else if (found?.intent) answerIntent(found.intent, found.period, undefined, 'IA', found.spend ? spendQueryFrom(found.spend) : undefined);
           else reply(detectLooseAmount(trimmed) || detectAmbiguity(trimmed) || FALLBACK_REPLY);
         });
