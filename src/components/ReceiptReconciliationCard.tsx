@@ -146,6 +146,7 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
         return {
           ...it,
           matchedMappingItemId: createdItemId,
+          aiSuggested: false,
           targetMappingId: mappingId,
           natureId: natureId,
           isNewSuggestedItem: false, // Agora já está formalmente mapeado!
@@ -171,6 +172,7 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
             ...it,
             matchedMappingItemId: undefined,
             isNewSuggestedItem: true,
+            aiSuggested: false,
           };
         })
       );
@@ -185,6 +187,7 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
             ...it,
             matchedMappingItemId: undefined,
             isNewSuggestedItem: false,
+            aiSuggested: false,
           };
         })
       );
@@ -212,6 +215,7 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
           targetMappingId: foundOpt?.routineId,
           natureId: foundOpt?.natureId || 'nat_alimentacao',
           isNewSuggestedItem: false,
+          aiSuggested: false,
         };
       })
     );
@@ -467,8 +471,11 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
 
                     <td style={{ textAlign: 'center' }}>
                       {isMapped ? (
-                        <span className="badge badge-emerald item-status-badge">
-                          <Check size={11} /> Mapeado
+                        <span
+                          className={`badge item-status-badge ${it.aiSuggested ? 'badge-amber' : 'badge-emerald'}`}
+                          title={it.aiSuggested ? 'A Forseti sugeriu este item. Confira e troque se estiver errado.' : undefined}
+                        >
+                          {it.aiSuggested ? <Sparkles size={11} /> : <Check size={11} />} {it.aiSuggested ? 'Sugerido' : 'Mapeado'}
                         </span>
                       ) : (
                         <button

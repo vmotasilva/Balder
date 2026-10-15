@@ -8,6 +8,7 @@ import { defaultClosingDay } from '../../utils/setupCatalog';
 import { getBankBranding } from '../../utils/bankBranding';
 import { matchNatureForTransaction } from '../../services/invoiceFileParser';
 import { recognizeImageOCR } from '../../services/ocrService';
+import { suggestReceiptItems } from '../../services/receiptItemAiService';
 import { resolveMovementNatureId } from '../../utils/movementNature';
 import {
   type BankInvoiceInfo, CHIP_DUVIDA, CHIP_PAGAR, CHIP_RECEBER, type DoubtId,
@@ -323,28 +324,33 @@ export function useForsetiChat({
           const itemsLabel = allDetectedItems.length === 1 ? '1 item' : `${allDetectedItems.length} itens`;
           const ocrText = `📄 **${detectedStore || 'Cupom'}** · ${(detectedDate || '').split('-').reverse().join('/')} · **${brlTotal}** · ${itemsLabel}\n\nConfira e confirme abaixo.`;
 
-          const receiptReconciliation: ReceiptReconciliationData = {
-            id: `rec_${Date.now()}`,
-            store: detectedStore || 'Cupom Fiscal',
-            date: detectedDate || new Date().toISOString().split('T')[0],
-            totalAmount: totalDetectedAmount,
-            paymentMethod: suggestedPaymentMethod,
-            cashPaid,
-            changeAmount,
-            items: allDetectedItems,
-            isReconciled: false,
-          };
+          // Linhas que as regras não souberam associar: a Forseti sugere o item do mapeamento (uma chamada por cupom,
+          // só com nomes, nunca valores). A pessoa confere no card; sem IA, o cupom segue como estava
+          const itemsReady = hasHint ? Promise.resolve(allDetectedItems) : suggestReceiptItems(allDetectedItems, natures);
+          itemsReady.then((cardItems) => {
+            const receiptReconciliation: ReceiptReconciliationData = {
+              id: `rec_${Date.now()}`,
+              store: detectedStore || 'Cupom Fiscal',
+              date: detectedDate || new Date().toISOString().split('T')[0],
+              totalAmount: totalDetectedAmount,
+              paymentMethod: suggestedPaymentMethod,
+              cashPaid,
+              changeAmount,
+              items: cardItems,
+              isReconciled: false,
+            };
 
-          const assistantMessage: CopilotMessage = {
-            id: `ast_${Date.now()}`,
-            role: 'assistant',
-            content: ocrText,
-            timestamp: 'Agora',
-            actionBadge: 'VISÃO COMPUTACIONAL OCR',
-            receiptReconciliation,
-          };
+            const assistantMessage: CopilotMessage = {
+              id: `ast_${Date.now()}`,
+              role: 'assistant',
+              content: ocrText,
+              timestamp: 'Agora',
+              actionBadge: 'VISÃO COMPUTACIONAL OCR',
+              receiptReconciliation,
+            };
 
-          setChatHistory((prev) => prev.filter((m) => m.id !== loadingId).concat(assistantMessage));
+            setChatHistory((prev) => prev.filter((m) => m.id !== loadingId).concat(assistantMessage));
+          });
         })
         .catch((err) => {
           console.error('Erro no processamento de fotos OCR:', err);

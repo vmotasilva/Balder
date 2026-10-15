@@ -283,6 +283,7 @@ export interface ReceiptItemLine {
   targetMappingId?: string;       // id da rotina (ex: 'map_feira_semanal', 'map_mercado_mensal')
   natureId?: string;              // id da natureza (ex: 'nat_alimentacao')
   isNewSuggestedItem?: boolean;   // Adicionar ao mapeamento com quantidade 0
+  aiSuggested?: boolean;          // O item do mapeamento foi sugerido pela Forseti (a pessoa confere antes de confirmar)
   newCategoryName?: string;
 }
 
