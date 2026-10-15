@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pencil, Search, Users, Wallet, Crown, FlaskConical, Plus, Activity } from 'lucide-react';
 import { Modal } from './Modal';
 import { ForsetiLearningReview } from './ForsetiLearningReview';
+import { FeedbackPanel, ReferralsAdminPanel } from './AdminFeedbackReferrals';
 import {
   AdminService,
   ENGAGEMENT_LABEL,
@@ -54,7 +55,7 @@ export const SystemAdminPanel: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<Map<string, UserMetrics>>(new Map());
   const [metricsError, setMetricsError] = useState<string | null>(null);
-  const [tab, setTab] = useState<'USUARIOS' | 'ENGAJAMENTO' | 'PLANOS' | 'APRENDIZADO'>('USUARIOS');
+  const [tab, setTab] = useState<'USUARIOS' | 'ENGAJAMENTO' | 'FEEDBACKS' | 'INDICACOES' | 'PLANOS' | 'APRENDIZADO'>('USUARIOS');
   const [search, setSearch] = useState('');
   const [planFilter, setPlanFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<SubscriptionStatus | ''>('');
@@ -156,6 +157,12 @@ export const SystemAdminPanel: React.FC = () => {
         </button>
         <button className={`btn btn-sm ${tab === 'ENGAJAMENTO' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setTab('ENGAJAMENTO')}>
           Engajamento
+        </button>
+        <button className={`btn btn-sm ${tab === 'FEEDBACKS' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setTab('FEEDBACKS')}>
+          Feedbacks
+        </button>
+        <button className={`btn btn-sm ${tab === 'INDICACOES' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setTab('INDICACOES')}>
+          Indicações
         </button>
         <button className={`btn btn-sm ${tab === 'PLANOS' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setTab('PLANOS')}>
           Planos ({plans.length})
@@ -266,6 +273,10 @@ export const SystemAdminPanel: React.FC = () => {
       {!loading && tab === 'ENGAJAMENTO' && (
         <EngagementPanel users={users} plans={plans} metrics={metrics} metricsError={metricsError} filtered={filtered} filters={filtersEl} />
       )}
+
+      {!loading && tab === 'FEEDBACKS' && <FeedbackPanel />}
+
+      {!loading && tab === 'INDICACOES' && <ReferralsAdminPanel />}
 
       {!loading && tab === 'PLANOS' && (
         <PlansEditor plans={plans} users={users} onChanged={load} />
@@ -435,6 +446,8 @@ const EngagementPanel: React.FC<{
               <th title="Ações · úteis · não úteis">Forseti</th>
               <th title="Memórias / conversas salvas">Memórias/Chats</th>
               <th>Convites</th>
+              <th title="Enviados · aproveitados">Feedbacks</th>
+              <th title="Compartilhou · cadastros · seguem ativos">Indicações</th>
               <th>Última atividade</th>
             </tr>
           </thead>
@@ -457,17 +470,19 @@ const EngagementPanel: React.FC<{
                   <td>{m ? `${m.forsetiActions} · ${m.forsetiUseful} úteis · ${m.forsetiNotUseful} não` : '—'}</td>
                   <td>{m ? `${m.forsetiMemories} / ${m.forsetiChats}` : '—'}</td>
                   <td>{m?.sharesSent ?? '—'}</td>
+                  <td>{m ? `${m.feedbacks} · ${m.feedbacksImplemented}` : '—'}</td>
+                  <td>{m ? `${m.referralShares} · ${m.referralSignups} · ${m.referralActive}` : '—'}</td>
                   <td>{ago(m?.lastActivityAt ?? null)}</td>
                 </tr>
               );
             })}
-            {rows.length === 0 && <tr><td colSpan={10} className="text-muted">Nenhum usuário encontrado.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={12} className="text-muted">Nenhum usuário encontrado.</td></tr>}
           </tbody>
         </table>
       </div>
       <small className="text-muted">
         Pontos = lançamentos (até 100) + 5 por dia ativo + 5 por avaliação da Forseti + 2 por ação da Forseti + 3 por memória
-        + 2 por cadastro/preço monitorado + 3 por convite. Inativo = sem atividade há mais de 14 dias.
+        + 2 por cadastro/preço monitorado + 3 por convite + 15 por feedback (+25 se aproveitado) + 10 por indicado que entrou (+10 se segue ativo). Inativo = sem atividade há mais de 14 dias.
       </small>
     </div>
   );

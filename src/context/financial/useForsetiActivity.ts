@@ -33,7 +33,7 @@ const welcomeMessage = (viewing: Viewing): CopilotMessage => ({
     ? `📍 **Estou atuando no planejamento de ${viewing.ownerName}**, onde você entrou como **${
         viewing.role === 'COLABORADOR' ? 'colaborador(a)' : 'visualizador(a)'
       }**. Tudo o que eu consultar ou registrar aqui é desse planejamento, não do seu.\n\n`
-    : '') + 'Olá! Eu sou a Forseti, sua auxiliar de IA no Balder. ⚖️\n\nMe conte o que entrou ou saiu do seu jeito (ex.: *"paguei 50 na farmácia"*), mande a **foto de um comprovante ou cupom** para eu ler, ou tire uma dúvida — respondo com os números do seu planejamento.',
+    : '') + 'Olá! Eu sou a Forseti, sua auxiliar de IA no Balder. ⚖️\n\nMe conte o que entrou ou saiu do seu jeito (ex.: *"paguei 50 na farmácia"*), mande a **foto de um comprovante ou cupom** para eu ler, ou tire uma dúvida — respondo com os números do seu planejamento.\n\n💬 E se tiver uma **sugestão, um problema ou um elogio** sobre o Balder, me conte: eu levo direto para os gestores.',
   timestamp: 'Agora',
   suggestedFollowUps: MAIN_CHIPS,
 });

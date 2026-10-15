@@ -1,4 +1,5 @@
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import type { FeedbackKind, FeedbackStatus } from '../utils/forsetiFeedback';
 
 export type SubscriptionStatus = 'TESTE' | 'ATIVA' | 'SUSPENSA' | 'CANCELADA';
 
@@ -84,6 +85,44 @@ const mapUser = (r: any): ManagedUser => ({
   notes: r.notes || '',
 });
 
+export interface FeedbackItem {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  kind: FeedbackKind;
+  message: string;
+  status: FeedbackStatus;
+  createdAt: string;
+}
+
+export interface ReferralRow {
+  referrerId: string;
+  referrerName: string;
+  referrerEmail: string;
+  referredId: string;
+  referredName: string;
+  referredEmail: string;
+  joinedAt: string;
+  lastActivityAt: string | null;
+  movements: number;
+  feedbacks: number;
+  /** Elogios enviados pelo indicado. */
+  praises: number;
+  /** Feedbacks do indicado já marcados como implementados. */
+  implemented: number;
+}
+
+/** Indicado que ficou: criou a conta há pelo menos 7 dias e teve atividade nos últimos 14. */
+export const isRetainedReferral = (r: ReferralRow, now = Date.now()) =>
+  now - new Date(r.joinedAt).getTime() >= 7 * 86_400_000 &&
+  !!r.lastActivityAt &&
+  now - new Date(r.lastActivityAt).getTime() <= 14 * 86_400_000;
+
+/** Referência positiva: o indicado ficou e ainda elogiou ou teve um feedback aproveitado. */
+export const isPositiveReferral = (r: ReferralRow, now = Date.now()) =>
+  isRetainedReferral(r, now) && (r.praises > 0 || r.implemented > 0);
+
 export interface UserMetrics {
   userId: string;
   movementsTotal: number;
@@ -103,6 +142,11 @@ export interface UserMetrics {
   forsetiChats: number;
   priceWatches: number;
   sharesSent: number;
+  feedbacks: number;
+  feedbacksImplemented: number;
+  referralShares: number;
+  referralSignups: number;
+  referralActive: number;
 }
 
 const mapMetrics = (r: any): UserMetrics => ({
@@ -124,6 +168,11 @@ const mapMetrics = (r: any): UserMetrics => ({
   forsetiChats: r.forseti_chats ?? 0,
   priceWatches: r.price_watches_count ?? 0,
   sharesSent: r.shares_sent ?? 0,
+  feedbacks: r.feedback_count ?? 0,
+  feedbacksImplemented: r.feedback_implemented ?? 0,
+  referralShares: r.referral_shares ?? 0,
+  referralSignups: r.referral_signups ?? 0,
+  referralActive: r.referral_active ?? 0,
 });
 
 /** Cadastros estruturais feitos pelo usuário (contas, naturezas, metas, contratos, meios). */
@@ -143,7 +192,11 @@ export const contributionScore = (m: UserMetrics) =>
   m.forsetiChats +
   setupCount(m) * 2 +
   m.priceWatches * 2 +
-  m.sharesSent * 3;
+  m.sharesSent * 3 +
+  m.feedbacks * 15 + // o que mais faz o sistema evoluir
+  m.feedbacksImplemented * 25 +
+  m.referralSignups * 10 +
+  m.referralActive * 10; // indicado que ficou
 
 export type EngagementLevel = 'MUITO_ATIVO' | 'ATIVO' | 'POUCO_ATIVO' | 'INATIVO';
 
@@ -196,6 +249,52 @@ export const AdminService = {
     const { data, error } = await supabase.rpc('admin_user_metrics');
     if (error) throw fail(error, 'Não foi possível carregar as métricas. O script supabase/admin_metrics.sql foi executado?');
     return (data || []).map(mapMetrics);
+  },
+
+  async listFeedback(): Promise<FeedbackItem[]> {
+    if (!isSupabaseConfigured) return [];
+    const { data, error } = await supabase.rpc('admin_list_feedback');
+    if (error) throw fail(error, 'Não foi possível carregar os feedbacks. O script supabase/user_feedback.sql foi executado?');
+    return (data || []).map((r: any) => ({
+      id: r.id,
+      userId: r.user_id,
+      name: r.name || '',
+      email: r.email || '',
+      kind: r.kind as FeedbackKind,
+      message: r.message,
+      status: r.status as FeedbackStatus,
+      createdAt: r.created_at,
+    }));
+  },
+
+  async setFeedbackStatus(id: string, status: FeedbackStatus): Promise<void> {
+    const { error } = await supabase.from('user_feedback').update({ status }).eq('id', id);
+    if (error) throw fail(error, 'Não foi possível atualizar o feedback.');
+  },
+
+  /** Indicações (uma linha por indicado) e compartilhamentos por pessoa. */
+  async listReferrals(): Promise<{ rows: ReferralRow[]; shares: Map<string, number> }> {
+    if (!isSupabaseConfigured) return { rows: [], shares: new Map() };
+    const [list, codes] = await Promise.all([supabase.rpc('admin_list_referrals'), supabase.rpc('admin_referral_codes')]);
+    if (list.error) throw fail(list.error, 'Não foi possível carregar as indicações. O script supabase/referrals.sql foi executado?');
+    if (codes.error) throw fail(codes.error, 'Não foi possível carregar os compartilhamentos.');
+    return {
+      rows: (list.data || []).map((r: any) => ({
+        referrerId: r.referrer_id,
+        referrerName: r.referrer_name || '',
+        referrerEmail: r.referrer_email || '',
+        referredId: r.referred_id,
+        referredName: r.referred_name || '',
+        referredEmail: r.referred_email || '',
+        joinedAt: r.joined_at,
+        lastActivityAt: r.last_activity_at ?? null,
+        movements: r.movements_count ?? 0,
+        feedbacks: r.feedback_count ?? 0,
+        praises: r.praise_count ?? 0,
+        implemented: r.implemented_count ?? 0,
+      })),
+      shares: new Map((codes.data || []).map((c: any) => [c.user_id as string, (c.shares_count ?? 0) as number])),
+    };
   },
 
   async updatePlan(code: string, u: Partial<Omit<SubscriptionPlan, 'code'>>): Promise<void> {

@@ -1,6 +1,6 @@
 import { CASH_IN_HAND } from '../../utils/cashInHand';
 import {
-  CHIP_DUVIDA, CHIP_PAGAR, CHIP_RECEBER, MAIN_CHIPS, NEW_CARD_DUE_CHIPS, OPTION_OTHER_PAYMENT,
+  CHIP_DUVIDA, CHIP_FEEDBACK, CHIP_PAGAR, CHIP_RECEBER, MAIN_CHIPS, NEW_CARD_DUE_CHIPS, OPTION_OTHER_PAYMENT,
   OPTION_REGISTER_CARD, brl, installmentSchedule,
 } from '../../utils/forsetiAssistant';
 import { addCardPurchaseToInvoices, firstInvoiceDueDate } from '../../utils/cardPurchase';
@@ -24,6 +24,7 @@ import type { useForsetiChat } from './useForsetiChat';
 import type { useNatures } from './useNatures';
 import type { useForsetiMemory } from './useForsetiMemory';
 import { MEMORY_LIMIT } from '../../utils/forsetiMemory';
+import { sendFeedback } from '../../services/forsetiFeedbackService';
 
 type Deps =
   Pick<ReturnType<typeof useCoreData>,
@@ -185,6 +186,17 @@ export function useForsetiActions({
         ['Abrir faturas', 'Registrar um gasto'],
         'FATURA AJUSTADA'
       );
+      return;
+    }
+
+    if (action.kind === 'SEND_FEEDBACK') {
+      // O feedback é da pessoa, não do planejamento aberto: vale também dentro de um planejamento compartilhado
+      void sendFeedback(action.feedbackKind, action.message).then((r) => {
+        if (r.ok) say('✅ Enviei o seu feedback aos gestores do Balder. Obrigada por ajudar o sistema a evoluir! 💙', MAIN_CHIPS, 'FEEDBACK ENVIADO');
+        else if (r.reason === 'LIMITE') say('Você já enviou vários feedbacks hoje, que é o limite diário. Tente de novo amanhã. 🙏', [], 'LIMITE');
+        else if (r.reason === 'SEM_LOGIN') say('Para enviar feedback, é preciso entrar na sua conta. Nada foi enviado.', [], 'NÃO FEITO');
+        else say('Não consegui enviar agora. Tente de novo daqui a pouco.', [CHIP_FEEDBACK], 'NÃO FEITO');
+      });
       return;
     }
 

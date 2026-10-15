@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { ReferralService } from '../services/referralService';
 import { clearAllChats } from '../utils/forsetiChatStore';
 
 export interface AppUser {
@@ -33,6 +34,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [systemRole, setSystemRole] = useState<SystemRole>('USUARIO');
 
   const userId = user && !user.isGuest ? user.$id : null;
+  // Quem chegou por um link de convite fica ligado a quem indicou (uma vez; o banco recusa contas antigas)
+  useEffect(() => {
+    if (userId) void ReferralService.claimPending();
+  }, [userId]);
+
   useEffect(() => {
     if (!userId || !isSupabaseConfigured) {
       setSystemRole('USUARIO');

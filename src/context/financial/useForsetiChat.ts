@@ -37,6 +37,9 @@ import type { useForsetiActivity } from './useForsetiActivity';
 import type { useMovementsAndGoals } from './useMovementsAndGoals';
 import type { useSimulations } from './useSimulations';
 import type { useForsetiMemory } from './useForsetiMemory';
+import {
+  FEEDBACK_KINDS, FEEDBACK_KIND_CHIP, FEEDBACK_KIND_LABEL, FEEDBACK_MIN, type FeedbackKind, checkFeedbackText, feedbackKindFrom, inlineFeedbackText, isFeedbackRequest,
+} from '../../utils/forsetiFeedback';
 import { type MemoryDraft, MEMORY_KIND_LABEL, detectMemoryStatement, findDuplicateMemory } from '../../utils/forsetiMemory';
 
 type Deps =
@@ -574,6 +577,55 @@ export function useForsetiChat({
       continuePay(payTitle, purchase.amount, cat, ctx);
     };
 
+    // ── Feedback para os gestores: a Forseti conduz (tipo → texto → confirmação) e só envia depois do "Confirmar" ──
+    const confirmFeedback = (kind: FeedbackKind, message: string) => {
+      const check = checkFeedbackText(message);
+      if (!check.ok) {
+        forsetiFlowRef.current = { kind: 'PAGAR', step: 'FEEDBACK_TEXTO', feedbackKind: kind };
+        reply({
+          text:
+            check.reason === 'CURTO'
+              ? 'Conte um pouco mais, em uma ou duas frases, para o time entender bem. (ou *cancelar* para desistir)'
+              : 'Por segurança, não envio e-mail, link nem números de documento ou conta. Escreva de novo sem esses dados. (ou *cancelar* para desistir)',
+          badge: 'FEEDBACK',
+          chips: [],
+        });
+        return;
+      }
+      forsetiFlowRef.current = null;
+      const title = 'Posso enviar este feedback aos gestores do Balder?';
+      const details = [
+        `**Tipo:** ${FEEDBACK_KIND_LABEL[kind]}`,
+        `**Mensagem:** ${check.text}`,
+        'Vai com o seu nome e e-mail, para o time poder te responder. Você é quem faz o Balder evoluir. 💙',
+      ];
+      reply({
+        text: `${title}\n\n${details.map((d) => `• ${d}`).join('\n')}`,
+        badge: 'CONFIRMAR FEEDBACK',
+        chips: [],
+        pendingAction: { kind: 'SEND_FEEDBACK', feedbackKind: kind, message: check.text, request: trimmed, title, details },
+      });
+    };
+    const startFeedback = () => {
+      const inline = inlineFeedbackText(trimmed);
+      const kind = feedbackKindFrom(trimmed);
+      if (inline) {
+        confirmFeedback(kind ?? 'OUTRO', inline);
+        return;
+      }
+      if (kind) {
+        forsetiFlowRef.current = { kind: 'PAGAR', step: 'FEEDBACK_TEXTO', feedbackKind: kind };
+        reply({ text: `Pode contar: **${FEEDBACK_KIND_LABEL[kind].toLowerCase()}**. Escreva em uma mensagem, do seu jeito. (ou *cancelar* para desistir)`, badge: 'FEEDBACK', chips: [] });
+        return;
+      }
+      forsetiFlowRef.current = { kind: 'PAGAR', step: 'FEEDBACK_TIPO' };
+      reply({
+        text: 'Que bom que você quer ajudar o Balder a evoluir! 💬 Eu levo o seu recado direto para os gestores.\n\n**Sobre o que é?**',
+        badge: 'FEEDBACK',
+        chips: FEEDBACK_KINDS.map((k) => FEEDBACK_KIND_CHIP[k]),
+      });
+    };
+
     // Resposta a uma pergunta do registro em andamento (sair dele é só mudar de assunto)
     const flow = forsetiFlowRef.current;
     if (/^(cancela|cancelar|esquece|deixa|nao quero|não quero)/i.test(trimmed)) {
@@ -583,6 +635,21 @@ export function useForsetiChat({
         badge: 'CANCELADO',
         chips: MAIN_CHIPS,
       });
+      return;
+    }
+    if (flow && (flow.step === 'FEEDBACK_TIPO' || flow.step === 'FEEDBACK_TEXTO')) {
+      if (flow.step === 'FEEDBACK_TIPO') {
+        const picked = feedbackKindFrom(trimmed);
+        if (picked && trimmed.length < FEEDBACK_MIN + 20) {
+          forsetiFlowRef.current = { kind: 'PAGAR', step: 'FEEDBACK_TEXTO', feedbackKind: picked };
+          reply({ text: `Pode contar: **${FEEDBACK_KIND_LABEL[picked].toLowerCase()}**. Escreva em uma mensagem, do seu jeito. (ou *cancelar* para desistir)`, badge: 'FEEDBACK', chips: [] });
+          return;
+        }
+        // Já escreveu o recado no lugar de escolher o tipo
+        confirmFeedback(picked ?? 'OUTRO', trimmed);
+        return;
+      }
+      confirmFeedback(flow.feedbackKind ?? 'OUTRO', trimmed);
       return;
     }
     if (flow) {
@@ -761,6 +828,10 @@ export function useForsetiChat({
     const isNewLoan = /novo empr[eé]stimo|pegar empr[eé]stimo|tomar empr[eé]stimo/i.test(trimmed);
     const isScreenAnalysis = /analis|auditar|diagn[oó]stico|esta tela|tela de/i.test(trimmed);
     if (!isNewLoan && !isScreenAnalysis) {
+      if (isFeedbackRequest(trimmed)) {
+        startFeedback();
+        return;
+      }
       // 0. Ações (abrir tela, criar natureza ou mapeamento): a Forseti propõe e só faz depois do "Confirmar"
       const bankInvoiceInfo: BankInvoiceInfo[] = listPaymentInstitutions(accounts, cards, banks)
         .filter((i) => i.card || banks.some((b) => b.name === i.name))

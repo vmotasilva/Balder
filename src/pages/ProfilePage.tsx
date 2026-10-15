@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { auditOnboardingProgress } from '../utils/onboardingProgress';
 import {
+  Share2,
   User,
   Building,
   Eraser,
@@ -48,6 +49,7 @@ import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
 import { DataFormatPanel } from '../components/DataFormatPanel';
 import { InfoButton } from '../components/InfoButton';
 import { SystemAdminPanel } from '../components/SystemAdminPanel';
+import { ReferralPanel } from '../components/ReferralPanel';
 import { SubscriptionPanel } from '../components/SubscriptionPanel';
 import { useEntitlements } from '../context/EntitlementsContext';
 import { STATUS_LABEL, formatBRL } from '../services/adminService';
@@ -109,7 +111,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
   const completedSteps = onboardingAudit.completedCount;
 
   const [activeSubTab, setActiveSubTab] = useState<
-    'PERFIL' | 'ASSINATURA' | 'DOWNLOAD' | 'SALARIO' | 'MARCOS' | 'CONTAS' | 'BANCOS' | 'PREFERENCIAS' | 'EXPORTACOES' | 'SEGURANCA' | 'FORMATAR' | 'GESTAO'
+    'PERFIL' | 'ASSINATURA' | 'INDICAR' | 'DOWNLOAD' | 'SALARIO' | 'MARCOS' | 'CONTAS' | 'BANCOS' | 'PREFERENCIAS' | 'EXPORTACOES' | 'SEGURANCA' | 'FORMATAR' | 'GESTAO'
   >('PERFIL');
   const [iosLinkCopied, setIosLinkCopied] = useState(false);
   const [advancedModalOpen, setAdvancedModalOpen] = useState(false);
@@ -152,6 +154,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
   const PROFILE_NAV_ITEMS = [
     { id: 'PERFIL' as const, label: 'Perfil & Dados Pessoais', icon: User, count: null },
     { id: 'ASSINATURA' as const, label: 'Plano & Assinatura', icon: Crown, count: subscription ? subscription.planName : null },
+    { id: 'INDICAR' as const, label: 'Convidar Amigos', icon: Share2, count: null },
     { id: 'DOWNLOAD' as const, label: 'Download', icon: Download, count: 'Android · iPhone' },
     { id: 'MARCOS' as const, label: 'Marcos de Início', icon: Flag, count: checkpoints.length },
     { id: 'CONTAS' as const, label: 'Contas & Meios', icon: CreditCard, count: accounts.length + cards.length },
@@ -410,6 +413,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onOpenOnboarding }) =>
           )}
 
           {activeSubTab === 'ASSINATURA' && <SubscriptionPanel />}
+
+          {activeSubTab === 'INDICAR' && <ReferralPanel />}
 
           {activeSubTab === 'DOWNLOAD' && (
             <div className="subtab-content animate-fade-in">

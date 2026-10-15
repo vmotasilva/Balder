@@ -9,6 +9,7 @@ import type { ForsetiRegistration, SpendPeriod } from './forsetiIntents';
 import { brl, ddmm, isIncomeMovement, isoDay, outflowDate, outflowValue, stripAccents } from './forsetiMoney';
 import { buildDigest, isDigestRequest } from './forsetiDigest';
 import { type ForsetiMemory, memoriesText, memoryNote } from './forsetiMemory';
+import { CHIP_FEEDBACK, type FeedbackKind } from './forsetiFeedback';
 import { type SpendQuery, type SpendRange, answerSpendDetail, detectSpendDetail, parseSpendRange, spendSubjectWords } from './forsetiSpend';
 
 // brl e ddmm continuam saindo daqui para quem já importa deste módulo
@@ -24,7 +25,8 @@ export const CHIP_ANEXAR = '📸 Anexar comprovante / cupom fiscal';
 export const CHIP_RECEBER = '💰 Vou receber um valor';
 export const CHIP_PAGAR = '💸 Registrar um pagamento';
 export const CHIP_DUVIDA = '❓ Tenho uma dúvida';
-export const MAIN_CHIPS = [CHIP_ANEXAR, CHIP_RECEBER, CHIP_PAGAR, CHIP_DUVIDA];
+export { CHIP_FEEDBACK };
+export const MAIN_CHIPS = [CHIP_ANEXAR, CHIP_RECEBER, CHIP_PAGAR, CHIP_DUVIDA, CHIP_FEEDBACK];
 
 export const DOUBT_CHIPS = [
   'Qual meu saldo hoje?',
@@ -43,7 +45,9 @@ export const DOUBT_CHIPS = [
 /** Registro guiado em andamento: a próxima mensagem responde à pergunta do passo atual. */
 export interface ForsetiFlow {
   kind: 'RECEBER' | 'PAGAR';
-  step: 'VALOR' | 'DATA' | 'CATEGORIA' | 'DESCRICAO' | 'CARTAO_NOME' | 'CARTAO_VENCIMENTO' | 'CARTAO_FECHAMENTO';
+  step: 'VALOR' | 'DATA' | 'CATEGORIA' | 'DESCRICAO' | 'CARTAO_NOME' | 'CARTAO_VENCIMENTO' | 'CARTAO_FECHAMENTO' | 'FEEDBACK_TIPO' | 'FEEDBACK_TEXTO';
+  /** Tipo escolhido no feedback em andamento (kind 'RECEBER'/'PAGAR' não é usado nesse fluxo). */
+  feedbackKind?: FeedbackKind;
   title?: string;
   amount?: number;
   date?: string;
@@ -1166,7 +1170,7 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
 
     case 'COMO_FUNCIONA':
       return {
-        text: 'O Balder organiza o seu dinheiro em 3 ideias: **o que você tem hoje**, **o que vai entrar e sair** e **para onde quer chegar**.\n\n• **Início:** saldo de hoje, o que fazer agora e gastos do período\n• **Painel:** a competência **Atual**, a **Projeção** mês a mês, as **Naturezas** e as **Metas**\n• **Movimentações:** tudo o que entrou e saiu, com filtros\n• **Faturas:** importe a fatura do cartão e distribua nas naturezas\n• **Naturezas:** seus gastos previstos (contas fixas, rotinas de mercado…)\n• **Contratos:** empréstimos (parcelas, simulações e antecipação) e simulação de financiamentos\n• **Compartilhar:** planeje junto com outra pessoa\n\nE eu, a Forseti, registro o que você me contar, leio fotos de comprovantes e respondo dúvidas com os seus números.',
+        text: 'O Balder organiza o seu dinheiro em 3 ideias: **o que você tem hoje**, **o que vai entrar e sair** e **para onde quer chegar**.\n\n• **Início:** saldo de hoje, o que fazer agora e gastos do período\n• **Painel:** a competência **Atual**, a **Projeção** mês a mês, as **Naturezas** e as **Metas**\n• **Movimentações:** tudo o que entrou e saiu, com filtros\n• **Faturas:** importe a fatura do cartão e distribua nas naturezas\n• **Naturezas:** seus gastos previstos (contas fixas, rotinas de mercado…)\n• **Contratos:** empréstimos (parcelas, simulações e antecipação) e simulação de financiamentos\n• **Compartilhar:** planeje junto com outra pessoa\n\nE eu, a Forseti, registro o que você me contar, leio fotos de comprovantes e respondo dúvidas com os seus números.\n\n💬 **Quer ajudar o Balder a evoluir?** Me conte uma sugestão, um problema ou um elogio: eu encaminho direto para os gestores. É só dizer *"quero dar um feedback"*.',
         badge: 'COMO FUNCIONA',
         chips: ['O que são naturezas?', 'O que é competência?', 'O que é a projeção?', CHIP_DUVIDA],
       };
