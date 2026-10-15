@@ -5120,11 +5120,12 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   padding-bottom: 12px;
 }
 
-/* Cabeçalho do card de mapeamento: uma linha no desktop, três linhas empilhadas no celular */
+/* Cabeçalho do card de mapeamento: desktop em duas linhas (título em cima; indicadores e botões embaixo) */
 .mapping-card-header--compact {
   flex-direction: row;
-  flex-wrap: nowrap;
-  gap: 12px;
+  flex-wrap: wrap;
+  row-gap: 10px;
+  column-gap: 12px;
   padding: 12px 16px;
 }
 
@@ -5132,8 +5133,17 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex: 1 1 auto;
+  flex: 1 0 100%;
   min-width: 0;
+}
+
+.mapping-card-header--compact .mapping-card-meta-row {
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+}
+
+.mapping-card-header--compact .mapping-card-actions-row {
+  margin-left: auto;
 }
 
 .mapping-card-title {
@@ -5191,6 +5201,10 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 
   .mapping-card-title-row {
     flex: 0 0 auto;
+  }
+
+  .mapping-card-header--compact .mapping-card-actions-row {
+    margin-left: 0;
   }
 
   .mapping-card-title {
