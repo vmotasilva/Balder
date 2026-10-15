@@ -1,13 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Pencil, Search, Users, Wallet, Crown, FlaskConical, Plus } from 'lucide-react';
+import { Pencil, Search, Users, Wallet, Crown, FlaskConical, Plus, Activity } from 'lucide-react';
 import { Modal } from './Modal';
 import { ForsetiLearningReview } from './ForsetiLearningReview';
 import {
   AdminService,
+  ENGAGEMENT_LABEL,
   STATUS_LABEL,
+  contributionScore,
   effectiveMonthlyCents,
+  engagementLevel,
   formatBRL,
+  setupCount,
+  type EngagementLevel,
   type ManagedUser,
+  type UserMetrics,
   type SubscriptionPlan,
   type SubscriptionStatus,
 } from '../services/adminService';
@@ -18,6 +24,13 @@ const STATUS_BADGE: Record<SubscriptionStatus, string> = {
   ATIVA: 'badge-emerald',
   SUSPENSA: 'badge-amber',
   CANCELADA: 'badge-rose',
+};
+
+const ENGAGEMENT_BADGE: Record<EngagementLevel, string> = {
+  MUITO_ATIVO: 'badge-emerald',
+  ATIVO: 'badge-cyan',
+  POUCO_ATIVO: 'badge-amber',
+  INATIVO: 'badge-rose',
 };
 
 const centsToInput = (c: number | null) => (c === null ? '' : (c / 100).toFixed(2).replace('.', ','));
@@ -39,8 +52,12 @@ export const SystemAdminPanel: React.FC = () => {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<'USUARIOS' | 'PLANOS' | 'APRENDIZADO'>('USUARIOS');
+  const [metrics, setMetrics] = useState<Map<string, UserMetrics>>(new Map());
+  const [metricsError, setMetricsError] = useState<string | null>(null);
+  const [tab, setTab] = useState<'USUARIOS' | 'ENGAJAMENTO' | 'PLANOS' | 'APRENDIZADO'>('USUARIOS');
   const [search, setSearch] = useState('');
+  const [planFilter, setPlanFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<SubscriptionStatus | ''>('');
   const [editing, setEditing] = useState<ManagedUser | null>(null);
 
   const load = useCallback(async () => {
@@ -50,6 +67,13 @@ export const SystemAdminPanel: React.FC = () => {
       const [p, u] = await Promise.all([AdminService.listPlans(), AdminService.listUsers()]);
       setPlans(p);
       setUsers(u);
+      try {
+        const m = await AdminService.listMetrics();
+        setMetrics(new Map(m.map((x) => [x.userId, x])));
+        setMetricsError(null);
+      } catch (e: any) {
+        setMetricsError(e?.message || 'Falha ao carregar as métricas.');
+      }
     } catch (e: any) {
       setError(e?.message || 'Falha ao carregar a gestão.');
     } finally {
@@ -73,11 +97,29 @@ export const SystemAdminPanel: React.FC = () => {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter((u) => `${u.name} ${u.email}`.toLowerCase().includes(q));
-  }, [users, search]);
+    return users.filter(
+      (u) =>
+        (!q || `${u.name} ${u.email}`.toLowerCase().includes(q)) &&
+        (!planFilter || (planFilter === '__NONE__' ? !u.planCode : u.planCode === planFilter)) &&
+        (!statusFilter || u.status === statusFilter)
+    );
+  }, [users, search, planFilter, statusFilter]);
 
   const planName = (code: string | null) => plans.find((p) => p.code === code)?.name || code || '—';
+
+  const filtersEl = (
+    <UserFilters
+      search={search}
+      onSearch={setSearch}
+      planFilter={planFilter}
+      onPlan={setPlanFilter}
+      statusFilter={statusFilter}
+      onStatus={setStatusFilter}
+      plans={plans}
+      users={users}
+      shown={filtered.length}
+    />
+  );
 
   return (
     <div className="subtab-content animate-fade-in space-y-6">
@@ -112,6 +154,9 @@ export const SystemAdminPanel: React.FC = () => {
         <button className={`btn btn-sm ${tab === 'USUARIOS' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setTab('USUARIOS')}>
           Usuários ({users.length})
         </button>
+        <button className={`btn btn-sm ${tab === 'ENGAJAMENTO' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setTab('ENGAJAMENTO')}>
+          Engajamento
+        </button>
         <button className={`btn btn-sm ${tab === 'PLANOS' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setTab('PLANOS')}>
           Planos ({plans.length})
         </button>
@@ -126,16 +171,7 @@ export const SystemAdminPanel: React.FC = () => {
 
       {!loading && tab === 'USUARIOS' && (
         <div className="space-y-3">
-          <div style={{ position: 'relative' }}>
-            <Search size={14} style={{ position: 'absolute', left: 10, top: 12, opacity: 0.6 }} />
-            <input
-              className="form-input"
-              style={{ paddingLeft: 30 }}
-              placeholder="Buscar por nome ou e-mail"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
+          {filtersEl}
           <div className="admin-users-table-wrap">
             <table className="movements-table" style={{ width: '100%' }}>
               <thead>
@@ -227,6 +263,10 @@ export const SystemAdminPanel: React.FC = () => {
         </div>
       )}
 
+      {!loading && tab === 'ENGAJAMENTO' && (
+        <EngagementPanel users={users} plans={plans} metrics={metrics} metricsError={metricsError} filtered={filtered} filters={filtersEl} />
+      )}
+
       {!loading && tab === 'PLANOS' && (
         <PlansEditor plans={plans} users={users} onChanged={load} />
       )}
@@ -242,6 +282,193 @@ export const SystemAdminPanel: React.FC = () => {
           }}
         />
       )}
+    </div>
+  );
+};
+
+const UserFilters: React.FC<{
+  search: string;
+  onSearch: (v: string) => void;
+  planFilter: string;
+  onPlan: (v: string) => void;
+  statusFilter: SubscriptionStatus | '';
+  onStatus: (v: SubscriptionStatus | '') => void;
+  plans: SubscriptionPlan[];
+  users: ManagedUser[];
+  shown: number;
+}> = ({ search, onSearch, planFilter, onPlan, statusFilter, onStatus, plans, users, shown }) => {
+  const count = (fn: (u: ManagedUser) => boolean) => users.filter(fn).length;
+  const withoutPlan = count((u) => !u.planCode);
+  const filtering = !!(search || planFilter || statusFilter);
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+        <div style={{ position: 'relative', flex: '1 1 220px' }}>
+          <Search size={14} style={{ position: 'absolute', left: 10, top: 12, opacity: 0.6 }} />
+          <input
+            className="form-input"
+            style={{ paddingLeft: 30 }}
+            placeholder="Buscar por nome ou e-mail"
+            value={search}
+            onChange={(e) => onSearch(e.target.value)}
+          />
+        </div>
+        <select className="form-select" style={{ flex: '0 1 200px' }} value={planFilter} onChange={(e) => onPlan(e.target.value)} aria-label="Filtrar por plano">
+          <option value="">Todos os planos</option>
+          {plans.map((p) => (
+            <option key={p.code} value={p.code}>{p.name} ({count((u) => u.planCode === p.code)})</option>
+          ))}
+          {withoutPlan > 0 && <option value="__NONE__">Sem plano ({withoutPlan})</option>}
+        </select>
+        <select className="form-select" style={{ flex: '0 1 180px' }} value={statusFilter} onChange={(e) => onStatus(e.target.value as SubscriptionStatus | '')} aria-label="Filtrar por situação">
+          <option value="">Todas as situações</option>
+          {STATUSES.map((s) => (
+            <option key={s} value={s}>{STATUS_LABEL[s]} ({count((u) => u.status === s)})</option>
+          ))}
+        </select>
+        {filtering && (
+          <button className="btn btn-outline btn-sm" onClick={() => { onSearch(''); onPlan(''); onStatus(''); }}>
+            Limpar
+          </button>
+        )}
+      </div>
+      <small className="text-muted">{shown} de {users.length} usuário(s)</small>
+    </div>
+  );
+};
+
+type SortKey = 'SCORE' | 'RECENT' | 'MOVEMENTS' | 'DAYS' | 'FORSETI';
+
+const EngagementPanel: React.FC<{
+  users: ManagedUser[];
+  plans: SubscriptionPlan[];
+  metrics: Map<string, UserMetrics>;
+  metricsError: string | null;
+  filtered: ManagedUser[];
+  filters: React.ReactNode;
+}> = ({ users, plans, metrics, metricsError, filtered, filters }) => {
+  const [sort, setSort] = useState<SortKey>('SCORE');
+  const now = Date.now();
+
+  const summary = useMemo(() => {
+    const levels: Record<EngagementLevel, number> = { MUITO_ATIVO: 0, ATIVO: 0, POUCO_ATIVO: 0, INATIVO: 0 };
+    let movements = 0;
+    let forseti = 0;
+    for (const u of users) {
+      const m = metrics.get(u.userId);
+      levels[engagementLevel(m)] += 1;
+      movements += m?.movementsTotal ?? 0;
+      forseti += m?.forsetiActions ?? 0;
+    }
+    return { levels, movements, forseti };
+  }, [users, metrics]);
+
+  const rows = useMemo(() => {
+    const key = (u: ManagedUser) => {
+      const m = metrics.get(u.userId);
+      if (!m) return 0;
+      switch (sort) {
+        case 'RECENT': return m.lastActivityAt ? new Date(m.lastActivityAt).getTime() : 0;
+        case 'MOVEMENTS': return m.movementsTotal;
+        case 'DAYS': return m.activeDays30d;
+        case 'FORSETI': return m.forsetiActions;
+        default: return contributionScore(m);
+      }
+    };
+    return [...filtered].sort((a, b) => key(b) - key(a));
+  }, [filtered, metrics, sort]);
+
+  const planName = (code: string | null) => plans.find((p) => p.code === code)?.name || code || '—';
+  const ago = (iso: string | null) => {
+    if (!iso) return 'nunca';
+    const d = Math.floor((now - new Date(iso).getTime()) / 86_400_000);
+    return d <= 0 ? 'hoje' : d === 1 ? 'ontem' : `há ${d} dias`;
+  };
+
+  return (
+    <div className="space-y-4">
+      {metricsError && <div className="badge badge-rose">{metricsError}</div>}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem' }}>
+        {(Object.keys(ENGAGEMENT_LABEL) as EngagementLevel[]).map((l) => (
+          <div key={l} className="stat-card">
+            <div className="stat-card-header">
+              <span className="stat-card-label">{ENGAGEMENT_LABEL[l]}</span>
+              <Activity size={16} />
+            </div>
+            <div className="stat-card-value">{summary.levels[l]}</div>
+          </div>
+        ))}
+        <div className="stat-card">
+          <div className="stat-card-header"><span className="stat-card-label">Lançamentos</span></div>
+          <div className="stat-card-value">{summary.movements}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-card-header"><span className="stat-card-label">Ações da Forseti</span></div>
+          <div className="stat-card-value">{summary.forseti}</div>
+        </div>
+      </div>
+
+      {filters}
+
+      <div className="flex gap-2" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
+        <label className="text-muted" htmlFor="admin-sort">Ordenar por</label>
+        <select id="admin-sort" className="form-select" style={{ maxWidth: 240 }} value={sort} onChange={(e) => setSort(e.target.value as SortKey)}>
+          <option value="SCORE">Contribuição (pontos)</option>
+          <option value="RECENT">Atividade mais recente</option>
+          <option value="MOVEMENTS">Lançamentos</option>
+          <option value="DAYS">Dias ativos (30d)</option>
+          <option value="FORSETI">Uso da Forseti</option>
+        </select>
+      </div>
+
+      <div className="admin-users-table-wrap" style={{ display: 'block', overflowX: 'auto' }}>
+        <table className="movements-table" style={{ width: '100%' }}>
+          <thead>
+            <tr>
+              <th>Usuário</th>
+              <th>Nível</th>
+              <th>Pontos</th>
+              <th>Lançamentos (30d)</th>
+              <th>Dias ativos (30d)</th>
+              <th title="Contas, naturezas, metas, contratos e meios de pagamento">Cadastros</th>
+              <th title="Ações · úteis · não úteis">Forseti</th>
+              <th title="Memórias / conversas salvas">Memórias/Chats</th>
+              <th>Convites</th>
+              <th>Última atividade</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((u) => {
+              const m = metrics.get(u.userId);
+              const level = engagementLevel(m);
+              return (
+                <tr key={u.userId}>
+                  <td>
+                    <strong>{u.name || u.email.split('@')[0]}</strong>
+                    <br />
+                    <small className="text-muted">{u.email} · {planName(u.planCode)}</small>
+                  </td>
+                  <td><span className={`badge ${ENGAGEMENT_BADGE[level]}`}>{ENGAGEMENT_LABEL[level]}</span></td>
+                  <td><strong>{m ? contributionScore(m) : 0}</strong></td>
+                  <td>{m ? `${m.movements30d} (${m.movementsTotal} no total)` : '—'}</td>
+                  <td>{m?.activeDays30d ?? '—'}</td>
+                  <td>{m ? setupCount(m) : '—'}</td>
+                  <td>{m ? `${m.forsetiActions} · ${m.forsetiUseful} úteis · ${m.forsetiNotUseful} não` : '—'}</td>
+                  <td>{m ? `${m.forsetiMemories} / ${m.forsetiChats}` : '—'}</td>
+                  <td>{m?.sharesSent ?? '—'}</td>
+                  <td>{ago(m?.lastActivityAt ?? null)}</td>
+                </tr>
+              );
+            })}
+            {rows.length === 0 && <tr><td colSpan={10} className="text-muted">Nenhum usuário encontrado.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      <small className="text-muted">
+        Pontos = lançamentos (até 100) + 5 por dia ativo + 5 por avaliação da Forseti + 2 por ação da Forseti + 3 por memória
+        + 2 por cadastro/preço monitorado + 3 por convite. Inativo = sem atividade há mais de 14 dias.
+      </small>
     </div>
   );
 };
