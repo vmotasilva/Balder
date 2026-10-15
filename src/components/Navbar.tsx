@@ -116,6 +116,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           )}
 
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm navbar-simulate-btn"
+            onClick={onOpenSimulationModal}
+            title="Simular decisões de compra e crédito"
+          >
+            <Sparkles size={14} className="text-amber" />
+            <span>Simular Decisão</span>
+          </button>
+
           {/* O seletor de planejamento fica no Início; aqui só quando a conta aberta mostra apenas o
               planejamento compartilhado (não há Início para voltar ao próprio planejamento) */}
           {planningOnly && <PlanningSwitcher onPlanWithOthers={onPlanWithOthers} />}
@@ -216,15 +226,6 @@ export const Navbar: React.FC<NavbarProps> = ({
         )}
 
         {/* Quick Action Buttons */}
-        <button 
-          className="btn btn-secondary btn-sm navbar-simulate-btn"
-          onClick={onOpenSimulationModal}
-          title="Simular decisões de compra e crédito"
-        >
-          <Sparkles size={14} className="text-amber" />
-          <span>Simular Decisão</span>
-        </button>
-
         <button 
           className="btn btn-primary btn-sm"
           onClick={onOpenNewMovementModal}
