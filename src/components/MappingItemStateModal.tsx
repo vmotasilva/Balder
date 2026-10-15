@@ -16,13 +16,14 @@ import { Ban,
 import { Modal } from './Modal';
 import { ConfirmDialog, useConfirmDialog } from './ConfirmDialog';
 import { useFinancial } from '../context/FinancialContext';
-import type { MappingItemPaymentAction } from '../types';
+import type { MappingItem, MappingItemPaymentAction } from '../types';
 import {
   applyMappingItemState,
   getItemOccurrences,
   itemUnitPrice,
   registerItemPayment,
   removeItemPayment,
+  rescheduleOccurrence,
   resolveMappingItemMonth,
   resolveMappingItemState,
 } from '../utils/mappingItemState';
@@ -61,6 +62,15 @@ const monthLabel = (monthKey: string) => {
   const [y, m] = monthKey.split('-').map(Number);
   return new Date(y, (m || 1) - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 };
+
+type PayMethod = NonNullable<MappingItem['paymentMethod']>;
+const PAY_METHODS: { id: PayMethod; label: string }[] = [
+  { id: 'BOLETO', label: 'Boleto' },
+  { id: 'CONTA', label: 'Débito em conta' },
+  { id: 'PIX', label: 'Pix' },
+  { id: 'CARTAO', label: 'Cartão de crédito' },
+];
+const payMethodLabel = (id?: string) => PAY_METHODS.find((m) => m.id === id)?.label;
 
 // Motivos da diferença, com a ação sugerida para cada um
 const REASONS_ABOVE: { label: string; action: MappingItemPaymentAction }[] = [
@@ -223,6 +233,15 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
   const [feedback, setFeedback] = useState<string | null>(null);
   // Pergunta de "Desconsiderar": abater do previsto ou redistribuir
   const [skipAsk, setSkipAsk] = useState(false);
+  // Forma de pagamento deste pagamento (começa na definida na previsão do item)
+  const [payMethod, setPayMethod] = useState<PayMethod | undefined>(undefined);
+
+  // ── Previsão (aba Situação): data prevista e forma de pagamento do item ────
+  const [schedFrom, setSchedFrom] = useState('');
+  const [schedTo, setSchedTo] = useState('');
+  const [schedScope, setSchedScope] = useState<'ONE' | 'FUTURE'>('ONE');
+  const [planMethod, setPlanMethod] = useState<PayMethod | undefined>(undefined);
+  const [planFeedback, setPlanFeedback] = useState<string | null>(null);
 
   const monthKey = target?.monthKey || '';
   const summary = useMemo(() => (item && monthKey ? resolveMappingItemMonth(item, monthKey) : null), [item, monthKey]);
@@ -244,6 +263,14 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
     setTab('PAGAMENTOS');
     setFeedback(null);
     resetPaymentForm(target.occurrenceDate);
+    const summaryNow = resolveMappingItemMonth(item, target.monthKey);
+    const open = getItemOccurrences(item, target.monthKey).filter((o) => !summaryNow.coveredDates.has(o.date));
+    const first = target.occurrenceDate && open.some((o) => o.date === target.occurrenceDate) ? target.occurrenceDate : open[0]?.date || '';
+    setSchedFrom(first);
+    setSchedTo(first);
+    setSchedScope('ONE');
+    setPlanMethod(item.paymentMethod);
+    setPlanFeedback(null);
   }, [target]);
 
   const resetPaymentForm = (referenceDate?: string) => {
@@ -262,6 +289,7 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
     setReason('');
     setCustomReason('');
     setAction(null);
+    setPayMethod(item?.paymentMethod);
   };
 
   // Cada data vale o previsto mais o que foi redistribuído para ela
@@ -335,6 +363,7 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
         coveredDates: selectedDates,
         reason: hasDiff ? finalReason : undefined,
         action: hasDiff && action ? action : undefined,
+        paymentMethod: payMethod,
       })
     );
     setFeedback(
@@ -422,6 +451,38 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
         setFeedback(null);
       },
     });
+  };
+
+  const openForSchedule = occurrences.filter((o) => !summary?.coveredDates.has(o.date));
+  const monthFirst = `${monthKey}-01`;
+  const monthLast = `${monthKey}-${String(new Date(Number(monthKey.slice(0, 4)), Number(monthKey.slice(5, 7)), 0).getDate()).padStart(2, '0')}`;
+  const dateChanged = !!schedFrom && !!schedTo && schedTo !== schedFrom;
+  const methodChanged = planMethod !== item?.paymentMethod;
+
+  const handleSavePlan = () => {
+    if (!item) return;
+    const patch: Partial<MappingItem> = {};
+    let dateMsg = '';
+    if (dateChanged) {
+      const moved = rescheduleOccurrence(item, target.monthKey, schedFrom, schedTo, schedScope);
+      if (Object.keys(moved).length === 0) {
+        setPlanFeedback('Essa data não pode ser usada: já existe uma cobrança nela ou fica fora de ' + month + '.');
+        return;
+      }
+      Object.assign(patch, moved);
+      dateMsg = `Data prevista de ${formatDate(schedFrom)} para ${formatDate(schedTo)}${schedScope === 'FUTURE' ? ', valendo também para os próximos meses' : ''}.`;
+    }
+    if (methodChanged) patch.paymentMethod = planMethod;
+    if (Object.keys(patch).length === 0) {
+      setPlanFeedback('Nada mudou na previsão.');
+      return;
+    }
+    updateMappingItemState(target.natureId, target.mappingId, target.itemId, patch);
+    setPlanFeedback(
+      [dateMsg, methodChanged ? `Forma de pagamento: ${payMethodLabel(planMethod) || 'não definida'}.` : ''].filter(Boolean).join(' ')
+    );
+    setSchedFrom(schedTo);
+    setPayMethod(planMethod);
   };
 
   const handleSaveSituation = () => {
@@ -526,6 +587,7 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
                             <div style={{ color: 'var(--text-primary)' }}>
                               <strong>{formatBRL(p.amount)}</strong> em {formatDate(p.paidAt)} • cobre{' '}
                               {p.coveredDates.map(formatDate).join(', ')}
+                              {payMethodLabel(p.paymentMethod) ? ` • ${payMethodLabel(p.paymentMethod)}` : ''}
                             </div>
                             {Math.abs(pDiff) >= 0.01 && (
                               <div style={{ color: '#FBBF24', marginTop: '2px' }}>
@@ -653,6 +715,12 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
                         />
                       </label>
                     </div>
+
+                    <Question title="Forma de pagamento">
+                      {PAY_METHODS.map((m) => (
+                        <Choice key={m.id} compact active={payMethod === m.id} onClick={() => setPayMethod(payMethod === m.id ? undefined : m.id)} label={m.label} />
+                      ))}
+                    </Question>
 
                     {/* Diferença: por quê e o que fazer */}
                     {hasDiff && (
@@ -831,6 +899,100 @@ export const MappingItemStateModal: React.FC<MappingItemStateModalProps> = ({ ta
                   <button type="button" className="btn btn-primary btn-sm" onClick={handleSaveSituation}>
                     Salvar situação
                   </button>
+                </div>
+
+                {/* Previsão: ajuste de data e forma de pagamento, já como correção para os próximos meses */}
+                <div
+                  style={{
+                    marginTop: '18px',
+                    paddingTop: '14px',
+                    borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                  }}
+                >
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '10px' }}>Ajustar a previsão</div>
+
+                  {openForSchedule.length > 0 ? (
+                    <>
+                      {openForSchedule.length > 1 && (
+                        <Question title="Qual data muda?">
+                          {openForSchedule.map((o) => (
+                            <Choice
+                              key={o.date}
+                              compact
+                              active={schedFrom === o.date}
+                              onClick={() => {
+                                setSchedFrom(o.date);
+                                setSchedTo(o.date);
+                              }}
+                              label={`${formatDate(o.date)} ${weekday(o.date)}`}
+                            />
+                          ))}
+                        </Question>
+                      )}
+                      <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                        Nova data prevista{schedFrom ? ` (hoje ${formatDate(schedFrom)})` : ''}
+                        <DateInput
+                          type="date"
+                          className="form-input"
+                          value={schedTo}
+                          min={monthFirst}
+                          max={monthLast}
+                          onChange={(e) => setSchedTo(e.target.value)}
+                          style={{ width: '100%', marginTop: '4px' }}
+                        />
+                      </label>
+                      {dateChanged && (
+                        <Question title="Vale só para este mês ou também para os próximos?">
+                          <Choice
+                            active={schedScope === 'ONE'}
+                            onClick={() => setSchedScope('ONE')}
+                            icon={<CalendarCheck size={16} />}
+                            label={`Só em ${month}`}
+                            hint="Os outros meses seguem no dia original"
+                          />
+                          <Choice
+                            active={schedScope === 'FUTURE'}
+                            onClick={() => setSchedScope('FUTURE')}
+                            icon={<CalendarRange size={16} />}
+                            label="Corrigir daqui em diante"
+                            hint="O dia previsto do item muda nos próximos meses"
+                          />
+                        </Question>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted" style={{ marginBottom: '12px' }}>
+                      Todas as datas de {month} já foram pagas: não há data prevista para mudar neste mês.
+                    </p>
+                  )}
+
+                  <Question title="Como este pagamento é feito?">
+                    {PAY_METHODS.map((m) => (
+                      <Choice
+                        key={m.id}
+                        compact
+                        active={planMethod === m.id}
+                        onClick={() => setPlanMethod(planMethod === m.id ? undefined : m.id)}
+                        label={m.label}
+                      />
+                    ))}
+                  </Question>
+                  {planMethod === 'CARTAO' && (
+                    <p className="text-xs text-muted" style={{ margin: '-6px 0 12px' }}>
+                      No cartão, o gasto entra pela fatura e sai do previsto de caixa deste item.
+                    </p>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '10px' }}>
+                    {planFeedback && (
+                      <span role="status" style={{ flex: 1, fontSize: '12px', color: '#34D399' }}>
+                        {planFeedback}
+                      </span>
+                    )}
+                    <button type="button" className="btn btn-primary btn-sm" onClick={handleSavePlan} disabled={!dateChanged && !methodChanged}>
+                      Salvar previsão
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

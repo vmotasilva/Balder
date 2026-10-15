@@ -54,14 +54,39 @@ export function getEffectiveDayOfMonth(desiredDay: number, year: number, month: 
   return Math.min(Math.max(1, desiredDay), daysInMonth);
 }
 
+type ManifestationDays = { days: number[]; periodType: 'DIARIO' | 'SEMANAL' | 'QUINZENAL' | 'MENSAL' };
+
 /**
- * Retorna os dias de manifestação de um item dentro de uma competência (ano, mês).
+ * Retorna os dias de manifestação de um item dentro de uma competência (ano, mês), já com os ajustes de data:
+ * o dia previsto vigente (`dayRules`) e as datas movidas só nesta competência (`dateMoves`).
  */
-export function getItemManifestationDays(
-  item: MappingItem,
-  year: number,
-  month: number
-): { days: number[]; periodType: 'DIARIO' | 'SEMANAL' | 'QUINZENAL' | 'MENSAL' } {
+export function getItemManifestationDays(item: MappingItem, year: number, month: number): ManifestationDays {
+  const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+  const rule = (item.dayRules || [])
+    .filter((r) => r.fromMonth <= monthKey)
+    .sort((a, b) => a.fromMonth.localeCompare(b.fromMonth))
+    .pop();
+  const effective: MappingItem = rule
+    ? {
+        ...item,
+        dayOfMonth: rule.dayOfMonth ?? item.dayOfMonth,
+        dayOfFortnight: rule.dayOfFortnight ?? item.dayOfFortnight,
+        dayOfWeek: rule.dayOfWeek ?? item.dayOfWeek,
+      }
+    : item;
+  const base = baseManifestationDays(effective, year, month);
+  const moves = item.dateMoves?.[monthKey];
+  if (!moves) return base;
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const days = new Set<number>();
+  base.days.forEach((d) => {
+    const moved = moves[`${monthKey}-${String(d).padStart(2, '0')}`];
+    days.add(moved && moved.startsWith(monthKey) ? Math.min(Number(moved.slice(8, 10)), daysInMonth) : d);
+  });
+  return { days: [...days].sort((a, b) => a - b), periodType: base.periodType };
+}
+
+function baseManifestationDays(item: MappingItem, year: number, month: number): ManifestationDays {
   const daysInMonth = new Date(year, month, 0).getDate();
 
   const recType: 'DIARIO' | 'SEMANAL' | 'QUINZENAL' | 'MENSAL' =
