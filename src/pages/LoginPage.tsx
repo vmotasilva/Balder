@@ -5,7 +5,8 @@ import { AndroidDownloadModal } from '../components/AndroidDownloadModal';
 import { IosInstallModal, isIOS, isStandalone } from '../components/IosInstallModal';
 
 export const LoginPage: React.FC = () => {
-  const { loginWithGoogle } = useAuth();
+  const { loginWithGoogle, savedAccounts, switchAccount } = useAuth();
+  const [switchError, setSwitchError] = useState('');
   const [showAndroidModal, setShowAndroidModal] = useState(false);
   // Link direto para as instruções do iPhone: balder-one.vercel.app/#iphone
   const [showIosModal, setShowIosModal] = useState(() => typeof window !== 'undefined' && window.location.hash === '#iphone');
@@ -38,6 +39,32 @@ export const LoginPage: React.FC = () => {
           <Shield size={14} className="security-icon" />
           <span>Multi-tenant Isolado • Dados Criptografados no Supabase (RLS)</span>
         </div>
+
+        {/* Contas já conectadas neste aparelho */}
+        {savedAccounts.length > 0 && (
+          <div className="login-saved-accounts" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '1.25rem' }}>
+            <span style={{ fontSize: '12px', color: '#94a3b8' }}>Entrar com uma conta salva</span>
+            {savedAccounts.map((acc) => (
+              <button
+                key={acc.id}
+                type="button"
+                className="btn-google-oauth"
+                style={{ width: '100%', justifyContent: 'flex-start', textAlign: 'left' }}
+                onClick={async () => {
+                  setSwitchError('');
+                  const res = await switchAccount(acc.id);
+                  if (!res.success) setSwitchError(res.error || 'Não foi possível entrar.');
+                }}
+              >
+                <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                  <span style={{ fontWeight: 600 }}>{acc.name}</span>
+                  <span style={{ fontSize: '12px', opacity: 0.7 }}>{acc.email}</span>
+                </span>
+              </button>
+            ))}
+            {switchError && <span style={{ fontSize: '12px', color: '#f43f5e' }}>{switchError}</span>}
+          </div>
+        )}
 
         {/* OAuth Authentication Section */}
         <div className="login-oauth-section" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '1.5rem' }}>

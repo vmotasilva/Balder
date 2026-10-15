@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { ReferralService } from '../services/referralService';
 import { clearAllChats } from '../utils/forsetiChatStore';
+import { listSavedAccounts, removeSavedAccount, upsertSavedAccount, type SavedAccount } from '../utils/accountStore';
 
 export interface AppUser {
   $id: string; // Mapeado a partir de user.id do Supabase para total compatibilidade retroativa
@@ -24,6 +26,13 @@ interface AuthContextType {
   registerWithEmail: (email: string, pass: string, name: string) => Promise<{ success: boolean; error?: string }>;
   continueAsGuest: () => void;
   logout: () => Promise<void>;
+  /** Contas conectadas neste aparelho (inclui a ativa). */
+  savedAccounts: SavedAccount[];
+  /** Troca para outra conta já conectada; recarrega o app em caso de sucesso. */
+  switchAccount: (id: string) => Promise<{ success: boolean; error?: string }>;
+  /** Mantém as contas salvas e abre a tela de login para entrar com outro e-mail. */
+  addAccount: () => Promise<void>;
+  removeAccount: (id: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,6 +41,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AppUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [systemRole, setSystemRole] = useState<SystemRole>('USUARIO');
+  const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>(() => listSavedAccounts());
 
   const userId = user && !user.isGuest ? user.$id : null;
   // Quem chegou por um link de convite fica ligado a quem indicou (uma vez; o banco recusa contas antigas)
@@ -68,6 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Escuta mudanças de autenticação no Supabase em tempo real
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
+        rememberSession(session);
         setUser((prev) => {
           if (prev && !prev.isGuest && prev.$id === session.user.id && prev.email === (session.user.email || '')) {
             return prev;
@@ -101,11 +112,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  // Guarda (e mantém atualizados) os tokens da conta ativa para poder voltar a ela depois de alternar
+  const rememberSession = (session: Session) => {
+    setSavedAccounts(
+      upsertSavedAccount({
+        id: session.user.id,
+        email: session.user.email || '',
+        name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Usuário',
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+      }),
+    );
+  };
+
   const checkSession = async () => {
     try {
       if (isSupabaseConfigured) {
         const { data: { session }, error } = await supabase.auth.getSession();
         if (session?.user && !error) {
+          rememberSession(session);
           setUser((prev) => {
             if (prev && !prev.isGuest && prev.$id === session.user.id && prev.email === (session.user.email || '')) {
               return prev;
@@ -193,6 +218,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         provider: 'google',
         options: {
           redirectTo: currentUrl,
+          // Com contas já salvas, deixa escolher outro e-mail em vez de reaproveitar o último do Google
+          ...(listSavedAccounts().length > 0 ? { queryParams: { prompt: 'select_account' } } : {}),
         },
       });
       if (error) {
@@ -292,6 +319,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     try {
       if (!user?.isGuest && isSupabaseConfigured) {
+        if (user) setSavedAccounts(removeSavedAccount(user.$id));
         await supabase.auth.signOut();
       }
     } catch (error) {
@@ -303,6 +331,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(null);
     }
   };
+
+  const switchAccount = async (id: string) => {
+    const target = listSavedAccounts().find((a) => a.id === id);
+    if (!target) return { success: false, error: 'Conta não encontrada neste aparelho.' };
+    if (user && !user.isGuest && user.$id === id) return { success: true };
+    try {
+      const { error } = await supabase.auth.setSession({
+        access_token: target.access_token,
+        refresh_token: target.refresh_token,
+      });
+      if (error) {
+        // Sessão expirada ou revogada: a conta precisa entrar de novo
+        setSavedAccounts(removeSavedAccount(id));
+        return { success: false, error: `A sessão de ${target.email} expirou. Entre novamente com essa conta.` };
+      }
+      // Recarrega para nenhum dado da conta anterior ficar em memória
+      window.location.reload();
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e?.message || 'Falha ao trocar de conta' };
+    }
+  };
+
+  const addAccount = async () => {
+    try {
+      // scope local: sai deste aparelho sem revogar a sessão (que continua salva para voltar depois)
+      if (!user?.isGuest && isSupabaseConfigured) await supabase.auth.signOut({ scope: 'local' });
+    } catch (error) {
+      console.error('Add account error', error);
+    } finally {
+      sessionStorage.removeItem('balder_guest_user');
+      setUser(null);
+    }
+  };
+
+  const removeAccount = (id: string) => setSavedAccounts(removeSavedAccount(id));
 
   return (
     <AuthContext.Provider
@@ -316,6 +380,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         registerWithEmail,
         continueAsGuest,
         logout,
+        savedAccounts,
+        switchAccount,
+        addAccount,
+        removeAccount,
       }}
     >
       {children}
