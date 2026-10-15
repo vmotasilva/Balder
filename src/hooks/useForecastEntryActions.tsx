@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { useAccountScope } from '../context/AccountScopeContext';
-import { getItemOccurrences } from '../utils/mappingItemState';
+import { getItemOccurrences, waiveMappingPeriod } from '../utils/mappingItemState';
+import { trackingPeriodRange } from '../utils/periodSpending';
 import type { ForecastEntry } from '../utils/forecastWindow';
 import { MappingItemStateModal, type MappingItemStateTarget } from '../components/MappingItemStateModal';
 import { MappingPaymentModal, type MappingPaymentTarget } from '../components/MappingPaymentModal';
@@ -73,6 +74,7 @@ export function useForecastEntryActions(onNavigate: (tab: 'FATURAS' | 'NATUREZAS
               itemIds: mapping.items.filter((it) => it.paymentMethod !== 'CARTAO').map((it) => it.id),
               monthKey: entry.date.slice(0, 7),
               title: mapping.name,
+              forecastDate: entry.date,
             })
           }
         >
@@ -171,6 +173,36 @@ export function useForecastEntryActions(onNavigate: (tab: 'FATURAS' | 'NATUREZAS
    * pago por outra pessoa...) e lançamentos soltos podem ser desconsiderados (viram cancelados).
    */
   const renderSecondary = (entry: ForecastEntry) => {
+    // Mapeamento em Resumo: tira do previsto a compra da semana, sem lançar pagamento
+    if (entry.source === 'NATUREZA' && entry.mappingSummary && entry.natureId && entry.mappingId) {
+      const mapping = natures.find((n) => n.id === entry.natureId)?.mappings.find((m) => m.id === entry.mappingId);
+      if (!mapping) return null;
+      const monthKey = entry.date.slice(0, 7);
+      const week = trackingPeriodRange('SEMANA', new Date(Number(entry.date.slice(0, 4)), Number(entry.date.slice(5, 7)) - 1, Number(entry.date.slice(8, 10))));
+      const monthStart = `${monthKey}-01`;
+      const range = { from: week.from < monthStart ? monthStart : week.from, to: week.to };
+      const scope = { items: mapping.items.filter((it) => it.paymentMethod !== 'CARTAO') };
+      return (
+        <button
+          type="button"
+          className="btn btn-secondary btn-xs"
+          onClick={() =>
+            confirmAction({
+              title: 'Desconsiderar previsto',
+              message: `A compra prevista de ${mapping.name} nesta semana deixa de contar no previsto. Nenhum pagamento é lançado.`,
+              confirmLabel: 'Desconsiderar',
+              variant: 'warning',
+              onConfirm: () =>
+                waiveMappingPeriod(scope, monthKey, range).changes.forEach((c) =>
+                  updateMappingItemState(entry.natureId!, mapping.id, c.itemId, c.patch)
+                ),
+            })
+          }
+        >
+          Desconsiderar
+        </button>
+      );
+    }
     if (entry.source === 'NATUREZA') {
       const found = entry.mappingSummary ? null : findNatureItem(entry);
       if (!found) return null;

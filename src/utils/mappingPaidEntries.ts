@@ -49,7 +49,18 @@ export function collectMappingPaidEntries(items: MappingItem[], monthKey: string
         const key = `mp_${p.mappingPaymentId}`;
         const cur = entries.get(key);
         if (cur) cur.amount = round2(cur.amount + p.amount);
-        else entries.set(key, { id: key, date: p.paidAt, amount: round2(p.amount), text: 'Pagamento lançado no mapeamento', viaForseti: false });
+        else {
+          const mv = p.movementId ? movements.find((m) => m.id === p.movementId) : undefined;
+          if (mv) used.add(mv.id);
+          entries.set(key, {
+            id: key,
+            date: p.paidAt,
+            amount: round2(p.amount),
+            text: mv ? cleanTitle(mv.title) || 'Gasto associado ao mapeamento' : 'Pagamento lançado no mapeamento',
+            viaForseti: isForseti(mv),
+            detail: mv?.bank || undefined,
+          });
+        }
         return;
       }
       const mv = findMovement(item, p.amount, p.paidAt, p.movementId);

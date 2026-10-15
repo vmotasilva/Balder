@@ -22788,7 +22788,66 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 .mapping-pay-actions {
   display: flex;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+.mapping-pay-discard {
+  margin-right: auto;
+}
+
+/* Gasto já feito na semana que pode ser a compra prevista */
+.mapping-pay-suggest {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--accent-amber, var(--border-default));
+  background: var(--bg-card-elevated);
+}
+
+.mapping-pay-suggest-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.mapping-pay-suggest ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.mapping-pay-suggest li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 13px;
+}
+
+.mapping-pay-suggest li + li {
+  border-top: 1px solid var(--border-default);
+}
+
+.mapping-pay-suggest li.is-linked {
+  font-weight: 600;
+}
+
+.mapping-pay-suggest-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mapping-pay-suggest small {
+  color: var(--text-secondary);
 }
 
 /* Pergunta "o restante do previsto se mantém?" depois de pagar menos que o previsto do período */
