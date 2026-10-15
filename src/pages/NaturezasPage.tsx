@@ -150,12 +150,21 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
 
   // Modal para Mover Item entre Mapeamentos / Naturezas
   const [moveItemModalData, setMoveItemModalData] = useState<{
-    item: MappingItem;
+    items: MappingItem[];
     sourceNatureId: string;
     sourceMappingId: string;
     targetNatureId: string;
     targetMappingId: string;
   } | null>(null);
+
+  // Seleção em massa de itens (sempre de um único mapeamento por vez)
+  const [bulkSelection, setBulkSelection] = useState<{ mappingId: string; ids: string[] } | null>(null);
+  const toggleBulkItem = (mappingId: string, itemId: string) =>
+    setBulkSelection((prev) => {
+      const ids = prev && prev.mappingId === mappingId ? prev.ids : [];
+      const next = ids.includes(itemId) ? ids.filter((x) => x !== itemId) : [...ids, itemId];
+      return next.length ? { mappingId, ids: next } : null;
+    });
 
   // Modal de Palavras-chave
   const [keywordsModalMapping, setKeywordsModalMapping] = useState<FixedExpenseMapping | null>(null);
@@ -1995,11 +2004,72 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                           <>
                             {/* TABELA DE ITENS DO MAPEAMENTO COM EDIÇÃO INLINE */}
                             <MappingDirectPlanned natureId={selectedNature.id} mapping={mapping} />
+                            {(() => {
+                              const sel = bulkSelection && bulkSelection.mappingId === mapping.id ? bulkSelection.ids : [];
+                              if (sel.length === 0) return null;
+                              const selItems = mapping.items.filter((it) => sel.includes(it.id));
+                              return (
+                                <div
+                                  className="mt-3"
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap',
+                                    padding: '8px 12px', borderRadius: '10px',
+                                    background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.3)',
+                                    fontSize: '12.5px', color: 'var(--text-secondary)',
+                                  }}
+                                >
+                                  <strong style={{ color: '#FCD34D' }}>
+                                    {sel.length} {sel.length === 1 ? 'item selecionado' : 'itens selecionados'}
+                                  </strong>
+                                  <span style={{ flex: 1 }} />
+                                  <button
+                                    type="button"
+                                    className="btn btn-outline btn-sm"
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', color: '#FCD34D' }}
+                                    onClick={() =>
+                                      setMoveItemModalData({
+                                        items: selItems,
+                                        sourceNatureId: selectedNature.id,
+                                        sourceMappingId: mapping.id,
+                                        targetNatureId: selectedNature.id,
+                                        targetMappingId: mapping.id,
+                                      })
+                                    }
+                                  >
+                                    <ArrowRightLeft size={13} />
+                                    <span>Mover selecionados</span>
+                                  </button>
+                                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setBulkSelection(null)}>
+                                    Limpar
+                                  </button>
+                                </div>
+                              );
+                            })()}
                             <div className="mapping-items-table-wrapper mt-3">
                               <table className="natureza-items-table">
                             <thead>
                               <tr>
-                                <th style={{ width: '25%' }}>Descrição / Item</th>
+                                <th style={{ width: '25%' }}>
+                                  {(() => {
+                                    const visible = mapping.items.filter((it) => !it.isMappingBase);
+                                    const sel = bulkSelection && bulkSelection.mappingId === mapping.id ? bulkSelection.ids : [];
+                                    const all = visible.length > 0 && visible.every((it) => sel.includes(it.id));
+                                    return (
+                                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                        <input
+                                          type="checkbox"
+                                          checked={all}
+                                          disabled={visible.length === 0}
+                                          title="Selecionar todos os itens deste mapeamento"
+                                          onChange={() =>
+                                            setBulkSelection(all ? null : { mappingId: mapping.id, ids: visible.map((it) => it.id) })
+                                          }
+                                        />
+                                        <span>Descrição / Item</span>
+                                      </label>
+                                    );
+                                  })()}
+                                </th>
                                 <th style={{ width: '9%' }}>Qtd</th>
                                 <th style={{ width: '12%' }}>Preço Unit.</th>
                                 <th style={{ width: '22%' }}>Dia de Manifestação</th>
@@ -2190,6 +2260,13 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                     <td>
                                       <div className="item-desc-cell" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={!!bulkSelection && bulkSelection.mappingId === mapping.id && bulkSelection.ids.includes(item.id)}
+                                            onChange={() => toggleBulkItem(mapping.id, item.id)}
+                                            title="Selecionar para mover em massa"
+                                            aria-label={`Selecionar ${item.description}`}
+                                          />
                                         <span
                                             className="font-semibold text-white"
                                           >
@@ -2311,7 +2388,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                           title="Mover item para outra natureza ou mapeamento"
                                           onClick={() => {
                                             setMoveItemModalData({
-                                              item,
+                                              items: [item],
                                               sourceNatureId: selectedNature.id,
                                               sourceMappingId: mapping.id,
                                               targetNatureId: selectedNature.id,
@@ -2897,7 +2974,11 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
         <Modal
           isOpen={!!moveItemModalData}
           onClose={() => setMoveItemModalData(null)}
-          title={`Mover Item: "${moveItemModalData.item.description}"`}
+          title={
+            moveItemModalData.items.length === 1
+              ? `Mover Item: "${moveItemModalData.items[0].description}"`
+              : `Mover ${moveItemModalData.items.length} Itens`
+          }
           maxWidth="520px"
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -2926,9 +3007,17 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                 </span>
               </div>
               <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
-                Item: <strong style={{ color: '#fff' }}>{moveItemModalData.item.description}</strong> • Valor:{' '}
+                {moveItemModalData.items.length === 1 ? 'Item' : 'Itens'}:{' '}
+                <strong style={{ color: '#fff' }}>
+                  {moveItemModalData.items.length === 1
+                    ? moveItemModalData.items[0].description
+                    : moveItemModalData.items.map((i) => i.description).join(', ')}
+                </strong>{' '}
+                • Valor:{' '}
                 <strong style={{ color: '#67E8F9' }}>
-                  {moveItemModalData.item.totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  {moveItemModalData.items
+                    .reduce((acc, i) => acc + i.totalValue, 0)
+                    .toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                 </strong>
               </div>
             </div>
@@ -3035,15 +3124,16 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                     moveItemModalData.sourceMappingId,
                     moveItemModalData.targetNatureId,
                     moveItemModalData.targetMappingId,
-                    moveItemModalData.item.id
+                    moveItemModalData.items.map((i) => i.id)
                   );
                   if (success) {
                     setMoveItemModalData(null);
+                    setBulkSelection(null);
                   }
                 }}
               >
                 <ArrowRightLeft size={14} />
-                <span>Confirmar e Mover Item</span>
+                <span>{moveItemModalData.items.length === 1 ? 'Confirmar e Mover Item' : `Confirmar e Mover ${moveItemModalData.items.length} Itens`}</span>
               </button>
             </div>
           </div>

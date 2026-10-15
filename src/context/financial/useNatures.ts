@@ -381,86 +381,54 @@ export function useNatures({
     fromMappingId: string,
     toNatureId: string,
     toMappingId: string,
-    itemId: string
+    itemIds: string | string[]
   ): boolean => {
-    let movedItem: MappingItem | null = null;
+    const ids = new Set(Array.isArray(itemIds) ? itemIds : [itemIds]);
+    if (ids.size === 0) return false;
+    if (fromNatureId === toNatureId && fromMappingId === toMappingId) return false;
+
+    // Confere no estado atual que há o que mover (o updater roda de forma adiada)
+    const source = natures
+      .find((n) => n.id === fromNatureId)
+      ?.mappings.find((m) => m.id === fromMappingId);
+    if (!source || !source.items.some((x) => ids.has(x.id))) return false;
 
     setNatures((prev) => {
-      // 1. Localizar o item a ser movido
-      for (const nat of prev) {
-        if (nat.id === fromNatureId) {
-          const m = nat.mappings.find((x) => x.id === fromMappingId);
-          if (m) {
-            const it = m.items.find((x) => x.id === itemId);
-            if (it) {
-              movedItem = it;
-              break;
-            }
-          }
-        }
-      }
-
-      if (!movedItem) return prev;
+      const fromMapping = prev
+        .find((n) => n.id === fromNatureId)
+        ?.mappings.find((m) => m.id === fromMappingId);
+      const moved = (fromMapping?.items || []).filter((x) => ids.has(x.id));
+      if (moved.length === 0) return prev;
 
       let updatedFromMappings: FixedExpenseMapping[] = [];
       let updatedToMappings: FixedExpenseMapping[] = [];
 
       const next = prev.map((nat) => {
-        // Se a movimentação for dentro da mesma natureza
-        if (fromNatureId === toNatureId && nat.id === fromNatureId) {
-          const newMappings = nat.mappings.map((m) => {
-            if (m.id === fromMappingId && m.id === toMappingId) {
-              return m; // sem alteração se o destino for o mesmo
-            }
-            if (m.id === fromMappingId) {
-              return { ...m, items: m.items.filter((x) => x.id !== itemId) };
-            }
-            if (m.id === toMappingId) {
-              return { ...m, items: [...m.items, movedItem!] };
-            }
-            return m;
-          });
-          updatedFromMappings = newMappings;
-          return { ...nat, mappings: newMappings };
-        }
-
-        // Movimentação entre naturezas distintas
-        if (nat.id === fromNatureId) {
-          const newMappings = nat.mappings.map((m) => {
-            if (m.id === fromMappingId) {
-              return { ...m, items: m.items.filter((x) => x.id !== itemId) };
-            }
-            return m;
-          });
-          updatedFromMappings = newMappings;
-          return { ...nat, mappings: newMappings };
-        }
-
-        if (nat.id === toNatureId) {
-          const newMappings = nat.mappings.map((m) => {
-            if (m.id === toMappingId) {
-              return { ...m, items: [...m.items, movedItem!] };
-            }
-            return m;
-          });
-          updatedToMappings = newMappings;
-          return { ...nat, mappings: newMappings };
-        }
-
-        return nat;
+        const isFrom = nat.id === fromNatureId;
+        const isTo = nat.id === toNatureId;
+        if (!isFrom && !isTo) return nat;
+        const newMappings = nat.mappings.map((m) => {
+          if (isFrom && m.id === fromMappingId) {
+            return { ...m, items: m.items.filter((x) => !ids.has(x.id)) };
+          }
+          if (isTo && m.id === toMappingId) {
+            return { ...m, items: [...m.items, ...moved] };
+          }
+          return m;
+        });
+        if (isFrom) updatedFromMappings = newMappings;
+        if (isTo) updatedToMappings = newMappings;
+        return { ...nat, mappings: newMappings };
       });
 
-      if (fromNatureId === toNatureId) {
-        saveNaturesData(next, fromNatureId, { mappings: updatedFromMappings });
-      } else {
-        saveNaturesData(next, fromNatureId, { mappings: updatedFromMappings });
+      saveNaturesData(next, fromNatureId, { mappings: updatedFromMappings });
+      if (fromNatureId !== toNatureId) {
         saveNaturesData(next, toNatureId, { mappings: updatedToMappings });
       }
-
       return next;
     });
 
-    return !!movedItem;
+    return true;
   };
 
   // Mover posição do Mapeamento (para cima ou para baixo)

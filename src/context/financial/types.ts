@@ -195,7 +195,7 @@ export interface FinancialContextType {
     state: Partial<MappingItem>
   ) => void;
   deleteMappingItem: (natureId: string, mappingId: string, itemId: string) => void;
-  moveMappingItem: (fromNatureId: string, fromMappingId: string, toNatureId: string, toMappingId: string, itemId: string) => boolean;
+  moveMappingItem: (fromNatureId: string, fromMappingId: string, toNatureId: string, toMappingId: string, itemIds: string | string[]) => boolean;
   moveMappingOrder: (natureId: string, mappingId: string, direction: 'UP' | 'DOWN') => void;
   reorderMappings: (natureId: string, newMappings: FixedExpenseMapping[]) => void;
   toggleItemFulfilled: (natureId: string, mappingId: string, itemId: string) => void;
