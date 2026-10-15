@@ -304,6 +304,7 @@ export interface MappingMonthPayment {
   paidAt: string;
   amount: number;
   waived: number; // previsto dispensado junto com este pagamento
+  movementId?: string; // gasto já existente que este lançamento associou ao mapeamento
 }
 
 export interface MappingMonthSummary {
@@ -329,7 +330,8 @@ export function resolveMappingMonth(mapping: MappingLike, monthKey: string): Map
     pending += s.pending;
     s.payments.forEach((p) => {
       if (!p.mappingPaymentId) return;
-      const agg = byPayment.get(p.mappingPaymentId) || { id: p.mappingPaymentId, paidAt: p.paidAt, amount: 0, waived: 0 };
+      const agg: MappingMonthPayment =
+        byPayment.get(p.mappingPaymentId) || { id: p.mappingPaymentId, paidAt: p.paidAt, amount: 0, waived: 0, movementId: p.movementId };
       agg.amount = round2(agg.amount + p.amount);
       agg.waived = round2(agg.waived + (p.waived || 0));
       byPayment.set(p.mappingPaymentId, agg);
@@ -347,15 +349,17 @@ export function resolveMappingMonth(mapping: MappingLike, monthKey: string): Map
  * Lança um pagamento no mapeamento. Devolve, por item, as alterações a gravar.
  * O valor é dividido na proporção do previsto de cada item no mês (o último fica com o arredondamento).
  * `waive` é o restante do previsto que não se mantém: sai do previsto, dividido do mesmo jeito, sem contar como pago.
+ * Com valor zero e `waive`, só desconsidera o previsto (nada foi gasto). `movementId` é o gasto já existente que o
+ * pagamento associa (cada parte guarda o id, para desfazer e para não contar o gasto duas vezes).
  */
 export function registerMappingPayment(
   mapping: MappingLike,
   monthKey: string,
-  input: { paidAt: string; amount: number; waive?: number }
+  input: { paidAt: string; amount: number; waive?: number; movementId?: string }
 ): { itemId: string; patch: Partial<MappingItem> }[] {
-  const amount = round2(input.amount);
-  if (amount <= 0) return [];
+  const amount = round2(Math.max(0, input.amount));
   const waive = round2(Math.max(0, input.waive || 0));
+  if (amount <= 0 && waive <= 0) return [];
   const eligible = mapping.items
     .map((item) => ({ item, s: resolveMappingItemMonth(item, monthKey) }))
     .filter(({ s }) => !isExcludedState(s.state));
@@ -379,6 +383,7 @@ export function registerMappingPayment(
       coveredDates: [],
       mappingPaymentId: id,
       ...(waivedShare > 0 ? { waived: waivedShare } : {}),
+      ...(input.movementId ? { movementId: input.movementId } : {}),
     };
     const existing = item.payments?.[monthKey] || [];
     return { itemId: item.id, patch: { payments: { ...(item.payments || {}), [monthKey]: [...existing, payment] } } };
@@ -416,6 +421,20 @@ export function resolveMappingPeriodGap(
     .reduce((acc, p) => acc + p.amount + p.waived, 0);
   const expected = inPeriod > 0.005 ? Math.max(0, inPeriod - settledInPeriod) : month.pending;
   return { expected: round2(Math.min(expected, month.pending)), laterOccurrences: later };
+}
+
+/**
+ * Desconsidera o previsto ainda aberto do período (semana, quinzena ou mês): sai do previsto sem contar como pago.
+ * Devolve o valor descartado e as alterações a gravar (vazias quando não havia nada em aberto no período).
+ */
+export function waiveMappingPeriod(
+  mapping: MappingLike,
+  monthKey: string,
+  range: { from: string; to: string }
+): { waived: number; changes: { itemId: string; patch: Partial<MappingItem> }[] } {
+  const { expected } = resolveMappingPeriodGap(mapping, monthKey, range);
+  if (expected <= 0.005) return { waived: 0, changes: [] };
+  return { waived: expected, changes: registerMappingPayment(mapping, monthKey, { paidAt: range.from, amount: 0, waive: expected }) };
 }
 
 /** Desfaz um pagamento lançado no mapeamento (remove a parte de cada item). */

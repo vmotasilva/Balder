@@ -526,6 +526,9 @@ export function useNatures({
             items: m.items.map((item) => {
               const matched = matchingForMap.find((it) => it.itemId === item.id);
               if (matched) {
+                // Gasto associado a um lançamento do mapeamento (modo Resumo): o valor já está dividido entre os itens
+                const inMonth = matched.monthKey ? item.payments?.[matched.monthKey] || [] : [];
+                if (matched.movementId && inMonth.some((p) => p.mappingPaymentId && p.movementId === matched.movementId)) return item;
                 const fulfilled = {
                   ...item,
                   isFulfilled: true,

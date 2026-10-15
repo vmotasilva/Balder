@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { CheckCircle2, CircleHelp, Trash2, Wallet } from 'lucide-react';
+import { CheckCircle2, CircleHelp, Link2, Trash2, Wallet } from 'lucide-react';
 import { Modal } from './Modal';
 import { DecimalInput } from './DecimalInput';
 import { ConfirmDialog, useConfirmDialog } from './ConfirmDialog';
@@ -9,7 +9,10 @@ import {
   removeMappingPayment,
   resolveMappingMonth,
   resolveMappingPeriodGap,
+  waiveMappingPeriod,
 } from '../utils/mappingItemState';
+import { findMappingSpendCandidates, spendAmount, spendDate } from '../utils/mappingSpendCandidates';
+import type { Movement } from '../types';
 import { periodRangeLabel, trackingPeriodRange, TRACKING_PERIOD_LABELS, type TrackingPeriod } from '../utils/periodSpending';
 import { DateInput } from './DateInput';
 
@@ -21,6 +24,8 @@ export interface MappingPaymentTarget {
   itemIds: string[];
   monthKey: string; // YYYY-MM
   title: string;
+  /** Data da compra prevista (YYYY-MM-DD): a semana dela é onde se procura gasto já feito. */
+  forecastDate?: string;
 }
 
 interface MappingPaymentModalProps {
@@ -54,7 +59,7 @@ export const MappingPaymentModal: React.FC<MappingPaymentModalProps> = ({ target
 };
 
 const MappingPaymentForm: React.FC<{ target: MappingPaymentTarget; onClose: () => void }> = ({ target, onClose }) => {
-  const { natures, updateMappingItemState, viewPreferences } = useFinancial();
+  const { natures, movements, updateMovement, updateMappingItemState, viewPreferences } = useFinancial();
   const { confirm, dialogProps } = useConfirmDialog();
   const { monthKey } = target;
 
@@ -67,6 +72,8 @@ const MappingPaymentForm: React.FC<{ target: MappingPaymentTarget; onClose: () =
   const [amount, setAmount] = useState<number | null>(null);
   const paidAmount = amount ?? month.pending;
   const [paidAt, setPaidAt] = useState(() => defaultPaidAt(monthKey));
+  // Gasto que já aconteceu e o usuário disse ser esta compra prevista
+  const [linked, setLinked] = useState<Movement | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   // Pagou menos que o previsto do período de acompanhamento: pergunta se o restante se mantém
   const [askRest, setAskRest] = useState<{ rest: number; later: number } | null>(null);
@@ -83,11 +90,35 @@ const MappingPaymentForm: React.FC<{ target: MappingPaymentTarget; onClose: () =
     return { from: range.from < first ? first : range.from, to: range.to > last ? last : range.to };
   }, [range, monthKey]);
 
+  // Semana da compra prevista (limitada à competência): onde se procura gasto que já aconteceu
+  const weekRange = useMemo(() => {
+    const first = `${monthKey}-01`;
+    const last = trackingPeriodRange('MES', dateOf(first)).to;
+    const ref = target.forecastDate && target.forecastDate.startsWith(monthKey) ? target.forecastDate : defaultPaidAt(monthKey);
+    const week = trackingPeriodRange('SEMANA', dateOf(ref));
+    return { from: week.from < first ? first : week.from, to: week.to > last ? last : week.to };
+  }, [target.forecastDate, monthKey]);
+  const candidates = useMemo(
+    () => findMappingSpendCandidates({ movements, natures, natureId: target.natureId, mappingId: target.mappingId, range: weekRange }),
+    [movements, natures, target.natureId, target.mappingId, weekRange]
+  );
+
+  const pickSpend = (m: Movement) => {
+    setLinked(m);
+    setAmount(spendAmount(m));
+    setPaidAt(spendDate(m));
+  };
+
   const apply = (changes: { itemId: string; patch: Parameters<typeof updateMappingItemState>[3] }[]) =>
     changes.forEach((c) => updateMappingItemState(target.natureId, target.mappingId, c.itemId, c.patch));
 
   const commit = (waive: number) => {
-    apply(registerMappingPayment(scope, monthKey, { paidAt, amount: paidAmount, waive }));
+    const changes = registerMappingPayment(scope, monthKey, { paidAt, amount: paidAmount, waive, movementId: linked?.id });
+    apply(changes);
+    // O gasto passa a pertencer ao mapeamento: o item ligado evita que ele conte de novo no "Real" da natureza
+    if (linked && changes.length > 0) {
+      updateMovement(linked.id, { natureId: target.natureId, mappingId: target.mappingId, mappingItemId: changes[0].itemId });
+    }
     const left = Math.max(0, Math.round((month.pending - paidAmount - waive) * 100) / 100);
     setFeedback(
       left > 0.005
@@ -98,6 +129,14 @@ const MappingPaymentForm: React.FC<{ target: MappingPaymentTarget; onClose: () =
     );
     setAskRest(null);
     setAmount(null);
+    setLinked(null);
+  };
+
+  const discardWeek = () => {
+    const { waived, changes } = waiveMappingPeriod(scope, monthKey, weekRange);
+    if (changes.length === 0) return;
+    apply(changes);
+    setFeedback(`${formatBRL(waived)} saiu do previsto da semana. Nada foi pago: o saldo deixa de contar com essa compra.`);
   };
 
   const register = () => {
@@ -129,14 +168,58 @@ const MappingPaymentForm: React.FC<{ target: MappingPaymentTarget; onClose: () =
           </p>
         )}
 
+        {candidates.length > 0 && (
+          <div className="mapping-pay-suggest" role="group" aria-label="Gastos já feitos na semana">
+            <p className="mapping-pay-suggest-title">
+              <Link2 size={15} className="text-amber" />
+              <span>
+                {candidates.length === 1 ? 'Já há um gasto' : `Já há ${candidates.length} gastos`} de {target.title} na semana de{' '}
+                {formatDate(weekRange.from)} a {formatDate(weekRange.to)}. {candidates.length === 1 ? 'É esta compra prevista?' : 'Algum deles é esta compra prevista?'}
+              </span>
+            </p>
+            <ul>
+              {candidates.map((m) => (
+                <li key={m.id} className={linked?.id === m.id ? 'is-linked' : undefined}>
+                  <span>{formatDate(spendDate(m))}</span>
+                  <span className="mapping-pay-suggest-name">{m.title.replace(/^Despesa:\s*/i, '')}</span>
+                  <strong>{formatBRL(spendAmount(m))}</strong>
+                  {linked?.id === m.id ? (
+                    <button type="button" className="btn btn-secondary btn-xs" onClick={() => setLinked(null)}>
+                      Desassociar
+                    </button>
+                  ) : (
+                    <button type="button" className="btn btn-outline btn-xs" onClick={() => pickSpend(m)}>
+                      Já foi este
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+            {linked && <small>Associado: ao registrar, este gasto passa a abater o previsto em vez de ser lançado de novo.</small>}
+          </div>
+        )}
+
         <div className="mapping-pay-fields">
           <label>
             <span>Valor pago</span>
-            <DecimalInput className="form-input" value={paidAmount} onValueChange={(v) => setAmount(v)} emptyWhenZero aria-label="Valor pago" />
+            <DecimalInput
+              className="form-input"
+              value={paidAmount}
+              onValueChange={(v) => {
+                setAmount(v);
+                if (linked && v !== spendAmount(linked)) setLinked(null);
+              }}
+              emptyWhenZero
+              aria-label="Valor pago"
+            />
           </label>
           <label>
             <span>Data do pagamento</span>
-            <DateInput type="date" showToday className="form-input" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} />
+            <DateInput type="date" showToday className="form-input" value={paidAt} onChange={(e) => {
+                setPaidAt(e.target.value);
+                if (linked && e.target.value !== spendDate(linked)) setLinked(null);
+              }}
+            />
           </label>
         </div>
 
@@ -147,7 +230,7 @@ const MappingPaymentForm: React.FC<{ target: MappingPaymentTarget; onClose: () =
               {month.payments.map((p) => (
                 <li key={p.id}>
                   <span>{formatDate(p.paidAt)}</span>
-                  <strong>{formatBRL(p.amount)}</strong>
+                  {p.amount > 0.005 ? <strong>{formatBRL(p.amount)}</strong> : <strong>Previsto desconsiderado</strong>}
                   {p.waived > 0.005 && <small title="Parte do previsto descartada neste lançamento"> −{formatBRL(p.waived)} previsto</small>}
                   <button
                     type="button"
@@ -157,10 +240,14 @@ const MappingPaymentForm: React.FC<{ target: MappingPaymentTarget; onClose: () =
                     onClick={() =>
                       confirm({
                         title: 'Desfazer pagamento',
-                        message: `O pagamento de ${formatBRL(p.amount)} em ${formatDate(p.paidAt)} volta a ficar em aberto no previsto.`,
+                        message:
+                          p.amount > 0.005
+                            ? `O pagamento de ${formatBRL(p.amount)} em ${formatDate(p.paidAt)} volta a ficar em aberto no previsto.${p.movementId ? ' O gasto associado deixa de estar ligado ao mapeamento.' : ''}`
+                            : `${formatBRL(p.waived)} desconsiderados em ${formatDate(p.paidAt)} voltam ao previsto.`,
                         confirmLabel: 'Desfazer',
                         onConfirm: () => {
                           apply(removeMappingPayment(scope, monthKey, p.id));
+                          if (p.movementId) updateMovement(p.movementId, { mappingId: undefined, mappingItemId: undefined });
                           setFeedback(null);
                         },
                       })
@@ -204,6 +291,24 @@ const MappingPaymentForm: React.FC<{ target: MappingPaymentTarget; onClose: () =
           </div>
         ) : (
           <div className="mapping-pay-actions">
+            {month.pending > 0.005 && (
+              <button
+                type="button"
+                className="btn btn-outline mapping-pay-discard"
+                title="Tira a compra prevista da semana do previsto, sem lançar pagamento"
+                onClick={() =>
+                  confirm({
+                    title: 'Desconsiderar previsto',
+                    message: `A compra prevista de ${target.title} na semana de ${formatDate(weekRange.from)} a ${formatDate(weekRange.to)} deixa de contar no previsto. Nenhum pagamento é lançado.`,
+                    confirmLabel: 'Desconsiderar',
+                    variant: 'warning',
+                    onConfirm: discardWeek,
+                  })
+                }
+              >
+                Desconsiderar previsto
+              </button>
+            )}
             <button type="button" className="btn btn-secondary" onClick={onClose}>
               {feedback ? 'Fechar' : 'Cancelar'}
             </button>

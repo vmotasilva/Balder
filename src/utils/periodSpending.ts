@@ -140,8 +140,8 @@ function summarizedMappingPurchases(
   monthKey: string,
   openStatus: () => PurchaseStatus
 ): { itemCount: number; purchases: Omit<PeriodPurchase, 'key'>[] } {
-  const byDate = new Map<string, { planned: number; paid: number; need: number; paidAt?: string }>();
-  const pool = new Map<string, { paidAt: string; amount: number }>();
+  const byDate = new Map<string, { planned: number; paid: number; need: number; waived: number; paidAt?: string }>();
+  const pool = new Map<string, { paidAt: string; amount: number; waived: number }>();
   const markPaid = (d: { paidAt?: string }, paidAt: string) => {
     if (!d.paidAt || paidAt > d.paidAt) d.paidAt = paidAt;
   };
@@ -154,7 +154,7 @@ function summarizedMappingPurchases(
     if (occurrences.length === 0) return;
     itemCount += 1;
     occurrences.forEach((o) => {
-      const d = byDate.get(o.date) || { planned: 0, paid: 0, need: 0 };
+      const d = byDate.get(o.date) || { planned: 0, paid: 0, need: 0, waived: 0 };
       d.planned += o.value;
       const direct = summary.coveredDates.get(o.date);
       if (direct) {
@@ -171,8 +171,9 @@ function summarizedMappingPurchases(
     summary.payments.forEach((p) => {
       if (p.coveredDates.length > 0) return;
       const key = p.mappingPaymentId || p.id;
-      const agg = pool.get(key) || { paidAt: p.paidAt, amount: 0 };
+      const agg = pool.get(key) || { paidAt: p.paidAt, amount: 0, waived: 0 };
       agg.amount += p.amount;
+      agg.waived += p.waived || 0;
       pool.set(key, agg);
     });
   });
@@ -182,6 +183,17 @@ function summarizedMappingPurchases(
   [...pool.values()]
     .sort((a, b) => a.paidAt.localeCompare(b.paidAt))
     .forEach((p) => {
+      // Previsto desconsiderado: fecha as compras em aberto na ordem, sem contar como pago
+      let skip = p.waived;
+      for (let i = 0; skip > 0.005 && i < dates.length; i += 1) {
+        const d = byDate.get(dates[i])!;
+        const drop = Math.min(skip, d.need);
+        if (drop > 0) {
+          d.need -= drop;
+          d.waived += drop;
+          skip -= drop;
+        }
+      }
       let left = p.amount;
       while (left > 0.005 && next < dates.length) {
         const d = byDate.get(dates[next])!;
@@ -206,6 +218,9 @@ function summarizedMappingPurchases(
     purchases: dates.map((date) => {
       const d = byDate.get(date)!;
       const base = { date, plannedAmount: round2(d.planned) };
+      if (d.need <= 0.005 && d.paid <= 0.005 && d.waived > 0.005) {
+        return { ...base, status: 'NAO_VAI' as const, note: 'Previsto desconsiderado' };
+      }
       if (d.need <= 0.005) return { ...base, status: 'FEITA' as const, paidAt: d.paidAt, paidAmount: round2(d.paid) };
       return { ...base, status: openStatus(), ...(d.paid > 0.005 ? { paidAmount: round2(d.paid) } : {}) };
     }),
