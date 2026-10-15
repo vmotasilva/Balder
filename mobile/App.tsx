@@ -18,7 +18,7 @@ import { GoogleSignin, isSuccessResponse } from '@react-native-google-signin/goo
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
-const APP_URL = 'https://balder-one.vercel.app';
+const APP_URL = 'https://getbalder.com';
 
 // Client ID do tipo "Web" do Google Cloud (o mesmo configurado no provedor Google do Supabase).
 const GOOGLE_WEB_CLIENT_ID =
@@ -106,6 +106,8 @@ export default function App() {
 
     // Allow internal app domain and authentication providers
     if (
+      url.startsWith('https://getbalder.com') ||
+      url.startsWith('https://www.getbalder.com') ||
       url.startsWith('https://balder-one.vercel.app') ||
       url.includes('supabase.co') ||
       url.includes('accounts.google.com') ||

@@ -74,7 +74,7 @@ export const IosInstallModal: React.FC<IosInstallModalProps> = ({ isOpen, onClos
             </div>
             <ol className="guide-steps-list">
               <li>
-                <strong>1. Abra no Safari:</strong> acesse <strong>balder-one.vercel.app</strong> pelo Safari (no Chrome do iPhone também
+                <strong>1. Abra no Safari:</strong> acesse <strong>getbalder.com</strong> pelo Safari (no Chrome do iPhone também
                 funciona, pelo mesmo menu de compartilhar).
               </li>
               <li>

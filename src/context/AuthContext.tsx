@@ -282,7 +282,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const guestUser: AppUser = {
       $id: 'guest_local_user',
       name: 'Vinicius Mota (Demo)',
-      email: 'vinicius@balder.app',
+      email: 'vinicius@getbalder.com',
       isGuest: true,
     };
     sessionStorage.setItem('balder_guest_user', JSON.stringify(guestUser));

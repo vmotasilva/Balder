@@ -159,7 +159,7 @@ export const SharedPlanningPage: React.FC = () => {
   const netBalance = totalPaidByUser - userFairShare;
 
   const handleCopyInvite = () => {
-    const inviteText = `https://balder.app/join?code=${sharedScenario?.inviteCode || 'BALDER-CASAL-7829'}`;
+    const inviteText = `https://getbalder.com/join?code=${sharedScenario?.inviteCode || 'BALDER-CASAL-7829'}`;
     navigator.clipboard.writeText(inviteText);
     setCopiedInvite(true);
     setTimeout(() => setCopiedInvite(false), 2500);
