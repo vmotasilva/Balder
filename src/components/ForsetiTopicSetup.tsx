@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowLeft, Check, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, Plus, SkipForward, Sparkles, Trash2 } from 'lucide-react';
 import { DecimalInput } from './DecimalInput';
 import { useFinancial, buildSuggestedMappingsForNature } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
@@ -24,6 +24,7 @@ import {
 import type { TrackingPeriod } from '../utils/periodSpending';
 import type { ExpenseNature, FixedExpenseMapping, MappingItem, Movement } from '../types';
 import { NumberInput } from './NumberInput';
+import { type SkipMark, marksAfterBack, skippedTopicSummary, withSkipNote } from '../utils/setupSkip';
 import { DateInput } from './DateInput';
 
 
@@ -55,6 +56,9 @@ const Ask: React.FC<{
   hint?: string;
   onBack?: () => void;
   backLabel?: string;
+  /** "Pular": segue com um padrão seguro (ou deixa o assunto para depois, quando não há padrão). */
+  onSkip?: () => void;
+  skipLabel?: string;
   children: React.ReactNode;
 }> = ({
   question,
@@ -62,6 +66,8 @@ const Ask: React.FC<{
   hint,
   onBack,
   backLabel = 'Voltar à pergunta anterior',
+  onSkip,
+  skipLabel = 'Pular esta pergunta',
   children,
 }) => {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -76,10 +82,19 @@ const Ask: React.FC<{
       <div className="guided-panel" ref={panelRef}>
         {hint && <p className="guided-hint">{hint}</p>}
         {children}
-        {onBack && (
-          <button type="button" className="guided-back" onClick={onBack}>
-            <ArrowLeft size={12} /> {backLabel}
-          </button>
+        {(onBack || onSkip) && (
+          <div className="guided-footer">
+            {onBack && (
+              <button type="button" className="guided-back" onClick={onBack}>
+                <ArrowLeft size={12} /> {backLabel}
+              </button>
+            )}
+            {onSkip && (
+              <button type="button" className="guided-back guided-skip" onClick={onSkip}>
+                <SkipForward size={12} /> {skipLabel}
+              </button>
+            )}
+          </div>
         )}
       </div>
     </>
@@ -143,6 +158,8 @@ interface TopicProps {
   unlog: () => void;
   onDone: (summary: string) => void;
   onCancel: () => void;
+  /** Pulou o assunto inteiro: nada foi alterado e a conversa volta ao menu. */
+  onSkipTopic: () => void;
   onSwitch: (topic: SetupTopic) => void;
   setHomeScreen: (screen: 'INICIO' | 'PAINEL') => void;
 }
@@ -150,6 +167,8 @@ interface TopicProps {
 /** Sequência de perguntas de um assunto: cada resposta fica no histórico e dá para voltar uma a uma. */
 function useSteps<S extends string>(first: S, p: TopicProps) {
   const [stack, setStack] = useState<S[]>([first]);
+  // Perguntas puladas neste assunto: o resumo final diz quantas foram, para a pessoa saber o que ficou no padrão
+  const marks = useRef<SkipMark[]>([]);
   const step = stack[stack.length - 1];
   const isFirst = stack.length <= 1;
   return {
@@ -160,11 +179,21 @@ function useSteps<S extends string>(first: S, p: TopicProps) {
     },
     finish: (question: string, answer: string, summary: string) => {
       p.log(question, answer);
-      p.onDone(summary);
+      p.onDone(withSkipNote(summary, marks.current.length));
+    },
+    /** Anota que a pergunta atual foi pulada com o padrão (a resposta em si segue o caminho normal). */
+    mark: (question: string) => {
+      marks.current = [...marks.current, { question, depth: stack.length }];
+    },
+    /** Pula o assunto inteiro: nada é salvo e a conversa volta ao menu. */
+    skipTopic: (question: string) => {
+      p.log(question, 'Pulei este assunto');
+      p.onSkipTopic();
     },
     back: () => {
       if (isFirst) return p.onCancel();
       p.unlog();
+      marks.current = marksAfterBack(marks.current, stack.length - 1);
       setStack((s) => s.slice(0, -1));
     },
     backLabel: isFirst ? 'Escolher outro assunto' : 'Voltar à pergunta anterior',
@@ -226,7 +255,7 @@ const InicioTopic: React.FC<TopicProps> = (p) => {
     case 'EXISTING': {
       const q = `Você já tem um ponto de partida desde ${brDate(activeCheckpoint!.startDate)}, com ${formatBRL(activeCheckpoint!.initialBalance)} em caixa. O que prefere fazer?`;
       return (
-        <Ask question={q} onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => { s.mark(q); setKeep(true); s.go(q, 'Pulei: mantenho o que já tenho', 'BANKS'); }} question={q} onBack={s.back} backLabel={s.backLabel}>
           <div className="guided-choices">
             <Choice title="Manter e revisar os bancos" hint="O saldo e a data continuam como estão." onClick={() => { setKeep(true); s.go(q, 'Manter e revisar os bancos', 'BANKS'); }} />
             <Choice title="Começar um novo ponto de partida" hint="Informo o saldo de hoje e a data de início." onClick={() => { setKeep(false); s.go(q, 'Começar um novo ponto de partida', 'BANKS'); }} />
@@ -238,7 +267,7 @@ const InicioTopic: React.FC<TopicProps> = (p) => {
       const q = 'Em quais bancos você tem conta?';
       const next = (answer: string) => (keep ? s.finish(q, answer, save(null)) : s.go(q, answer, 'BALANCES'));
       return (
-        <Ask question={q} hint="Toque em todos que você usa. Dá para adicionar outro no campo abaixo." onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => { s.mark(q); next(selected.length > 0 ? `Pulei: uso ${selected.join(', ')}` : 'Pulei: só uso dinheiro'); }} question={q} hint="Toque em todos que você usa. Dá para adicionar outro no campo abaixo." onBack={s.back} backLabel={s.backLabel}>
           <div className="guided-chips">
             {[...POPULAR_BANKS, ...selected.filter((b) => !(POPULAR_BANKS as readonly string[]).some((x) => sameName(x, b)))].map((b) => (
               <Chip key={b} label={b} active={selected.some((x) => sameName(x, b))} onClick={() => toggle(b)} />
@@ -260,7 +289,7 @@ const InicioTopic: React.FC<TopicProps> = (p) => {
       const q = selected.length > 1 ? 'Quanto você tem hoje em cada um?' : 'Quanto você tem hoje?';
       const rows = selected.length > 0 ? selected : ['Dinheiro'];
       return (
-        <Ask question={q} hint="Pode ser um valor aproximado. Dá para ajustar depois." onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => { s.mark(q); setBalances({}); s.go(q, 'Pulei: informo depois', 'START'); }} question={q} hint="Pode ser um valor aproximado. Dá para ajustar depois." onBack={s.back} backLabel={s.backLabel}>
           {rows.map((name) => (
             <div key={name} className="guided-row">
               <span className="guided-row-name">{name}</span>
@@ -283,7 +312,7 @@ const InicioTopic: React.FC<TopicProps> = (p) => {
       const q = 'A partir de quando você quer que eu acompanhe o seu dinheiro?';
       const firstDay = `${todayIso.slice(0, 7)}-01`;
       return (
-        <Ask question={q} onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => { s.mark(q); s.finish(q, 'Pulei: a partir de hoje', save(todayIso)); }} question={q} onBack={s.back} backLabel={s.backLabel}>
           <div className="guided-choices">
             <Choice title={`Hoje (${brDate(todayIso)})`} hint="O saldo que você informou é o de hoje." onClick={() => s.finish(q, 'A partir de hoje', save(todayIso))} />
             <Choice title="Desde o dia 1º deste mês" hint="Bom para acompanhar o mês inteiro." onClick={() => s.finish(q, 'Desde o dia 1º', save(firstDay))} />
@@ -295,7 +324,7 @@ const InicioTopic: React.FC<TopicProps> = (p) => {
     case 'DATE': {
       const q = 'Qual data?';
       return (
-        <Ask question={q} onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => { s.mark(q); s.finish(q, 'Pulei: a partir de hoje', save(customDate || todayIso)); }} question={q} onBack={s.back} backLabel={s.backLabel}>
           <DateInput type="date" className="form-input form-input-sm guided-date" value={customDate} onChange={(e) => setCustomDate(e.target.value)} />
           <div className="guided-actions">
             <button type="button" className="btn btn-primary btn-sm" disabled={!customDate} onClick={() => s.finish(q, brDate(customDate), save(customDate))}>
@@ -355,7 +384,7 @@ const EntradasTopic: React.FC<TopicProps> = (p) => {
     case 'KINDS': {
       const q = 'Que dinheiro entra para você todo mês?';
       return (
-        <Ask question={q} hint="Marque tudo o que se repete. Recebimentos avulsos você me conta quando acontecerem." onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => s.skipTopic(q)} skipLabel="Pular este assunto" question={q} hint="Marque tudo o que se repete. Recebimentos avulsos você me conta quando acontecerem." onBack={s.back} backLabel={s.backLabel}>
           <div className="guided-chips">
             {[...INCOME_KINDS, ...rows.map((r) => r.name).filter((n) => !INCOME_KINDS.includes(n))].map((k) => (
               <Chip key={k} label={k} active={rows.some((r) => r.name === k)} onClick={() => toggle(k)} />
@@ -376,7 +405,7 @@ const EntradasTopic: React.FC<TopicProps> = (p) => {
     case 'VALUES': {
       const q = rows.length > 1 ? 'Quanto é cada uma e em que dia costuma cair?' : `Quanto é ${rows[0]?.name.toLowerCase()} e em que dia costuma cair?`;
       return (
-        <Ask question={q} onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => s.skipTopic(q)} skipLabel="Pular este assunto" question={q} onBack={s.back} backLabel={s.backLabel}>
           {rows.map((r, idx) => (
             <div key={r.name} className="guided-row">
               <span className="guided-row-name">{r.name}</span>
@@ -400,7 +429,7 @@ const EntradasTopic: React.FC<TopicProps> = (p) => {
     case 'ACCOUNT': {
       const q = 'Em qual conta esse dinheiro cai?';
       return (
-        <Ask question={q} onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => { s.mark(q); s.go(q, `Pulei: ${place}`, 'REPEAT'); }} question={q} onBack={s.back} backLabel={s.backLabel}>
           <div className="guided-chips">
             {places.map((b) => (
               <Chip key={b} label={b} active={place === b} onClick={() => { setPlace(b); s.go(q, b, 'REPEAT'); }} />
@@ -412,7 +441,7 @@ const EntradasTopic: React.FC<TopicProps> = (p) => {
     case 'REPEAT': {
       const q = 'Por quanto tempo devo contar com essas entradas?';
       return (
-        <Ask question={q} onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => { s.mark(q); s.finish(q, 'Pulei: pelos próximos 12 meses', save(12)); }} question={q} onBack={s.back} backLabel={s.backLabel}>
           <div className="guided-choices">
             <Choice title="Pelos próximos 12 meses" hint="Entram nas projeções do ano inteiro." onClick={() => s.finish(q, 'Pelos próximos 12 meses', save(12))} />
             <Choice title="Pelos próximos 6 meses" onClick={() => s.finish(q, 'Pelos próximos 6 meses', save(6))} />
@@ -474,7 +503,7 @@ const CartoesTopic: React.FC<TopicProps> = (p) => {
     case 'USES': {
       const q = cards.length > 0 ? `Você já tem ${cards.map((c) => c.name).join(', ')}. Quer cadastrar ou atualizar algum cartão?` : 'Você usa cartão de crédito?';
       return (
-        <Ask question={q} onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => s.skipTopic(q)} skipLabel="Pular este assunto" question={q} onBack={s.back} backLabel={s.backLabel}>
           <div className="guided-actions is-start">
             <button type="button" className="btn btn-outline btn-sm" onClick={() => s.finish(q, 'Não', cards.length > 0 ? 'Cartões mantidos como estão.' : 'Sem cartão de crédito: acompanho só as contas e o dinheiro.')}>
               Não
@@ -489,7 +518,7 @@ const CartoesTopic: React.FC<TopicProps> = (p) => {
     case 'WHICH': {
       const q = 'De quais bancos são os seus cartões?';
       return (
-        <Ask question={q} onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => s.skipTopic(q)} skipLabel="Pular este assunto" question={q} onBack={s.back} backLabel={s.backLabel}>
           <div className="guided-chips">
             {[...known, ...rows.map((r) => r.name).filter((n) => !known.some((k) => sameName(k, n)))].map((b) => (
               <Chip key={b} label={b} active={rows.some((r) => sameName(r.name, b))} onClick={() => toggle(b)} />
@@ -507,7 +536,7 @@ const CartoesTopic: React.FC<TopicProps> = (p) => {
     case 'DETAILS': {
       const q = rows.length > 1 ? 'Em que dia vence cada um e quanto está a próxima fatura?' : `Em que dia vence o ${rows[0]?.name} e quanto está a próxima fatura?`;
       return (
-        <Ask question={q} hint="Se não souber o dia do fechamento, deixo uma estimativa (uma semana antes do vencimento): confira no app do banco. As compras novas você me conta depois, ou manda a foto da fatura." onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => s.skipTopic(q)} skipLabel="Pular este assunto" question={q} hint="Se não souber o dia do fechamento, deixo uma estimativa (uma semana antes do vencimento): confira no app do banco. As compras novas você me conta depois, ou manda a foto da fatura." onBack={s.back} backLabel={s.backLabel}>
           {rows.map((r, idx) => (
             <div key={r.name} className="guided-row">
               <span className="guided-row-name">{r.name}</span>
@@ -615,7 +644,7 @@ const ContasTopic: React.FC<TopicProps> = (p) => {
     case 'PICK': {
       const q = 'Quais contas você paga todo mês?';
       return (
-        <Ask question={q} hint="Toque nas que você tem." onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => s.skipTopic(q)} skipLabel="Pular este assunto" question={q} hint="Toque nas que você tem." onBack={s.back} backLabel={s.backLabel}>
           <div className="guided-chips">
             {COMMON_BILLS.map((b) => (
               <Chip key={b.key} label={b.name} active={bills.some((x) => x.key === b.key)} onClick={() => toggle(b.key, b.name)} />
@@ -641,7 +670,7 @@ const ContasTopic: React.FC<TopicProps> = (p) => {
     case 'VALUES': {
       const q = 'Quanto é cada uma e em que dia vence?';
       return (
-        <Ask question={q} hint="Se o valor muda todo mês, coloque a média." onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => s.skipTopic(q)} skipLabel="Pular este assunto" question={q} hint="Se o valor muda todo mês, coloque a média." onBack={s.back} backLabel={s.backLabel}>
           {bills.map((b) => (
             <div key={b.key} className="guided-row">
               <span className="guided-row-name">{b.name}</span>
@@ -663,7 +692,7 @@ const ContasTopic: React.FC<TopicProps> = (p) => {
     case 'PAY': {
       const q = 'Como você costuma pagar essas contas?';
       return (
-        <Ask question={q} onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => { s.mark(q); s.finish(q, 'Pulei: boleto', save('BOLETO')); }} question={q} onBack={s.back} backLabel={s.backLabel}>
           <div className="guided-chips">
             {PAY_OPTIONS.map((o) => (
               <Chip key={o.id} label={o.label} active={false} onClick={() => s.finish(q, o.label, save(o.id))} />
@@ -727,7 +756,7 @@ const NaturezasTopic: React.FC<TopicProps> = (p) => {
     case 'HOW': {
       const q = `${natures.length > 0 ? `Você já tem ${natures.length} natureza${natures.length > 1 ? 's' : ''}: ${natures.map((n) => n.name).join(', ')}. ` : ''}Natureza é o grupo onde seus gastos se juntam, como Alimentação ou Moradia. Como prefere montar as suas?`;
       return (
-        <Ask question={q} onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => s.skipTopic(q)} skipLabel="Pular este assunto" question={q} onBack={s.back} backLabel={s.backLabel}>
           <div className="guided-choices">
             <Choice title="Escolher entre as sugestões" hint="Te mostro as mais comuns e você marca as suas." onClick={() => s.go(q, 'Escolher entre as sugestões', 'PICK')} />
             <Choice title="Criar as minhas do zero" hint="Você dá o nome de cada uma." onClick={() => s.go(q, 'Criar as minhas do zero', 'CUSTOM')} />
@@ -739,7 +768,7 @@ const NaturezasTopic: React.FC<TopicProps> = (p) => {
       const q = 'Quais destas fazem sentido para você?';
       const available = SUGGESTED_NATURES.filter((t) => !exists(t.name));
       return (
-        <Ask question={q} hint={available.length < SUGGESTED_NATURES.length ? 'As que você já tem não aparecem aqui.' : undefined} onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => s.skipTopic(q)} skipLabel="Pular este assunto" question={q} hint={available.length < SUGGESTED_NATURES.length ? 'As que você já tem não aparecem aqui.' : undefined} onBack={s.back} backLabel={s.backLabel}>
           <div className="guided-choices is-compact">
             {available.map((t) => (
               <Choice
@@ -770,7 +799,7 @@ const NaturezasTopic: React.FC<TopicProps> = (p) => {
     case 'CUSTOM': {
       const q = 'Qual o nome de cada natureza que você quer criar?';
       return (
-        <Ask question={q} hint="Ex.: Casa, Mercado, Filhos, Carro. Adicione uma de cada vez." onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => s.skipTopic(q)} skipLabel="Pular este assunto" question={q} hint="Ex.: Casa, Mercado, Filhos, Carro. Adicione uma de cada vez." onBack={s.back} backLabel={s.backLabel}>
           <AddOther placeholder="Nome da natureza" onAdd={addCustom} />
           {customs.length > 0 && (
             <div className="guided-chips">
@@ -790,7 +819,7 @@ const NaturezasTopic: React.FC<TopicProps> = (p) => {
     case 'TYPES': {
       const q = customs.length > 1 ? 'Como é o gasto em cada uma delas?' : `Como é o gasto em ${customs[0]?.name}?`;
       return (
-        <Ask question={q} hint="Fixo: quase o mesmo valor todo mês. Variável: muda conforme o uso. Essencial: não dá para cortar." onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => { s.mark(q); const answer = 'Pulei: gasto variável'; if (offersModels) s.go(q, answer, 'MODELS'); else s.finish(q, answer, save(false)); }} question={q} hint="Fixo: quase o mesmo valor todo mês. Variável: muda conforme o uso. Essencial: não dá para cortar." onBack={s.back} backLabel={s.backLabel}>
           {customs.map((c) => (
             <div key={c.name} className="guided-row">
               <span className="guided-row-name">{c.name}</span>
@@ -820,7 +849,7 @@ const NaturezasTopic: React.FC<TopicProps> = (p) => {
     case 'MODELS': {
       const q = 'Quer que eu já coloque rotinas de exemplo (como supermercado, feira e contas da casa) para você só ajustar os valores?';
       return (
-        <Ask question={q} onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => { s.mark(q); s.finish(q, 'Pulei: sem exemplos', save(false)); }} question={q} onBack={s.back} backLabel={s.backLabel}>
           <div className="guided-choices">
             <Choice title="Sim, coloca os exemplos" hint="Você confere e ajusta depois." onClick={() => s.finish(q, 'Sim, coloca os exemplos', save(true))} />
             <Choice title="Não, eu mapeio do meu jeito" hint="Te pergunto rotina por rotina em Mapeamentos." onClick={() => s.finish(q, 'Não, eu mapeio do meu jeito', save(false))} />
@@ -910,7 +939,7 @@ const MapeamentosTopic: React.FC<TopicProps> = (p) => {
     case 'EMPTY': {
       const q = 'Para mapear, primeiro preciso saber quais são as suas naturezas. Vamos criá-las agora?';
       return (
-        <Ask question={q} onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => s.skipTopic(q)} skipLabel="Pular este assunto" question={q} onBack={s.back} backLabel={s.backLabel}>
           <div className="guided-actions is-start">
             <button type="button" className="btn btn-primary btn-sm" onClick={() => { p.log(q, 'Criar naturezas agora'); p.onSwitch('NATUREZAS'); }}>
               Criar naturezas agora
@@ -922,7 +951,7 @@ const MapeamentosTopic: React.FC<TopicProps> = (p) => {
     case 'NATURE': {
       const q = saved.length > 0 ? 'Qual natureza agora?' : 'Qual natureza você quer detalhar?';
       return (
-        <Ask question={q} hint="Mapear é contar o que você compra ali, quanto custa e quando. O teto da natureza vira a soma disso." onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => s.finish(q, 'Pulei', summary())} skipLabel="Pular o resto" question={q} hint="Mapear é contar o que você compra ali, quanto custa e quando. O teto da natureza vira a soma disso." onBack={s.back} backLabel={s.backLabel}>
           <div className="guided-choices is-compact">
             {natures.map((n) => {
               const count = n.mappings.length;
@@ -943,7 +972,7 @@ const MapeamentosTopic: React.FC<TopicProps> = (p) => {
       const q = `Que gasto se repete em ${nature?.name}?`;
       const suggestions = suggestedRoutinesFor(nature?.name || '').filter((r) => !nature?.mappings.some((m) => sameName(m.name, r)));
       return (
-        <Ask question={q} hint={suggestions.length > 0 ? 'Escolha um ou escreva o seu.' : 'Escreva o nome do gasto, ex.: Mensalidade, Ração.'} onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => s.finish(q, 'Pulei', summary())} skipLabel="Pular o resto" question={q} hint={suggestions.length > 0 ? 'Escolha um ou escreva o seu.' : 'Escreva o nome do gasto, ex.: Mensalidade, Ração.'} onBack={s.back} backLabel={s.backLabel}>
           {suggestions.length > 0 && (
             <div className="guided-chips">
               {suggestions.map((r) => (
@@ -973,7 +1002,7 @@ const MapeamentosTopic: React.FC<TopicProps> = (p) => {
         s.go(q, label, f === 'SEMANAL' ? 'WEEKDAY' : 'DAY');
       };
       return (
-        <Ask question={q} onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => { s.mark(q); pick('MENSAL', 'Pulei: todo mês'); }} question={q} onBack={s.back} backLabel={s.backLabel}>
           <div className="guided-choices">
             <Choice title="Toda semana" onClick={() => pick('SEMANAL', 'Toda semana')} />
             <Choice title="A cada quinzena" onClick={() => pick('QUINZENAL', 'A cada quinzena')} />
@@ -985,7 +1014,7 @@ const MapeamentosTopic: React.FC<TopicProps> = (p) => {
     case 'WEEKDAY': {
       const q = 'Em que dia da semana, normalmente?';
       return (
-        <Ask question={q} onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => { s.mark(q); s.go(q, `Pulei: ${WEEKDAYS.find((w) => w.id === weekday)!.label}`, 'ITEMS'); }} question={q} onBack={s.back} backLabel={s.backLabel}>
           <div className="guided-chips">
             {WEEKDAYS.map((w) => (
               <Chip key={w.id} label={w.label} active={weekday === w.id} onClick={() => { setWeekday(w.id); s.go(q, w.label, 'ITEMS'); }} />
@@ -998,7 +1027,7 @@ const MapeamentosTopic: React.FC<TopicProps> = (p) => {
       const q = freq === 'QUINZENAL' ? 'Em que dia da primeira quinzena? A segunda vem 15 dias depois.' : 'Em que dia do mês, normalmente?';
       const max = freq === 'QUINZENAL' ? 15 : 31;
       return (
-        <Ask question={q} onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => { s.mark(q); s.go(q, `Pulei: dia ${day}`, 'ITEMS'); }} question={q} onBack={s.back} backLabel={s.backLabel}>
           <DayInput value={day} max={max} onChange={setDay} />
           <div className="guided-actions">
             <button type="button" className="btn btn-primary btn-sm" onClick={() => s.go(q, `Dia ${day}`, 'ITEMS')}>
@@ -1011,7 +1040,7 @@ const MapeamentosTopic: React.FC<TopicProps> = (p) => {
     case 'ITEMS': {
       const q = `O que entra em ${routine.toLowerCase()} e quanto custa cada vez?`;
       return (
-        <Ask question={q} hint="Pode ser um valor só ou item por item (quantidade × preço)." onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => s.finish(q, 'Pulei', summary())} skipLabel="Pular o resto" question={q} hint="Pode ser um valor só ou item por item (quantidade × preço)." onBack={s.back} backLabel={s.backLabel}>
           {rows.map((r, idx) => (
             <div key={idx} className="guided-row">
               <input className="form-input form-input-sm" value={r.description} onChange={(e) => updateRow(idx, { description: e.target.value })} aria-label="Item" placeholder="Item" />
@@ -1049,7 +1078,7 @@ const MapeamentosTopic: React.FC<TopicProps> = (p) => {
     case 'PAY': {
       const q = 'E como você costuma pagar?';
       return (
-        <Ask question={q} onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => { s.mark(q); save('BOLETO'); s.go(q, 'Pulei: boleto', 'MORE'); }} question={q} onBack={s.back} backLabel={s.backLabel}>
           <div className="guided-chips">
             {PAY_OPTIONS.map((o) => (
               <Chip key={o.id} label={o.label} active={false} onClick={() => { save(o.id); s.go(q, o.label, 'MORE'); }} />
@@ -1091,7 +1120,7 @@ const AcompanhamentoTopic: React.FC<TopicProps> = (p) => {
     case 'PERIOD': {
       const q = 'De quanto em quanto tempo você quer que eu te mostre como estão os gastos?';
       return (
-        <Ask question={q} onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => { s.mark(q); s.go(q, 'Pulei: todo mês', 'HOME'); }} question={q} onBack={s.back} backLabel={s.backLabel}>
           <div className="guided-choices">
             {PERIODS.map(([id, label, hint]) => (
               <Choice key={id} title={label} hint={hint} onClick={() => { setPeriod(id); s.go(q, label, 'HOME'); }} />
@@ -1108,7 +1137,7 @@ const AcompanhamentoTopic: React.FC<TopicProps> = (p) => {
         s.finish(q, label, `Resumos ${PERIODS.find((x) => x[0] === period)![1].toLowerCase()}, abrindo no ${homeScreen === 'INICIO' ? 'Início' : 'Painel'}.`);
       };
       return (
-        <Ask question={q} onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => { s.mark(q); pick('INICIO', 'Pulei: Início'); }} question={q} onBack={s.back} backLabel={s.backLabel}>
           <div className="guided-choices">
             <Choice title="Início" hint="Conversa comigo e o que vence no período." onClick={() => pick('INICIO', 'Início')} />
             <Choice title="Painel" hint="Gráficos e números completos." onClick={() => pick('PAINEL', 'Painel')} />
@@ -1201,6 +1230,10 @@ export const ForsetiTopicSetup: React.FC<ForsetiTopicSetupProps> = ({ initialTop
     },
     onCancel: () => {
       if (cameFromMenu) unlog();
+      setPhase('MENU');
+    },
+    onSkipTopic: () => {
+      setSummary(skippedTopicSummary(TOPICS.find((t) => t.id === topic)?.label || 'este assunto'));
       setPhase('MENU');
     },
     onSwitch: (t) => openTopic(t, false),

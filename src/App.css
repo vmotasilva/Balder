@@ -21895,6 +21895,18 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
   justify-content: flex-start;
 }
 
+.guided-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.guided-skip {
+  margin-left: auto;
+}
+
 .guided-back {
   align-self: flex-start;
   display: inline-flex;
