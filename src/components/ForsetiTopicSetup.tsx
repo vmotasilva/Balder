@@ -28,6 +28,7 @@ import { NumberInput } from './NumberInput';
 import { type SkipMark, marksAfterBack, skippedTopicSummary, withSkipNote } from '../utils/setupSkip';
 import { DateInput } from './DateInput';
 import { userNatures } from '../utils/baseNatures';
+import { useAcknowledgedSteps } from '../utils/setupAcknowledged';
 
 
 const TOPICS: { id: SetupTopic; label: string; hint: string; why: string }[] = [
@@ -1242,6 +1243,7 @@ export const ForsetiTopicSetup: React.FC<ForsetiTopicSetupProps> = ({ initialTop
     ACOMPANHAMENTO: !!viewPreferences.trackingPeriod,
   };
   const isDone = (t: SetupTopic) => done[t] || answered.includes(t);
+  const { acknowledgeTopic } = useAcknowledgedSteps();
   const suggestion = TOPICS.find((t) => !isDone(t.id));
 
   const log = (question: string, answer: string) => setTurns((prev) => [...prev, { question, answer }]);
@@ -1268,7 +1270,10 @@ export const ForsetiTopicSetup: React.FC<ForsetiTopicSetupProps> = ({ initialTop
     log,
     unlog,
     onDone: (text) => {
-      if (topic) setAnswered((prev) => [...prev, topic]);
+      if (topic) {
+        setAnswered((prev) => [...prev, topic]);
+        acknowledgeTopic(topic);
+      }
       setSummary(text);
       setPhase('MENU');
     },

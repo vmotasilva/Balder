@@ -43,6 +43,8 @@ export interface AuditInputData {
   accounts: BankAccount[];
   banks: BankInstitution[];
   natures: ExpenseNature[];
+  /** Pilares que a pessoa deu por concluídos na conversa de configuração (ex.: montou tudo à mão). */
+  acknowledged?: OnboardingStepAudit['id'][];
 }
 
 /**
@@ -294,6 +296,16 @@ export function auditOnboardingProgress(data: AuditInputData): OnboardingAuditRe
       importance: 'RECOMENDADO',
     });
   }
+
+  // Pilar que a pessoa já deu por concluído não volta como pendência
+  steps.forEach((s) => {
+    if (s.isComplete || !data.acknowledged?.includes(s.id)) return;
+    s.status = 'DONE';
+    s.isComplete = true;
+    s.score = 20;
+    s.missingHint = undefined;
+    s.actionLabel = 'Revisar';
+  });
 
   // --------------------------------------------------------------------------
   // CÁLCULO GERAL E PRÓXIMO PASSO SUGERIDO
