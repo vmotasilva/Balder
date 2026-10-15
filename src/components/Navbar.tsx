@@ -59,10 +59,15 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   // Notificações da Central: o sino mostra só as não lidas (abrir a Central marca como lidas)
   const [isForecastOpen, setIsForecastOpen] = useState(false);
+  // Período forçado pelo alerta (ex.: saldo negativo em 30 dias); some ao fechar ou escolher outro período
+  const [forecastOverride, setForecastOverride] = useState<'DIAS_30' | null>(null);
   const hub = useHubNotifications({
     onOpenSetup: (step) => onOpenOnboarding?.(step),
     onGoToHome: () => onNavigateToDashboard?.(),
-    onOpenForecast: () => setIsForecastOpen(true),
+    onOpenForecast: (period) => {
+      setForecastOverride(period ?? null);
+      setIsForecastOpen(true);
+    },
     onOpenOpportunities: () => onNavigateToOpportunities?.(),
     // O resumo completo é a resposta da Forseti a "resumo do dia"
     onOpenDigest: () => {
@@ -219,7 +224,12 @@ export const Navbar: React.FC<NavbarProps> = ({
       onClose={() => setIsHubOpen(false)}
       hub={hub}
       isForecastOpen={isForecastOpen}
-      onForecastOpenChange={setIsForecastOpen}
+      onForecastOpenChange={(open) => {
+        if (!open) setForecastOverride(null);
+        setIsForecastOpen(open);
+      }}
+      forecastPeriodOverride={forecastOverride}
+      onForecastPeriodOverrideClear={() => setForecastOverride(null)}
       onNavigateToCopilot={onNavigateToCopilot}
     />
   </>
