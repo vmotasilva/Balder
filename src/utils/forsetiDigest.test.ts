@@ -164,9 +164,16 @@ describe('compactDigest: o resumo curto da Central de notificações', () => {
   });
 
   it('sobra negativa vira "faltam" e o foco da memória entra no fim', () => {
-    const d = compactDigest({ ...input([], -300), memories: [memory({})] }, TODAY);
+    const base = input([], 500);
+    const forecasts = { ...base.forecasts, MES: window([], -300) };
+    const d = compactDigest({ ...base, forecasts, memories: [memory({})] }, TODAY);
     expect(d.description).toContain('Faltam R$');
     expect(d.description.endsWith('Seu foco: Quitar o empréstimo.')).toBe(true);
+  });
+
+  it('com o saldo de 30 dias negativo, não diz quanto sobra (o aviso de saldo já cobre)', () => {
+    const d = compactDigest(input([], -110), TODAY);
+    expect(d.description).not.toMatch(/Sobram|Faltam/);
   });
 
   it('sem nome nem recebimentos, o resumo continua curto e completo', () => {

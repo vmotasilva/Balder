@@ -92,20 +92,41 @@ export function useHubNotifications(actions: HubNotificationActions) {
 
     const entries = forecasts.DIAS_30?.entries || [];
 
-    // Contas atrasadas
+    // Contas a pagar: atrasadas e a vencer em até 3 dias num só aviso (é o mesmo assunto e o mesmo destino)
     const overdueOut = entries.filter((e) => e.overdue && e.kind === 'SAIDA');
-    if (overdueOut.length > 0) {
-      const total = overdueOut.reduce((acc, e) => acc + e.amount, 0);
-      const oldest = overdueOut.reduce((min, e) => (e.date < min ? e.date : min), overdueOut[0].date);
+    const dueSoon = entries.filter((e) => !e.overdue && e.kind === 'SAIDA' && e.date >= todayIso && e.date <= in3Days);
+    if (overdueOut.length > 0 || dueSoon.length > 0) {
+      const sum = (list: typeof entries) => list.reduce((acc, e) => acc + e.amount, 0);
+      const dueToday = dueSoon.some((e) => e.date === todayIso);
+      const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+      const parts: string[] = [];
+      if (overdueOut.length > 0) {
+        const oldest = overdueOut.reduce((min, e) => (e.date < min ? e.date : min), overdueOut[0].date);
+        parts.push(`${formatBRL(sum(overdueOut))} em aberto, ${plural(overdueOut.length, 'desde', 'a mais antiga desde')} ${ddmm(oldest)}`);
+      }
+      if (dueSoon.length > 0) parts.push(`${formatBRL(sum(dueSoon))} a pagar até ${ddmm(in3Days)}`);
+
+      let title: string;
+      if (overdueOut.length > 0 && dueSoon.length > 0) {
+        title = `${overdueOut.length} ${plural(overdueOut.length, 'conta atrasada', 'contas atrasadas')} e ${dueSoon.length} ${plural(dueSoon.length, 'vence', 'vencem')} até ${ddmm(in3Days)}`;
+      } else if (overdueOut.length > 0) {
+        title = overdueOut.length === 1 ? `Conta atrasada: ${overdueOut[0].title}` : `${overdueOut.length} contas atrasadas`;
+      } else {
+        title =
+          dueSoon.length === 1
+            ? `Vence ${dueToday ? 'hoje' : `em ${ddmm(dueSoon[0].date)}`}: ${dueSoon[0].title}`
+            : `${dueSoon.length} contas vencem até ${ddmm(in3Days)}`;
+      }
+      const critical = overdueOut.length > 0 || dueToday;
       list.push({
-        id: `overdue_out_${signature(overdueOut.map((e) => `${e.id}@${e.date}`))}`,
-        type: 'CRITICAL',
-        title: overdueOut.length === 1 ? `Conta atrasada: ${overdueOut[0].title}` : `${overdueOut.length} contas atrasadas`,
-        description: `${formatBRL(total)} em aberto${overdueOut.length > 1 ? `, a mais antiga desde ${ddmm(oldest)}` : ` desde ${ddmm(oldest)}`}. Se já pagou, confirme para o saldo ficar certo.`,
-        timestamp: 'Atrasado',
+        id: `bills_${signature([...overdueOut, ...dueSoon].map((e) => `${e.id}@${e.date}`))}`,
+        type: critical ? 'CRITICAL' : 'WARNING',
+        title,
+        description: `${parts.join('. ')}.${overdueOut.length > 0 ? ' Se já pagou, confirme para o saldo ficar certo.' : ''}`,
+        timestamp: overdueOut.length > 0 ? 'Atrasado' : dueToday ? 'Hoje' : 'Próximos 3 dias',
         actionLabel: 'Ver no Início',
         action: actions.onGoToHome,
-        icon: <AlertTriangle size={16} className="text-rose" />,
+        icon: critical ? <AlertTriangle size={16} className="text-rose" /> : <CalendarClock size={16} className="text-amber" />,
       });
     }
 
@@ -123,23 +144,6 @@ export function useHubNotifications(actions: HubNotificationActions) {
         actionLabel: 'Confirmar no Início',
         action: actions.onGoToHome,
         icon: <HandCoins size={16} className="text-amber" />,
-      });
-    }
-
-    // Vence em até 3 dias (hoje incluso)
-    const dueSoon = entries.filter((e) => !e.overdue && e.kind === 'SAIDA' && e.date >= todayIso && e.date <= in3Days);
-    if (dueSoon.length > 0) {
-      const total = dueSoon.reduce((acc, e) => acc + e.amount, 0);
-      const dueToday = dueSoon.some((e) => e.date === todayIso);
-      list.push({
-        id: `due_soon_${signature(dueSoon.map((e) => `${e.id}@${e.date}`))}`,
-        type: dueToday ? 'CRITICAL' : 'WARNING',
-        title: dueSoon.length === 1 ? `Vence ${dueToday ? 'hoje' : `em ${ddmm(dueSoon[0].date)}`}: ${dueSoon[0].title}` : `${dueSoon.length} contas vencem até ${ddmm(in3Days)}`,
-        description: `${formatBRL(total)} a pagar nos próximos dias.`,
-        timestamp: dueToday ? 'Hoje' : 'Próximos 3 dias',
-        actionLabel: 'Ver no Início',
-        action: actions.onGoToHome,
-        icon: <CalendarClock size={16} className={dueToday ? 'text-rose' : 'text-amber'} />,
       });
     }
 
