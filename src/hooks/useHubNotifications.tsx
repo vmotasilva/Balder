@@ -1,10 +1,12 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { AlertTriangle, BadgePercent, CalendarClock, Flag, HandCoins, TrendingDown } from 'lucide-react';
+import { AlertTriangle, BadgePercent, CalendarClock, Flag, HandCoins, Sparkles, TrendingDown } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { usePlans, scopedUserId } from '../context/PlanScopeContext';
 import { useOpportunities } from './useOpportunities';
 import { OPPORTUNITY_LABEL, watchStats } from '../utils/opportunity';
+import { compactDigest } from '../utils/forsetiDigest';
+import { displayName } from '../utils/displayName';
 
 export interface HubNotification {
   /** Muda quando a situação muda (ex.: outra conta vence): assim volta a contar como não lida. */
@@ -23,6 +25,8 @@ export interface HubNotificationActions {
   onGoToHome: () => void;
   onOpenForecast: () => void;
   onOpenOpportunities?: () => void;
+  /** Abre a Forseti já com o resumo completo do dia. */
+  onOpenDigest?: () => void;
 }
 
 interface StoredState {
@@ -52,7 +56,7 @@ const signature = (parts: string[]) => {
 export function useHubNotifications(actions: HubNotificationActions) {
   const { user } = useAuth();
   const { activePlanId } = usePlans();
-  const { activeCheckpoint, forecasts, isDataReady } = useFinancial();
+  const { activeCheckpoint, availableBalance, forecasts, forsetiMemories, isDataReady, viewPreferences } = useFinancial();
   const { watches } = useOpportunities();
   const storageKey = `balder_notifications_${user && !user.isGuest ? scopedUserId(user.$id, activePlanId) : 'guest'}`;
 
@@ -154,6 +158,25 @@ export function useHubNotifications(actions: HubNotificationActions) {
       });
     }
 
+    // Resumo do dia: uma notificação por dia (o id muda na virada, então volta a contar como não lida)
+    if (activeCheckpoint && forecasts.DIAS_30 && forecasts.MES) {
+      const digest = compactDigest(
+        { availableBalance, forecasts, memories: forsetiMemories },
+        new Date(),
+        displayName(user?.name, viewPreferences)
+      );
+      list.push({
+        id: `digest_${todayIso}`,
+        type: 'INFO',
+        title: digest.title,
+        description: digest.description,
+        timestamp: 'Hoje',
+        actionLabel: 'Ver o resumo completo',
+        action: actions.onOpenDigest,
+        icon: <Sparkles size={16} className="text-cyan" />,
+      });
+    }
+
     // Produtos acompanhados que viraram oportunidade (o id muda com o preço: nova queda volta a avisar)
     watches.forEach((w) => {
       const s = watchStats(w);
@@ -173,7 +196,7 @@ export function useHubNotifications(actions: HubNotificationActions) {
     return list;
     // As ações vêm de callbacks estáveis o bastante; recalcula só quando os dados mudam
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDataReady, activeCheckpoint, forecasts, watches]);
+  }, [isDataReady, activeCheckpoint, availableBalance, forecasts, forsetiMemories, viewPreferences, user, watches]);
 
   const currentIds = useMemo(() => notifications.map((n) => n.id), [notifications]);
 

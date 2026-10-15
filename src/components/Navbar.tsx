@@ -43,6 +43,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     emergencyReserveMonths,
     nextCriticalEvent,
     isDataReady,
+    sendMessageToCopilot,
   } = useFinancial();
   const { theme, toggleTheme } = useTheme();
   // Minutos que faltam para o lançamento em suspensão expirar
@@ -63,6 +64,11 @@ export const Navbar: React.FC<NavbarProps> = ({
     onGoToHome: () => onNavigateToDashboard?.(),
     onOpenForecast: () => setIsForecastOpen(true),
     onOpenOpportunities: () => onNavigateToOpportunities?.(),
+    // O resumo completo é a resposta da Forseti a "resumo do dia"
+    onOpenDigest: () => {
+      sendMessageToCopilot('resumo do dia');
+      onNavigateToCopilot?.();
+    },
   });
   const pendingCount = hub.unreadCount;
   const hasHubAlerts = pendingCount > 0;

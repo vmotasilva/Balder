@@ -123,6 +123,29 @@ export function buildDigest(input: DigestInput, today: Date = new Date(), name?:
 }
 
 /**
+ * Versão curta do briefing para a Central de notificações: uma linha com o que não aparece em outro aviso
+ * (atrasos e vencimentos já têm os seus): saldo, recebimentos, sobra do mês e o foco do dia.
+ */
+export function compactDigest(input: DigestInput, today: Date = new Date(), name?: string): { title: string; description: string } {
+  const todayIso = isoDay(today);
+  const month = input.forecasts.MES;
+  const incoming = input.forecasts.DIAS_30.entries.filter((e) => e.kind === 'ENTRADA' && !e.overdue && e.date >= todayIso);
+  const incomeToday = incoming.filter((e) => e.date === todayIso);
+  const nextIncome = incoming.find((e) => e.date > todayIso);
+
+  const parts = [`Saldo ${brl(input.availableBalance)}.`];
+  if (incomeToday.length > 0) parts.push(`Entra hoje ${brl(sum(incomeToday))}.`);
+  else if (nextIncome) parts.push(`Próximo recebimento: ${ddmm(nextIncome.date)} (${brl(nextIncome.amount)}).`);
+  const free = month.projectedBalance;
+  parts.push(free < 0 ? `Faltam ${brl(Math.abs(free))} até ${ddmm(month.toDate)}.` : `Sobram ${brl(free)} até ${ddmm(month.toDate)}.`);
+  const focus = focusFromMemories(input.memories, today);
+  if (focus) parts.push(`${focus}.`);
+
+  const first = name?.trim().split(/\s+/)[0];
+  return { title: `${greetingFor(today.getHours())}${first ? `, ${first}` : ''}: seu resumo do dia`, description: parts.join(' ') };
+}
+
+/**
  * A frase pede o briefing? Só o cumprimento sozinho ("bom dia") ou um pedido de resumo do dia:
  * "bom dia, paguei 50 no mercado" é um registro e segue o fluxo normal.
  */

@@ -25,8 +25,6 @@ import { Modal } from '../components/Modal';
 import { SalaryOverview } from '../components/SalaryOverview';
 import { ForsetiActivityModal } from '../components/ForsetiActivityModal';
 import { ForsetiMemoryModal } from '../components/ForsetiMemoryModal';
-import { ForsetiDigestCard } from '../components/ForsetiDigestCard';
-import { buildDigest } from '../utils/forsetiDigest';
 import { activityCutoffIso } from '../services/forsetiActivityService';
 import { PlanningSwitcher } from '../components/PlanningSwitcher';
 import type { TabId } from '../components/Sidebar';
@@ -113,7 +111,6 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     updateMappingItemState,
     sendMessageToCopilot,
     forsetiActivity,
-    forsetiMemories,
     sharedScenario,
   } = useFinancial();
   const { viewing } = useAccountScope();
@@ -137,30 +134,6 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   const today = new Date();
   const todayIso = isoOf(today);
   const firstName = displayName(user?.name, viewPreferences);
-
-  // Resumo do dia: aparece uma vez por dia em cada planejamento e a pessoa dispensa; o que foi visto fica guardado
-  const digestKey = `balder_digest_seen_${user && !user.isGuest ? scopedUserId(user.$id, activePlanId) : 'guest'}`;
-  const [digestSeenOn, setDigestSeenOn] = useState(() => {
-    try {
-      return localStorage.getItem(digestKey);
-    } catch {
-      return null;
-    }
-  });
-  const digest = useMemo(
-    () => (isDataReady ? buildDigest({ availableBalance, forecasts, memories: forsetiMemories }, new Date(), firstName) : null),
-    // O dia entra na dependência: o resumo se renova sozinho na virada
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isDataReady, availableBalance, forecasts, forsetiMemories, firstName, todayIso]
-  );
-  const dismissDigest = () => {
-    setDigestSeenOn(todayIso);
-    try {
-      localStorage.setItem(digestKey, todayIso);
-    } catch {
-      /* sem armazenamento: o resumo volta na próxima visita */
-    }
-  };
 
   const onboardingDone = (() => {
     try {
@@ -560,9 +533,6 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
         </button>
       </form>
       {voice.error && <p className="text-xs text-rose" role="alert">{voice.error}</p>}
-      {digest && digestSeenOn !== todayIso && (
-        <ForsetiDigestCard digest={digest} onDismiss={dismissDigest} onOpenForseti={() => onOpenForseti()} />
-      )}
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handlePhotoPicked} style={{ display: 'none' }} />
       <input ref={galleryInputRef} type="file" accept="image/*" multiple onChange={handlePhotoPicked} style={{ display: 'none' }} />
       <Modal isOpen={showPhotoChoice} onClose={() => setShowPhotoChoice(false)} title="Enviar foto do cupom" maxWidth="420px">

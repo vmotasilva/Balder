@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ForecastEntry, ForecastPeriod, ForecastWindow } from './forecastWindow';
 import { detectDoubt } from './forsetiAssistant';
-import { buildDigest, isDigestRequest } from './forsetiDigest';
+import { buildDigest, compactDigest, isDigestRequest } from './forsetiDigest';
 import { answerDoubt, type ForsetiData } from './forsetiAssistant';
 import type { ForsetiMemory } from './forsetiMemory';
 
@@ -133,5 +133,45 @@ describe('memória no briefing e nas respostas', () => {
     expect(com).toContain('Evito parcelar compras');
     expect(com.startsWith(sem)).toBe(true);
     expect(sem).not.toContain('🧠');
+  });
+});
+
+describe('compactDigest: o resumo curto da Central de notificações', () => {
+  it('traz saldo, próximo recebimento e sobra do mês, sem repetir atrasos nem vencimentos', () => {
+    const d = compactDigest(
+      input([
+        entry({ title: 'Luz', date: '2025-10-10', overdue: true }),
+        entry({ title: 'Aluguel', date: '2025-10-15', amount: 1500 }),
+        entry({ title: 'Salário', kind: 'ENTRADA', date: '2025-10-20', amount: 5000 }),
+      ]),
+      TODAY,
+      'Vinícius Mota'
+    );
+    expect(d.title).toBe('Bom dia, Vinícius: seu resumo do dia');
+    expect(d.description).toContain('Saldo R$');
+    expect(d.description).toContain('Próximo recebimento: 20/10');
+    expect(d.description).toContain('Sobram R$');
+    expect(d.description).not.toMatch(/Luz|Aluguel|atraso|Vence/);
+  });
+
+  it('entrada de hoje tem destaque sobre a próxima', () => {
+    const d = compactDigest(
+      input([entry({ title: 'Salário', kind: 'ENTRADA', date: '2025-10-15', amount: 5000 }), entry({ title: 'Freela', kind: 'ENTRADA', date: '2025-10-20', amount: 800 })]),
+      TODAY
+    );
+    expect(d.description).toContain('Entra hoje');
+    expect(d.description).not.toContain('Próximo recebimento');
+  });
+
+  it('sobra negativa vira "faltam" e o foco da memória entra no fim', () => {
+    const d = compactDigest({ ...input([], -300), memories: [memory({})] }, TODAY);
+    expect(d.description).toContain('Faltam R$');
+    expect(d.description.endsWith('Seu foco: Quitar o empréstimo.')).toBe(true);
+  });
+
+  it('sem nome nem recebimentos, o resumo continua curto e completo', () => {
+    const d = compactDigest(input([]), new Date(2025, 9, 15, 21));
+    expect(d.title).toBe('Boa noite: seu resumo do dia');
+    expect(d.description.split('. ').length).toBeLessThanOrEqual(3);
   });
 });
