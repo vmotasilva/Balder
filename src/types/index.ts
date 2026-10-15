@@ -465,6 +465,16 @@ export interface MappingItem {
   stateRules?: MappingItemStateRule[];                 // regras que valem de uma competência em diante
   payments?: Record<string, MappingItemPayment[]>;     // pagamentos registrados, chave = competência (YYYY-MM)
   priceRules?: MappingItemPriceRule[];                 // reajustes de preço agendados (competências futuras)
+  dayRules?: MappingItemDayRule[];                     // mudanças do dia previsto, valendo de uma competência em diante
+  dateMoves?: Record<string, Record<string, string>>;  // datas movidas só numa competência: YYYY-MM -> data original -> nova data
+}
+
+/** Dia previsto que passa a valer a partir de uma competência (inclusive); só o campo do tipo de recorrência do item é usado. */
+export interface MappingItemDayRule {
+  fromMonth: string; // YYYY-MM
+  dayOfMonth?: number;
+  dayOfFortnight?: number;
+  dayOfWeek?: MappingItem['dayOfWeek'];
 }
 
 /** O que fazer quando o valor pago difere do esperado para as datas cobertas. */
@@ -494,6 +504,8 @@ export interface MappingItemPayment {
   carryTo?: Record<string, number>;
   /** Movimentação que originou o pagamento (evita contar duas vezes ao reconfirmar). */
   movementId?: string;
+  /** Forma como foi pago (Pix, boleto...). */
+  paymentMethod?: MappingItem['paymentMethod'];
 }
 
 /** Preço por ocorrência que passa a valer a partir de uma competência (inclusive). */

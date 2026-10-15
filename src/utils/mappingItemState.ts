@@ -1,10 +1,11 @@
 import type {
   MappingItem,
+  MappingItemDayRule,
   MappingItemMonthState,
   MappingItemPayment,
   MappingItemPaymentAction,
 } from '../types';
-import { getItemManifestationDays } from './natureScheduling';
+import { getItemManifestationDays, WEEKDAY_OPTIONS } from './natureScheduling';
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 const round3 = (v: number) => Math.round(v * 1000) / 1000;
@@ -218,6 +219,7 @@ export interface ItemPaymentInput {
   action?: MappingItemPaymentAction;
   /** O que não foi pago é redistribuído para as ocorrências seguintes ainda abertas da competência. */
   redistribute?: boolean;
+  paymentMethod?: MappingItem['paymentMethod'];
 }
 
 /**
@@ -247,6 +249,7 @@ export function registerItemPayment(
     expectedAmount,
     coveredDates,
     ...(input.reason ? { reason: input.reason } : {}),
+    ...(input.paymentMethod ? { paymentMethod: input.paymentMethod } : {}),
     ...(input.action && Math.abs(input.amount - expectedAmount) >= 0.01 ? { action: input.action } : {}),
   };
 
@@ -283,6 +286,68 @@ export function registerItemPayment(
   }
 
   return patch;
+}
+
+const nextMonthKey = (monthKey: string) => {
+  const [y, m] = monthKey.split('-').map(Number);
+  return `${new Date(y, m, 1).getFullYear()}-${String(new Date(y, m, 1).getMonth() + 1).padStart(2, '0')}`;
+};
+
+/**
+ * Muda a data prevista de uma ocorrência ainda não paga, dentro da mesma competência.
+ * - 'ONE': só esta ocorrência (os outros meses seguem no dia original).
+ * - 'FUTURE': corrige o dia previsto do item daqui em diante (mensal: o dia do mês; quinzenal: o dia da quinzena;
+ *   semanal: o dia da semana). Se a competência já tem pagamento cobrindo datas, a regra começa na seguinte e esta
+ *   competência recebe só a mudança desta ocorrência, para não soltar o que já foi pago.
+ * Devolve só o que gravar no item (vazio quando a mudança não vale).
+ */
+export function rescheduleOccurrence(
+  item: MappingItem,
+  monthKey: string,
+  fromDate: string,
+  toDate: string,
+  scope: 'ONE' | 'FUTURE'
+): Partial<MappingItem> {
+  if (!toDate || toDate === fromDate || !toDate.startsWith(monthKey)) return {};
+  const occurrences = getItemOccurrences(item, monthKey);
+  if (!occurrences.some((o) => o.date === fromDate) || occurrences.some((o) => o.date === toDate)) return {};
+  const covered = new Set((item.payments?.[monthKey] || []).flatMap((p) => p.coveredDates));
+  if (covered.has(fromDate)) return {};
+
+  const [y, m] = monthKey.split('-').map(Number);
+  const { periodType } = getItemManifestationDays(item, y, m);
+
+  const withMoveInMonth = (moves: Record<string, Record<string, string>>) => {
+    const month = { ...(moves[monthKey] || {}) };
+    // Mover de novo uma data já movida atualiza a original; voltar ao dia original desfaz a mudança
+    const origin = Object.keys(month).find((k) => month[k] === fromDate) ?? fromDate;
+    if (origin === toDate) delete month[origin];
+    else month[origin] = toDate;
+    const next = { ...moves };
+    if (Object.keys(month).length > 0) next[monthKey] = month;
+    else delete next[monthKey];
+    return next;
+  };
+
+  if (scope === 'ONE' || periodType === 'DIARIO') return { dateMoves: withMoveInMonth(item.dateMoves || {}) };
+
+  const day = Number(toDate.slice(8, 10));
+  const rule: MappingItemDayRule =
+    periodType === 'MENSAL'
+      ? { fromMonth: monthKey, dayOfMonth: day }
+      : periodType === 'QUINZENAL'
+      ? { fromMonth: monthKey, dayOfFortnight: day > 15 ? day - 15 : day }
+      : {
+          fromMonth: monthKey,
+          dayOfWeek: WEEKDAY_OPTIONS.find((w) => w.jsDay === new Date(y, m - 1, day).getDay())?.value,
+        };
+
+  const keepPaid = covered.size > 0;
+  if (keepPaid) rule.fromMonth = nextMonthKey(monthKey);
+  const dayRules = [...(item.dayRules || []).filter((r) => r.fromMonth < rule.fromMonth), rule];
+  // Mudanças pontuais de meses que a regra passa a cobrir deixam de valer (o mês pago guarda só a própria)
+  const dateMoves = Object.fromEntries(Object.entries(item.dateMoves || {}).filter(([key]) => key < rule.fromMonth));
+  return { dayRules, dateMoves: keepPaid ? withMoveInMonth(dateMoves) : dateMoves };
 }
 
 /** Desfaz um pagamento (libera as datas cobertas). Reajustes de preço já aplicados são mantidos. */
