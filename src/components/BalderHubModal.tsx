@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { ForecastBreakdownModal, forecastPeriodLabel, formatBRL, useForecastPeriod } from './ForecastBreakdownModal';
+import type { ForecastPeriod } from '../utils/forecastWindow';
 import type { useHubNotifications } from '../hooks/useHubNotifications';
 import { Sparkles, CheckCircle2, ArrowRight, X, Bell, Calendar, RefreshCw } from 'lucide-react';
 
@@ -10,6 +11,8 @@ interface BalderHubModalProps {
   hub: ReturnType<typeof useHubNotifications>;
   isForecastOpen: boolean;
   onForecastOpenChange: (open: boolean) => void;
+  forecastPeriodOverride?: ForecastPeriod | null;
+  onForecastPeriodOverrideClear?: () => void;
   onNavigateToCopilot?: () => void;
 }
 
@@ -20,6 +23,8 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
   hub,
   isForecastOpen,
   onForecastOpenChange,
+  forecastPeriodOverride,
+  onForecastPeriodOverrideClear,
   onNavigateToCopilot,
 }) => {
   const { forecasts } = useFinancial();
@@ -191,8 +196,11 @@ export const BalderHubModal: React.FC<BalderHubModalProps> = ({
       <ForecastBreakdownModal
         isOpen={isForecastOpen}
         onClose={() => onForecastOpenChange(false)}
-        period={forecastPeriod}
-        onPeriodChange={setForecastPeriod}
+        period={forecastPeriodOverride ?? forecastPeriod}
+        onPeriodChange={(p) => {
+          onForecastPeriodOverrideClear?.();
+          setForecastPeriod(p);
+        }}
       />
     </>
   );

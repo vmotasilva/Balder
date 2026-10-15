@@ -23,7 +23,7 @@ export interface HubNotification {
 export interface HubNotificationActions {
   onOpenSetup: (stepIndex?: number) => void;
   onGoToHome: () => void;
-  onOpenForecast: () => void;
+  onOpenForecast: (period?: 'DIAS_30') => void;
   onOpenOpportunities?: () => void;
   /** Abre a Forseti já com o resumo completo do dia. */
   onOpenDigest?: () => void;
@@ -157,7 +157,7 @@ export function useHubNotifications(actions: HubNotificationActions) {
         description: `Com o que está previsto, seu saldo chega a ${formatBRL(window30.projectedBalance)} até ${ddmm(window30.toDate)}.`,
         timestamp: 'Próximos 30 dias',
         actionLabel: 'Ver o que compõe',
-        action: actions.onOpenForecast,
+        action: () => actions.onOpenForecast('DIAS_30'),
         icon: <TrendingDown size={16} className="text-rose" />,
       });
     }
