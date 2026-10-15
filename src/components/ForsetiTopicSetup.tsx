@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Check, Plus, SkipForward, Sparkles, Trash2 } from 'lucide-react';
 import { DecimalInput } from './DecimalInput';
 import { useFinancial, buildSuggestedMappingsForNature } from '../context/FinancialContext';
@@ -26,6 +26,7 @@ import type { ExpenseNature, FixedExpenseMapping, MappingItem, Movement } from '
 import { NumberInput } from './NumberInput';
 import { type SkipMark, marksAfterBack, skippedTopicSummary, withSkipNote } from '../utils/setupSkip';
 import { DateInput } from './DateInput';
+import { userNatures } from '../utils/baseNatures';
 
 
 const TOPICS: { id: SetupTopic; label: string; hint: string; why: string }[] = [
@@ -716,7 +717,8 @@ const TYPE_OPTIONS: { id: ExpenseNature['type']; label: string }[] = [
 ];
 
 const NaturezasTopic: React.FC<TopicProps> = (p) => {
-  const { natures, addNature } = useFinancial();
+  const { natures: allNatures, addNature } = useFinancial();
+  const natures = useMemo(() => userNatures(allNatures), [allNatures]);
   const s = useSteps<'HOW' | 'PICK' | 'CUSTOM' | 'TYPES' | 'MODELS'>('HOW', p);
   const [picked, setPicked] = useState<string[]>([]);
   const [customs, setCustoms] = useState<{ name: string; type: ExpenseNature['type'] }[]>([]);
@@ -876,7 +878,8 @@ const WEEKDAYS: { id: NonNullable<MappingItem['dayOfWeek']>; label: string }[] =
 const FREQ_MULT: Record<Freq, number> = { SEMANAL: 4, QUINZENAL: 2, MENSAL: 1 };
 
 const MapeamentosTopic: React.FC<TopicProps> = (p) => {
-  const { natures, updateNature } = useFinancial();
+  const { natures: allNatures, updateNature } = useFinancial();
+  const natures = useMemo(() => userNatures(allNatures), [allNatures]);
   const s = useSteps<'EMPTY' | 'NATURE' | 'ROUTINE' | 'FREQ' | 'WEEKDAY' | 'DAY' | 'ITEMS' | 'PAY' | 'MORE'>(natures.length === 0 ? 'EMPTY' : 'NATURE', p);
   const [natureId, setNatureId] = useState('');
   const [routine, setRoutine] = useState('');
@@ -955,13 +958,23 @@ const MapeamentosTopic: React.FC<TopicProps> = (p) => {
           <div className="guided-choices is-compact">
             {natures.map((n) => {
               const count = n.mappings.length;
+              const shown = n.mappings.slice(0, 4);
               return (
-                <Choice
+                <button
                   key={n.id}
-                  title={`${n.icon} ${n.name}`}
-                  hint={count > 0 ? `${count} mapeamento${count > 1 ? 's' : ''}` : 'Nada mapeado ainda'}
+                  type="button"
+                  className="guided-choice"
                   onClick={() => { setNatureId(n.id); s.go(q, n.name, 'ROUTINE'); }}
-                />
+                >
+                  <strong>{`${n.icon} ${n.name}`}</strong>
+                  <span>{count > 0 ? `${count} mapeamento${count > 1 ? 's' : ''}` : 'Nada mapeado ainda'}</span>
+                  {count > 0 && (
+                    <ul style={{ margin: '4px 0 0', paddingLeft: 16, listStyle: 'disc' }}>
+                      {shown.map((m) => <li key={m.id}>{m.name}</li>)}
+                      {count > shown.length && <li>e mais {count - shown.length}</li>}
+                    </ul>
+                  )}
+                </button>
               );
             })}
           </div>
@@ -1178,7 +1191,8 @@ interface ForsetiTopicSetupProps {
 export const ForsetiTopicSetup: React.FC<ForsetiTopicSetupProps> = ({ initialTopic, onFinished, finishLabel = 'Ir para o Início', holdHomeScreen }) => {
   const { user } = useAuth();
   const { activePlanId } = usePlans();
-  const { activeCheckpoint, accounts, banks, movements, cards, natures, viewPreferences, setViewPreferences } = useFinancial();
+  const { activeCheckpoint, accounts, banks, movements, cards, natures: allNatures, viewPreferences, setViewPreferences } = useFinancial();
+  const natures = useMemo(() => userNatures(allNatures), [allNatures]);
   const [heldHomeScreen, setHeldHomeScreen] = useState<'INICIO' | 'PAINEL' | null>(null);
   const [turns, setTurns] = useState<{ question: string; answer: string }[]>([]);
   const [phase, setPhase] = useState<'MENU' | 'TOPIC' | 'CHECK' | 'DONE'>(initialTopic ? 'TOPIC' : 'MENU');
