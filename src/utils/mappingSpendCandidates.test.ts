@@ -71,4 +71,21 @@ describe('desconsiderar previsto', () => {
     expect(after.paid).toBe(0);
     expect(after.pending).toBeCloseTo(before.pending - waived, 2);
   });
+
+  it('sem a semana: acha gasto do mês inteiro e põe o mais próximo da data prevista primeiro', () => {
+    const month = { from: '2026-10-01', to: '2026-10-31' };
+    const found = findMappingSpendCandidates({
+      movements: [
+        mov({ id: 'far', paymentDate: '2026-10-28' }),
+        mov({ id: 'near', paymentDate: '2026-10-06' }),
+        mov({ id: 'out', paymentDate: '2026-11-02' }),
+      ],
+      natures: [nature()],
+      natureId: 'nat1',
+      mappingId: 'map1',
+      range: month,
+      near: '2026-10-04',
+    });
+    expect(found.map((m) => m.id)).toEqual(['near', 'far']);
+  });
 });
