@@ -24944,3 +24944,10 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
   gap: 6px;
   margin-top: 6px;
 }
+
+.open-bill-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--accent-amber, #fbbf24);
+}

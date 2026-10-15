@@ -23,8 +23,10 @@ export function findMappingSpendCandidates(params: {
   natureId: string;
   mappingId: string;
   range: { from: string; to: string };
+  /** Data prevista da compra: desempata os gastos pela proximidade dela (o mais perto primeiro). */
+  near?: string;
 }): Movement[] {
-  const { movements, natures, natureId, mappingId, range } = params;
+  const { movements, natures, natureId, mappingId, range, near } = params;
   const mapping = natures.find((n) => n.id === natureId)?.mappings.find((m) => m.id === mappingId);
   if (!mapping) return [];
 
@@ -45,6 +47,12 @@ export function findMappingSpendCandidates(params: {
     return terms.some((t) => text.includes(t)) ? 1 : 0;
   };
 
+  const dayNumber = (iso: string) => {
+    const [y, mo, d] = iso.split('-').map(Number);
+    return Math.round(new Date(y, mo - 1, d).getTime() / 86400000);
+  };
+  const distance = (m: Movement) => (near ? Math.abs(dayNumber(spendDate(m)) - dayNumber(near)) : 0);
+
   return movements
     .filter((m) => {
       if (m.type !== 'PAGAR' || m.status !== 'REALIZADA') return false;
@@ -57,5 +65,5 @@ export function findMappingSpendCandidates(params: {
       if (m.mappingId && m.mappingId !== mappingId) return false;
       return resolveMovementNatureId(m, natures) === natureId;
     })
-    .sort((a, b) => score(b) - score(a) || spendDate(a).localeCompare(spendDate(b)));
+    .sort((a, b) => score(b) - score(a) || distance(a) - distance(b) || spendDate(a).localeCompare(spendDate(b)));
 }

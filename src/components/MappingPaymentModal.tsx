@@ -98,9 +98,22 @@ const MappingPaymentForm: React.FC<{ target: MappingPaymentTarget; onClose: () =
     const week = trackingPeriodRange('SEMANA', dateOf(ref));
     return { from: week.from < first ? first : week.from, to: week.to > last ? last : week.to };
   }, [target.forecastDate, monthKey]);
+  // A compra pode ter sido feita em outra semana (ou dia) que a prevista: procura no mês todo, os mais próximos primeiro
+  const monthRange = useMemo(() => {
+    const first = `${monthKey}-01`;
+    return { from: first, to: trackingPeriodRange('MES', dateOf(first)).to };
+  }, [monthKey]);
   const candidates = useMemo(
-    () => findMappingSpendCandidates({ movements, natures, natureId: target.natureId, mappingId: target.mappingId, range: weekRange }),
-    [movements, natures, target.natureId, target.mappingId, weekRange]
+    () =>
+      findMappingSpendCandidates({
+        movements,
+        natures,
+        natureId: target.natureId,
+        mappingId: target.mappingId,
+        range: monthRange,
+        near: target.forecastDate,
+      }),
+    [movements, natures, target.natureId, target.mappingId, monthRange, target.forecastDate]
   );
 
   const pickSpend = (m: Movement) => {
@@ -169,12 +182,12 @@ const MappingPaymentForm: React.FC<{ target: MappingPaymentTarget; onClose: () =
         )}
 
         {candidates.length > 0 && (
-          <div className="mapping-pay-suggest" role="group" aria-label="Gastos já feitos na semana">
+          <div className="mapping-pay-suggest" role="group" aria-label="Gastos já feitos no mês">
             <p className="mapping-pay-suggest-title">
               <Link2 size={15} className="text-amber" />
               <span>
-                {candidates.length === 1 ? 'Já há um gasto' : `Já há ${candidates.length} gastos`} de {target.title} na semana de{' '}
-                {formatDate(weekRange.from)} a {formatDate(weekRange.to)}. {candidates.length === 1 ? 'É esta compra prevista?' : 'Algum deles é esta compra prevista?'}
+                {candidates.length === 1 ? 'Já há um gasto' : `Já há ${candidates.length} gastos`} de {target.title} em{' '}
+                {monthLabel(monthKey)}, ainda sem ligação com o previsto. {candidates.length === 1 ? 'É esta compra prevista?' : 'Algum deles é esta compra prevista?'}
               </span>
             </p>
             <ul>
