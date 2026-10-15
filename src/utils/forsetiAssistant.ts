@@ -797,7 +797,14 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
         free <= 0
           ? `⚠️ Com o que está previsto, **não sobra dinheiro** este mês (faltam ${brl(Math.abs(free))}). Vale adiar gastos que não são essenciais ou rever o que ainda vai pagar.`
           : `Se tudo o que está previsto acontecer, você pode gastar até **${brl(free)}** sem ficar no negativo — algo como **${brl(free / daysLeft)} por dia** nos ${daysLeft} dias que faltam.`;
-      return { text: `${lines.join('\n')}\n\n${verdict}`, badge: 'QUANTO POSSO GASTAR', chips: ['O que vence nos próximos dias?', 'Quanto já gastei este mês?', CHIP_DUVIDA] };
+      // Em relação ao planejado: os gastos previstos já estão descontados da sobra, então ela é o que cabe além deles
+      const plannedMonth = rowExpense(d.monthProjected);
+      const paidMonth = rowExpense(d.monthRealized);
+      const plannedNote =
+        plannedMonth > 0
+          ? `\n\n📋 **Em relação ao que você planejou:** o mês tem **${brl(plannedMonth)}** de gastos previstos; **${brl(paidMonth)}** já foram pagos (${pct(paidMonth, plannedMonth)}%) e **${brl(month.expenses)}** ainda vão sair até ${ddmm(month.toDate)} — esse valor já está descontado acima.${free > 0 ? ` Ou seja, os ${brl(free)} são o que cabe **além** do previsto, e gastar tudo isso deixa o saldo em zero no fim do mês.` : ''}`
+          : '';
+      return { text: `${lines.join('\n')}\n\n${verdict}${plannedNote}`, badge: 'QUANTO POSSO GASTAR', chips: ['O que vence nos próximos dias?', 'Quanto já gastei este mês?', CHIP_DUVIDA] };
     }
 
     case 'VENCE': {
