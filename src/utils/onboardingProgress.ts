@@ -248,8 +248,11 @@ export function auditOnboardingProgress(data: AuditInputData): OnboardingAuditRe
   const naturesWithMappings = (natures || []).filter(
     (n) => n.mappings && Array.isArray(n.mappings) && n.mappings.length > 0
   ).length;
+  // Palavras-chave da natureza ou das suas rotinas (mapeamentos montados à mão também as têm)
   const naturesWithKeywords = (natures || []).filter(
-    (n) => n.keywords && Array.isArray(n.keywords) && n.keywords.length > 0
+    (n) =>
+      (Array.isArray(n.keywords) && n.keywords.length > 0) ||
+      (n.mappings || []).some((m) => Array.isArray(m.keywords) && m.keywords.length > 0)
   ).length;
 
   if (naturesWithMappings > 0 && naturesWithKeywords > 0) {
