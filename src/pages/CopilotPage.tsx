@@ -8,6 +8,7 @@ import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import type { TabId } from '../components/Sidebar';
 import type { CopilotAttachment } from '../types';
 import { MAIN_CHIPS } from '../utils/forsetiAssistant';
+import { quotaNotice, useAiQuota } from '../services/forsetiAiQuota';
 
 export interface CopilotPageProps {
   onBack?: () => void;
@@ -38,8 +39,9 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
   initialDraft = '',
   onOpenOnboarding,
 }) => {
-  const { chatHistory, resetForsetiChat, sendMessageToCopilot, respondToCopilotOption, confirmForsetiAction, reconcileReceiptData, natures, activeCheckpoint, movements } = useFinancial();
+  const { forsetiThinking, chatHistory, resetForsetiChat, sendMessageToCopilot, respondToCopilotOption, confirmForsetiAction, reconcileReceiptData, natures, activeCheckpoint, movements } = useFinancial();
   const { viewing } = useAccountScope();
+  const aiNotice = quotaNotice(useAiQuota());
   const [inputQuery, setInputQuery] = useState(initialDraft);
   const [attachedImages, setAttachedImages] = useState<CopilotAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -242,18 +244,33 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
             <div className="copilot-topbar-info">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="copilot-topbar-name">BALDER Forseti</span>
-                <span className="copilot-status-dot" title="Forseti Operacional Online" />
+                <span
+                  className={`copilot-status-dot ${forsetiThinking ? 'is-thinking' : ''}`}
+                  title={forsetiThinking ? 'Forseti pensando' : 'Forseti Operacional Online'}
+                />
                 {screenTitle && (
                   <span className="copilot-screen-context-badge">
                     👁️ {screenTitle}
                   </span>
                 )}
               </div>
-              <span className={`copilot-topbar-sub ${viewing ? 'copilot-planning-shared' : ''}`}>
-                📍 {viewing
-                  ? `Atuando no planejamento de ${viewing.ownerName} · ${viewing.role === 'COLABORADOR' ? 'colaborador(a)' : 'visualizador(a)'}`
-                  : 'Atuando no seu planejamento'}
+              <span className={`copilot-topbar-sub ${viewing ? 'copilot-planning-shared' : ''}`} aria-live="polite">
+                {forsetiThinking ? (
+                  '✨ Pensando…'
+                ) : (
+                  <>
+                    📍{' '}
+                    {viewing
+                      ? `Atuando no planejamento de ${viewing.ownerName} · ${viewing.role === 'COLABORADOR' ? 'colaborador(a)' : 'visualizador(a)'}`
+                      : 'Atuando no seu planejamento'}
+                  </>
+                )}
               </span>
+              {aiNotice && (
+                <span className="copilot-ai-quota" title="A Forseti usa a IA só quando as regras não entendem a frase. O limite renova a cada hora.">
+                  {aiNotice}
+                </span>
+              )}
             </div>
           </div>
 
@@ -355,6 +372,11 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
                     <span className="message-time">{msg.timestamp}</span>
                     {msg.actionBadge && (
                       <span className="badge badge-cyan message-action-badge">{msg.actionBadge}</span>
+                    )}
+                    {msg.via === 'IA' && (
+                      <span className="badge badge-purple message-action-badge" title="As regras do app não entenderam a frase e a IA interpretou o pedido (o cálculo continua sendo do Balder).">
+                        ✨ IA
+                      </span>
                     )}
                   </div>
 

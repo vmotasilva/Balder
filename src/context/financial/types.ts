@@ -157,6 +157,8 @@ export interface FinancialContextType {
   forsetiActivity: ForsetiActivity[];
   /** O histórico só existe neste aparelho (a tabela forseti_activity ainda não foi criada no Supabase). */
   forsetiActivityLocalOnly: boolean;
+  /** A Forseti está esperando a IA ou lendo uma foto (as regras respondem na hora). */
+  forsetiThinking: boolean;
   /** O que a pessoa pediu para a Forseti lembrar (é dela, não do planejamento aberto). */
   forsetiMemories: ForsetiMemory[];
   /** A memória só existe neste aparelho (a tabela forseti_memories ainda não foi criada no Supabase). */

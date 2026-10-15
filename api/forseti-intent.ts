@@ -18,6 +18,18 @@ const cache = new Map<string, { intent: string; period?: string; registration?: 
 /** Hoje no Brasil (AAAA-MM-DD): a IA precisa dele para entender "amanhã" e "dia 12". */
 const today = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 
+/** Quantas chamadas novas ainda cabem na última hora (não gasta nenhuma: as respostas guardadas também informam o saldo). */
+const remainingFor = (userId: string) => {
+  const since = Date.now() - 3600_000;
+  return Math.max(0, LIMIT_PER_HOUR - (calls.get(userId) || []).filter((t) => t > since).length);
+};
+
+/** Cabeçalhos que dizem ao aplicativo quanto resta do limite por hora (para avisar a pessoa antes de acabar). */
+const quotaHeaders = (userId: string): Record<string, string> => ({
+  'X-Forseti-Ai-Limit': String(LIMIT_PER_HOUR),
+  'X-Forseti-Ai-Remaining': String(remainingFor(userId)),
+});
+
 /** Registra a chamada e diz se ainda cabe no limite da última hora. */
 function withinLimit(userId: string): boolean {
   const since = Date.now() - 3600_000;
@@ -93,14 +105,14 @@ export async function POST(request: Request): Promise<Response> {
   } catch {
     return Response.json({ error: 'corpo inválido' }, { status: 400 });
   }
-  if (!text) return Response.json({ intent: 'DESCONHECIDO' });
+  if (!text) return Response.json({ intent: 'DESCONHECIDO' }, { headers: quotaHeaders(userId) });
 
   // A data entra na chave: "amanhã" guardado ontem apontaria para o dia errado
   const day = today();
   const cacheKey = `${day}|${context}|${normalizePhrase(text)}`;
   const cached = cache.get(cacheKey);
-  if (cached) return Response.json(cached, { headers: { 'Cache-Control': 'no-store' } });
-  if (!withinLimit(userId)) return Response.json({ error: 'limite de uso' }, { status: 429 });
+  if (cached) return Response.json(cached, { headers: { 'Cache-Control': 'no-store', ...quotaHeaders(userId) } });
+  if (!withinLimit(userId)) return Response.json({ error: 'limite de uso' }, { status: 429, headers: quotaHeaders(userId) });
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -167,5 +179,5 @@ export async function POST(request: Request): Promise<Response> {
   // Só guarda respostas com algo útil: um erro ou um "não sei" passageiro não pode ficar preso
   if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value!);
   if (intent !== 'DESCONHECIDO' || registration || memory) cache.set(cacheKey, answer);
-  return Response.json(answer, { headers: { 'Cache-Control': 'no-store' } });
+  return Response.json(answer, { headers: { 'Cache-Control': 'no-store', ...quotaHeaders(userId) } });
 }

@@ -125,7 +125,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   });
 
   const {
-    forsetiBlockedInShared, sendMessageToCopilot,
+    forsetiBlockedInShared, forsetiThinking, sendMessageToCopilot,
   } = useForsetiChat({
     accounts, activeCheckpoint, addCard, associateReceiptItemsToInvoice, availableBalance, banks,
     cards, emergencyReserveAmount, emergencyReserveMonths, forecast30d, forecasts, forsetiFlowRef,
@@ -309,6 +309,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         cancelPaymentWizard,
         forsetiActivity,
         forsetiActivityLocalOnly,
+        forsetiThinking,
         forsetiMemories,
         forsetiMemoryLocalOnly,
         saveForsetiMemory,

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { CASH_IN_HAND } from '../../utils/cashInHand';
 import { PERMISSION_LABEL } from './sharedAccess';
 import { wizardForPaymentOption } from '../../utils/forsetiWizard';
@@ -17,7 +18,7 @@ import {
   answerDoubt, brl, categoryFromChip, describeAction, detectAction, detectAmbiguity, detectDoubt, detectLooseAmount, isQuestion,
   inferExpenseCategory, isPastReceive, isScheduledPayment, mentionedCard, parseAmount, parseDate,
   parseInstallments, paymentOptions, pickPaymentOptions, registrationKind, registrationPhrase, resolveFollowUp, shorthandRegistration,
-  spendPeriodFrom, titleFrom,
+  spendPeriodFrom, titleFrom, withAiLimitNote,
 } from '../../utils/forsetiAssistant';
 import {
   type CopilotAttachment, type CopilotMessage, type CreditCardItem, type PaymentWizardState,
@@ -111,6 +112,13 @@ export function useForsetiChat({
     return true;
   };
 
+  // A Forseti está pensando enquanto espera a IA ou lê uma foto (as regras respondem na hora): o avatar mostra isso
+  const [pending, setPending] = useState(0);
+  const track = <T,>(task: Promise<T>): Promise<T> => {
+    setPending((n) => n + 1);
+    return task.finally(() => setPending((n) => Math.max(0, n - 1)));
+  };
+
   const sendMessageToCopilot = (
     query: string,
     attachment?:
@@ -173,7 +181,7 @@ export function useForsetiChat({
       setChatHistory((prev) => [...prev, userMessage, loadingMessage]);
 
       // Execução paralela do pipeline de OCR para todas as fotos enviadas
-      Promise.all(attachmentsList.map((att) => recognizeImageOCR(att.url, trimmed)))
+      track(Promise.all(attachmentsList.map((att) => recognizeImageOCR(att.url, trimmed))))
         .then((ocrResults) => {
           // Imediatamente libera os arquivos do espaço temporário (memória / blob) para evitar vazamento
           attachmentsList.forEach((att) => {
@@ -388,6 +396,7 @@ export function useForsetiChat({
           content: r.text,
           timestamp: 'Agora',
           actionBadge: r.badge,
+          ...(by ? { via: by } : {}),
           suggestedFollowUps: r.chips,
           ...(r.choices ? { choices: r.choices } : {}),
           ...(r.pendingAction ? { pendingAction: r.pendingAction } : {}),
@@ -882,7 +891,12 @@ export function useForsetiChat({
       const wordCount = trimmed.split(/\s+/).length;
       // Frase curta com valor ("50 barbeiro") também vai à IA: ela entende o que as regras não têm na lista de palavras
       if (wordCount >= 3 || (wordCount >= 2 && parseAmount(trimmed) !== null)) {
-        classifyIntent(trimmed, topicBefore ? { intent: topicBefore.intent, period: topicBefore.period, previous: topicBefore.text } : undefined).then((found) => {
+        track(classifyIntent(trimmed, topicBefore ? { intent: topicBefore.intent, period: topicBefore.period, previous: topicBefore.text } : undefined)).then((found) => {
+          // O limite de pedidos à IA desta hora acabou: avisa em vez de só dizer que não entendeu
+          if (found?.limited) {
+            reply(withAiLimitNote(detectLooseAmount(trimmed) || detectAmbiguity(trimmed) || FALLBACK_REPLY));
+            return;
+          }
           // A IA entendeu um gasto/recebimento: segue o registro guiado de sempre (pergunta o que falta e confirma)
           if (found?.registration && !isQuestion(trimmed)) {
             viaAi = true;
@@ -935,5 +949,5 @@ export function useForsetiChat({
 
   // Responder a uma opção interativa do Copilot
 
-  return { forsetiBlockedInShared, sendMessageToCopilot };
+  return { forsetiBlockedInShared, forsetiThinking: pending > 0, sendMessageToCopilot };
 }
