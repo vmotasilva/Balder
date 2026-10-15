@@ -1,5 +1,7 @@
 import { type BankAccount, type BankInstitution, type CopilotAttachment, type CopilotInteractiveOption, type CopilotMessage, type CopilotPendingConfirmation, type CreditCardItem, type CriticalEvent, type CustomScenarioInput, type DataFormatCategory, type ExpenseNature, type FinancialCheckpoint, type FixedExpenseMapping, type ForsetiActivity, type FutureScenarioResult, type Goal, type GoalStatusInfo, type MappingItem, type MonthlyClosing, type Movement, type NatureDetailMode, type PaymentMethodItem, type PaymentWizardState, type ReceiptReconciliationData, type SharedScenario, type SharedSettlementItem, type SharedSplitRule, type SimulationPresetId, type SimulationScenario, type TrackingScopeMode, type ViewPreferences } from '../../types';
 import { type ForecastPeriod, type ForecastWindow } from '../../utils/forecastWindow';
+import type { ForsetiMemory, MemoryDraft } from '../../utils/forsetiMemory';
+import type { SaveMemoryResult } from './useForsetiMemory';
 
 /** Item do mapeamento a marcar como feito; com monthKey, o pagamento também entra no "Real" da competência. */
 export interface FulfilledItemInput {
@@ -155,6 +157,14 @@ export interface FinancialContextType {
   forsetiActivity: ForsetiActivity[];
   /** O histórico só existe neste aparelho (a tabela forseti_activity ainda não foi criada no Supabase). */
   forsetiActivityLocalOnly: boolean;
+  /** O que a pessoa pediu para a Forseti lembrar (é dela, não do planejamento aberto). */
+  forsetiMemories: ForsetiMemory[];
+  /** A memória só existe neste aparelho (a tabela forseti_memories ainda não foi criada no Supabase). */
+  forsetiMemoryLocalOnly: boolean;
+  saveForsetiMemory: (draft: MemoryDraft) => SaveMemoryResult;
+  updateForsetiMemory: (id: string, draft: MemoryDraft) => boolean;
+  removeForsetiMemory: (id: string) => void;
+  clearForsetiMemories: () => void;
   rateForsetiActivity: (id: string, rating: ForsetiActivity['rating']) => void;
   undoForsetiActivity: (id: string) => { ok: boolean; message: string };
   reconcileReceiptData: (messageId: string, data: ReceiptReconciliationData) => void;

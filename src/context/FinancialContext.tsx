@@ -18,6 +18,7 @@ import { useNatures } from './financial/useNatures';
 import { useForsetiActivity } from './financial/useForsetiActivity';
 import { useCloudSync } from './financial/useCloudSync';
 import { useForsetiChat } from './financial/useForsetiChat';
+import { useForsetiMemory } from './financial/useForsetiMemory';
 import { useForsetiActions } from './financial/useForsetiActions';
 import { useFormatUserData } from './financial/useFormatUserData';
 
@@ -111,6 +112,10 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     authUser, cards, deleteCard, deleteMovement, movements, updateMovement, viewing,
   });
 
+  const {
+    forsetiMemories, forsetiMemoryLocalOnly, saveForsetiMemory, updateForsetiMemory, removeForsetiMemory, clearForsetiMemories,
+  } = useForsetiMemory({ authUser });
+
   useCloudSync({
     lastLocalNatureMutationRef, setAccounts, setArchivedLoanGroups, setBanks, setCards,
     setCheckpointCashInHandState, setCheckpoints, setDefaultTrackingScopeState,
@@ -124,7 +129,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   } = useForsetiChat({
     accounts, activeCheckpoint, addCard, associateReceiptItemsToInvoice, availableBalance, banks,
     cards, emergencyReserveAmount, emergencyReserveMonths, forecast30d, forecasts, forsetiFlowRef,
-    goals, lastTopicRef, logForsetiActivity, monthlyClosings, monthlyFreeCashflow, movements,
+    forsetiMemories, goals, lastTopicRef, logForsetiActivity, monthlyClosings, monthlyFreeCashflow, movements,
     natures, nextCriticalEvent, projectionHorizonMonths, requestTrailRef, runSimulation,
     setChatHistory, viewing,
   });
@@ -136,7 +141,7 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     accounts, addMappingToNature, addMovement, addMultipleMovements, addNature,
     applyBankDueDayToOpenInvoices, associateReceiptItemsToInvoice, authUser, banks, cards,
     chatHistory, forsetiBlockedInShared, forsetiFlowRef, logForsetiActivity, movements, natures,
-    requestTrailRef, saveNaturesData, setBankInvoiceTerms, setChatHistory, setNatures,
+    requestTrailRef, saveForsetiMemory, saveNaturesData, setBankInvoiceTerms, setChatHistory, setNatures,
     updateMovement, viewing,
   });
 
@@ -304,6 +309,12 @@ export const FinancialProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         cancelPaymentWizard,
         forsetiActivity,
         forsetiActivityLocalOnly,
+        forsetiMemories,
+        forsetiMemoryLocalOnly,
+        saveForsetiMemory,
+        updateForsetiMemory,
+        removeForsetiMemory,
+        clearForsetiMemories,
         rateForsetiActivity,
         undoForsetiActivity,
         exportToCSV,

@@ -349,6 +349,7 @@ export type ForsetiPendingAction = {
   | { kind: 'CREATE_NATURE'; name: string }
   | { kind: 'CREATE_MAPPING'; name: string; natureId: string; natureName: string }
   | { kind: 'ASSIGN_NATURES'; assignments: { movementId: string; title: string; natureId: string; natureName: string }[] }
+  | { kind: 'SAVE_MEMORY'; memory: { kind: 'PREFERENCIA' | 'RESTRICAO' | 'CONTEXTO' | 'PRIORIDADE'; title: string; body: string } }
   | { kind: 'SET_BANK_INVOICE'; bank: string; closingDay: number; dueDay: number; estimatedClosing: boolean; shiftOpen: boolean; openInvoices: number }
 );
 

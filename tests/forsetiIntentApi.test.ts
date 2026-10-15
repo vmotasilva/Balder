@@ -7,6 +7,7 @@ let aiCalls = 0;
 let aiIntent = 'SALDO_HOJE';
 let aiRegistration: unknown;
 let aiSpend: unknown;
+let aiMemory: unknown;
 let lastAiBody = '';
 // Linha de user_subscriptions devolvida pelo Supabase (vazio = sem assinatura cadastrada = liberado)
 let subscriptionRows: unknown[] = [];
@@ -16,6 +17,7 @@ beforeEach(() => {
   aiIntent = 'SALDO_HOJE';
   aiRegistration = undefined;
   aiSpend = undefined;
+  aiMemory = undefined;
   lastAiBody = '';
   subscriptionRows = [];
   vi.resetModules();
@@ -30,7 +32,7 @@ beforeEach(() => {
       if (String(url).includes('/rest/v1/user_subscriptions')) return Response.json(subscriptionRows);
       aiCalls += 1;
       lastAiBody = String(init.body);
-      return Response.json({ content: [{ type: 'tool_use', input: { intent: aiIntent, registration: aiRegistration, spend: aiSpend } }] });
+      return Response.json({ content: [{ type: 'tool_use', input: { intent: aiIntent, registration: aiRegistration, memory: aiMemory, spend: aiSpend } }] });
     })
   );
 });
@@ -161,6 +163,47 @@ describe('/api/forseti-intent', () => {
       await call(await load(), { text: 'agenda 200 de luz pra amanhã' }, 'Bearer valido');
       expect(lastAiBody).toMatch(/hoje: \d{4}-\d{2}-\d{2}/);
       expect(lastAiBody).toMatch(/registration/);
+    });
+  });
+
+  describe('memória entendida pela IA', () => {
+    const MEMORY = { kind: 'RESTRICAO', title: 'Evita parcelar', body: 'Evita parcelar compras' };
+
+    it('devolve a memória quando a IA entende que a pessoa contou algo duradouro', async () => {
+      aiIntent = 'DESCONHECIDO';
+      aiMemory = MEMORY;
+      expect(await (await call(await load(), { text: 'eu tento nunca parcelar nada' }, 'Bearer valido')).json()).toEqual({ intent: 'DESCONHECIDO', memory: MEMORY });
+    });
+
+    it('guarda a resposta com memória (a mesma frase não chama a IA de novo)', async () => {
+      aiIntent = 'DESCONHECIDO';
+      aiMemory = MEMORY;
+      const POST = await load();
+      await call(POST, { text: 'eu tento nunca parcelar nada' }, 'Bearer valido');
+      expect((await (await call(POST, { text: 'eu tento nunca parcelar nada' }, 'Bearer valido')).json()).memory).toEqual(MEMORY);
+      expect(aiCalls).toBe(1);
+    });
+
+    it.each([
+      ['com valor em reais', { kind: 'CONTEXTO', body: 'Ganho R$ 5000 por mês' }],
+      ['com número de documento', { kind: 'CONTEXTO', body: 'Meu cpf é 123.456.789-09' }],
+      ['com e-mail', { kind: 'CONTEXTO', body: 'Escreva para a@b.com' }],
+      ['de tipo inválido', { kind: 'SEGREDO', body: 'Algo qualquer aqui' }],
+    ])('descarta memória %s', async (_nome, memory) => {
+      aiIntent = 'DESCONHECIDO';
+      aiMemory = memory;
+      expect(await (await call(await load(), { text: 'conto algo sobre mim por aqui' }, 'Bearer valido')).json()).toEqual({ intent: 'DESCONHECIDO' });
+    });
+
+    it('memória só vale com DESCONHECIDO e sem registro', async () => {
+      aiIntent = 'SALDO_HOJE';
+      aiMemory = MEMORY;
+      expect(await (await call(await load(), { text: 'qual meu saldo agora' }, 'Bearer valido')).json()).toEqual({ intent: 'SALDO_HOJE' });
+      aiIntent = 'DESCONHECIDO';
+      aiRegistration = { kind: 'PAGAR', amount: 100, title: 'Pix', future: false };
+      const body = await (await call(await load(), { text: 'mandei cem de pix pro joao' }, 'Bearer valido')).json();
+      expect(body.registration).toBeDefined();
+      expect(body.memory).toBeUndefined();
     });
   });
 

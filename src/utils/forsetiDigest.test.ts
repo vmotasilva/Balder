@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { ForecastEntry, ForecastPeriod, ForecastWindow } from './forecastWindow';
 import { detectDoubt } from './forsetiAssistant';
 import { buildDigest, isDigestRequest } from './forsetiDigest';
+import { answerDoubt, type ForsetiData } from './forsetiAssistant';
+import type { ForsetiMemory } from './forsetiMemory';
 
 // Quarta-feira, 15/10/2025, 08:00
 const TODAY = new Date(2025, 9, 15, 8, 0, 0);
@@ -97,5 +99,39 @@ describe('buildDigest', () => {
     expect(d.text).toContain('Conta 4');
     expect(d.text).not.toContain('Conta 5');
     expect(d.text).toContain('e mais 3');
+  });
+});
+
+const memory = (over: Partial<ForsetiMemory>): ForsetiMemory => ({
+  id: 'm', kind: 'PRIORIDADE', title: 'T', body: 'Quitar o empréstimo', createdAt: '2025-01-01T00:00:00Z', updatedAt: '2025-01-01T00:00:00Z', ...over,
+});
+
+describe('memória no briefing e nas respostas', () => {
+  it('o briefing traz o foco do dia a partir das prioridades', () => {
+    const d = buildDigest({ ...input([]), memories: [memory({})] }, TODAY);
+    expect(d.text).toContain('🎯 Seu foco: Quitar o empréstimo.');
+  });
+
+  it('sem memória, o briefing não tem linha de foco', () => {
+    expect(buildDigest(input([]), TODAY).text).not.toContain('🎯');
+  });
+
+  const data = (memories?: ForsetiMemory[]): ForsetiData => ({
+    ...input([]), goals: [], movements: [], emergencyReserveAmount: 0, emergencyReserveMonths: 0, monthlyFreeCashflow: 2000, memories,
+  });
+
+  it('"o que você sabe sobre mim" lista a memória', () => {
+    expect(detectDoubt('o que você sabe sobre mim?')).toBe('MEMORIAS');
+    expect(answerDoubt('MEMORIAS', '', data([memory({})])).text).toContain('Quitar o empréstimo');
+    expect(answerDoubt('MEMORIAS', '', data([])).text).toContain('Ainda não guardei nada');
+  });
+
+  it('a resposta de compra lembra o que a pessoa contou, e não muda sem memória', () => {
+    const evita = memory({ kind: 'RESTRICAO', body: 'Evito parcelar compras' });
+    const sem = answerDoubt('COMPRA', 'posso comprar um carro?', data()).text;
+    const com = answerDoubt('COMPRA', 'posso comprar um carro?', data([evita])).text;
+    expect(com).toContain('Evito parcelar compras');
+    expect(com.startsWith(sem)).toBe(true);
+    expect(sem).not.toContain('🧠');
   });
 });

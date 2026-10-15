@@ -3,12 +3,15 @@ import {
   isForsetiIntent, isSpendPeriod, parseRegistration, parseSpendQuery, type ForsetiIntent, type ForsetiRegistration, type ForsetiSpendQuery,
   type SpendPeriod,
 } from '../utils/forsetiIntents';
+import { type MemoryDraft, parseMemory } from '../utils/forsetiMemory';
 
 /** O que a IA entendeu: uma consulta (intent) ou um registro de gasto/recebimento (registration), nunca os dois. */
 export interface ClassifiedIntent {
   intent?: ForsetiIntent;
   period?: SpendPeriod;
   registration?: ForsetiRegistration;
+  /** Algo duradouro que a pessoa contou sobre si (a Forseti pergunta se pode lembrar). */
+  memory?: MemoryDraft;
   /** Assunto e período de uma pergunta de gastos com detalhe (intent GASTOS_DETALHE). */
   spend?: ForsetiSpendQuery;
 }
@@ -40,13 +43,15 @@ export async function classifyIntent(text: string, context?: IntentContext): Pro
       signal: controller.signal,
     });
     if (!res.ok) return null;
-    const data = (await res.json()) as { intent?: string; period?: string; registration?: unknown; spend?: unknown };
+    const data = (await res.json()) as { intent?: string; period?: string; registration?: unknown; memory?: unknown; spend?: unknown };
     if (isForsetiIntent(data.intent)) {
       return { intent: data.intent, period: isSpendPeriod(data.period) ? data.period : undefined, ...(data.intent === 'GASTOS_DETALHE' ? { spend: parseSpendQuery(data.spend) } : {}) };
     }
     // A resposta é validada de novo aqui: o que vem da rede nunca é confiado como veio
     const registration = parseRegistration(data.registration);
-    return registration ? { registration } : null;
+    if (registration) return { registration };
+    const memory = parseMemory(data.memory);
+    return memory ? { memory } : null;
   } catch {
     return null;
   } finally {

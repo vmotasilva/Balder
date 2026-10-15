@@ -1,4 +1,5 @@
 import type { ForecastEntry, ForecastPeriod, ForecastWindow } from './forecastWindow';
+import { type ForsetiMemory, focusFromMemories } from './forsetiMemory';
 import { brl, ddmm, isoDay, stripAccents } from './forsetiMoney';
 
 /**
@@ -10,6 +11,8 @@ import { brl, ddmm, isoDay, stripAccents } from './forsetiMoney';
 export interface DigestInput {
   availableBalance: number;
   forecasts: Record<ForecastPeriod, ForecastWindow>;
+  /** O que a pessoa pediu para a Forseti lembrar: dá a linha de foco do dia. */
+  memories?: ForsetiMemory[];
 }
 
 export type DigestTone = 'alert' | 'info' | 'ok';
@@ -105,6 +108,9 @@ export function buildDigest(input: DigestInput, today: Date = new Date(), name?:
   } else {
     items.push({ tone: 'ok', text: `✅ Se tudo o que está previsto acontecer, **sobram ${brl(free)}** até o fim do mês (${ddmm(month.toDate)}).` });
   }
+
+  const focus = focusFromMemories(input.memories, today);
+  if (focus) items.push({ tone: 'info', text: `🎯 ${focus}.` });
 
   const quiet = overdueOut.length + dueToday.length + dueSoon.length + overdueIn.length === 0;
   if (quiet) items.unshift({ tone: 'ok', text: '😌 Dia tranquilo: nada em atraso nem vencendo nos próximos dias.' });
