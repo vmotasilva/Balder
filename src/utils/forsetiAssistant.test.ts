@@ -155,7 +155,7 @@ describe('detectDoubt: perguntas respondidas com os números do planejamento', (
     ['minhas metas', 'METAS'],
   ])('%s → %s', (text, id) => expect(detectDoubt(text)).toBe(id));
 
-  it.each(['bom dia', 'paguei 50 na farmácia'])('não é dúvida: %s', (text) => expect(detectDoubt(text)).toBeNull());
+  it.each(['bom dia, paguei 50 na farmácia', 'paguei 50 na farmácia'])('não é dúvida: %s', (text) => expect(detectDoubt(text)).toBeNull());
 });
 
 describe('continuação do assunto (resolveFollowUp)', () => {
