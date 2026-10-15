@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pencil, Search, Users, Wallet, Crown, FlaskConical, Plus } from 'lucide-react';
 import { Modal } from './Modal';
+import { ForsetiLearningReview } from './ForsetiLearningReview';
 import {
   AdminService,
   STATUS_LABEL,
@@ -38,7 +39,7 @@ export const SystemAdminPanel: React.FC = () => {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<'USUARIOS' | 'PLANOS'>('USUARIOS');
+  const [tab, setTab] = useState<'USUARIOS' | 'PLANOS' | 'APRENDIZADO'>('USUARIOS');
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<ManagedUser | null>(null);
 
@@ -114,9 +115,14 @@ export const SystemAdminPanel: React.FC = () => {
         <button className={`btn btn-sm ${tab === 'PLANOS' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setTab('PLANOS')}>
           Planos ({plans.length})
         </button>
+        <button className={`btn btn-sm ${tab === 'APRENDIZADO' ? 'btn-primary' : 'btn-outline'}`} onClick={() => setTab('APRENDIZADO')}>
+          Aprendizado da Forseti
+        </button>
       </div>
 
-      {loading && <p className="text-muted">Carregando…</p>}
+      {tab === 'APRENDIZADO' && <ForsetiLearningReview />}
+
+      {loading && tab !== 'APRENDIZADO' && <p className="text-muted">Carregando…</p>}
 
       {!loading && tab === 'USUARIOS' && (
         <div className="space-y-3">
