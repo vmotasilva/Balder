@@ -3,6 +3,7 @@ import { useFinancial } from '../context/FinancialContext';
 import { useTheme } from '../context/ThemeContext';
 import { Plus, Sparkles, Sun, Moon, Bell, PauseCircle } from 'lucide-react';
 import { BalderHubModal } from './BalderHubModal';
+import { OverdueBillsModal } from './OverdueBillsModal';
 import { PlanningSwitcher } from './PlanningSwitcher';
 import { useHubNotifications } from '../hooks/useHubNotifications';
 import { useAccountScope } from '../context/AccountScopeContext';
@@ -27,6 +28,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenNewMovementModal,
   onOpenSimulationModal,
   onNavigateToDashboard,
+  onNavigateToInvoices,
   onOpenOnboarding,
   onNavigateToCopilot,
   onPlanWithOthers,
@@ -60,6 +62,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   // Notificações da Central: o sino mostra só as não lidas (abrir a Central marca como lidas)
   const [isForecastOpen, setIsForecastOpen] = useState(false);
   // Período forçado pelo alerta (ex.: saldo negativo em 30 dias); some ao fechar ou escolher outro período
+  const [isOverdueOpen, setIsOverdueOpen] = useState(false);
   const [forecastOverride, setForecastOverride] = useState<'DIAS_30' | null>(null);
   const hub = useHubNotifications({
     onOpenSetup: (step) => onOpenOnboarding?.(step),
@@ -68,6 +71,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       setForecastOverride(period ?? null);
       setIsForecastOpen(true);
     },
+    onOpenOverdue: () => setIsOverdueOpen(true),
     onOpenOpportunities: () => onNavigateToOpportunities?.(),
     // O resumo completo é a resposta da Forseti a "resumo do dia"
     onOpenDigest: () => {
@@ -217,6 +221,12 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       </div>
     </header>
+
+    <OverdueBillsModal
+      isOpen={isOverdueOpen}
+      onClose={() => setIsOverdueOpen(false)}
+      onNavigate={(tab) => (tab === 'FATURAS' ? onNavigateToInvoices : onNavigateToDashboard)?.()}
+    />
 
     {/* Central Balder: notificações do que precisa de atenção */}
     <BalderHubModal

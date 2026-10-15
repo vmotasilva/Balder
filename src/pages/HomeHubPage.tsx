@@ -15,7 +15,6 @@ import {
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { usePlans, scopedUserId } from '../context/PlanScopeContext';
-import { useAccountScope } from '../context/AccountScopeContext';
 import { GuidedSetup } from '../components/GuidedSetup';
 import { NatureBudgetGrid } from '../components/NatureBudgetGrid';
 import { GoalsOverview } from '../components/GoalsOverview';
@@ -30,10 +29,7 @@ import { PlanningSwitcher } from '../components/PlanningSwitcher';
 import type { TabId } from '../components/Sidebar';
 import { periodRangeLabel, trackingPeriodRange, TRACKING_PERIOD_LABELS } from '../utils/periodSpending';
 import type { TrackingPeriod } from '../utils/periodSpending';
-import { getItemOccurrences } from '../utils/mappingItemState';
-import { MappingItemStateModal, type MappingItemStateTarget } from '../components/MappingItemStateModal';
-import { MappingPaymentModal, type MappingPaymentTarget } from '../components/MappingPaymentModal';
-import { RealizationConfirmModal, realizedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
+import { useForecastEntryActions } from '../hooks/useForecastEntryActions';
 import type { ForecastEntry } from '../utils/forecastWindow';
 import { displayName } from '../utils/displayName';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
@@ -107,26 +103,19 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     cashInHandBalance,
     viewPreferences,
     setViewPreferences,
-    updateMovement,
-    updateMappingItemState,
     sendMessageToCopilot,
     forsetiActivity,
-    sharedScenario,
   } = useFinancial();
-  const { viewing } = useAccountScope();
 
   const [forsetiText, setForsetiText] = useState('');
   const [showAllTasks, setShowAllTasks] = useState(false);
   // Níveis da lista: naturezas → mapeamentos da natureza → itens do mapeamento
   const [drill, setDrill] = useState<{ natureId: string; mappingId?: string } | null>(null);
-  const [mappingPayment, setMappingPayment] = useState<MappingPaymentTarget | null>(null);
-  const [realization, setRealization] = useState<RealizationTarget | null>(null);
   const [finishedSetup, setFinishedSetup] = useState(false);
   // No celular, "Em aberto" e "Naturezas" dividem o mesmo espaço, em abas
   const [homePane, setHomePane] = useState<'FAZER' | 'NATUREZAS'>('FAZER');
   // Metas e Salário abrem em pop-up, pelos ícones ao lado do período
   const [showGoals, setShowGoals] = useState(false);
-  const [itemState, setItemState] = useState<MappingItemStateTarget | null>(null);
   const [showSalary, setShowSalary] = useState(false);
 
   const period: TrackingPeriod = viewPreferences.trackingPeriod || 'MES';
@@ -209,147 +198,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   const atRoot = !openNature;
   const visibleRows = atRoot && !showAllTasks ? taskRows.slice(0, 4) : taskRows;
 
-  const findNatureItem = (entry: ForecastEntry) => {
-    const itemId = entry.id.replace(/^nat_/, '').replace(/_(overdue|upcoming)$/, '');
-    for (const nat of natures) {
-      for (const mapping of nat.mappings) {
-        const item = mapping.items.find((it) => it.id === itemId);
-        if (item) return { nat, mapping, item };
-      }
-    }
-    return null;
-  };
-
-  const renderTaskAction = (entry: ForecastEntry) => {
-    // Fatura: confirma o pagamento aqui mesmo (valor e data conferidos no pop-up), sem sair da Home
-    if (entry.source === 'FATURA') {
-      const invoice = movements.find((m) => m.id === entry.id);
-      return (
-        <button
-          type="button"
-          className="btn btn-outline btn-xs"
-          onClick={() =>
-            invoice
-              ? setRealization({
-                  kind: 'SAIDA',
-                  title: entry.title,
-                  expectedAmount: invoice.amount,
-                  dueDate: invoice.dueDate,
-                  onConfirm: (amount, date) => updateMovement(invoice.id, realizedMovementUpdates(invoice, amount, date)),
-                })
-              : onNavigate('FATURAS')
-          }
-        >
-          Já paguei
-        </button>
-      );
-    }
-    if (entry.source === 'NATUREZA' && entry.mappingSummary && entry.natureId && entry.mappingId) {
-      const mapping = natures.find((n) => n.id === entry.natureId)?.mappings.find((m) => m.id === entry.mappingId);
-      return (
-        <button
-          type="button"
-          className="btn btn-outline btn-xs"
-          onClick={() =>
-            mapping &&
-            setMappingPayment({
-              natureId: entry.natureId!,
-              mappingId: mapping.id,
-              itemIds: mapping.items.filter((it) => it.paymentMethod !== 'CARTAO').map((it) => it.id),
-              monthKey: entry.date.slice(0, 7),
-              title: mapping.name,
-            })
-          }
-        >
-          Lançar
-        </button>
-      );
-    }
-    if (entry.source === 'NATUREZA') {
-      const found = findNatureItem(entry);
-      const monthKey = entry.date.slice(0, 7);
-      // Itens com uma cobrança no mês: um toque registra o pagamento de hoje; os demais abrem a natureza
-      const occurrences = found ? getItemOccurrences(found.item, monthKey) : [];
-      if (found && occurrences.length === 1) {
-        const { item } = found;
-        return (
-          <button
-            type="button"
-            className="btn btn-outline btn-xs"
-            onClick={() =>
-              setRealization({
-                kind: 'SAIDA',
-                title: entry.title,
-                expectedAmount: entry.amount,
-                dueDate: occurrences[0].date,
-                onConfirm: (amount, paidAt) =>
-                  updateMappingItemState(found.nat.id, found.mapping.id, item.id, {
-                    payments: {
-                      ...(item.payments || {}),
-                      [monthKey]: [
-                        ...(item.payments?.[monthKey] || []),
-                        {
-                          id: `pay_${Date.now()}`,
-                          paidAt,
-                          amount,
-                          expectedAmount: entry.amount,
-                          coveredDates: [occurrences[0].date],
-                        },
-                      ],
-                    },
-                  }),
-              })
-            }
-          >
-            Já paguei
-          </button>
-        );
-      }
-      // Sem atalho direto: abre o pop-up do item, para dizer como foi tratado (realizado, quem pagou, pular)
-      return (
-        <button
-          type="button"
-          className="btn btn-outline btn-xs"
-          onClick={() =>
-            found
-              ? setItemState({ natureId: found.nat.id, mappingId: found.mapping.id, itemId: found.item.id, monthKey, occurrenceDate: entry.date })
-              : onNavigate('NATUREZAS')
-          }
-        >
-          Lançar
-        </button>
-      );
-    }
-    // Receita de outra pessoa: só quem recebe confirma
-    const mov = movements.find((m) => m.id === entry.id);
-    const confirmer = mov?.type === 'RECEBER' ? mov.responsibleId || viewing?.ownerId || user?.$id : undefined;
-    if (confirmer && user && !user.isGuest && confirmer !== user.$id) {
-      const name =
-        sharedScenario?.members?.find((p) => p.id === confirmer)?.name ||
-        (confirmer === viewing?.ownerId ? viewing?.ownerName : undefined) ||
-        'quem recebe';
-      return <span className="home-task-owner">Só {name.split(' ')[0]} confirma</span>;
-    }
-    return (
-      <button
-        type="button"
-        className="btn btn-outline btn-xs"
-        onClick={() =>
-          mov
-            ? setRealization({
-                kind: entry.kind === 'ENTRADA' ? 'ENTRADA' : 'SAIDA',
-                title: entry.title,
-                expectedAmount: mov.amount,
-                dueDate: mov.dueDate,
-                onConfirm: (amount, date) => updateMovement(mov.id, realizedMovementUpdates(mov, amount, date)),
-              })
-            : undefined
-        }
-      >
-        {entry.kind === 'ENTRADA' ? 'Já recebi' : 'Já paguei'}
-      </button>
-    );
-  };
+  const { renderAction: renderTaskAction, modals: entryActionModals } = useForecastEntryActions(onNavigate);
 
   const whenLabel = (entry: Pick<ForecastEntry, 'date' | 'overdue'>) => {
     if (entry.overdue) return `venceu ${shortDate(entry.date)}`;
@@ -735,9 +584,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
       </div>
       </div>
 
-      <MappingItemStateModal target={itemState} onClose={() => setItemState(null)} />
-      <MappingPaymentModal target={mappingPayment} onClose={() => setMappingPayment(null)} />
-      <RealizationConfirmModal target={realization} onClose={() => setRealization(null)} />
+      {entryActionModals}
     </div>
   );
 };

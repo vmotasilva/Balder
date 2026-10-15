@@ -24,6 +24,8 @@ export interface HubNotificationActions {
   onOpenSetup: (stepIndex?: number) => void;
   onGoToHome: () => void;
   onOpenForecast: (period?: 'DIAS_30') => void;
+  /** Abre o pop-up com as contas em aberto (atrasadas e a vencer), para tratar uma a uma. */
+  onOpenOverdue: () => void;
   onOpenOpportunities?: () => void;
   /** Abre a Forseti já com o resumo completo do dia. */
   onOpenDigest?: () => void;
@@ -124,8 +126,8 @@ export function useHubNotifications(actions: HubNotificationActions) {
         title,
         description: `${parts.join('. ')}.${overdueOut.length > 0 ? ' Se já pagou, confirme para o saldo ficar certo.' : ''}`,
         timestamp: overdueOut.length > 0 ? 'Atrasado' : dueToday ? 'Hoje' : 'Próximos 3 dias',
-        actionLabel: 'Ver no Início',
-        action: actions.onGoToHome,
+        actionLabel: 'Ver as contas',
+        action: actions.onOpenOverdue,
         icon: critical ? <AlertTriangle size={16} className="text-rose" /> : <CalendarClock size={16} className="text-amber" />,
       });
     }
@@ -141,8 +143,8 @@ export function useHubNotifications(actions: HubNotificationActions) {
           overdueIn.length === 1 ? `Recebimento a confirmar: ${overdueIn[0].title}` : `${overdueIn.length} recebimentos a confirmar`,
         description: `${formatBRL(total)} previstos até hoje. Já entrou? Confirme para manter o saldo certo.`,
         timestamp: 'A confirmar',
-        actionLabel: 'Confirmar no Início',
-        action: actions.onGoToHome,
+        actionLabel: 'Ver e confirmar',
+        action: actions.onOpenOverdue,
         icon: <HandCoins size={16} className="text-amber" />,
       });
     }

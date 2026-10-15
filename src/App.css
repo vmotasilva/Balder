@@ -24797,3 +24797,63 @@ section:has(.combo-dropdown, .planning-switch-menu, .mmh-menu-list, .chat-plus-p
   gap: 8px;
   margin-top: 10px;
 }
+
+/* Contas em aberto (Central): linha com os dados e, abaixo, as saídas */
+.open-bill-row {
+  padding: 8px 0;
+}
+
+.open-bill-row + .open-bill-row {
+  border-top: 1px dashed var(--border-subtle);
+}
+
+.open-bill-main {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 12.5px;
+}
+
+.open-bill-date {
+  font-family: var(--font-display);
+  color: var(--text-muted);
+}
+
+.open-bill-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.open-bill-title strong {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.open-bill-title small {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.open-bill-amount {
+  font-family: var(--font-display);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.open-bill-amount.is-in {
+  color: var(--accent-emerald);
+}
+
+.open-bill-amount.is-out {
+  color: var(--accent-rose);
+}
+
+.open-bill-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 6px;
+}
