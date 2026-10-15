@@ -86,3 +86,34 @@ export function suggestedRoutinesFor(natureName: string): string[] {
   if (/pet|animai/.test(n)) return ['Ração', 'Veterinário', 'Banho e tosa'];
   return [];
 }
+
+/** Grupos de gastos parecidos: o que a pessoa digita puxa os demais do grupo como sugestão. */
+const RELATED_GROUPS: { trigger: RegExp; items: string[] }[] = [
+  { trigger: /raç|raca|pet|animal|cachorro|gato|veterin|tosa/, items: ['Ração', 'Banho e tosa', 'Veterinário', 'Vacinas', 'Petiscos', 'Areia higiênica', 'Remédios do pet'] },
+  { trigger: /mercado|feira|açougue|acougue|padaria|hortifruti|aliment|compras/, items: ['Supermercado', 'Feira', 'Açougue', 'Padaria', 'Hortifruti', 'Atacado', 'Bebidas'] },
+  { trigger: /delivery|ifood|restaurante|lanche|pizza|almoço|almoco|jantar|café|cafe/, items: ['Delivery', 'Restaurante', 'Lanche', 'Pizzaria', 'Café', 'Almoço no trabalho', 'Bar'] },
+  { trigger: /luz|água|agua|energia|internet|gás|gas|condom|aluguel|iptu|telefone|celular/, items: ['Aluguel', 'Condomínio', 'Luz', 'Água', 'Internet', 'Gás', 'IPTU', 'Telefone'] },
+  { trigger: /combust|gasolina|etanol|uber|ônibus|onibus|carro|moto|estacion|pedágio|pedagio|ipva|seguro/, items: ['Combustível', 'Uber/99', 'Transporte público', 'Estacionamento', 'Pedágio', 'Manutenção', 'IPVA', 'Seguro do carro'] },
+  { trigger: /farm|remédio|remedio|consulta|exame|plano de sa|dentista|psic|terapia|saúde|saude/, items: ['Farmácia', 'Plano de saúde', 'Consultas', 'Exames', 'Dentista', 'Terapia', 'Suplementos'] },
+  { trigger: /stream|netflix|spotify|cinema|academia|passeio|viagem|jogo|show|lazer/, items: ['Streaming', 'Música', 'Academia', 'Cinema', 'Passeios', 'Jogos', 'Viagens'] },
+  { trigger: /escola|faculdade|curso|mensalidade|livro|material|idioma|inglês|ingles/, items: ['Mensalidade', 'Material escolar', 'Curso', 'Livros', 'Idiomas', 'Transporte escolar'] },
+  { trigger: /cabelo|salão|salao|barbear|unha|beleza|roupa|cosm|perfum|higiene/, items: ['Cabelo', 'Barbearia', 'Manicure', 'Cosméticos', 'Roupas', 'Higiene pessoal', 'Perfumaria'] },
+  { trigger: /filho|criança|crianca|bebê|bebe|fralda|creche|brinqued/, items: ['Fraldas', 'Creche', 'Brinquedos', 'Roupas infantis', 'Pediatra', 'Lanche escolar'] },
+  { trigger: /presente|aniversár|aniversar|festa|natal|casamento/, items: ['Presentes', 'Festas', 'Cerimônias', 'Datas comemorativas', 'Decoração'] },
+  { trigger: /limpeza|faxina|diarista|lavanderia|reforma|manuten/, items: ['Produtos de limpeza', 'Diarista', 'Lavanderia', 'Reparos', 'Utensílios'] },
+];
+
+const plainText = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+/** Gastos relacionados ao que a pessoa escreveu (sem repetir o próprio texto). */
+export function relatedRoutinesFor(text: string): string[] {
+  const t = text.trim().toLowerCase();
+  if (t.length < 3) return [];
+  const own = plainText(t);
+  const out: string[] = [];
+  RELATED_GROUPS.forEach((g) => {
+    const hit = g.trigger.test(t) || g.items.some((i) => plainText(i).includes(own) || own.includes(plainText(i)));
+    if (hit) g.items.forEach((i) => { if (plainText(i) !== own && !out.includes(i)) out.push(i); });
+  });
+  return out;
+}

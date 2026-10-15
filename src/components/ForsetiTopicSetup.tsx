@@ -18,6 +18,7 @@ import {
   isoOf,
   nextDateForDay,
   suggestedRoutinesFor,
+  relatedRoutinesFor,
   type BillGroupKey,
   type SetupTopic,
 } from '../utils/setupCatalog';
@@ -888,6 +889,9 @@ const MapeamentosTopic: React.FC<TopicProps> = (p) => {
   const [day, setDay] = useState(10);
   const [rows, setRows] = useState<{ description: string; quantity: number; price: number }[]>([]);
   const [saved, setSaved] = useState<string[]>([]);
+  const [picked, setPicked] = useState<string[]>([]);
+  const [related, setRelated] = useState<string[]>([]);
+  const [queue, setQueue] = useState<string[]>([]);
   const nature = natures.find((n) => n.id === natureId);
   const perTime = rows.reduce((acc, r) => acc + (r.quantity || 0) * (r.price || 0), 0);
   const monthly = perTime * FREQ_MULT[freq];
@@ -982,26 +986,39 @@ const MapeamentosTopic: React.FC<TopicProps> = (p) => {
       );
     }
     case 'ROUTINE': {
-      const q = `Que gasto se repete em ${nature?.name}?`;
-      const suggestions = suggestedRoutinesFor(nature?.name || '').filter((r) => !nature?.mappings.some((m) => sameName(m.name, r)));
+      const q = `Que gastos se repetem em ${nature?.name}?`;
+      const taken = (r: string) => !!nature?.mappings.some((m) => sameName(m.name, r));
+      const base = suggestedRoutinesFor(nature?.name || '').filter((r) => !taken(r));
+      const extra = [
+        ...picked.filter((r) => !base.some((b) => sameName(b, r))),
+        ...related.filter((r) => !taken(r) && !base.some((b) => sameName(b, r)) && !picked.some((x) => sameName(x, r))),
+      ];
+      const toggle = (r: string) => setPicked((prev) => (prev.some((x) => sameName(x, r)) ? prev.filter((x) => !sameName(x, r)) : [...prev, r]));
+      const addTyped = (text: string) => {
+        const name = text.trim();
+        if (!name || taken(name)) return;
+        setPicked((prev) => (prev.some((x) => sameName(x, name)) ? prev : [...prev, name]));
+        setRelated((prev) => [...prev, ...relatedRoutinesFor(name).filter((r) => !prev.some((x) => sameName(x, r)))]);
+      };
+      const proceed = () => {
+        const [first, ...rest] = picked;
+        setQueue(rest);
+        startRoutine(first);
+        s.go(q, picked.join(', '), 'FREQ');
+      };
       return (
-        <Ask onSkip={() => s.finish(q, 'Pulei', summary())} skipLabel="Pular o resto" question={q} hint={suggestions.length > 0 ? 'Escolha um ou escreva o seu.' : 'Escreva o nome do gasto, ex.: Mensalidade, Ração.'} onBack={s.back} backLabel={s.backLabel}>
-          {suggestions.length > 0 && (
+        <Ask onSkip={() => s.finish(q, 'Pulei', summary())} skipLabel="Pular o resto" question={q} hint={base.length > 0 ? 'Marque quantos quiser ou escreva o seu: ao escrever, eu sugiro gastos parecidos.' : 'Escreva o nome do gasto, ex.: Mensalidade, Ração. Eu sugiro outros parecidos.'} onBack={s.back} backLabel={s.backLabel}>
+          {(base.length > 0 || extra.length > 0) && (
             <div className="guided-chips">
-              {suggestions.map((r) => (
-                <Chip key={r} label={r} active={routine === r} onClick={() => startRoutine(r)} />
+              {[...base, ...extra].map((r) => (
+                <Chip key={r} label={r} active={picked.some((x) => sameName(x, r))} onClick={() => toggle(r)} />
               ))}
             </div>
           )}
-          <AddOther placeholder="Outro gasto" onAdd={startRoutine} />
-          {routine && !suggestions.includes(routine) && (
-            <div className="guided-chips">
-              <Chip label={routine} active onClick={() => setRoutine('')} />
-            </div>
-          )}
+          <AddOther placeholder="Outro gasto" onAdd={addTyped} />
           <div className="guided-actions">
-            <button type="button" className="btn btn-primary btn-sm" disabled={!routine} onClick={() => s.go(q, routine, 'FREQ')}>
-              Continuar
+            <button type="button" className="btn btn-primary btn-sm" disabled={picked.length === 0} onClick={proceed}>
+              {picked.length > 1 ? `Continuar com ${picked.length} gastos` : 'Continuar'}
             </button>
           </div>
         </Ask>
@@ -1089,12 +1106,25 @@ const MapeamentosTopic: React.FC<TopicProps> = (p) => {
       );
     }
     case 'PAY': {
-      const q = 'E como você costuma pagar?';
+      const q = `E como você costuma pagar ${routine.toLowerCase()}?`;
+      const done = (payment: NonNullable<MappingItem['paymentMethod']>, label: string) => {
+        save(payment);
+        if (queue.length > 0) {
+          const [next, ...rest] = queue;
+          setQueue(rest);
+          startRoutine(next);
+          s.go(q, label, 'FREQ');
+        } else {
+          setPicked([]);
+          setRelated([]);
+          s.go(q, label, 'MORE');
+        }
+      };
       return (
-        <Ask onSkip={() => { s.mark(q); save('BOLETO'); s.go(q, 'Pulei: boleto', 'MORE'); }} question={q} onBack={s.back} backLabel={s.backLabel}>
+        <Ask onSkip={() => { s.mark(q); done('BOLETO', 'Pulei: boleto'); }} question={q} hint={queue.length > 0 ? `Depois seguimos com: ${queue.join(', ')}.` : undefined} onBack={s.back} backLabel={s.backLabel}>
           <div className="guided-chips">
             {PAY_OPTIONS.map((o) => (
-              <Chip key={o.id} label={o.label} active={false} onClick={() => { save(o.id); s.go(q, o.label, 'MORE'); }} />
+              <Chip key={o.id} label={o.label} active={false} onClick={() => done(o.id, o.label)} />
             ))}
           </div>
         </Ask>
