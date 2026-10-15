@@ -124,7 +124,7 @@ export function buildDigest(input: DigestInput, today: Date = new Date(), name?:
 
 /**
  * Versão curta do briefing para a Central de notificações: uma linha com o que não aparece em outro aviso
- * (atrasos e vencimentos já têm os seus): saldo, recebimentos, sobra do mês e o foco do dia.
+ * (contas e saldo negativo já têm os seus): saldo, recebimentos, sobra do mês e o foco do dia.
  */
 export function compactDigest(input: DigestInput, today: Date = new Date(), name?: string): { title: string; description: string } {
   const todayIso = isoDay(today);
@@ -136,8 +136,11 @@ export function compactDigest(input: DigestInput, today: Date = new Date(), name
   const parts = [`Saldo ${brl(input.availableBalance)}.`];
   if (incomeToday.length > 0) parts.push(`Entra hoje ${brl(sum(incomeToday))}.`);
   else if (nextIncome) parts.push(`Próximo recebimento: ${ddmm(nextIncome.date)} (${brl(nextIncome.amount)}).`);
-  const free = month.projectedBalance;
-  parts.push(free < 0 ? `Faltam ${brl(Math.abs(free))} até ${ddmm(month.toDate)}.` : `Sobram ${brl(free)} até ${ddmm(month.toDate)}.`);
+  // Com o saldo de 30 dias negativo o aviso próprio já fala do risco: dizer "sobram" aqui contradiria
+  if (input.forecasts.DIAS_30.projectedBalance >= 0) {
+    const free = month.projectedBalance;
+    parts.push(free < 0 ? `Faltam ${brl(Math.abs(free))} até ${ddmm(month.toDate)}.` : `Sobram ${brl(free)} até ${ddmm(month.toDate)}.`);
+  }
   const focus = focusFromMemories(input.memories, today);
   if (focus) parts.push(`${focus}.`);
 
