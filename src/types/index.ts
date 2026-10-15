@@ -365,6 +365,8 @@ export interface CopilotMessage {
   attachments?: CopilotAttachment[];
   isEphemeralPurged?: boolean;
   actionBadge?: string;
+  /** A resposta só saiu porque a IA entendeu a frase (as regras não entenderam). */
+  via?: 'IA';
   suggestedFollowUps?: string[];
   parsedEntry?: Partial<Movement>;
   pendingConfirmation?: CopilotPendingConfirmation;

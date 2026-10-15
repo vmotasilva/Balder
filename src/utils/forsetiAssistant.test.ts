@@ -3,7 +3,7 @@ import type { ForsetiRegistration } from './forsetiIntents';
 import {
   detectAction, detectAmbiguity, detectDoubt, detectLooseAmount, inferExpenseCategory, installmentSchedule,
   parseAmount, parseDate, parseInstallments, registrationKind, registrationPhrase, resolveFollowUp, scheduleNote, shorthandRegistration, titleFrom,
-  type DoubtId, type ForsetiTopic,
+  type DoubtId, type ForsetiTopic, FALLBACK_REPLY, withAiLimitNote,
 } from './forsetiAssistant';
 
 // Frases reais de uso: cada linha é um caso que já falhou (ou poderia falhar) e não pode voltar a falhar.
@@ -400,5 +400,15 @@ describe('inferExpenseCategory: palavra inteira, não pedaço de outra', () => {
   it('palavras novas não viram categoria de verbos e números: o título e o valor ficam intactos', () => {
     expect(parseAmount('Gastei 39,90 em lazer')).toBe(39.9);
     expect(titleFrom('Gastei 39,90 em lazer')).toBe('Lazer');
+  });
+});
+
+describe('limite de pedidos à IA', () => {
+  it('a Forseti avisa e mantém a resposta de sempre logo depois', () => {
+    const r = withAiLimitNote(FALLBACK_REPLY);
+    expect(r.text.startsWith('⏳ Já usei todos os pedidos de IA desta hora')).toBe(true);
+    expect(r.text.endsWith(FALLBACK_REPLY.text)).toBe(true);
+    expect(r.chips).toBe(FALLBACK_REPLY.chips);
+    expect(r.badge).toBe(FALLBACK_REPLY.badge);
   });
 });

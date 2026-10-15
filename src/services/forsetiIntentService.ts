@@ -4,6 +4,7 @@ import {
   type SpendPeriod,
 } from '../utils/forsetiIntents';
 import { type MemoryDraft, parseMemory } from '../utils/forsetiMemory';
+import { readAiQuota } from './forsetiAiQuota';
 
 /** O que a IA entendeu: uma consulta (intent) ou um registro de gasto/recebimento (registration), nunca os dois. */
 export interface ClassifiedIntent {
@@ -14,6 +15,8 @@ export interface ClassifiedIntent {
   memory?: MemoryDraft;
   /** Assunto e período de uma pergunta de gastos com detalhe (intent GASTOS_DETALHE). */
   spend?: ForsetiSpendQuery;
+  /** O limite de pedidos à IA desta hora acabou (a Forseti segue só com as regras). */
+  limited?: boolean;
 }
 
 /**
@@ -42,6 +45,8 @@ export async function classifyIntent(text: string, context?: IntentContext): Pro
       body: JSON.stringify({ text, context }),
       signal: controller.signal,
     });
+    readAiQuota(res.headers);
+    if (res.status === 429) return { limited: true };
     if (!res.ok) return null;
     const data = (await res.json()) as { intent?: string; period?: string; registration?: unknown; memory?: unknown; spend?: unknown };
     if (isForsetiIntent(data.intent)) {

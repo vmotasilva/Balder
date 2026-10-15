@@ -166,6 +166,38 @@ describe('/api/forseti-intent', () => {
     });
   });
 
+  describe('saldo do limite por hora', () => {
+    const remaining = (res: Response) => res.headers.get('X-Forseti-Ai-Remaining');
+
+    it('informa o limite e quanto resta em cada resposta', async () => {
+      const POST = await load();
+      const first = await call(POST, { text: 'frase nova numero um' }, 'Bearer valido');
+      expect(first.headers.get('X-Forseti-Ai-Limit')).toBe('30');
+      expect(remaining(first)).toBe('29');
+      expect(remaining(await call(POST, { text: 'frase nova numero dois' }, 'Bearer valido'))).toBe('28');
+    });
+
+    it('resposta guardada informa o saldo sem gastar', async () => {
+      const POST = await load();
+      await call(POST, { text: 'frase repetida de novo' }, 'Bearer valido');
+      expect(remaining(await call(POST, { text: 'frase repetida de novo' }, 'Bearer valido'))).toBe('29');
+    });
+
+    it('no 429 o saldo é zero', async () => {
+      const POST = await load();
+      let last: Response | undefined;
+      for (let i = 0; i < 31; i++) last = await call(POST, { text: `frase ${'b'.repeat(i + 1)}` }, 'Bearer valido');
+      expect(last!.status).toBe(429);
+      expect(remaining(last!)).toBe('0');
+    });
+
+    it('cada pessoa tem o seu saldo', async () => {
+      const POST = await load();
+      await call(POST, { text: 'frase de uma pessoa aqui' }, 'Bearer valido');
+      expect(remaining(await call(POST, { text: 'frase de outra pessoa aqui' }, 'Bearer outro'))).toBe('29');
+    });
+  });
+
   describe('memória entendida pela IA', () => {
     const MEMORY = { kind: 'RESTRICAO', title: 'Evita parcelar', body: 'Evita parcelar compras' };
 

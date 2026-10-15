@@ -1202,6 +1202,11 @@ export function answerDoubt(id: DoubtId, text: string, d: ForsetiData, opts?: { 
   }
 }
 
+/** Acabaram os pedidos à IA desta hora: a Forseti diz isso e segue só com as regras. */
+export const AI_LIMIT_TEXT =
+  '⏳ Já usei todos os pedidos de IA desta hora, então só consigo entender frases pelas regras do app. Tente de outro jeito (ex.: *"quanto sobrou este mês?"*) ou volte daqui a pouco.';
+export const withAiLimitNote = (r: ForsetiReply): ForsetiReply => ({ ...r, text: `${AI_LIMIT_TEXT}\n\n${r.text}` });
+
 export const FALLBACK_REPLY: ForsetiReply = {
   text: 'Não entendi bem 🤔. Você pode me contar um gasto ou recebimento do seu jeito (ex.: *"paguei 50 na farmácia"* ou *"vou receber 1.200 dia 10"*), mandar a foto de um comprovante ou escolher uma das opções:',
   badge: 'FORSETI',
