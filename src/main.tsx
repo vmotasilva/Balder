@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { capturePendingReferral } from './utils/referral'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import { installStaleBundleRecovery } from './utils/staleBundle'
 
 // Link de convite (?ref=): guarda o código até a pessoa criar a conta ou entrar
 capturePendingReferral()
@@ -21,8 +23,12 @@ if (typeof window !== 'undefined') {
   });
 }
 
+installStaleBundleRecovery();
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 )
