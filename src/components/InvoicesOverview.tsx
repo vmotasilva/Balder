@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, CreditCard } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import type { PeriodRange } from '../utils/periodSpending';
-import { iofRefundUpdates } from '../utils/cardPurchase';
+import { canRefundIof, iofRefundUpdates } from '../utils/cardPurchase';
 import { parseMoney } from '../utils/parseDecimal';
 
 const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -127,7 +127,16 @@ export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range }) => 
           return (
             <React.Fragment key={it.id}>
             <div
-              style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-default)', background: 'var(--bg-card)' }}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                gap: '10px',
+                padding: '10px 12px',
+                borderRadius: '10px',
+                border: it.iofRefund ? '1px solid rgba(52, 211, 153, 0.45)' : '1px solid var(--border-default)',
+                borderLeft: it.iofRefund ? '4px solid #34D399' : undefined,
+                background: it.iofRefund ? 'rgba(52, 211, 153, 0.08)' : 'var(--bg-card)',
+              }}
             >
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{it.description}</div>
@@ -135,20 +144,30 @@ export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range }) => 
                   {it.natureName}
                   {inst > 1 ? ` · parcela ${it.currentInstallment || 1}/${inst}` : ''}
                   {it.purchaseDate ? ` · compra ${ddmm(it.purchaseDate)}` : ''}
-                  {it.iofRefund ? ` · IOF estornado −${formatBRL(it.iofRefund)}` : ''}
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <strong style={{ whiteSpace: 'nowrap' }}>{formatBRL(it.amount)}</strong>
-                <div>
+                {it.iofRefund ? (
                   <button
                     type="button"
-                    style={{ background: 'none', border: 'none', color: '#34D399', cursor: 'pointer', padding: '2px 0', fontWeight: 700, fontSize: '11px' }}
-                    onClick={() => setIofEdit({ itemId: it.id, value: it.iofRefund ? String(it.iofRefund).replace('.', ',') : '' })}
+                    title="Editar o IOF estornado"
+                    style={{ marginTop: '2px', padding: '2px 8px', borderRadius: '9999px', border: '1px solid rgba(52, 211, 153, 0.5)', background: 'rgba(52, 211, 153, 0.15)', color: '#34D399', cursor: 'pointer', fontWeight: 700, fontSize: '11px', whiteSpace: 'nowrap' }}
+                    onClick={() => setIofEdit({ itemId: it.id, value: String(it.iofRefund).replace('.', ',') })}
                   >
-                    IOF
+                    IOF −{formatBRL(it.iofRefund)}
                   </button>
-                </div>
+                ) : canRefundIof(it) ? (
+                  <div>
+                    <button
+                      type="button"
+                      style={{ background: 'none', border: 'none', color: '#34D399', cursor: 'pointer', padding: '2px 0', fontWeight: 700, fontSize: '11px' }}
+                      onClick={() => setIofEdit({ itemId: it.id, value: '' })}
+                    >
+                      + IOF
+                    </button>
+                  </div>
+                ) : null}
               </div>
             </div>
             {iofEdit?.itemId === it.id && (

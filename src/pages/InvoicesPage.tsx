@@ -33,7 +33,7 @@ import { InfoButton } from '../components/InfoButton';
 import { BankPicker } from '../components/BankPicker';
 import { BankInvoiceTerms } from '../components/BankInvoiceTerms';
 import { canonicalBankName } from '../utils/paymentInstitutions';
-import { todayIso, iofRefundUpdates } from '../utils/cardPurchase';
+import { todayIso, iofRefundUpdates, canRefundIof } from '../utils/cardPurchase';
 
 const competenceMonthLabel = (iso: string) =>
   new Date(`${iso.slice(0, 7)}-15T12:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -1471,7 +1471,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
 
                               return (
                                 <React.Fragment key={item.id}>
-                                <tr>
+                                <tr style={item.iofRefund ? { boxShadow: 'inset 3px 0 0 #34D399', background: 'rgba(52, 211, 153, 0.06)' } : undefined}>
                                   <td className="inv-c-nat">
                                     <span
                                       className="badge"
@@ -1486,9 +1486,9 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                                   </td>
                                   <td
                                     className="inv-c-desc"
-                                    style={{ fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}
-                                    onClick={() => setIofEdit({ invoiceId: m.id, itemId: item.id, value: item.iofRefund ? String(item.iofRefund).replace('.', ',') : '' })}
-                                    title="Clique para abater IOF neste item"
+                                    style={{ fontWeight: 600, color: 'var(--text-primary)', cursor: canRefundIof(item) ? 'pointer' : undefined }}
+                                    onClick={() => canRefundIof(item) && setIofEdit({ invoiceId: m.id, itemId: item.id, value: item.iofRefund ? String(item.iofRefund).replace('.', ',') : '' })}
+                                    title={canRefundIof(item) ? 'Clique para abater IOF neste item' : undefined}
                                   >
                                     {item.description}
                                     {item.iofRefund ? (
@@ -1527,14 +1527,25 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                                     {itemPct.toFixed(1)}%
                                   </td>
                                   <td className="inv-c-act" style={{ textAlign: 'center' }}>
-                                    <button
-                                      style={{ background: 'none', border: 'none', color: '#34D399', cursor: 'pointer', padding: '4px', borderRadius: '6px', fontWeight: 700, fontSize: '11px' }}
-                                      onClick={() => setIofEdit({ invoiceId: m.id, itemId: item.id, value: item.iofRefund ? String(item.iofRefund).replace('.', ',') : '' })}
-                                      title="Abater IOF estornado neste item"
-                                      aria-label="Abater IOF neste item"
-                                    >
-                                      IOF
-                                    </button>
+                                    {canRefundIof(item) && (
+                                      <button
+                                        style={{
+                                          background: item.iofRefund ? 'rgba(52, 211, 153, 0.15)' : 'none',
+                                          border: item.iofRefund ? '1px solid rgba(52, 211, 153, 0.5)' : 'none',
+                                          color: '#34D399',
+                                          cursor: 'pointer',
+                                          padding: '4px 6px',
+                                          borderRadius: '6px',
+                                          fontWeight: 700,
+                                          fontSize: '11px',
+                                        }}
+                                        onClick={() => setIofEdit({ invoiceId: m.id, itemId: item.id, value: item.iofRefund ? String(item.iofRefund).replace('.', ',') : '' })}
+                                        title={item.iofRefund ? 'Editar o IOF estornado neste item' : 'Abater IOF estornado neste item'}
+                                        aria-label="Abater IOF neste item"
+                                      >
+                                        {item.iofRefund ? 'IOF ✓' : 'IOF'}
+                                      </button>
+                                    )}
                                     <button
                                       style={{
                                         background: 'none',

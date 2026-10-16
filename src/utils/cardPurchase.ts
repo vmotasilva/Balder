@@ -47,10 +47,14 @@ export const invoiceItemCompetenceDate = (invoice: Movement, item: InvoiceNature
  * ele ainda vale) e item e fatura diminuem pela diferença. Fatura já paga não muda de valor; a diferença fica em
  * "Não Analisada". Devolve null quando não há mudança.
  */
+/** Itens classificados em "Outros" não têm IOF a abater (a menos que já tenham um abate registrado, para poder desfazê-lo). */
+export const canRefundIof = (item: InvoiceNatureItemBreakdown): boolean =>
+  !!item.iofRefund || (item.natureId || '').toUpperCase() !== 'OUTROS';
+
 export const iofRefundUpdates = (invoice: Movement, itemId: string, refund: number): Partial<Movement> | null => {
   const breakdown = invoice.invoiceBreakdown || [];
   const target = breakdown.find((i) => i.id === itemId);
-  if (!target) return null;
+  if (!target || !canRefundIof(target)) return null;
   const round = (v: number) => Math.round(v * 100) / 100;
   const previous = target.iofRefund || 0;
   const next = Math.min(Math.max(0, round(refund)), round(target.amount + previous));
