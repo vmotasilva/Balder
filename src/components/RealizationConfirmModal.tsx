@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { Modal } from './Modal';
 import { DecimalInput } from './DecimalInput';
+import { useFinancial } from '../context/FinancialContext';
+import { listPaymentInstitutions } from '../utils/paymentInstitutions';
+import { INSTALLMENT_CHOICES, type PaymentHow } from '../utils/paymentHow';
 import type { Movement } from '../types';
 
 /** O que está sendo confirmado como pago ou recebido. */
@@ -12,7 +15,9 @@ export interface RealizationTarget {
   expectedAmount: number;
   /** Vencimento previsto (YYYY-MM-DD). */
   dueDate: string;
-  onConfirm: (amount: number, date: string) => void;
+  /** Pagamento: pergunta também como foi pago (dinheiro, débito ou crédito); `how` vem vazio se a pessoa não informar. */
+  askHow?: boolean;
+  onConfirm: (amount: number, date: string, how?: PaymentHow) => void;
 }
 
 interface RealizationConfirmModalProps {
@@ -80,6 +85,22 @@ const RealizationConfirmForm: React.FC<{ target: RealizationTarget; onClose: () 
   const [amount, setAmount] = useState(target.expectedAmount);
   // Vencimento que já passou: o mais comum é ter pago no dia e só confirmar agora
   const [date, setDate] = useState(target.dueDate < today ? target.dueDate : today);
+  const { accounts, cards, banks } = useFinancial();
+  const askHow = !!target.askHow && !isIncome;
+  const [how, setHow] = useState<'CASH' | 'DEBITO' | 'CREDITO' | null>(null);
+  const [institution, setInstitution] = useState('');
+  const [installments, setInstallments] = useState(1);
+  const institutions = listPaymentInstitutions(accounts, cards, banks);
+  const bankChoices = how === 'CREDITO' ? institutions.filter((i) => !i.noCredit) : institutions;
+  const chosenInstitution = bankChoices.some((i) => i.name === institution) ? institution : bankChoices[0]?.name || '';
+  const howResult: PaymentHow | undefined =
+    !askHow || !how
+      ? undefined
+      : how === 'CASH'
+      ? { where: 'CASH' }
+      : chosenInstitution
+      ? { where: 'BANK', institution: chosenInstitution, method: how, installments: how === 'CREDITO' ? installments : 1 }
+      : undefined;
 
   const diff = Math.round((amount - target.expectedAmount) * 100) / 100;
   const futureDate = date > today;
@@ -87,7 +108,7 @@ const RealizationConfirmForm: React.FC<{ target: RealizationTarget; onClose: () 
 
   const confirm = () => {
     if (!valid) return;
-    target.onConfirm(Math.round(amount * 100) / 100, date);
+    target.onConfirm(Math.round(amount * 100) / 100, date, howResult);
     onClose();
   };
 
@@ -150,6 +171,45 @@ const RealizationConfirmForm: React.FC<{ target: RealizationTarget; onClose: () 
             </button>
           )}
         </div>
+
+        {askHow && (
+          <div className="mapping-pay-fields" style={{ display: 'block' }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Como você pagou?</span>
+            <div className="realization-chips" style={{ marginTop: '6px' }}>
+              {([['CASH', '💵 Dinheiro em mãos'], ['DEBITO', '🏦 Débito / Pix'], ['CREDITO', '💳 Crédito']] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`realization-chip ${how === key ? 'is-active' : ''}`}
+                  onClick={() => setHow(how === key ? null : key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {(how === 'DEBITO' || how === 'CREDITO') && (
+              <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                <select className="form-input" style={{ flex: 1, minWidth: '140px' }} value={chosenInstitution} onChange={(e) => setInstitution(e.target.value)} aria-label="Banco">
+                  {bankChoices.map((i) => (
+                    <option key={i.name} value={i.name}>
+                      {i.name}
+                    </option>
+                  ))}
+                </select>
+                {how === 'CREDITO' && (
+                  <select className="form-input" style={{ width: '110px' }} value={installments} onChange={(e) => setInstallments(Number(e.target.value))} aria-label="Parcelas">
+                    {INSTALLMENT_CHOICES.map((n) => (
+                      <option key={n} value={n}>
+                        {n === 1 ? 'À vista' : `${n}x`}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+            {how === 'CREDITO' && <p className="mapping-pay-feedback">Entra na fatura do banco; o saldo só muda quando a fatura for paga.</p>}
+          </div>
+        )}
 
         {Math.abs(diff) >= 0.01 && amount > 0 && (
           <p className="mapping-pay-feedback">
