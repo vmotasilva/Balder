@@ -252,7 +252,8 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
           else pending += m.amount;
           overages.push({ name: m.title, amount: m.amount });
         });
-      // Compras no cartão: cada item detalhado da fatura entra na natureza no mês em que a fatura é paga.
+      // Compras no cartão: cada item detalhado da fatura entra na natureza no mês da fatura. Natureza mede geração
+      // de despesa, então a compra já conta como real mesmo com a fatura ainda em aberto (débito só no fechamento).
       // Itens ligados a um item da natureza já são apurados por ele, então não se contam de novo.
       if (period === 'MES') {
         movements
@@ -261,8 +262,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
             (inv.invoiceBreakdown || [])
               .filter((ib) => ib.natureId === nat.id && !(ib.mappingItemId && itemIds.has(ib.mappingItemId)))
               .forEach((ib) => {
-                if (inv.status === 'REALIZADA') real += ib.amount;
-                else pending += ib.amount;
+                real += ib.amount;
                 overages.push({ name: ib.description, amount: ib.amount });
               });
           });

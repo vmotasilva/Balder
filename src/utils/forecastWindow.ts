@@ -156,6 +156,16 @@ export function buildForecastWindow(params: {
     monthKeys.push(isoOf(d).slice(0, 7));
   }
 
+  // Itens comprados no cartão em faturas ainda abertas, por item da natureza. Quando a fatura é paga, a
+  // reconciliação registra o pagamento no item; até lá, a compra no cartão já conta como resolvida.
+  const cardCredit = new Map<string, number>();
+  movements.forEach((inv) => {
+    if (inv.type !== 'CARTAO' || inv.status !== 'PREVISTA') return;
+    (inv.invoiceBreakdown || []).forEach((ib) => {
+      if (ib.mappingItemId) cardCredit.set(ib.mappingItemId, (cardCredit.get(ib.mappingItemId) || 0) + ib.amount);
+    });
+  });
+
   natures.forEach((nat) => {
     nat.mappings.forEach((mapping) => {
       // Modo Resumo: o mapeamento é a linha de cobrança; os itens só somam o valor dele
@@ -218,8 +228,22 @@ export function buildForecastWindow(params: {
           if (summary.openBalance > 0 && monthKey === currentMonthKey) add(fromDate, summary.openBalance);
         });
 
-        if (summarized) return;
+        // Compra no cartão ligada ao item (fatura ainda em aberto): já resolve a pendência, não cobrar de novo
+        const credit = cardCredit.get(item.id) || 0;
+        if (summarized) {
+          if (credit > 0 && buckets.size > 0) mappingSettled += credit;
+          return;
+        }
+        let left = credit;
+        [...buckets.values()]
+          .sort((a, b) => a.first.localeCompare(b.first))
+          .forEach((b) => {
+            const drained = Math.min(b.amount, left);
+            b.amount -= drained;
+            left -= drained;
+          });
         buckets.forEach((b, key) => {
+          if (b.amount <= 0.005) return;
           entries.push({
             id: `nat_${item.id}_${key}`,
             date: b.first,
