@@ -610,18 +610,31 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
           m.category.toLowerCase() === nat.name.toLowerCase() ||
           natItems.some((it) => it.id === m.mappingItemId || norm(it.description) === norm(m.title)))
     );
-    natItems.forEach((it) => {
-      const summary = resolveMappingItemMonth(it, selectedMonthKey);
-      if (isExcludedState(summary.state)) return;
-      const launched = monthMovs.filter((m) => m.mappingItemId === it.id || norm(m.title) === norm(it.description));
-      if (launched.length > 0) return; // entram abaixo como movimentação
-      summary.payments.forEach((p) =>
-        entries.push({ id: `pay_${p.id}`, date: p.paidAt, description: it.description, amount: p.amount, real: true, origin: 'Item da natureza', pay: itemPay(it.paymentMethod) })
-      );
-      if (summary.pending > 0.005) {
-        entries.push({ id: `pend_${it.id}`, date: '', description: it.description, amount: summary.pending, real: false, origin: 'Item da natureza', pay: itemPay(it.paymentMethod) });
+    // Itens são só memória de cálculo: junta por mapeamento, data e situação, com o nome do mapeamento
+    const groups = new Map<string, (typeof entries)[number]>();
+    const addToGroup = (mappingId: string, mappingName: string, date: string, real: boolean, amount: number, pay?: string) => {
+      const key = `${mappingId}|${date}|${real}`;
+      const cur = groups.get(key);
+      if (cur) {
+        cur.amount += amount;
+        if (cur.pay !== pay) cur.pay = undefined;
+      } else {
+        groups.set(key, { id: `grp_${key}`, date, description: mappingName, amount, real, origin: 'Mapeamento', pay });
       }
-    });
+    };
+    nat.mappings
+      .filter((mp) => !(mp.applicableMonths && mp.applicableMonths.length > 0 && !mp.applicableMonths.includes(monthNumber)))
+      .forEach((mp) =>
+        mp.items.forEach((it) => {
+          const summary = resolveMappingItemMonth(it, selectedMonthKey);
+          if (isExcludedState(summary.state)) return;
+          const launched = monthMovs.filter((m) => m.mappingItemId === it.id || norm(m.title) === norm(it.description));
+          if (launched.length > 0) return; // entram abaixo como movimentação
+          summary.payments.forEach((p) => addToGroup(mp.id, mp.name, p.paidAt, true, p.amount, itemPay(it.paymentMethod)));
+          if (summary.pending > 0.005) addToGroup(mp.id, mp.name, '', false, summary.pending, itemPay(it.paymentMethod));
+        })
+      );
+    groups.forEach((g) => entries.push({ ...g, amount: Math.round(g.amount * 100) / 100 }));
     monthMovs.forEach((m) => {
       entries.push({
         id: m.id,
