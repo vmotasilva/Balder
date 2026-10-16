@@ -8,7 +8,7 @@ import {
   X,
   AlertTriangle,
 } from 'lucide-react';
-import type { ExpenseNature, MonthlyGridProjectionRow, MappingItem } from '../types';
+import type { ExpenseNature, MonthlyGridProjectionRow, MappingItem, Movement } from '../types';
 import { buildMonthlyProjectionGrid, movementCompetenceDate } from '../utils/projectionMath';
 import { invoiceItemCompetenceDate } from '../utils/cardPurchase';
 import { mappingItemMonthValue, resolveMappingItemMonth } from '../utils/mappingItemState';
@@ -16,6 +16,7 @@ import { userNatures } from '../utils/baseNatures';
 import { buildPeriodItems, trackingPeriodRange, TRACKING_PERIOD_LABELS } from '../utils/periodSpending';
 import type { TrackingPeriod } from '../utils/periodSpending';
 import { GridCellDetailModal } from './GridCellDetailModal';
+import { MovementDetailModal } from './MovementDetailModal';
 import type { GridCellSelection } from './GridCellDetailModal';
 
 interface NatureBudgetRow {
@@ -89,6 +90,8 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
   const [alertRow, setAlertRow] = useState<NatureBudgetRow | null>(null);
   // Natureza cujo pop-up de lançamentos está aberto
   const [movRow, setMovRow] = useState<NatureBudgetRow | null>(null);
+  // Lançamento aberto para ajuste a partir do pop-up
+  const [editMovement, setEditMovement] = useState<Movement | null>(null);
 
   const initialBalance = activeCheckpoint ? activeCheckpoint.initialBalance : 0;
 
@@ -590,7 +593,9 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
   const buildNatureEntries = (nat: ExpenseNature) => {
     const monthNumber = parseInt(selectedMonthKey.split('-')[1], 10);
     const norm = (t: string) => t.trim().toLowerCase();
-    const entries: { id: string; date: string; description: string; amount: number; real: boolean; origin: string }[] = [];
+    const itemPay = (pm?: string) =>
+      pm === 'CARTAO' ? 'Cartão' : pm === 'DEBITO' || pm === 'CONTA' ? 'Débito' : pm === 'PIX' ? 'Pix' : pm === 'DINHEIRO' ? 'Dinheiro' : pm === 'BOLETO' ? 'Boleto' : undefined;
+    const entries: { id: string; date: string; description: string; amount: number; real: boolean; origin: string; pay?: string; movement?: Movement }[] = [];
     const natItems = nat.mappings
       .filter((mp) => !(mp.applicableMonths && mp.applicableMonths.length > 0 && !mp.applicableMonths.includes(monthNumber)))
       .flatMap((mp) => mp.items);
@@ -611,10 +616,10 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
       const launched = monthMovs.filter((m) => m.mappingItemId === it.id || norm(m.title) === norm(it.description));
       if (launched.length > 0) return; // entram abaixo como movimentação
       summary.payments.forEach((p) =>
-        entries.push({ id: `pay_${p.id}`, date: p.paidAt, description: it.description, amount: p.amount, real: true, origin: 'Item da natureza' })
+        entries.push({ id: `pay_${p.id}`, date: p.paidAt, description: it.description, amount: p.amount, real: true, origin: 'Item da natureza', pay: itemPay(it.paymentMethod) })
       );
       if (summary.pending > 0.005) {
-        entries.push({ id: `pend_${it.id}`, date: '', description: it.description, amount: summary.pending, real: false, origin: 'Item da natureza' });
+        entries.push({ id: `pend_${it.id}`, date: '', description: it.description, amount: summary.pending, real: false, origin: 'Item da natureza', pay: itemPay(it.paymentMethod) });
       }
     });
     monthMovs.forEach((m) => {
@@ -624,6 +629,8 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
         description: m.title,
         amount: m.amount,
         real: m.status === 'REALIZADA',
+        movement: m,
+        pay: m.type === 'CARTAO' ? `Cartão${m.bank ? ` ${m.bank}` : ''}` : 'Débito',
         origin: m.mappingItemId && itemIds.has(m.mappingItemId) ? 'Item da natureza' : itemTitles.has(norm(m.title)) ? 'Item da natureza' : 'Avulso',
       });
     });
@@ -644,7 +651,9 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
               description: ib.description,
               amount: ib.amount,
               real: true,
-              origin: `Cartão${inv.bank ? ` ${inv.bank}` : ''}`,
+              origin: 'Compra no cartão',
+              pay: `Cartão${inv.bank ? ` ${inv.bank}` : ''}`,
+              movement: inv,
             })
           );
       });
@@ -1062,10 +1071,16 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
                   ) : (
                     <ul className="flex flex-col gap-1.5 mb-3">
                       {entries.map((e) => (
-                        <li key={e.id} className="flex items-center justify-between gap-3 p-2 rounded-lg bg-black/20 text-xs">
+                        <li
+                          key={e.id}
+                          className={`flex items-center justify-between gap-3 p-2 rounded-lg bg-black/20 text-xs ${e.movement ? 'cursor-pointer hover:bg-black/30' : ''}`}
+                          onClick={e.movement ? () => setEditMovement(e.movement!) : undefined}
+                          title={e.movement ? 'Abrir para ajustar' : undefined}
+                        >
                           <div className="min-w-0">
-                            <span className="block font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{e.description}</span>
+                            <span className="block font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{e.description.replace(/^Despesas?:\s*/i, '')}</span>
                             <span className="text-[10px] text-muted">{formatEntryDate(e.date)} • {e.origin}</span>
+                            {e.pay && <span className="ml-1.5 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-black/30 text-muted">{e.pay}</span>}
                           </div>
                           <span className={`font-mono font-bold shrink-0 ${e.real ? 'text-emerald' : 'text-amber'}`}>{formatBRL(e.amount)}</span>
                         </li>
@@ -1095,6 +1110,10 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
           </div>
         </div>,
         document.body
+      )}
+
+      {editMovement && (
+        <MovementDetailModal isOpen movement={movements.find((m) => m.id === editMovement.id) || editMovement} onClose={() => setEditMovement(null)} />
       )}
 
       {/* Modal de Detalhamento da Célula ao Clicar na Linha */}
