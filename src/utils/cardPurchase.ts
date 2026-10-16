@@ -1,5 +1,11 @@
 import type { InvoiceNatureItemBreakdown, Movement } from '../types';
 
+/** Hoje no formato AAAA-MM-DD (horário local). */
+export const todayIso = (): string => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 /** Vencimento (AAAA-MM-DD) da fatura que recebe uma compra feita em `purchaseDate`. */
 export const firstInvoiceDueDate = (purchaseDate: string, closingDay?: number, dueDay?: number): string => {
   const [y, m, d] = purchaseDate.split('-').map((n) => parseInt(n, 10));
@@ -27,6 +33,15 @@ export const invoiceDueDates = (firstDue: string, count: number): string[] => {
   return Array.from({ length: count }, (_, i) => monthDateKeepingDay(y, m - 1 + i, d));
 };
 
+/**
+ * Data em que o item da fatura gerou despesa: a data da compra, quando conhecida e à vista; parcelas e itens
+ * sem data seguem a competência da fatura (pagamento ou vencimento).
+ */
+export const invoiceItemCompetenceDate = (invoice: Movement, item: InvoiceNatureItemBreakdown): string => {
+  if (item.purchaseDate && (item.installments ?? 1) < 2) return item.purchaseDate;
+  return invoice.status === 'REALIZADA' && invoice.paymentDate ? invoice.paymentDate : invoice.dueDate;
+};
+
 export interface CardPurchaseInfo {
   institution: string;
   title: string;
@@ -36,6 +51,7 @@ export interface CardPurchaseInfo {
   mappingId?: string;
   mappingItemId?: string;
   notes?: string;
+  purchaseDate?: string; // YYYY-MM-DD; padrão: hoje
 }
 
 /**
@@ -66,6 +82,7 @@ export function addCardPurchaseToInvoices(
       installments: n,
       currentInstallment: idx + 1,
       finalAmount: purchase.total,
+      purchaseDate: purchase.purchaseDate || todayIso(),
     };
     const target = movements.find(
       (inv) =>

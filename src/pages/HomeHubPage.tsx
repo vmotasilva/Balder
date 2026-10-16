@@ -11,6 +11,7 @@ import {
   ChevronLeft,
   Target,
   Wallet,
+  CreditCard,
 } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
@@ -22,6 +23,7 @@ import { BalanceBreakdownModal } from '../components/BalanceBreakdownModal';
 import { ForecastBreakdownModal } from '../components/ForecastBreakdownModal';
 import { Modal } from '../components/Modal';
 import { SalaryOverview } from '../components/SalaryOverview';
+import { InvoicesOverview } from '../components/InvoicesOverview';
 import { ForsetiActivityModal } from '../components/ForsetiActivityModal';
 import { ForsetiMemoryModal } from '../components/ForsetiMemoryModal';
 import { activityCutoffIso } from '../services/forsetiActivityService';
@@ -117,6 +119,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   // Metas e Salário abrem em pop-up, pelos ícones ao lado do período
   const [showGoals, setShowGoals] = useState(false);
   const [showSalary, setShowSalary] = useState(false);
+  const [showInvoices, setShowInvoices] = useState(false);
 
   const period: TrackingPeriod = viewPreferences.trackingPeriod || 'MES';
   const labels = TRACKING_PERIOD_LABELS[period];
@@ -472,12 +475,24 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
         <button type="button" className="home-period-icon" onClick={() => setShowSalary(true)} aria-label="Salário" title="Salário">
           <Wallet size={16} />
         </button>
+        <button type="button" className="home-period-icon" onClick={() => setShowInvoices(true)} aria-label="Faturas" title="Faturas em aberto">
+          <CreditCard size={16} />
+        </button>
       </div>
       <Modal isOpen={showGoals} onClose={() => setShowGoals(false)} title="Metas" maxWidth="640px">
         <GoalsOverview
           onNavigateToGoals={() => {
             setShowGoals(false);
             onNavigate('METAS');
+          }}
+        />
+      </Modal>
+      <Modal isOpen={showInvoices} onClose={() => setShowInvoices(false)} title={`Faturas em aberto · ${TRACKING_PERIOD_LABELS[period].name}`} maxWidth="640px">
+        <InvoicesOverview
+          range={periodRange}
+          onNavigateToInvoices={() => {
+            setShowInvoices(false);
+            onNavigate('FATURAS');
           }}
         />
       </Modal>

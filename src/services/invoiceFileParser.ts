@@ -672,6 +672,21 @@ export async function parseInvoiceFile(
   return parseRawTextInvoice(text, natures);
 }
 
+/** Data do extrato (AAAAMMDD, AAAA-MM-DD ou DD/MM/AAAA) em AAAA-MM-DD; sem ano ou inválida, undefined. */
+export function normalizeStatementDate(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  const t = raw.trim();
+  let y: string, m: string, d: string;
+  let match = t.match(/^(\d{4})-?(\d{2})-?(\d{2})/);
+  if (match) [, y, m, d] = match;
+  else if ((match = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/))) [, d, m, y] = match;
+  else return undefined;
+  const mm = Number(m);
+  const dd = Number(d);
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return undefined;
+  return `${y}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+}
+
 /**
  * Converte ParsedInvoiceItem para o formato oficial InvoiceNatureItemBreakdown do Balder
  */
@@ -686,6 +701,7 @@ export function convertToBreakdownItems(items: ParsedInvoiceItem[]): InvoiceNatu
       : item.description,
     amount: item.amount,
     isAnalyzed: true,
+    purchaseDate: normalizeStatementDate(item.originalDate),
     installments: item.installments,
     currentInstallment: item.currentInstallment,
     finalAmount: item.finalAmount,

@@ -32,6 +32,7 @@ import { InfoButton } from '../components/InfoButton';
 import { BankPicker } from '../components/BankPicker';
 import { BankInvoiceTerms } from '../components/BankInvoiceTerms';
 import { canonicalBankName } from '../utils/paymentInstitutions';
+import { todayIso } from '../utils/cardPurchase';
 
 const competenceMonthLabel = (iso: string) =>
   new Date(`${iso.slice(0, 7)}-15T12:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -86,6 +87,8 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
   const [inlineItemDesc, setInlineItemDesc] = useState<Record<string, string>>({});
   const [inlineItemAmount, setInlineItemAmount] = useState<Record<string, string>>({});
   const [inlineItemFinalAmount, setInlineItemFinalAmount] = useState<Record<string, string>>({});
+  // Abate de IOF: item da fatura em edição e o valor digitado
+  const [iofEdit, setIofEdit] = useState<{ invoiceId: string; itemId: string; value: string } | null>(null);
   const [inlineItemInstallments, setInlineItemInstallments] = useState<Record<string, number>>({});
 
   // Obter todos os movimentos de Cartão de Crédito
@@ -419,6 +422,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
       description: instCount > 1 ? `${cleanDesc} (1/${instCount})` : cleanDesc,
       amount: Math.round(parsedAmount * 100) / 100,
       isAnalyzed: true,
+      purchaseDate: todayIso(),
       installments: instCount,
       currentInstallment: 1,
       finalAmount: Math.round(finalTotal * 100) / 100,
@@ -520,6 +524,33 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
       unanalyzedAmount: unanalyzed,
       category: unanalyzed > 0.01 ? 'Não Analisada' : 'Fatura de Cartão',
     });
+  };
+
+  // Abate de IOF no item: o valor informado passa a ser o estorno total do item; item e fatura diminuem pela diferença
+  const handleApplyIofRefund = (m: Movement, itemId: string, refund: number) => {
+    const currentBreakdown = m.invoiceBreakdown || [];
+    const target = currentBreakdown.find((i) => i.id === itemId);
+    if (!target) return;
+    const round = (v: number) => Math.round(v * 100) / 100;
+    const previous = target.iofRefund || 0;
+    // Não abate mais do que o item ainda tem: o limite é o valor atual somado ao que já foi abatido
+    const next = Math.min(Math.max(0, round(refund)), round(target.amount + previous));
+    const delta = round(next - previous);
+    if (delta === 0) return;
+    const updatedBreakdown = currentBreakdown.map((i) =>
+      i.id === itemId ? { ...i, amount: round(i.amount - delta), iofRefund: next > 0 ? next : undefined } : i
+    );
+    const totalAllocated = updatedBreakdown.reduce((acc, i) => acc + i.amount, 0);
+    // Fatura já paga não muda de valor (como na remoção de item): a diferença fica em "Não Analisada"
+    const newAmount = m.status === 'REALIZADA' ? m.amount : Math.max(0, round(m.amount - delta));
+    const unanalyzed = Math.max(0, round(newAmount - totalAllocated));
+    updateMovement(m.id, {
+      amount: newAmount,
+      invoiceBreakdown: updatedBreakdown,
+      unanalyzedAmount: unanalyzed,
+      category: unanalyzed > 0.01 ? 'Não Analisada' : 'Fatura de Cartão',
+    });
+    setIofEdit(null);
   };
 
   // Marcar fatura como paga (valor e data conferidos no pop-up) ou reabrir
@@ -1443,7 +1474,8 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                               const finalVal = item.finalAmount ?? (item.amount * inst);
 
                               return (
-                                <tr key={item.id}>
+                                <React.Fragment key={item.id}>
+                                <tr>
                                   <td className="inv-c-nat">
                                     <span
                                       className="badge"
@@ -1456,8 +1488,18 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                                       {item.natureName}
                                     </span>
                                   </td>
-                                  <td className="inv-c-desc" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                                  <td
+                                    className="inv-c-desc"
+                                    style={{ fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}
+                                    onClick={() => setIofEdit({ invoiceId: m.id, itemId: item.id, value: item.iofRefund ? String(item.iofRefund).replace('.', ',') : '' })}
+                                    title="Clique para abater IOF neste item"
+                                  >
                                     {item.description}
+                                    {item.iofRefund ? (
+                                      <div style={{ fontSize: '11px', fontWeight: 600, color: '#34D399' }}>
+                                        IOF estornado: −{fmtBRL(item.iofRefund)}
+                                      </div>
+                                    ) : null}
                                   </td>
                                   <td className="inv-c-par" data-label="Parcela" style={{ textAlign: 'center' }}>
                                     {inst > 1 ? (
@@ -1490,6 +1532,14 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                                   </td>
                                   <td className="inv-c-act" style={{ textAlign: 'center' }}>
                                     <button
+                                      style={{ background: 'none', border: 'none', color: '#34D399', cursor: 'pointer', padding: '4px', borderRadius: '6px', fontWeight: 700, fontSize: '11px' }}
+                                      onClick={() => setIofEdit({ invoiceId: m.id, itemId: item.id, value: item.iofRefund ? String(item.iofRefund).replace('.', ',') : '' })}
+                                      title="Abater IOF estornado neste item"
+                                      aria-label="Abater IOF neste item"
+                                    >
+                                      IOF
+                                    </button>
+                                    <button
                                       style={{
                                         background: 'none',
                                         border: 'none',
@@ -1515,6 +1565,37 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                                     </button>
                                   </td>
                                 </tr>
+                                {iofEdit?.invoiceId === m.id && iofEdit.itemId === item.id && (
+                                  <tr>
+                                    <td colSpan={7}>
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', padding: '6px 0' }}>
+                                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Valor do IOF a abater (R$):</span>
+                                        <input
+                                          className="form-input"
+                                          inputMode="decimal"
+                                          autoFocus
+                                          placeholder="0,00"
+                                          value={iofEdit.value}
+                                          onChange={(e) => setIofEdit({ ...iofEdit, value: e.target.value })}
+                                          style={{ width: '110px' }}
+                                        />
+                                        <button
+                                          className="btn btn-primary"
+                                          onClick={() => handleApplyIofRefund(m, item.id, parseMoney(iofEdit.value) || 0)}
+                                        >
+                                          Abater
+                                        </button>
+                                        <button className="btn btn-secondary" onClick={() => setIofEdit(null)}>
+                                          Cancelar
+                                        </button>
+                                        {item.iofRefund ? (
+                                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Informe 0 para desfazer o abate.</span>
+                                        ) : null}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                                </React.Fragment>
                               );
                             })}
                           </tbody>
