@@ -2438,6 +2438,25 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
           moved.push(...invoiceItem.subItems.filter((sub) => ids.has(sub.id)));
           invoiceItem.subItems = invoiceItem.subItems.filter((sub) => !ids.has(sub.id));
         });
+        // Lançamentos avulsos da natureza (ligados por id ou pela categoria) saem de "Custos Avulsos & Variáveis"
+        const varItem = items.find((it) => it.id === `expense_var_${monthPrefix}`);
+        if (varItem?.subItems) {
+          const mine = varItem.subItems.filter((sub) => {
+            const mv = sub.movementId ? movements.find((m) => m.id === sub.movementId) : undefined;
+            return !!mv && (mv.natureId === natureId || mv.category.toLowerCase() === natureName.toLowerCase());
+          });
+          if (mine.length > 0) {
+            const mineIds = new Set(mine.map((s) => s.id));
+            const mineTotal = Math.round(mine.reduce((acc, sub) => acc + sub.totalValue, 0) * 100) / 100;
+            moved.push(...mine);
+            varItem.subItems = varItem.subItems.filter((sub) => !mineIds.has(sub.id));
+            varItem.amount = Math.max(0, Math.round((varItem.amount - mineTotal) * 100) / 100);
+            if (varItem.subItems.length === 0) {
+              varItem.subItems = undefined;
+              if (varItem.amount <= 0) items.splice(items.indexOf(varItem), 1);
+            }
+          }
+        }
         if (moved.length > 0) {
           const movedTotal = Math.round(moved.reduce((acc, sub) => acc + sub.totalValue, 0) * 100) / 100;
           const natureTab = items.find((it) => it.id === `expense_fix_${natureId}`);
@@ -2448,11 +2467,11 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
             items.push({
               id: `expense_card_nat_${natureId}`,
               category: natureName,
-              bankOrOrigin: 'Cartão de Crédito',
+              bankOrOrigin: 'Débito / Cartão',
               title: natureName,
-              notes: `Compras no cartão (${moved.length} ${moved.length === 1 ? 'item' : 'itens'}) que vencem em ${row.competenceLabel}`,
-              badge: 'No Cartão',
-              badgeType: 'purple',
+              notes: `Movimentações da natureza (${moved.length} ${moved.length === 1 ? 'item' : 'itens'}) em ${row.competenceLabel}`,
+              badge: 'Movimentações',
+              badgeType: 'cyan',
               amount: movedTotal,
               dateOrDue: `Vencimento: ${row.competenceLabel}`,
               isProjected: false,
