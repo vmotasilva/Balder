@@ -11,20 +11,20 @@ interface InvoicesOverviewProps {
   onNavigateToInvoices: () => void;
 }
 
-/** Faturas de cartão em aberto que vencem no período, desde que já tenham valor registrado. */
+/** Faturas de cartão em aberto que vencem no período ou já venceram antes dele, desde que tenham valor registrado. */
 export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range, onNavigateToInvoices }) => {
   const { movements } = useFinancial();
   const invoices = useMemo(
     () =>
       movements
-        .filter((m) => m.type === 'CARTAO' && m.status === 'PREVISTA' && m.amount > 0.004 && m.dueDate >= range.from && m.dueDate <= range.to)
+        .filter((m) => m.type === 'CARTAO' && m.status === 'PREVISTA' && m.amount > 0.004 && m.dueDate <= range.to)
         .sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
     [movements, range.from, range.to]
   );
   const total = Math.round(invoices.reduce((acc, m) => acc + m.amount, 0) * 100) / 100;
 
   if (invoices.length === 0) {
-    return <p className="text-sm text-muted">Nenhuma fatura em aberto com valor neste período.</p>;
+    return <p className="text-sm text-muted">Nenhuma fatura em aberto com valor até o fim deste período.</p>;
   }
 
   return (
@@ -47,7 +47,11 @@ export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range, onNav
                 <CreditCard size={14} /> {m.bank || m.title}
               </div>
               <div className="text-xs text-muted">
-                vence {ddmm(m.dueDate)}
+                {m.dueDate < range.from ? (
+                  <span style={{ color: 'var(--accent-rose, #f87171)', fontWeight: 600 }}>vencida em {ddmm(m.dueDate)}</span>
+                ) : (
+                  <>vence {ddmm(m.dueDate)}</>
+                )}
                 {items > 0 ? ` · ${items} ${items === 1 ? 'item' : 'itens'}` : ''}
                 {m.unanalyzedAmount && m.unanalyzedAmount > 0.004 ? ` · ${formatBRL(m.unanalyzedAmount)} sem detalhar` : ''}
               </div>
