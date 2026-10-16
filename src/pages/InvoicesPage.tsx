@@ -672,7 +672,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
             title="Importar extrato em OFX, CSV ou Imagem para criar uma nova fatura detalhada"
           >
             <Upload size={16} />
-            <span>Importar Extrato</span>
+            <span className="invoice-btn-label">Importar Extrato</span>
           </button>
 
           <button
@@ -1085,7 +1085,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                     background: bankBrand.headerGradient,
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                  <div className="invoice-head-main" style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
                     {/* Avatar do Banco com Logo/Ícone da Marca */}
                     <div
                       className="invoice-bank-avatar"
@@ -1098,7 +1098,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                       {bankBrand.iconText}
                     </div>
 
-                    <div>
+                    <div className="invoice-head-text">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
                         {/* Badge Oficial do Banco */}
                         <span
@@ -1202,7 +1202,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                         )}
                       </div>
 
-                      <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      <h3 className="invoice-title" style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: 'var(--text-primary)' }}>
                         {m.title}
                       </h3>
 
@@ -1218,7 +1218,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                   </div>
 
                   {/* Valor e Ações Rápidas */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div className="invoice-head-side" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                     <div className="invoice-amount-box">
                       <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
                         Valor da Fatura
@@ -1228,7 +1228,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                       </strong>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <div className="invoice-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                       <button
                         className="btn btn-secondary"
                         style={{ fontSize: '12px', padding: '8px 14px' }}
@@ -1236,7 +1236,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                         title="Abrir pop-up detalhado de conciliação da fatura"
                       >
                         <ArrowUpRight size={14} />
-                        <span>Conciliar Itens</span>
+                        <span className="invoice-btn-label">Conciliar Itens</span>
                       </button>
 
                       <button
