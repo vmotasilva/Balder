@@ -87,6 +87,8 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
   const [cellSelection, setCellSelection] = useState<GridCellSelection | null>(null);
   // Natureza com alerta: o pop-up com as descrições abre antes do detalhamento
   const [alertRow, setAlertRow] = useState<NatureBudgetRow | null>(null);
+  // Natureza cujo pop-up de lançamentos está aberto
+  const [movRow, setMovRow] = useState<NatureBudgetRow | null>(null);
 
   const initialBalance = activeCheckpoint ? activeCheckpoint.initialBalance : 0;
 
@@ -584,7 +586,84 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
     else handleOpenNatureDetail(row);
   };
 
+  // Lançamentos que compõem o Real/Previsto da natureza no mês (mesma apuração do card)
+  const buildNatureEntries = (nat: ExpenseNature) => {
+    const monthNumber = parseInt(selectedMonthKey.split('-')[1], 10);
+    const norm = (t: string) => t.trim().toLowerCase();
+    const entries: { id: string; date: string; description: string; amount: number; real: boolean; origin: string }[] = [];
+    const natItems = nat.mappings
+      .filter((mp) => !(mp.applicableMonths && mp.applicableMonths.length > 0 && !mp.applicableMonths.includes(monthNumber)))
+      .flatMap((mp) => mp.items);
+    const itemIds = new Set(natItems.map((it) => it.id));
+    const itemTitles = new Set(natItems.map((it) => norm(it.description)));
+    const monthMovs = movements.filter(
+      (m) =>
+        (m.type === 'PAGAR' || m.type === 'CARTAO') &&
+        m.status !== 'CANCELADA' &&
+        movementCompetenceDate(m).startsWith(selectedMonthKey) &&
+        (m.natureId === nat.id ||
+          m.category.toLowerCase() === nat.name.toLowerCase() ||
+          natItems.some((it) => it.id === m.mappingItemId || norm(it.description) === norm(m.title)))
+    );
+    natItems.forEach((it) => {
+      const summary = resolveMappingItemMonth(it, selectedMonthKey);
+      if (isExcludedState(summary.state)) return;
+      const launched = monthMovs.filter((m) => m.mappingItemId === it.id || norm(m.title) === norm(it.description));
+      if (launched.length > 0) return; // entram abaixo como movimentação
+      summary.payments.forEach((p) =>
+        entries.push({ id: `pay_${p.id}`, date: p.paidAt, description: it.description, amount: p.amount, real: true, origin: 'Item da natureza' })
+      );
+      if (summary.pending > 0.005) {
+        entries.push({ id: `pend_${it.id}`, date: '', description: it.description, amount: summary.pending, real: false, origin: 'Item da natureza' });
+      }
+    });
+    monthMovs.forEach((m) => {
+      entries.push({
+        id: m.id,
+        date: m.status === 'REALIZADA' ? m.paymentDate || m.dueDate : m.dueDate,
+        description: m.title,
+        amount: m.amount,
+        real: m.status === 'REALIZADA',
+        origin: m.mappingItemId && itemIds.has(m.mappingItemId) ? 'Item da natureza' : itemTitles.has(norm(m.title)) ? 'Item da natureza' : 'Avulso',
+      });
+    });
+    movements
+      .filter((inv) => inv.type === 'CARTAO' && inv.status !== 'CANCELADA')
+      .forEach((inv) => {
+        (inv.invoiceBreakdown || [])
+          .filter(
+            (ib) =>
+              ib.natureId === nat.id &&
+              !(ib.mappingItemId && itemIds.has(ib.mappingItemId)) &&
+              invoiceItemCompetenceDate(inv, ib).startsWith(selectedMonthKey)
+          )
+          .forEach((ib) =>
+            entries.push({
+              id: `ib_${ib.id}`,
+              date: invoiceItemCompetenceDate(inv, ib),
+              description: ib.description,
+              amount: ib.amount,
+              real: true,
+              origin: `Cartão${inv.bank ? ` ${inv.bank}` : ''}`,
+            })
+          );
+      });
+    return entries.sort((a, b) => (b.date || '9999').localeCompare(a.date || '9999'));
+  };
+
+  const formatEntryDate = (d: string) => (d ? d.slice(0, 10).split('-').reverse().join('/') : 'A pagar');
+
   const handleOpenNatureDetail = (row: NatureBudgetRow) => {
+    if (!currentRow) return;
+    // Mês: pop-up enxuto só com os lançamentos da natureza; semana/quinzena mantêm o detalhamento completo
+    if (period === 'MES') {
+      setMovRow(row);
+      return;
+    }
+    openFullDetail(row);
+  };
+
+  const openFullDetail = (row: NatureBudgetRow) => {
     if (!currentRow) return;
     // Abre pelas saídas totais com foco na natureza: "Todas as naturezas" (subir um nível) mostra
     // todas as naturezas do mês, não só as que têm itens no cartão
@@ -938,6 +1017,81 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
                 Ver movimentações
               </button>
             </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Pop-up enxuto: só os lançamentos da natureza no mês */}
+      {movRow && createPortal(
+        <div className="modal-backdrop animate-fade-in" onClick={() => setMovRow(null)}>
+          <div
+            className="glass-card p-4 rounded-xl max-w-md w-full"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', maxHeight: '85vh', overflowY: 'auto' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {(() => {
+              const entries = buildNatureEntries(movRow.nature);
+              const realTotal = entries.filter((e) => e.real).reduce((a, e) => a + e.amount, 0);
+              const pendTotal = entries.filter((e) => !e.real).reduce((a, e) => a + e.amount, 0);
+              return (
+                <>
+                  <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-bold truncate" style={{ color: 'var(--text-primary)' }}>{movRow.name}</h3>
+                      <span className="text-[11px] text-muted">{currentRow?.competenceLabel} • {entries.length} {entries.length === 1 ? 'lançamento' : 'lançamentos'}</span>
+                    </div>
+                    <button type="button" onClick={() => setMovRow(null)} className="text-muted hover:text-primary cursor-pointer" aria-label="Fechar">
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-center text-xs my-3">
+                    <div className="p-1.5 rounded-lg bg-black/20">
+                      <span className="text-[10px] text-muted block uppercase font-semibold">Real</span>
+                      <span className="font-mono font-bold text-emerald">{formatBRL(realTotal)}</span>
+                    </div>
+                    <div className="p-1.5 rounded-lg bg-black/20">
+                      <span className="text-[10px] text-muted block uppercase font-semibold">Previsto</span>
+                      <span className="font-mono font-bold text-amber">{formatBRL(pendTotal)}</span>
+                    </div>
+                  </div>
+
+                  {entries.length === 0 ? (
+                    <p className="text-xs text-muted text-center py-4">Nenhum lançamento nesta competência.</p>
+                  ) : (
+                    <ul className="flex flex-col gap-1.5 mb-3">
+                      {entries.map((e) => (
+                        <li key={e.id} className="flex items-center justify-between gap-3 p-2 rounded-lg bg-black/20 text-xs">
+                          <div className="min-w-0">
+                            <span className="block font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{e.description}</span>
+                            <span className="text-[10px] text-muted">{formatEntryDate(e.date)} • {e.origin}</span>
+                          </div>
+                          <span className={`font-mono font-bold shrink-0 ${e.real ? 'text-emerald' : 'text-amber'}`}>{formatBRL(e.amount)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  <div className="flex items-center justify-end gap-2">
+                    <button type="button" onClick={() => setMovRow(null)} className="btn btn-secondary text-xs py-1 px-3">
+                      Fechar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const row = movRow;
+                        setMovRow(null);
+                        openFullDetail(row);
+                      }}
+                      className="btn btn-primary text-xs py-1 px-3"
+                    >
+                      Detalhamento completo
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>,
         document.body
