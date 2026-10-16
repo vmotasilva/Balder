@@ -1169,7 +1169,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                         )}
 
                         {/* Status de Conciliação: só quando há pendência */}
-                        {isFullyReconciled ? null) : isPartiallyReconciled ? (
+                        {isFullyReconciled ? null : isPartiallyReconciled ? (
                           <span
                             className="badge"
                             style={{
