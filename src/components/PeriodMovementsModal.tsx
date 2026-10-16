@@ -110,7 +110,7 @@ export const PeriodMovementsModal: React.FC<PeriodMovementsModalProps> = ({ isOp
                 <li key={m.id} className="is-clickable" onClick={() => setEditing(m)} onKeyDown={(e) => e.key === 'Enter' && setEditing(m)} tabIndex={0} role="button" title="Ajustar valor, data ou parcelamento">
                   <span className="period-mov-date">{shortDate(movementDate(m))}</span>
                   <span className="period-mov-main">
-                    <b>{m.title}</b>
+                    <b>{m.title.replace(/^Despesas?:\s*/i, "")}</b>
                     <small>
                       {movementLabel(m)} · {m.bank} · {skipped > 0 ? 'Desconsiderada' : m.status === 'REALIZADA' ? 'Realizada' : 'Prevista'}
                     </small>
