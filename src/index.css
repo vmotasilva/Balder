@@ -719,6 +719,56 @@ button {
   color: #0F172A;
 }
 
+/* Celular: cabeçalho compacto (logo ao lado do texto; valor e ações numa linha só, botões só com ícone) */
+@media (max-width: 768px) {
+  .invoice-card { margin-bottom: 12px; }
+  .invoice-card:hover { transform: none; }
+  .invoice-card-header { padding: 12px 14px; gap: 10px; width: 100%; box-sizing: border-box; }
+  .invoice-head-main { flex-wrap: nowrap !important; gap: 10px !important; align-items: flex-start !important; width: 100%; }
+  .invoice-head-text { min-width: 0; flex: 1; }
+  .invoice-bank-avatar { width: 34px; height: 34px; border-radius: 10px; font-size: 16px; }
+  .invoice-title { font-size: 15px !important; }
+  .invoice-head-side { width: 100%; justify-content: space-between; gap: 8px !important; }
+  .invoice-head-side .invoice-amount-box { align-items: flex-start; }
+  .invoice-amount-value { font-size: 20px; }
+  .invoice-actions { flex-wrap: nowrap !important; gap: 6px !important; }
+  .invoice-actions .btn { padding: 8px 10px !important; }
+  .invoice-composition-panel { padding: 8px 14px; }
+}
+
+/* Menu de ações da fatura (3 pontinhos) */
+.invoice-menu { position: relative; }
+.invoice-menu-backdrop { position: fixed; inset: 0; z-index: 40; }
+.invoice-menu-list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 41;
+  min-width: 190px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--bg-card-elevated, var(--bg-card));
+  border: 1px solid var(--border-default);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+}
+.invoice-menu-list button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.invoice-menu-list button:hover { background: rgba(255, 255, 255, 0.06); }
+.invoice-menu-list button.is-danger { color: var(--accent-rose); }
+
 /* Barra de Composição e Itens */
 .invoice-composition-panel {
   padding: 12px 24px;

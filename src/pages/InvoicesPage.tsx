@@ -19,6 +19,7 @@ import {
   Upload,
   Copy,
   ArrowLeft,
+  MoreVertical,
 } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import type { Movement, InvoiceNatureItemBreakdown } from '../types';
@@ -32,7 +33,7 @@ import { InfoButton } from '../components/InfoButton';
 import { BankPicker } from '../components/BankPicker';
 import { BankInvoiceTerms } from '../components/BankInvoiceTerms';
 import { canonicalBankName } from '../utils/paymentInstitutions';
-import { todayIso } from '../utils/cardPurchase';
+import { todayIso, iofRefundUpdates } from '../utils/cardPurchase';
 
 const competenceMonthLabel = (iso: string) =>
   new Date(`${iso.slice(0, 7)}-15T12:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -88,6 +89,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
   const [inlineItemAmount, setInlineItemAmount] = useState<Record<string, string>>({});
   const [inlineItemFinalAmount, setInlineItemFinalAmount] = useState<Record<string, string>>({});
   // Abate de IOF: item da fatura em edição e o valor digitado
+  const [invoiceMenuId, setInvoiceMenuId] = useState<string | null>(null);
   const [iofEdit, setIofEdit] = useState<{ invoiceId: string; itemId: string; value: string } | null>(null);
   const [inlineItemInstallments, setInlineItemInstallments] = useState<Record<string, number>>({});
 
@@ -528,28 +530,8 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
 
   // Abate de IOF no item: o valor informado passa a ser o estorno total do item; item e fatura diminuem pela diferença
   const handleApplyIofRefund = (m: Movement, itemId: string, refund: number) => {
-    const currentBreakdown = m.invoiceBreakdown || [];
-    const target = currentBreakdown.find((i) => i.id === itemId);
-    if (!target) return;
-    const round = (v: number) => Math.round(v * 100) / 100;
-    const previous = target.iofRefund || 0;
-    // Não abate mais do que o item ainda tem: o limite é o valor atual somado ao que já foi abatido
-    const next = Math.min(Math.max(0, round(refund)), round(target.amount + previous));
-    const delta = round(next - previous);
-    if (delta === 0) return;
-    const updatedBreakdown = currentBreakdown.map((i) =>
-      i.id === itemId ? { ...i, amount: round(i.amount - delta), iofRefund: next > 0 ? next : undefined } : i
-    );
-    const totalAllocated = updatedBreakdown.reduce((acc, i) => acc + i.amount, 0);
-    // Fatura já paga não muda de valor (como na remoção de item): a diferença fica em "Não Analisada"
-    const newAmount = m.status === 'REALIZADA' ? m.amount : Math.max(0, round(m.amount - delta));
-    const unanalyzed = Math.max(0, round(newAmount - totalAllocated));
-    updateMovement(m.id, {
-      amount: newAmount,
-      invoiceBreakdown: updatedBreakdown,
-      unanalyzedAmount: unanalyzed,
-      category: unanalyzed > 0.01 ? 'Não Analisada' : 'Fatura de Cartão',
-    });
+    const updates = iofRefundUpdates(m, itemId, refund);
+    if (updates) updateMovement(m.id, updates);
     setIofEdit(null);
   };
 
@@ -1086,13 +1068,13 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
             // Formatação de data
             const dueDateObj = new Date(m.dueDate + 'T12:00:00');
             const dueDateFormatted = dueDateObj.toLocaleDateString('pt-BR');
-            const monthName = dueDateObj.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
             return (
               <div
                 key={m.id}
                 className="invoice-card"
                 style={{
+                  overflow: invoiceMenuId === m.id ? 'visible' : undefined,
                   borderLeft: `5px solid ${bankBrand.accentBorder}`,
                   boxShadow: `0 6px 20px rgba(0, 0, 0, 0.35), 0 0 16px ${bankBrand.primaryColor}15`,
                   ['--bank-primary' as string]: bankBrand.primaryColor,
@@ -1105,7 +1087,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                     background: bankBrand.headerGradient,
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                  <div className="invoice-head-main" style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
                     {/* Avatar do Banco com Logo/Ícone da Marca */}
                     <div
                       className="invoice-bank-avatar"
@@ -1118,9 +1100,10 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                       {bankBrand.iconText}
                     </div>
 
-                    <div>
+                    <div className="invoice-head-text">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
-                        {/* Badge Oficial do Banco */}
+                        {/* Badge do banco: só quando o título não cita o banco */}
+                        {!(m.bank && m.title.toLowerCase().includes(m.bank.toLowerCase())) && (
                         <span
                           className="invoice-bank-badge"
                           style={{
@@ -1131,6 +1114,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                         >
                           {m.bank || 'Cartão de Crédito'}
                         </span>
+                        )}
 
                         {m.installmentNumber && (
                           <span
@@ -1148,7 +1132,8 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                           </span>
                         )}
 
-                        {/* Status da Fatura */}
+                        {/* Status da Fatura: só aparece quando já foi paga (prevista é o normal) */}
+                        {isPaid && (
                         <span
                           className="badge"
                           style={{
@@ -1157,8 +1142,9 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                             color: isPaid ? 'var(--accent-emerald)' : 'var(--accent-cyan)',
                           }}
                         >
-                          {isPaid ? 'REALIZADA (PAGA)' : 'PREVISTA NO FLUXO'}
+                          PAGA
                         </span>
+                        )}
 
                         {/* Indicador de Duplicidade */}
                         {duplicateInvoiceGroups.some((g) => g.invoices.some((inv) => inv.id === m.id) && g.invoices.length > 1) && (
@@ -1182,20 +1168,8 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                           </span>
                         )}
 
-                        {/* Status de Conciliação */}
-                        {isFullyReconciled ? (
-                          <span
-                            className="badge"
-                            style={{
-                              background: 'rgba(16, 185, 129, 0.15)',
-                              border: '1px solid rgba(16, 185, 129, 0.35)',
-                              color: 'var(--accent-emerald)',
-                            }}
-                          >
-                            <CheckCircle2 size={12} />
-                            100% Conciliada
-                          </span>
-                        ) : isPartiallyReconciled ? (
+                        {/* Status de Conciliação: só quando há pendência */}
+                        {isFullyReconciled ? null : isPartiallyReconciled ? (
                           <span
                             className="badge"
                             style={{
@@ -1222,23 +1196,23 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                         )}
                       </div>
 
-                      <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: 'var(--text-primary)' }}>
+                      <h3 className="invoice-title" style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: 'var(--text-primary)' }}>
                         {m.title}
                       </h3>
 
                       <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>
-                        Vencimento: <strong style={{ color: 'var(--text-primary)' }}>{dueDateFormatted}</strong> ({monthName}) • Competência:{' '}
-                        <span style={{ color: 'var(--text-secondary)' }}>
-                          {isPaid && m.paymentDate
-                            ? `paga em ${m.paymentDate.split('-').reverse().join('/')} (${competenceMonthLabel(m.paymentDate)})`
-                            : 'Gastos do mês anterior'}
-                        </span>
+                        Vence em <strong style={{ color: 'var(--text-primary)' }}>{dueDateFormatted}</strong>
+                        {isPaid && m.paymentDate && (
+                          <span style={{ color: 'var(--text-secondary)' }}>
+                            {' '}• paga em {m.paymentDate.split('-').reverse().join('/')} ({competenceMonthLabel(m.paymentDate)})
+                          </span>
+                        )}
                       </p>
                     </div>
                   </div>
 
                   {/* Valor e Ações Rápidas */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                  <div className="invoice-head-side" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                     <div className="invoice-amount-box">
                       <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
                         Valor da Fatura
@@ -1248,60 +1222,82 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                       </strong>
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      <button
-                        className="btn btn-secondary"
-                        style={{ fontSize: '12px', padding: '8px 14px' }}
-                        onClick={() => setSelectedMovementForModal(m)}
-                        title="Abrir pop-up detalhado de conciliação da fatura"
-                      >
-                        <ArrowUpRight size={14} />
-                        <span>Conciliar Itens</span>
-                      </button>
-
-                      <button
-                        className="btn btn-outline"
-                        style={{ fontSize: '12px', padding: '8px 12px', gap: '5px' }}
-                        onClick={() => setImportingInvoice(m)}
-                        title="Importar arquivo (OFX, CSV, Imagem) e interpretar gastos desta fatura"
-                      >
-                        <Upload size={14} />
-                        <span>Importar Extrato</span>
-                      </button>
-
-                      <button
-                        className={`btn ${isPaid ? 'btn-success' : 'btn-outline'}`}
-                        style={{ padding: '8px 10px' }}
-                        onClick={() => handleToggleInvoiceStatus(m)}
-                        title={isPaid ? 'Marcar como prevista' : 'Marcar como paga / realizada'}
-                      >
-                        <Check size={16} />
-                      </button>
-
+                    <div className="invoice-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <button
                         className="btn btn-outline"
                         style={{ padding: '8px 10px' }}
                         onClick={() => toggleExpand(m.id)}
                         title={isExpanded ? 'Recolher detalhes' : 'Expandir itens e naturezas'}
+                        aria-label={isExpanded ? 'Recolher detalhes' : 'Expandir itens e naturezas'}
                       >
                         {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                       </button>
 
-                      <button
-                        className="btn btn-outline"
-                        style={{ padding: '8px 10px', color: 'var(--accent-rose)' }}
-                        onClick={() => {
-                          confirmAction({
-                            title: 'Excluir Fatura',
-                            message: `Deseja realmente excluir a fatura "${m.title}" (${fmtBRL(m.amount)})? Esta ação não pode ser desfeita.`,
-                            confirmLabel: 'Excluir',
-                            onConfirm: () => deleteMovement(m.id),
-                          });
-                        }}
-                        title="Excluir fatura"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      <div className="invoice-menu">
+                        <button
+                          className="btn btn-outline"
+                          style={{ padding: '8px 10px' }}
+                          onClick={() => setInvoiceMenuId(invoiceMenuId === m.id ? null : m.id)}
+                          aria-label="Ações da fatura"
+                          aria-haspopup="menu"
+                          aria-expanded={invoiceMenuId === m.id}
+                        >
+                          <MoreVertical size={16} />
+                        </button>
+                        {invoiceMenuId === m.id && (
+                          <>
+                            <div className="invoice-menu-backdrop" onClick={() => setInvoiceMenuId(null)} />
+                            <div className="invoice-menu-list" role="menu">
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => {
+                                  setInvoiceMenuId(null);
+                                  setSelectedMovementForModal(m);
+                                }}
+                              >
+                                <ArrowUpRight size={14} /> Conciliar itens
+                              </button>
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => {
+                                  setInvoiceMenuId(null);
+                                  setImportingInvoice(m);
+                                }}
+                              >
+                                <Upload size={14} /> Importar extrato
+                              </button>
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => {
+                                  setInvoiceMenuId(null);
+                                  handleToggleInvoiceStatus(m);
+                                }}
+                              >
+                                <Check size={14} /> {isPaid ? 'Marcar como prevista' : 'Marcar como paga'}
+                              </button>
+                              <button
+                                type="button"
+                                role="menuitem"
+                                className="is-danger"
+                                onClick={() => {
+                                  setInvoiceMenuId(null);
+                                  confirmAction({
+                                    title: 'Excluir Fatura',
+                                    message: `Deseja realmente excluir a fatura "${m.title}" (${fmtBRL(m.amount)})? Esta ação não pode ser desfeita.`,
+                                    confirmLabel: 'Excluir',
+                                    onConfirm: () => deleteMovement(m.id),
+                                  });
+                                }}
+                              >
+                                <Trash2 size={14} /> Excluir fatura
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
