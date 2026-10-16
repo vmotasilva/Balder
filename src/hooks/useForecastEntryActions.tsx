@@ -5,6 +5,12 @@ import { useAccountScope } from '../context/AccountScopeContext';
 import { getItemOccurrences, waiveMappingPeriod } from '../utils/mappingItemState';
 import { trackingPeriodRange } from '../utils/periodSpending';
 import type { ForecastEntry } from '../utils/forecastWindow';
+import type { Movement } from '../types';
+import type { PaymentHow } from '../utils/paymentHow';
+import { CASH_IN_HAND } from '../utils/cashInHand';
+import { listPaymentInstitutions } from '../utils/paymentInstitutions';
+import { addCardPurchaseToInvoices, firstInvoiceDueDate } from '../utils/cardPurchase';
+import { installmentSchedule } from '../utils/forsetiAssistant';
 import { MappingItemStateModal, type MappingItemStateTarget } from '../components/MappingItemStateModal';
 import { MappingPaymentModal, type MappingPaymentTarget } from '../components/MappingPaymentModal';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
@@ -18,12 +24,73 @@ import { RealizationConfirmModal, realizedMovementUpdates, type RealizationTarge
 export function useForecastEntryActions(onNavigate: (tab: 'FATURAS' | 'NATUREZAS') => void) {
   const { user } = useAuth();
   const { viewing } = useAccountScope();
-  const { movements, natures, updateMovement, updateMappingItemState, sharedScenario } = useFinancial();
+  const { movements, natures, updateMovement, updateMappingItemState, sharedScenario, addMovement, markMappingItemsFulfilled, accounts, cards, banks } = useFinancial();
 
   const [mappingPayment, setMappingPayment] = useState<MappingPaymentTarget | null>(null);
   const [realization, setRealization] = useState<RealizationTarget | null>(null);
   const [itemState, setItemState] = useState<MappingItemStateTarget | null>(null);
   const { confirm: confirmAction, dialogProps } = useConfirmDialog();
+
+  /**
+   * Como o pagamento foi feito (mesmas escolhas da Forseti): dinheiro em mãos e débito saem do saldo na data do
+   * pagamento (banco gravado no lançamento); crédito entra na fatura do banco como item (o saldo só muda quando
+   * a fatura for paga). `link` liga o gasto ao item da natureza e `existing` é a conta prevista que ele quita.
+   */
+  const settleWithHow = (params: {
+    how: PaymentHow;
+    title: string;
+    amount: number;
+    date: string;
+    dueDate: string;
+    category: string;
+    link?: { natureId: string; mappingId: string; itemId: string };
+    existing?: Movement;
+  }) => {
+    const { how, title, amount, date, dueDate, category, link, existing } = params;
+    const natureFields = link
+      ? { natureId: link.natureId, mappingId: link.mappingId, mappingItemId: link.itemId }
+      : existing?.natureId
+      ? { natureId: existing.natureId, mappingId: existing.mappingId, mappingItemId: existing.mappingItemId }
+      : {};
+    if (how.where === 'BANK' && how.method === 'CREDITO') {
+      const inst = listPaymentInstitutions(accounts, cards, banks).find((i) => i.name === how.institution);
+      const terms = inst?.terms;
+      const firstDue = firstInvoiceDueDate(date, terms?.closingDay, terms?.dueDay);
+      const nature = natureFields.natureId ? natures.find((n) => n.id === natureFields.natureId) : undefined;
+      addCardPurchaseToInvoices(
+        {
+          institution: how.institution,
+          title,
+          total: amount,
+          natureId: natureFields.natureId,
+          natureName: nature?.name,
+          mappingId: natureFields.mappingId,
+          mappingItemId: natureFields.mappingItemId,
+          purchaseDate: date,
+          notes: 'Pago no crédito ao confirmar o pagamento.',
+        },
+        how.installments > 1 ? installmentSchedule(amount, how.installments, firstDue, terms?.dueDay) : [{ dueDate: firstDue, amount }],
+        movements,
+        { addMovement, updateMovement }
+      );
+      // A conta prevista foi para a fatura: sai da lista de contas em aberto
+      if (existing) updateMovement(existing.id, { status: 'CANCELADA', notes: `Pago no crédito (${how.institution}).` });
+    } else {
+      const bank =
+        how.where === 'CASH'
+          ? CASH_IN_HAND
+          : listPaymentInstitutions(accounts, cards, banks).find((i) => i.name === how.institution)?.account?.name ?? how.institution;
+      if (existing) {
+        updateMovement(existing.id, { ...realizedMovementUpdates(existing, amount, date), bank });
+      } else {
+        addMovement({ title, type: 'PAGAR', amount, dueDate, bank, status: 'REALIZADA', category, paymentDate: date, actualAmount: amount, ...natureFields });
+      }
+    }
+    // O item da natureza passa a pago com o valor e a data informados
+    if (link) {
+      markMappingItemsFulfilled([{ ...link, realizedValue: amount, monthKey: dueDate.slice(0, 7), paidAt: date }]);
+    }
+  };
 
   const findNatureItem = (entry: ForecastEntry) => {
     const itemId = entry.id.replace(/^nat_/, '').replace(/_(overdue|upcoming)$/, '');
@@ -99,8 +166,19 @@ export function useForecastEntryActions(onNavigate: (tab: 'FATURAS' | 'NATUREZAS
                 title: entry.title,
                 expectedAmount: entry.amount,
                 dueDate: occurrences[0].date,
-                onConfirm: (amount, paidAt) =>
-                  updateMappingItemState(found.nat.id, found.mapping.id, item.id, {
+                askHow: true,
+                onConfirm: (amount, paidAt, how) =>
+                  how
+                    ? settleWithHow({
+                        how,
+                        title: entry.title,
+                        amount,
+                        date: paidAt,
+                        dueDate: occurrences[0].date,
+                        category: found.nat.name,
+                        link: { natureId: found.nat.id, mappingId: found.mapping.id, itemId: item.id },
+                      })
+                    : updateMappingItemState(found.nat.id, found.mapping.id, item.id, {
                     payments: {
                       ...(item.payments || {}),
                       [monthKey]: [
@@ -158,7 +236,11 @@ export function useForecastEntryActions(onNavigate: (tab: 'FATURAS' | 'NATUREZAS
                 title: entry.title,
                 expectedAmount: mov.amount,
                 dueDate: mov.dueDate,
-                onConfirm: (amount, date) => updateMovement(mov.id, realizedMovementUpdates(mov, amount, date)),
+                askHow: entry.kind !== 'ENTRADA',
+                onConfirm: (amount, date, how) =>
+                  how
+                    ? settleWithHow({ how, title: mov.title, amount, date, dueDate: mov.dueDate, category: mov.category, existing: mov })
+                    : updateMovement(mov.id, realizedMovementUpdates(mov, amount, date)),
               })
             : undefined
         }
