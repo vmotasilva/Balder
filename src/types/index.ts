@@ -585,6 +585,7 @@ export interface InvoiceNatureItemBreakdown {
   installments?: number;   // Quantidade total de parcelas (ex: 2x, 3x)
   currentInstallment?: number; // Parcela atual nesta fatura (ex: 1)
   finalAmount?: number;    // Valor final total da compra parcelada (ex: R$ 500 para 2x de R$ 250)
+  purchaseDate?: string;   // Data da compra (YYYY-MM-DD), quando conhecida; define o mês de competência nas naturezas
 }
 
 export interface CheckpointCardInvoice {

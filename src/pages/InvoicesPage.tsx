@@ -32,6 +32,7 @@ import { InfoButton } from '../components/InfoButton';
 import { BankPicker } from '../components/BankPicker';
 import { BankInvoiceTerms } from '../components/BankInvoiceTerms';
 import { canonicalBankName } from '../utils/paymentInstitutions';
+import { todayIso } from '../utils/cardPurchase';
 
 const competenceMonthLabel = (iso: string) =>
   new Date(`${iso.slice(0, 7)}-15T12:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -419,6 +420,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
       description: instCount > 1 ? `${cleanDesc} (1/${instCount})` : cleanDesc,
       amount: Math.round(parsedAmount * 100) / 100,
       isAnalyzed: true,
+      purchaseDate: todayIso(),
       installments: instCount,
       currentInstallment: 1,
       finalAmount: Math.round(finalTotal * 100) / 100,

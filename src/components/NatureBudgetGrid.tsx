@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import type { ExpenseNature, MonthlyGridProjectionRow, MappingItem } from '../types';
 import { buildMonthlyProjectionGrid, movementCompetenceDate } from '../utils/projectionMath';
+import { invoiceItemCompetenceDate } from '../utils/cardPurchase';
 import { mappingItemMonthValue, resolveMappingItemMonth } from '../utils/mappingItemState';
 import { userNatures } from '../utils/baseNatures';
 import { buildPeriodItems, trackingPeriodRange, TRACKING_PERIOD_LABELS } from '../utils/periodSpending';
@@ -257,10 +258,15 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
       // Itens ligados a um item da natureza já são apurados por ele, então não se contam de novo.
       if (period === 'MES') {
         movements
-          .filter((inv) => inv.type === 'CARTAO' && inv.status !== 'CANCELADA' && movementCompetenceDate(inv).startsWith(selectedMonthKey))
+          .filter((inv) => inv.type === 'CARTAO' && inv.status !== 'CANCELADA')
           .forEach((inv) => {
             (inv.invoiceBreakdown || [])
-              .filter((ib) => ib.natureId === nat.id && !(ib.mappingItemId && itemIds.has(ib.mappingItemId)))
+              .filter(
+                (ib) =>
+                  ib.natureId === nat.id &&
+                  !(ib.mappingItemId && itemIds.has(ib.mappingItemId)) &&
+                  invoiceItemCompetenceDate(inv, ib).startsWith(selectedMonthKey)
+              )
               .forEach((ib) => {
                 real += ib.amount;
                 overages.push({ name: ib.description, amount: ib.amount });
@@ -275,6 +281,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
       // Pago antes do período (ex.: semana anterior) cobrindo compras previstas dele: zera o Previsto sem entrar no Real.
       // Só vale quando o pagamento é do mesmo mês da compra que cobre: nada de misturar meses diferentes.
       let advancePaid = 0;
+      const allItemIds = new Set(nat.mappings.flatMap((mp) => mp.items.map((it) => it.id)));
       if (period !== 'MES') {
         const mine = periodItems.filter((it) => it.natureId === nat.id);
         advancePaid = Math.round(
@@ -323,6 +330,14 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
           monthMovs.filter((m) => !titles.has(norm(m.title)) && !(m.mappingItemId && ids.has(m.mappingItemId))).forEach(addPaid);
         });
         const startDate = activeCheckpoint?.startDate || '';
+        // Compras à vista no cartão com data conhecida entram no período da compra (parcelas ficam só no mês)
+        movements
+          .filter((inv) => inv.type === 'CARTAO' && inv.status !== 'CANCELADA')
+          .forEach((inv) =>
+            (inv.invoiceBreakdown || [])
+              .filter((ib) => ib.natureId === nat.id && !!ib.purchaseDate && (ib.installments ?? 1) < 2 && !(ib.mappingItemId && allItemIds.has(ib.mappingItemId)))
+              .forEach((ib) => events.push({ date: ib.purchaseDate!, description: ib.description, amount: ib.amount }))
+          );
         events
           .filter((e) => e.date >= periodRange.from && e.date <= periodRange.to && e.date >= startDate)
           .forEach((e) => periodPayments.push(e));
