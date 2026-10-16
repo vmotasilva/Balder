@@ -1064,7 +1064,7 @@ export const NatureBudgetGrid: React.FC<NatureBudgetGridProps> = () => {
                       {entries.map((e) => (
                         <li key={e.id} className="flex items-center justify-between gap-3 p-2 rounded-lg bg-black/20 text-xs">
                           <div className="min-w-0">
-                            <span className="block font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{e.description}</span>
+                            <span className="block font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{e.description.replace(/^Despesas?:\s*/i, '')}</span>
                             <span className="text-[10px] text-muted">{formatEntryDate(e.date)} • {e.origin}</span>
                           </div>
                           <span className={`font-mono font-bold shrink-0 ${e.real ? 'text-emerald' : 'text-amber'}`}>{formatBRL(e.amount)}</span>
