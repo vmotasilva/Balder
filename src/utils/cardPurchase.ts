@@ -42,6 +42,34 @@ export const invoiceItemCompetenceDate = (invoice: Movement, item: InvoiceNature
   return invoice.status === 'REALIZADA' && invoice.paymentDate ? invoice.paymentDate : invoice.dueDate;
 };
 
+/**
+ * Atualização da fatura ao abater IOF estornado de um item: `refund` vira o estorno total do item (limitado ao que
+ * ele ainda vale) e item e fatura diminuem pela diferença. Fatura já paga não muda de valor; a diferença fica em
+ * "Não Analisada". Devolve null quando não há mudança.
+ */
+export const iofRefundUpdates = (invoice: Movement, itemId: string, refund: number): Partial<Movement> | null => {
+  const breakdown = invoice.invoiceBreakdown || [];
+  const target = breakdown.find((i) => i.id === itemId);
+  if (!target) return null;
+  const round = (v: number) => Math.round(v * 100) / 100;
+  const previous = target.iofRefund || 0;
+  const next = Math.min(Math.max(0, round(refund)), round(target.amount + previous));
+  const delta = round(next - previous);
+  if (delta === 0) return null;
+  const updated = breakdown.map((i) =>
+    i.id === itemId ? { ...i, amount: round(i.amount - delta), iofRefund: next > 0 ? next : undefined } : i
+  );
+  const allocated = updated.reduce((acc, i) => acc + i.amount, 0);
+  const amount = invoice.status === 'REALIZADA' ? invoice.amount : Math.max(0, round(invoice.amount - delta));
+  const unanalyzed = Math.max(0, round(amount - allocated));
+  return {
+    amount,
+    invoiceBreakdown: updated,
+    unanalyzedAmount: unanalyzed,
+    category: unanalyzed > 0.01 ? 'Não Analisada' : 'Fatura de Cartão',
+  };
+};
+
 export interface CardPurchaseInfo {
   institution: string;
   title: string;

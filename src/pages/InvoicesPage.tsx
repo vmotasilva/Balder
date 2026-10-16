@@ -32,7 +32,7 @@ import { InfoButton } from '../components/InfoButton';
 import { BankPicker } from '../components/BankPicker';
 import { BankInvoiceTerms } from '../components/BankInvoiceTerms';
 import { canonicalBankName } from '../utils/paymentInstitutions';
-import { todayIso } from '../utils/cardPurchase';
+import { todayIso, iofRefundUpdates } from '../utils/cardPurchase';
 
 const competenceMonthLabel = (iso: string) =>
   new Date(`${iso.slice(0, 7)}-15T12:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -528,28 +528,8 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
 
   // Abate de IOF no item: o valor informado passa a ser o estorno total do item; item e fatura diminuem pela diferença
   const handleApplyIofRefund = (m: Movement, itemId: string, refund: number) => {
-    const currentBreakdown = m.invoiceBreakdown || [];
-    const target = currentBreakdown.find((i) => i.id === itemId);
-    if (!target) return;
-    const round = (v: number) => Math.round(v * 100) / 100;
-    const previous = target.iofRefund || 0;
-    // Não abate mais do que o item ainda tem: o limite é o valor atual somado ao que já foi abatido
-    const next = Math.min(Math.max(0, round(refund)), round(target.amount + previous));
-    const delta = round(next - previous);
-    if (delta === 0) return;
-    const updatedBreakdown = currentBreakdown.map((i) =>
-      i.id === itemId ? { ...i, amount: round(i.amount - delta), iofRefund: next > 0 ? next : undefined } : i
-    );
-    const totalAllocated = updatedBreakdown.reduce((acc, i) => acc + i.amount, 0);
-    // Fatura já paga não muda de valor (como na remoção de item): a diferença fica em "Não Analisada"
-    const newAmount = m.status === 'REALIZADA' ? m.amount : Math.max(0, round(m.amount - delta));
-    const unanalyzed = Math.max(0, round(newAmount - totalAllocated));
-    updateMovement(m.id, {
-      amount: newAmount,
-      invoiceBreakdown: updatedBreakdown,
-      unanalyzedAmount: unanalyzed,
-      category: unanalyzed > 0.01 ? 'Não Analisada' : 'Fatura de Cartão',
-    });
+    const updates = iofRefundUpdates(m, itemId, refund);
+    if (updates) updateMovement(m.id, updates);
     setIofEdit(null);
   };
 

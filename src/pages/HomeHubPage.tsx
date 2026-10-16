@@ -488,13 +488,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
         />
       </Modal>
       <Modal isOpen={showInvoices} onClose={() => setShowInvoices(false)} title={`Faturas em aberto · ${TRACKING_PERIOD_LABELS[period].name}`} maxWidth="640px">
-        <InvoicesOverview
-          range={periodRange}
-          onNavigateToInvoices={() => {
-            setShowInvoices(false);
-            onNavigate('FATURAS');
-          }}
-        />
+        <InvoicesOverview range={periodRange} />
       </Modal>
       <Modal isOpen={showSalary} onClose={() => setShowSalary(false)} title="Salário" maxWidth="640px">
         <SalaryOverview />

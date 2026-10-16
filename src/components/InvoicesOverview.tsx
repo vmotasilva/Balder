@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, CreditCard } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import type { PeriodRange } from '../utils/periodSpending';
+import { iofRefundUpdates } from '../utils/cardPurchase';
+import { parseMoney } from '../utils/parseDecimal';
 
 const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
@@ -9,7 +11,6 @@ const bankKey = (m: { bank?: string; title: string }) => (m.bank || m.title).tri
 
 interface InvoicesOverviewProps {
   range: PeriodRange;
-  onNavigateToInvoices: () => void;
 }
 
 /**
@@ -17,8 +18,10 @@ interface InvoicesOverviewProps {
  * da fatura escolhida. Abre na fatura que recebe as compras do período (a primeira que vence depois dele, ou a
  * última vencida se não houver).
  */
-export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range, onNavigateToInvoices }) => {
-  const { movements } = useFinancial();
+export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range }) => {
+  const { movements, updateMovement } = useFinancial();
+  // Abate de IOF em edição: item da fatura e valor digitado
+  const [iofEdit, setIofEdit] = useState<{ itemId: string; value: string } | null>(null);
   const open = useMemo(
     () =>
       movements
@@ -44,7 +47,10 @@ export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range, onNav
     return after >= 0 ? after : Math.max(0, invoices.length - 1);
   }, [invoices, range.to]);
   const current = Math.min(index ?? defaultIndex, Math.max(0, invoices.length - 1));
-  useEffect(() => setIndex(null), [activeBank, range.to]);
+  useEffect(() => {
+    setIndex(null);
+    setIofEdit(null);
+  }, [activeBank, range.to]);
 
   if (invoices.length === 0) {
     return <p className="text-sm text-muted">Nenhuma fatura em aberto com valor.</p>;
@@ -86,7 +92,7 @@ export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range, onNav
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-        <button type="button" style={arrow(current === 0)} disabled={current === 0} onClick={() => setIndex(current - 1)} aria-label="Fatura anterior">
+        <button type="button" style={arrow(current === 0)} disabled={current === 0} onClick={() => { setIndex(current - 1); setIofEdit(null); }} aria-label="Fatura anterior">
           <ChevronLeft size={18} />
         </button>
         <div style={{ textAlign: 'center' }}>
@@ -102,7 +108,7 @@ export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range, onNav
           type="button"
           style={arrow(current >= invoices.length - 1)}
           disabled={current >= invoices.length - 1}
-          onClick={() => setIndex(current + 1)}
+          onClick={() => { setIndex(current + 1); setIofEdit(null); }}
           aria-label="Próxima fatura"
         >
           <ChevronRight size={18} />
@@ -119,8 +125,8 @@ export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range, onNav
         {items.map((it) => {
           const inst = it.installments || 1;
           return (
+            <React.Fragment key={it.id}>
             <div
-              key={it.id}
               style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: '1px solid var(--border-default)', background: 'var(--bg-card)' }}
             >
               <div style={{ minWidth: 0 }}>
@@ -132,8 +138,49 @@ export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range, onNav
                   {it.iofRefund ? ` · IOF estornado −${formatBRL(it.iofRefund)}` : ''}
                 </div>
               </div>
-              <strong style={{ whiteSpace: 'nowrap' }}>{formatBRL(it.amount)}</strong>
+              <div style={{ textAlign: 'right' }}>
+                <strong style={{ whiteSpace: 'nowrap' }}>{formatBRL(it.amount)}</strong>
+                <div>
+                  <button
+                    type="button"
+                    style={{ background: 'none', border: 'none', color: '#34D399', cursor: 'pointer', padding: '2px 0', fontWeight: 700, fontSize: '11px' }}
+                    onClick={() => setIofEdit({ itemId: it.id, value: it.iofRefund ? String(it.iofRefund).replace('.', ',') : '' })}
+                  >
+                    IOF
+                  </button>
+                </div>
+              </div>
             </div>
+            {iofEdit?.itemId === it.id && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', padding: '2px 4px 6px' }}>
+                <span className="text-xs text-muted">IOF a abater (R$):</span>
+                <input
+                  className="form-input"
+                  inputMode="decimal"
+                  autoFocus
+                  placeholder="0,00"
+                  value={iofEdit.value}
+                  onChange={(e) => setIofEdit({ ...iofEdit, value: e.target.value })}
+                  style={{ width: '100px' }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => {
+                    const updates = iofRefundUpdates(m, it.id, parseMoney(iofEdit.value) || 0);
+                    if (updates) updateMovement(m.id, updates);
+                    setIofEdit(null);
+                  }}
+                >
+                  Abater
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => setIofEdit(null)}>
+                  Cancelar
+                </button>
+                {it.iofRefund ? <span className="text-xs text-muted">0 desfaz o abate.</span> : null}
+              </div>
+            )}
+            </React.Fragment>
           );
         })}
         {undetailed > 0 && (
@@ -144,9 +191,6 @@ export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range, onNav
         )}
       </div>
 
-      <button type="button" className="btn btn-secondary" onClick={onNavigateToInvoices}>
-        Ver faturas
-      </button>
     </div>
   );
 };
