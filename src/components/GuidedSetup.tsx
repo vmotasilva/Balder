@@ -12,7 +12,7 @@ import type { TrackingPeriod } from '../utils/periodSpending';
 import type { ExpenseNature, FixedExpenseMapping, MappingItem, Movement } from '../types';
 import { NumberInput } from './NumberInput';
 
-type Step = 'NAME' | 'MODE' | 'MANUAL' | 'BANKS' | 'BALANCE' | 'INCOME' | 'BILLS' | 'CARD' | 'PERIOD' | 'DONE';
+type Step = 'NAME' | 'MODE' | 'MANUAL' | 'BANKS' | 'BALANCE' | 'INCOME' | 'BILLS' | 'CARD' | 'INVOICES' | 'PERIOD' | 'DONE';
 
 interface IncomeRow {
   name: string;
@@ -106,20 +106,22 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onFinished }) => {
     INCOME: 'Quanto entra por mês?',
     BILLS: 'Quais contas você paga todo mês?',
     CARD: 'Você usa cartão de crédito?',
+    INVOICES: 'Qual o valor da fatura em aberto de cada cartão?',
     PERIOD: 'Como você prefere acompanhar os gastos?',
     MANUAL: '',
     DONE: '',
   };
 
-  const ORDER: Step[] = ['NAME', 'MODE', 'BANKS', 'BALANCE', 'INCOME', 'BILLS', 'CARD', 'PERIOD', 'DONE'];
+  const ORDER: Step[] = ['NAME', 'MODE', 'BANKS', 'BALANCE', 'INCOME', 'BILLS', 'CARD', 'INVOICES', 'PERIOD', 'DONE'];
 
-  const advance = (answer: string) => {
+  const advance = (answer: string, skip = 0) => {
     setHistory((prev) => [...prev.filter((h) => h.step !== step), { step, question: QUESTIONS[step], answer }]);
-    setStep(ORDER[ORDER.indexOf(step) + 1]);
+    setStep(ORDER[ORDER.indexOf(step) + 1 + skip]);
   };
 
   const goBack = () => {
-    const prevStep = ORDER[ORDER.indexOf(step) - 1];
+    // Sem cartão, a pergunta das faturas em aberto não existe
+    const prevStep = ORDER[ORDER.indexOf(step) - (step === 'PERIOD' && !usesCard ? 2 : 1)];
     if (!prevStep) return;
     setHistory((prev) => prev.filter((h) => h.step !== prevStep));
     setStep(prevStep);
@@ -137,6 +139,8 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onFinished }) => {
   const billsTotal = bills.reduce((acc, b) => acc + (b.amount || 0), 0);
   const cardsTotal = usesCard ? cardsInfo.reduce((acc, c) => acc + (c.amount || 0), 0) : 0;
   const monthlyLeft = Math.round((incomeTotal - billsTotal - cardsTotal) * 100) / 100;
+
+  const cardOptions = [...selectedBanks, ...POPULAR_BANKS.filter((b) => !selectedBanks.includes(b))];
 
   const toggleBank = (name: string) =>
     setSelectedBanks((prev) => (prev.includes(name) ? prev.filter((b) => b !== name) : [...prev, name]));
@@ -157,7 +161,7 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onFinished }) => {
       const todayIso = isoOf(today);
       const monthKey = todayIso.slice(0, 7);
       const stamp = Date.now();
-      const cardsToSave = usesCard ? cardsInfo.filter((c) => c.name.trim() || c.amount > 0) : [];
+      const cardsToSave = usesCard ? cardsInfo.filter((c) => c.name.trim()) : [];
 
       // 1. Marco: o acompanhamento começa hoje, com o saldo informado
       addCheckpoint({
@@ -604,7 +608,7 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onFinished }) => {
           <>
             {usesCard === null && (
               <div className="guided-actions is-start">
-                <button type="button" className="btn btn-outline btn-sm" onClick={() => { setUsesCard(false); advance('Não uso'); }}>
+                <button type="button" className="btn btn-outline btn-sm" onClick={() => { setUsesCard(false); advance('Não uso', 1); }}>
                   Não uso
                 </button>
                 <button type="button" className="btn btn-primary btn-sm" onClick={() => setUsesCard(true)}>
@@ -615,28 +619,28 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onFinished }) => {
             {usesCard && (
               <>
                 <p className="guided-hint">
-                  Informe o valor da próxima fatura, o dia em que ela vence e o dia em que fecha (compras depois do fechamento vão para a fatura
-                  seguinte). As compras novas você me conta depois.
+                  Escolha o cartão, o dia em que a fatura vence e o dia em que fecha (compras depois do fechamento vão para a fatura seguinte).
+                  O valor das faturas em aberto eu pergunto em seguida.
                 </p>
                 {cardsInfo.map((card, idx) => (
                   <div key={idx} className="guided-row guided-card-row">
-                    <input
+                    <select
                       className="form-input form-input-sm"
-                      list="guided-card-banks"
                       value={card.name}
                       onChange={(e) => setCardsInfo((prev) => prev.map((c, i) => (i === idx ? { ...c, name: e.target.value } : c)))}
-                      placeholder="Cartão (ex.: Nubank)"
-                      aria-label="Nome do cartão"
-                    />
-                    <DecimalInput
-                      className="form-input form-input-sm"
-                      money
-                      value={card.amount}
-                      emptyWhenZero
-                      onValueChange={(v) => setCardsInfo((prev) => prev.map((c, i) => (i === idx ? { ...c, amount: v } : c)))}
-                      placeholder="Próxima fatura"
-                      aria-label="Valor da próxima fatura"
-                    />
+                      aria-label="Cartão"
+                    >
+                      <option value="" disabled>
+                        Selecione o cartão
+                      </option>
+                      {cardOptions
+                        .filter((b) => b === card.name || !cardsInfo.some((c) => c.name === b))
+                        .map((b) => (
+                          <option key={b} value={b}>
+                            {b}
+                          </option>
+                        ))}
+                    </select>
                     <label className="guided-day">
                       <span>vence dia</span>
                       <NumberInput
@@ -664,14 +668,11 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onFinished }) => {
                     )}
                   </div>
                 ))}
-                <datalist id="guided-card-banks">
-                  {[...selectedBanks, ...POPULAR_BANKS.filter((b) => !selectedBanks.includes(b))].map((b) => (
-                    <option key={b} value={b} />
-                  ))}
-                </datalist>
-                <button type="button" className="link-button" onClick={() => setCardsInfo((prev) => [...prev, { name: '', dueDay: 10, amount: 0 }])}>
-                  + Outro cartão
-                </button>
+                {cardsInfo.length < cardOptions.length && (
+                  <button type="button" className="link-button" onClick={() => setCardsInfo((prev) => [...prev, { name: '', dueDay: 10, amount: 0 }])}>
+                    + Outro cartão
+                  </button>
+                )}
                 <div className="guided-actions">
                   <button type="button" className="btn btn-outline btn-sm" onClick={() => setUsesCard(null)}>
                     Voltar
@@ -680,13 +681,46 @@ export const GuidedSetup: React.FC<GuidedSetupProps> = ({ onFinished }) => {
                     type="button"
                     className="btn btn-primary btn-sm"
                     disabled={!cardsInfo.some((c) => c.name.trim())}
-                    onClick={() => advance(cardsInfo.filter((c) => c.name.trim()).map((c) => `${c.name} (${formatBRL(c.amount)})`).join(', '))}
+                    onClick={() => {
+                      setCardsInfo((prev) => prev.filter((c) => c.name.trim()));
+                      advance(cardsInfo.filter((c) => c.name.trim()).map((c) => c.name).join(', '));
+                    }}
                   >
                     Continuar
                   </button>
                 </div>
               </>
             )}
+          </>
+        );
+
+      case 'INVOICES':
+        return (
+          <>
+            <p className="guided-hint">Informe quanto está na fatura em aberto de cada cartão. Se estiver zerada, deixe em branco. As compras novas você me conta depois.</p>
+            {cardsInfo.map((card, idx) => (
+              <div key={idx} className="guided-row">
+                <span className="guided-row-name">{card.name}</span>
+                <DecimalInput
+                  className="form-input form-input-sm"
+                  money
+                  value={card.amount}
+                  emptyWhenZero
+                  onValueChange={(v) => setCardsInfo((prev) => prev.map((c, i) => (i === idx ? { ...c, amount: v } : c)))}
+                  placeholder="Fatura em aberto"
+                  aria-label={`Fatura em aberto de ${card.name}`}
+                />
+              </div>
+            ))}
+            <div className="guided-actions">
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => advance(cardsTotal > 0 ? cardsInfo.filter((c) => c.amount > 0).map((c) => `${c.name} (${formatBRL(c.amount)})`).join(', ') : 'Sem fatura em aberto')}
+              >
+                Continuar
+              </button>
+            </div>
           </>
         );
 
