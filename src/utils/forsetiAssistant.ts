@@ -24,6 +24,8 @@ export { brl, ddmm };
 export const CHIP_ANEXAR = '📸 Anexar comprovante / cupom fiscal';
 export const CHIP_RECEBER = '💰 Vou receber um valor';
 export const CHIP_PAGAR = '💸 Registrar um pagamento';
+/** Já diz que foi no cartão: a Forseti não pergunta de novo se foi cartão ou dinheiro. */
+export const CHIP_PAGAR_CARTAO = '💳 Registrar uma compra no cartão';
 export const CHIP_DUVIDA = '❓ Tenho uma dúvida';
 export { CHIP_FEEDBACK };
 export const MAIN_CHIPS = [CHIP_ANEXAR, CHIP_RECEBER, CHIP_PAGAR, CHIP_DUVIDA, CHIP_FEEDBACK];
@@ -1243,7 +1245,7 @@ const AMBIGUOUS: { keys: RegExp; question: string; options: { chip: string; mean
     keys: /cartao|fatura|credito/,
     question: 'Sobre **cartão**, você quer:',
     options: [
-      { chip: CHIP_PAGAR, meaning: 'registrar uma compra feita no cartão' },
+      { chip: CHIP_PAGAR_CARTAO, meaning: 'registrar uma compra feita no cartão' },
       { chip: 'O que vence nos próximos dias?', meaning: 'ver quando vence a fatura' },
       { chip: 'O que é fatura?', meaning: 'entender como a fatura funciona no Balder' },
     ],

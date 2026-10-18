@@ -12,7 +12,7 @@ import { recognizeImageOCR } from '../../services/ocrService';
 import { suggestReceiptItems } from '../../services/receiptItemAiService';
 import { resolveMovementNatureId } from '../../utils/movementNature';
 import {
-  type BankInvoiceInfo, CHIP_DUVIDA, CHIP_PAGAR, CHIP_RECEBER, type DoubtId,
+  type BankInvoiceInfo, CHIP_DUVIDA, CHIP_PAGAR, CHIP_PAGAR_CARTAO, CHIP_RECEBER, type DoubtId,
   EXPENSE_CATEGORY_CHIPS, FALLBACK_REPLY, type ForsetiData, type ForsetiReply, MAIN_CHIPS,
   NEW_CARD_DUE_CHIPS, OPTION_OTHER_PAYMENT, OPTION_REGISTER_CARD, RECEIVE_DATE_CHIPS, TOPIC_TTL_MS,
   answerDoubt, brl, categoryFromChip, describeAction, detectAction, detectAmbiguity, detectDoubt, detectLooseAmount, isQuestion,
@@ -818,6 +818,11 @@ export function useForsetiChat({
         askPaymentMethod(trimmed, flow.amount || 0, inferExpenseCategory(trimmed)?.category || 'Outros', flow);
         return;
       }
+    }
+
+    if (trimmed === CHIP_PAGAR_CARTAO) {
+      startRegistration('PAGAR', '', 'no cartão de crédito');
+      return;
     }
 
     if (trimmed === CHIP_RECEBER || trimmed === CHIP_PAGAR) {
