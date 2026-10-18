@@ -760,6 +760,10 @@ export function useForsetiChat({
           }
         );
         return;
+      } else if (flow.step === 'BANCO') {
+        // O banco vai na frase de apoio: ao final, a forma de pagamento confere se há cartão dele e, se não houver, oferece cadastrar
+        startRegistration('PAGAR', '', `no cartão de crédito ${trimmed}`);
+        return;
       } else if (flow.step === 'VALOR') {
         const purchase = flow.kind === 'PAGAR' ? readPurchase(trimmed) : null;
         const amount = purchase ? purchase.amount : parseAmount(trimmed);
@@ -821,7 +825,14 @@ export function useForsetiChat({
     }
 
     if (trimmed === CHIP_PAGAR_CARTAO) {
-      startRegistration('PAGAR', '', 'no cartão de crédito');
+      // Primeiro confirma o banco; depois o sistema vê se há cartão cadastrado para ele
+      forsetiFlowRef.current = { kind: 'PAGAR', step: 'BANCO' };
+      const bankNames = listPaymentInstitutions(accounts, cards, banks).map((i) => i.name);
+      reply({
+        text: 'Anotado, foi no cartão. **De qual banco é o cartão?**\n\nEscolha uma opção ou escreva o nome do banco.',
+        badge: 'BANCO DO CARTÃO',
+        chips: bankNames.slice(0, 8),
+      });
       return;
     }
 
