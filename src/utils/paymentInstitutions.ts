@@ -1,5 +1,6 @@
 import type { BankAccount, BankInstitution, CreditCardItem } from '../types';
 import { getBankBranding } from './bankBranding';
+import { normalizeBankKey } from './cardUtils';
 
 export interface PaymentInstitution {
   name: string;
@@ -15,12 +16,14 @@ export interface PaymentInstitution {
 }
 
 const same = (a?: string, b?: string) => !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
+/** Mesmo banco escrito de jeitos diferentes ("Banco Inter" e "Inter", "Nubank S.A." e "Nubank"). */
+const sameBank = (a?: string, b?: string) => !!a && !!b && (same(a, b) || normalizeBankKey(a) === normalizeBankKey(b));
 
 /** Cada banco uma única vez, com a conta e o cartão dele (só o nome, com a cor da marca). */
 export function listPaymentInstitutions(accounts: BankAccount[], cards: CreditCardItem[], banks: BankInstitution[]): PaymentInstitution[] {
   const names: string[] = [];
   const add = (n?: string) => {
-    if (n && n.trim() && !names.some((x) => same(x, n))) names.push(n.trim());
+    if (n && n.trim() && !names.some((x) => sameBank(x, n))) names.push(n.trim());
   };
   banks.forEach((b) => add(b.name));
   cards.forEach((c) => add(c.bank));
@@ -30,9 +33,9 @@ export function listPaymentInstitutions(accounts: BankAccount[], cards: CreditCa
   });
   const debitTypes = ['CORRENTE', 'CARTEIRA', 'OUTRO'];
   return names.map((name) => {
-    const accountsOfBank = accounts.filter((a) => same(a.bankName, name) || a.name.toLowerCase().includes(name.toLowerCase()));
-    const bank = banks.find((b) => same(b.name, name));
-    const card = cards.find((c) => same(c.bank, name) || same(c.name, name));
+    const accountsOfBank = accounts.filter((a) => sameBank(a.bankName, name) || a.name.toLowerCase().includes(name.toLowerCase()));
+    const bank = banks.find((b) => sameBank(b.name, name));
+    const card = cards.find((c) => sameBank(c.bank, name) || same(c.name, name));
     return {
       name,
       color: getBankBranding(name).primaryColor,
