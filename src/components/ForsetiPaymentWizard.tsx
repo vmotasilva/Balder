@@ -39,12 +39,13 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
   const [termsDue, setTermsDue] = useState(10);
   const [termsClosing, setTermsClosing] = useState(defaultClosingDay(10));
   const [closingTouched, setClosingTouched] = useState(false);
-  const [termsFromSummary, setTermsFromSummary] = useState(false);
+  // Começou direto na fatura (banco já conhecido): depois dela vai ao resumo
+  const [termsFromSummary, setTermsFromSummary] = useState(wizard.step === 'INVOICE');
 
   // Pagamento: um banco por vez; recebimento: a conta que recebe
   const institutions = isIncome
-    ? accounts.map((a) => ({ name: a.name, color: getBankBranding(a.bankName || a.name).primaryColor, noCredit: false }))
-    : listPaymentInstitutions(accounts, cards, banks).map((i) => ({ name: i.name, color: i.color, noCredit: i.noCredit }));
+    ? accounts.map((a) => ({ name: a.name, color: getBankBranding(a.bankName || a.name).primaryColor, noCredit: false, terms: undefined }))
+    : listPaymentInstitutions(accounts, cards, banks).map((i) => ({ name: i.name, color: i.color, noCredit: i.noCredit, terms: i.terms }));
 
   // Despesa: a Forseti sugere natureza e item do teto pelo nome; a pessoa confirma ou troca no resumo
   const ownNatures = userNatures(natures);
@@ -94,6 +95,18 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
     setTermsClosing(terms?.closingDay ?? defaultClosingDay(terms?.dueDay ?? 10));
     setClosingTouched(!!terms);
     go({ ...extra, step: 'INVOICE' });
+  };
+  // Cartão já dito e banco escolhido na lista: vai direto ao crédito, sem perguntar "débito ou crédito?"
+  const pickCredit = (name: string, bankTerms?: { closingDay: number; dueDay: number }) => {
+    if (bankTerms) {
+      go({ institution: name, method: 'CREDITO', step: 'SUMMARY' });
+      return;
+    }
+    setTermsFromSummary(false);
+    setTermsDue(10);
+    setTermsClosing(defaultClosingDay(10));
+    setClosingTouched(false);
+    go({ institution: name, method: 'CREDITO', step: 'INVOICE' });
   };
   const saveTerms = () => {
     setBankInvoiceTerms(wizard.institution || '', { closingDay: termsClosing, dueDay: termsDue });
@@ -148,7 +161,11 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
               type="button"
               className="pay-wizard-bank"
               style={{ borderColor: i.color }}
-              onClick={() => go(i.noCredit && !isIncome ? { institution: i.name, method: 'DEBITO', installments: 1, step: 'SUMMARY' } : { institution: i.name, step: isIncome ? 'SUMMARY' : 'METHOD' })}
+              onClick={() =>
+                !isIncome && wizard.method === 'CREDITO' && !i.noCredit
+                  ? pickCredit(i.name, i.terms)
+                  : go(i.noCredit && !isIncome ? { institution: i.name, method: 'DEBITO', installments: 1, step: 'SUMMARY' } : { institution: i.name, step: isIncome ? 'SUMMARY' : 'METHOD' })
+              }
             >
               <span className="pay-wizard-dot" style={{ background: i.color }} />
               {i.name}

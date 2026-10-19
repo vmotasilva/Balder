@@ -17,7 +17,7 @@ import {
   NEW_CARD_DUE_CHIPS, OPTION_OTHER_PAYMENT, OPTION_REGISTER_CARD, RECEIVE_DATE_CHIPS, TOPIC_TTL_MS,
   answerDoubt, brl, categoryFromChip, describeAction, detectAction, detectAmbiguity, detectDoubt, detectLooseAmount, isQuestion,
   inferExpenseCategory, isPastReceive, isScheduledPayment, mentionedCard, parseAmount, parseDate,
-  parseInstallments, paymentOptions, pickPaymentOptions, registrationKind, registrationPhrase, resolveFollowUp, shorthandRegistration,
+  parseInstallments, paymentOptions, pickPaymentOptions, presetPaymentWizard, registrationKind, registrationPhrase, resolveFollowUp, shorthandRegistration,
   spendPeriodFrom, titleFrom, withAiLimitNote,
 } from '../../utils/forsetiAssistant';
 import {
@@ -471,10 +471,13 @@ export function useForsetiChat({
       const pick = pickPaymentOptions(ctx.hint || '', accounts, cards, category, plan);
       const parcelas = plan ? ` em **${plan.count}x de ${brl(Math.round((amount / plan.count) * 100) / 100)}**` : '';
       // Cartão citado e não cadastrado: segue o cadastro na conversa; senão, o registro em etapas
-      const needsRegister = pick.options.some((o) => o.payload.action === OPTION_REGISTER_CARD);
+      // O que a pessoa já disse (cartão, banco, dinheiro) define o ponto de partida: nada é perguntado duas vezes
+      const preset = presetPaymentWizard(ctx.hint || '', listPaymentInstitutions(accounts, cards, banks), plan?.count ?? 1);
+      // Banco que já existe não pede cadastro de cartão: a fatura é do banco
+      const needsRegister = pick.options.some((o) => o.payload.action === OPTION_REGISTER_CARD) && !preset?.institution;
       let wizard: PaymentWizardState | undefined;
       if (!needsRegister) {
-        wizard = { step: 'WHERE', installments: plan?.count ?? 1 };
+        wizard = preset ?? { step: 'WHERE', installments: plan?.count ?? 1 };
         // A forma de pagamento já estava clara na frase: vai direto ao resumo, para conferir
         const real = pick.options.filter((o) => o.payload.action !== OPTION_OTHER_PAYMENT);
         if (real.length === 1 && pick.question.startsWith('Confirma')) {
