@@ -763,25 +763,35 @@ export function useForsetiChat({
         );
         return;
       } else if (flow.step === 'BANCO' || flow.step === 'BANCO_OUTRO') {
-        // Só vale uma das opções (sem nome digitado). "Outro" abre os bancos ainda não cadastrados.
         const registered = listPaymentInstitutions(accounts, cards, banks).map((i) => i.name);
         const sameBank = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
-        const unregistered = POPULAR_BANKS.filter((b) => !registered.some((r) => sameBank(r, b)));
-        const picked = [...registered, ...unregistered].find((b) => sameBank(b, trimmed));
-        if (flow.step === 'BANCO' && sameBank(trimmed, OTHER_BANK_CHIP)) {
+        if (flow.step === 'BANCO_OUTRO') {
+          // Só aqui o nome do banco é digitado
+          const typed = trimmed.replace(/^(?:(?:o|a|do|da|banco|cart[aã]o)\s+)+/i, '').trim();
+          if (!typed) {
+            reply({ text: 'Escreva o nome do banco (ex.: *Sicredi*, *Neon*).', badge: 'NOVO BANCO', chips: [] });
+            return;
+          }
+          const name = registered.find((r) => sameBank(r, typed)) || POPULAR_BANKS.find((b) => sameBank(b, typed)) || typed;
+          startRegistration('PAGAR', '', `no cartão de crédito ${name}`);
+          return;
+        }
+        // No primeiro passo só valem as opções; "Outro" abre a pergunta em que o nome é digitado
+        if (sameBank(trimmed, OTHER_BANK_CHIP)) {
           forsetiFlowRef.current = { kind: 'PAGAR', step: 'BANCO_OUTRO' };
           reply({
-            text: '**Qual destes bancos?** Eu cadastro o cartão dele já em seguida.',
+            text: '**Qual é o banco do cartão?** Escreva o nome. Eu cadastro o cartão dele já em seguida.',
             badge: 'NOVO BANCO',
-            chips: [...unregistered],
+            chips: [],
           });
           return;
         }
-        if (!picked || (flow.step === 'BANCO_OUTRO' && registered.some((r) => sameBank(r, picked)))) {
+        const picked = registered.find((b) => sameBank(b, trimmed));
+        if (!picked) {
           reply({
-            text: 'Escolha uma das opções abaixo.',
-            badge: flow.step === 'BANCO' ? 'BANCO DO CARTÃO' : 'NOVO BANCO',
-            chips: flow.step === 'BANCO' ? [...registered.slice(0, 8), OTHER_BANK_CHIP] : [...unregistered],
+            text: 'Escolha uma das opções abaixo. Se o banco não estiver na lista, toque em **Outro**.',
+            badge: 'BANCO DO CARTÃO',
+            chips: [...registered.slice(0, 8), OTHER_BANK_CHIP],
           });
           return;
         }
