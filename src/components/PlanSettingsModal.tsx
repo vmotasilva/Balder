@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Flag, Trash2 } from 'lucide-react';
+import { Archive, Flag } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
-import { usePlans } from '../context/PlanScopeContext';
+import { ARCHIVE_RETENTION_DAYS, usePlans } from '../context/PlanScopeContext';
 import { Modal } from './Modal';
 import { CheckpointSetupModal } from './CheckpointSetupModal';
 import { DataFormatPanel } from './DataFormatPanel';
@@ -14,10 +14,10 @@ const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', 
 
 /**
  * Configuração do planejamento em uso: nome e ícone, marco inicial (data e saldo de partida),
- * período padrão do acompanhamento e dados (zerar partes ou excluir o planejamento extra).
+ * período padrão do acompanhamento e dados (zerar partes ou arquivar o planejamento extra).
  */
 export const PlanSettingsModal: React.FC = () => {
-  const { activePlanId, activePlan, mainPlan, updatePlan, deletePlan, settingsOpen, setSettingsOpen } = usePlans();
+  const { activePlanId, activePlan, mainPlan, updatePlan, archivePlan, settingsOpen, setSettingsOpen } = usePlans();
   const { isDataReady, activeCheckpoint, viewPreferences, setViewPreferences } = useFinancial();
   const current = activePlan ?? { ...mainPlan, id: null as string | null };
   const [name, setName] = useState('');
@@ -45,19 +45,15 @@ export const PlanSettingsModal: React.FC = () => {
     setSaved(ok);
   };
 
-  const remove = async () => {
+  const archive = async () => {
     if (!activePlan) return;
-    const typed = window.prompt(
-      `Excluir "${activePlan.name}" apaga TODOS os dados dele (lançamentos, naturezas, contas, metas) e não dá para desfazer.\n\nPara confirmar, digite o nome do planejamento:`
+    const ok = window.confirm(
+      `Arquivar "${activePlan.name}"?\n\nNada é apagado agora: o planejamento sai do seu dia a dia e fica em "Arquivados". Se não for reativado em ${ARCHIVE_RETENTION_DAYS} dias, ele e todos os dados dele (lançamentos, naturezas, contas, metas) serão excluídos automaticamente.`
     );
-    if (typed === null) return;
-    if (typed.trim().toLowerCase() !== activePlan.name.trim().toLowerCase()) {
-      window.alert('O nome não confere. Nada foi excluído.');
-      return;
-    }
+    if (!ok) return;
     setSettingsOpen(false);
-    const ok = await deletePlan(activePlan.id);
-    if (!ok) window.alert('Não consegui excluir agora. Nada foi apagado por completo; tente de novo.');
+    const done = await archivePlan(activePlan.id);
+    if (!done) window.alert('Não consegui arquivar agora. Tente de novo.');
   };
 
   return (
@@ -143,12 +139,15 @@ export const PlanSettingsModal: React.FC = () => {
 
           {activePlan && (
             <section>
-              <h3>Excluir planejamento</h3>
-              <p>Apaga o planejamento e todos os dados dele.</p>
+              <h3>Arquivar planejamento</h3>
+              <p>
+                Tira o planejamento do seu dia a dia sem apagar nada. Em "Arquivados" você pode reativá-lo; se não for reativado em {ARCHIVE_RETENTION_DAYS} dias,
+                ele é excluído automaticamente. A exclusão manual só existe a partir dos arquivados.
+              </p>
               <div>
-                <button type="button" className="btn btn-outline btn-xs plan-settings-danger" onClick={() => void remove()}>
-                  <Trash2 size={13} />
-                  <span>Excluir "{activePlan.name}"</span>
+                <button type="button" className="btn btn-outline btn-xs plan-settings-danger" onClick={() => void archive()}>
+                  <Archive size={13} />
+                  <span>Arquivar "{activePlan.name}"</span>
                 </button>
               </div>
             </section>

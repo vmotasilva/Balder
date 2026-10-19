@@ -12,8 +12,10 @@ import { PlansService, setActivePlan, type CreatePlanError, type PlanItem } from
 export type Plan = PlanItem;
 
 interface PlanScopeContextType {
-  /** Planejamentos extras (o principal não entra). */
+  /** Planejamentos extras em uso (o principal e os arquivados não entram). */
   plans: Plan[];
+  /** Planejamentos arquivados: fora do dia a dia, aguardando reativação ou exclusão (automática em 30 dias). */
+  archivedPlans: Plan[];
   /** Planejamento em uso (null = o principal). Em conta compartilhada vale sempre o do dono. */
   activePlanId: string | null;
   activePlan: Plan | null;
@@ -26,6 +28,11 @@ interface PlanScopeContextType {
   /** Configurações do planejamento em uso (nome, ícone, marco, período, dados). */
   settingsOpen: boolean;
   setSettingsOpen: (open: boolean) => void;
+  /** Arquiva um planejamento extra (nada é apagado). */
+  archivePlan: (id: string) => Promise<boolean>;
+  /** Reativa um arquivado. Devolve o motivo quando não dá (limite de planejamentos). */
+  restorePlan: (id: string) => Promise<{ ok: true } | { ok: false; error: 'LIMITE' | 'PLANO' }>;
+  /** Exclui de vez um planejamento ARQUIVADO e todos os dados dele. */
   deletePlan: (id: string) => Promise<boolean>;
   /** Troca de planejamento (null = o principal). A tela é recriada com os dados do escolhido. */
   switchPlan: (id: string | null) => void;
@@ -40,6 +47,16 @@ interface PlanScopeContextType {
 const PlanScopeContext = createContext<PlanScopeContextType | undefined>(undefined);
 
 export const MAX_EXTRA_PLANS = 5;
+/** Dias que um planejamento fica arquivado antes de ser excluído automaticamente. */
+export const ARCHIVE_RETENTION_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** Dias que faltam para a exclusão automática de um planejamento arquivado (mínimo 0). */
+export const archiveDaysLeft = (plan: Pick<Plan, 'archivedAt'>, now: number = Date.now()): number => {
+  const at = plan.archivedAt ? Date.parse(plan.archivedAt) : NaN;
+  if (Number.isNaN(at)) return ARCHIVE_RETENTION_DAYS;
+  return Math.max(0, Math.ceil((at + ARCHIVE_RETENTION_DAYS * DAY_MS - now) / DAY_MS));
+};
+const isExpired = (plan: Plan, now: number = Date.now()) => !!plan.archivedAt && archiveDaysLeft(plan, now) === 0;
 /** Chave do planejamento principal na seleção da visão consolidada. */
 export const MAIN_PLAN_KEY = 'main';
 export const DEFAULT_MAIN_NAME = 'Meu planejamento';
@@ -62,7 +79,7 @@ const readActive = (userId: string | undefined, plans: Plan[]): string | null =>
   if (!userId) return null;
   try {
     const id = localStorage.getItem(activeKey(userId));
-    return id && plans.some((p) => p.id === id) ? id : null;
+    return id && plans.some((p) => p.id === id && !p.archivedAt) ? id : null;
   } catch {
     return null;
   }
@@ -91,7 +108,9 @@ export const PlanScopeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const userId = user && !user.isGuest ? user.$id : undefined;
 
   // O escopo precisa estar definido antes do primeiro carregamento dos dados (como o dono da conta compartilhada)
-  const [plans, setPlans] = useState<Plan[]>(() => readPlans(userId));
+  const [allPlans, setAllPlans] = useState<Plan[]>(() => readPlans(userId));
+  const plans = useMemo(() => allPlans.filter((p) => !p.archivedAt), [allPlans]);
+  const archivedPlans = useMemo(() => allPlans.filter((p) => !!p.archivedAt), [allPlans]);
   const [activePlanId, setActivePlanId] = useState<string | null>(() => {
     const id = readActive(userId, readPlans(userId));
     setActivePlan(id, readPlans(userId).length > 0);
@@ -139,23 +158,42 @@ export const PlanScopeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, [userId]);
 
   // Atualiza a lista com a da nuvem (outro aparelho pode ter criado ou apagado planejamentos)
+  // e exclui os arquivados há mais de 30 dias
   useEffect(() => {
     if (!userId) return;
     let alive = true;
-    void PlansService.list().then((cloud) => {
+    void (async () => {
+      const cloud = await PlansService.list();
       if (!alive || !cloud) return;
-      setPlans(cloud);
+      let list = cloud;
+      const expired = cloud.filter((p) => isExpired(p));
+      if (expired.length > 0) {
+        const gone: string[] = [];
+        for (const plan of expired) {
+          // Só some da lista se os dados foram mesmo apagados do servidor
+          if (await PlansService.deleteData(plan.id)) {
+            clearPlanLocalData(userId, plan.id);
+            gone.push(plan.id);
+          }
+        }
+        if (gone.length > 0) {
+          list = cloud.filter((p) => !gone.includes(p.id));
+          await PlansService.save(list);
+        }
+      }
+      if (!alive) return;
+      setAllPlans(list);
       try {
-        localStorage.setItem(listKey(userId), JSON.stringify(cloud));
+        localStorage.setItem(listKey(userId), JSON.stringify(list));
       } catch {
         // sem armazenamento local
       }
       setActivePlanId((current) => {
-        const next = current && cloud.some((p) => p.id === current) ? current : null;
-        setActivePlan(next, cloud.length > 0);
+        const next = current && list.some((p) => p.id === current && !p.archivedAt) ? current : null;
+        setActivePlan(next, list.length > 0);
         return next;
       });
-    });
+    })();
     return () => {
       alive = false;
     };
@@ -163,7 +201,7 @@ export const PlanScopeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const persistPlans = useCallback(
     async (next: Plan[]) => {
-      setPlans(next);
+      setAllPlans(next);
       if (userId) {
         try {
           localStorage.setItem(listKey(userId), JSON.stringify(next));
@@ -194,8 +232,8 @@ export const PlanScopeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   );
 
   const switchPlan = useCallback(
-    (id: string | null) => activate(id && plans.some((p) => p.id === id) ? id : null, plans.length),
-    [activate, plans]
+    (id: string | null) => activate(id && plans.some((p) => p.id === id) ? id : null, allPlans.length),
+    [activate, plans, allPlans]
   );
 
   const createPlan = useCallback<PlanScopeContextType['createPlan']>(
@@ -208,21 +246,21 @@ export const PlanScopeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       // Sem a coluna plan_id nas tabelas os dados do novo planejamento se misturariam com os do principal
       if (!(await PlansService.isReady())) return { ok: false, error: 'SQL_PENDENTE' };
       const plan: Plan = { id: crypto.randomUUID().replace(/-/g, '').slice(0, 12), name: clean, icon: icon || '🏢', createdAt: new Date().toISOString() };
-      await persistPlans([...plans, plan]);
-      // Já abre no planejamento novo (a lista de `plans` ainda é a anterior neste ponto)
-      activate(plan.id, plans.length + 1);
+      await persistPlans([...allPlans, plan]);
+      // Já abre no planejamento novo (a lista de `allPlans` ainda é a anterior neste ponto)
+      activate(plan.id, allPlans.length + 1);
       return { ok: true, plan };
     },
-    [plans, persistPlans, activate, extraAllowed]
+    [plans, allPlans, persistPlans, activate, extraAllowed]
   );
 
   const renamePlan = useCallback(
     async (id: string, name: string) => {
       const clean = name.trim().slice(0, 40);
       if (clean.length < 2) return;
-      await persistPlans(plans.map((p) => (p.id === id ? { ...p, name: clean } : p)));
+      await persistPlans(allPlans.map((p) => (p.id === id ? { ...p, name: clean } : p)));
     },
-    [plans, persistPlans]
+    [allPlans, persistPlans]
   );
 
   const updatePlan = useCallback<PlanScopeContextType['updatePlan']>(
@@ -243,27 +281,48 @@ export const PlanScopeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         return true;
       }
       await persistPlans(
-        plans.map((p) => (p.id === id ? { ...p, ...(name !== undefined ? { name } : {}), ...(changes.icon !== undefined ? { icon: changes.icon } : {}) } : p))
+        allPlans.map((p) => (p.id === id ? { ...p, ...(name !== undefined ? { name } : {}), ...(changes.icon !== undefined ? { icon: changes.icon } : {}) } : p))
       );
       return true;
     },
-    [mainPlan, plans, persistPlans, userId]
+    [mainPlan, allPlans, persistPlans, userId]
+  );
+
+  const archivePlan = useCallback(
+    async (id: string) => {
+      if (!userId || !plans.some((p) => p.id === id)) return false;
+      // Sai do planejamento antes de arquivá-lo
+      if (activePlanId === id) switchPlan(null);
+      await persistPlans(allPlans.map((p) => (p.id === id ? { ...p, archivedAt: new Date().toISOString() } : p)));
+      return true;
+    },
+    [userId, plans, allPlans, activePlanId, switchPlan, persistPlans]
+  );
+
+  const restorePlan = useCallback<PlanScopeContextType['restorePlan']>(
+    async (id) => {
+      if (!allPlans.some((p) => p.id === id && p.archivedAt)) return { ok: false, error: 'LIMITE' };
+      // Reativar conta como criar: respeita os mesmos limites
+      if (plans.length >= MAX_EXTRA_PLANS) return { ok: false, error: 'LIMITE' };
+      if (extraAllowed !== null && plans.length >= extraAllowed) return { ok: false, error: 'PLANO' };
+      await persistPlans(allPlans.map((p) => (p.id === id ? { ...p, archivedAt: undefined } : p)));
+      return { ok: true };
+    },
+    [allPlans, plans, extraAllowed, persistPlans]
   );
 
   const deletePlan = useCallback(
     async (id: string) => {
-      if (!userId || !plans.some((p) => p.id === id)) return false;
-      // Sai do planejamento antes de apagá-lo
-      if (activePlanId === id) switchPlan(null);
+      // Só se exclui o que já está arquivado
+      if (!userId || !allPlans.some((p) => p.id === id && p.archivedAt)) return false;
       const ok = await PlansService.deleteData(id);
       if (!ok) return false;
       clearPlanLocalData(userId, id);
-      const remaining = plans.filter((p) => p.id !== id);
-      await persistPlans(remaining);
-      setActivePlan(activePlanId === id ? null : activePlanId, remaining.length > 0);
+      await persistPlans(allPlans.filter((p) => p.id !== id));
+      setActivePlan(activePlanId, allPlans.length - 1 > 0);
       return true;
     },
-    [userId, plans, activePlanId, switchPlan, persistPlans]
+    [userId, allPlans, activePlanId, persistPlans]
   );
 
   // Só entram na soma planejamentos que ainda existem
@@ -296,6 +355,7 @@ export const PlanScopeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const value = useMemo<PlanScopeContextType>(
     () => ({
       plans,
+      archivedPlans,
       activePlanId: effectiveActiveId,
       activePlan: plans.find((p) => p.id === effectiveActiveId) || null,
       createPlan,
@@ -304,6 +364,8 @@ export const PlanScopeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       updatePlan,
       settingsOpen,
       setSettingsOpen,
+      archivePlan,
+      restorePlan,
       deletePlan,
       switchPlan,
       compareIds,
@@ -311,7 +373,7 @@ export const PlanScopeProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       consolidated,
       setConsolidated: setConsolidatedOpen,
     }),
-    [plans, effectiveActiveId, createPlan, renamePlan, mainPlan, updatePlan, settingsOpen, deletePlan, switchPlan, compareIds, toggleCompare, consolidated]
+    [plans, archivedPlans, effectiveActiveId, createPlan, renamePlan, mainPlan, updatePlan, settingsOpen, archivePlan, restorePlan, deletePlan, switchPlan, compareIds, toggleCompare, consolidated]
   );
 
   return <PlanScopeContext.Provider value={value}>{children}</PlanScopeContext.Provider>;
@@ -321,7 +383,7 @@ export const usePlans = (): PlanScopeContextType => {
   const ctx = useContext(PlanScopeContext);
   if (!ctx) {
     // Fora do provedor (ex.: testes): só o planejamento principal
-    return { plans: [], activePlanId: null, activePlan: null, createPlan: async () => ({ ok: false, error: 'ERRO' }), renamePlan: async () => {}, mainPlan: { name: DEFAULT_MAIN_NAME }, updatePlan: async () => false, settingsOpen: false, setSettingsOpen: () => {}, deletePlan: async () => false, switchPlan: () => {}, compareIds: [], toggleCompare: () => {}, consolidated: false, setConsolidated: () => {} };
+    return { plans: [], archivedPlans: [], archivePlan: async () => false, restorePlan: async () => ({ ok: false, error: 'LIMITE' }), activePlanId: null, activePlan: null, createPlan: async () => ({ ok: false, error: 'ERRO' }), renamePlan: async () => {}, mainPlan: { name: DEFAULT_MAIN_NAME }, updatePlan: async () => false, settingsOpen: false, setSettingsOpen: () => {}, deletePlan: async () => false, switchPlan: () => {}, compareIds: [], toggleCompare: () => {}, consolidated: false, setConsolidated: () => {} };
   }
   return ctx;
 };
