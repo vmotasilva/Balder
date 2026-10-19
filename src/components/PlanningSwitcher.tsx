@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Briefcase, Check, CheckSquare, ChevronDown, Layers, Plus, Settings, Square, Star, User, UserPlus, Users } from 'lucide-react';
+import { Archive, ArchiveRestore, Briefcase, Check, CheckSquare, ChevronDown, Layers, Plus, Settings, Square, Star, Trash2, User, UserPlus, Users } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useEntitlements } from '../context/EntitlementsContext';
 import { limitReason } from '../utils/entitlements';
 import { useAccountScope } from '../context/AccountScopeContext';
-import { MAIN_PLAN_KEY, MAX_EXTRA_PLANS, usePlans } from '../context/PlanScopeContext';
+import { ARCHIVE_RETENTION_DAYS, MAIN_PLAN_KEY, MAX_EXTRA_PLANS, archiveDaysLeft, usePlans } from '../context/PlanScopeContext';
 import { SharingService, type AccountShare } from '../services/sharingService';
 
 /** Aba a abrir depois de trocar de planejamento (a troca recria a tela). */
@@ -23,13 +23,14 @@ export const PlanningSwitcher: React.FC<PlanningSwitcherProps> = ({ onPlanWithOt
   const { user } = useAuth();
   const entitlements = useEntitlements();
   const { viewing, openSharedAccount, backToOwnAccount } = useAccountScope();
-  const { plans, activePlanId, activePlan, createPlan, mainPlan, setSettingsOpen, switchPlan, compareIds, toggleCompare, consolidated, setConsolidated } = usePlans();
+  const { plans, archivedPlans, restorePlan, deletePlan, activePlanId, activePlan, createPlan, mainPlan, setSettingsOpen, switchPlan, compareIds, toggleCompare, consolidated, setConsolidated } = usePlans();
   const [open, setOpen] = useState(false);
   // Criação de um planejamento próprio (formulário dentro do menu)
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [planError, setPlanError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [archivedOpen, setArchivedOpen] = useState(false);
   const [shares, setShares] = useState<AccountShare[]>([]);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -123,6 +124,30 @@ export const PlanningSwitcher: React.FC<PlanningSwitcherProps> = ({ onPlanWithOt
         ? 'Falta preparar o banco: rode o script supabase/plans.sql no Supabase (uma vez) e tente de novo.'
         : 'Não consegui criar agora. Tente de novo.'
     );
+  };
+
+  const reactivate = async (id: string, name: string) => {
+    const result = await restorePlan(id);
+    if (result.ok) return;
+    window.alert(
+      result.error === 'PLANO'
+        ? `${limitReason(entitlements)} Não dá para reativar "${name}" agora: o limite é de ${entitlements.maxPlannings} planejamento(s), contando o principal.`
+        : `Não dá para reativar "${name}" agora: você já tem ${MAX_EXTRA_PLANS} planejamentos além do principal. Arquive outro primeiro.`
+    );
+  };
+
+  /** Exclusão definitiva: só a partir dos arquivados, confirmando pelo nome. */
+  const removeArchived = async (id: string, name: string) => {
+    const typed = window.prompt(
+      `Excluir "${name}" apaga TODOS os dados dele (lançamentos, naturezas, contas, metas) e não dá para desfazer.\n\nPara confirmar, digite o nome do planejamento:`
+    );
+    if (typed === null) return;
+    if (typed.trim().toLowerCase() !== name.trim().toLowerCase()) {
+      window.alert('O nome não confere. Nada foi excluído.');
+      return;
+    }
+    const ok = await deletePlan(id);
+    if (!ok) window.alert('Não consegui excluir agora. Nada foi apagado por completo; tente de novo.');
   };
 
   /** Abre a configuração do planejamento: se não for o ativo, troca para ele primeiro. */
@@ -254,6 +279,40 @@ export const PlanningSwitcher: React.FC<PlanningSwitcherProps> = ({ onPlanWithOt
                 <small>Ex.: um pequeno negócio, com dados separados</small>
               </span>
             </button>
+          )}
+
+          {archivedPlans.length > 0 && !viewing && (
+            <>
+              <button type="button" role="menuitem" aria-expanded={archivedOpen} className="planning-switch-item" onClick={() => setArchivedOpen((v) => !v)}>
+                <Archive size={15} />
+                <span className="planning-switch-item-text">
+                  <strong>Arquivados ({archivedPlans.length})</strong>
+                  <small>Excluídos sozinhos em {ARCHIVE_RETENTION_DAYS} dias se não forem reativados</small>
+                </span>
+                <ChevronDown size={14} />
+              </button>
+              {archivedOpen &&
+                archivedPlans.map((plan) => {
+                  const left = archiveDaysLeft(plan);
+                  return (
+                    <div key={plan.id} className="planning-switch-row">
+                      <span className="planning-switch-item" aria-label={`${plan.name}, arquivado`}>
+                        {iconOf(plan.icon, <Briefcase size={15} />)}
+                        <span className="planning-switch-item-text">
+                          <strong>{plan.name}</strong>
+                          <small>{left === 0 ? 'Será excluído em breve' : `Exclusão automática em ${left} ${left === 1 ? 'dia' : 'dias'}`}</small>
+                        </span>
+                      </span>
+                      <button type="button" className="planning-switch-mini" title="Reativar" aria-label={`Reativar ${plan.name}`} onClick={() => void reactivate(plan.id, plan.name)}>
+                        <ArchiveRestore size={14} />
+                      </button>
+                      <button type="button" className="planning-switch-mini" title="Excluir de vez" aria-label={`Excluir ${plan.name} definitivamente`} onClick={() => void removeArchived(plan.id, plan.name)}>
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  );
+                })}
+            </>
           )}
 
           {shares.length > 0 && <span className="planning-switch-caption">Compartilhados comigo</span>}

@@ -1043,6 +1043,8 @@ export interface PlanItem {
   name: string;
   icon?: string;
   createdAt: string;
+  /** Arquivado em (ISO). Arquivado some do dia a dia e é excluído sozinho depois de 30 dias, se não for reativado. */
+  archivedAt?: string;
 }
 
 export type CreatePlanError = 'SQL_PENDENTE' | 'ERRO';
