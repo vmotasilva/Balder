@@ -6,7 +6,7 @@ import { buildMonthlyProjectionGrid } from '../../utils/projectionMath';
 import { canonicalBankName, listPaymentInstitutions } from '../../utils/paymentInstitutions';
 import { classifyIntent } from '../../services/forsetiIntentService';
 import { defaultClosingDay } from '../../utils/setupCatalog';
-import { getBankBranding } from '../../utils/bankBranding';
+import { POPULAR_BANKS, getBankBranding } from '../../utils/bankBranding';
 import { matchNatureForTransaction } from '../../services/invoiceFileParser';
 import { recognizeImageOCR } from '../../services/ocrService';
 import { suggestReceiptItems } from '../../services/receiptItemAiService';
@@ -72,6 +72,8 @@ type Deps =
   Pick<ReturnType<typeof useForsetiMemory>,
     'forsetiMemories'
   >;
+
+const OTHER_BANK_CHIP = 'Outro';
 
 /** Conversa com a Forseti: interpreta o pedido, responde e propõe ações. */
 export function useForsetiChat({
@@ -760,9 +762,31 @@ export function useForsetiChat({
           }
         );
         return;
-      } else if (flow.step === 'BANCO') {
+      } else if (flow.step === 'BANCO' || flow.step === 'BANCO_OUTRO') {
+        // Só vale uma das opções (sem nome digitado). "Outro" abre os bancos ainda não cadastrados.
+        const registered = listPaymentInstitutions(accounts, cards, banks).map((i) => i.name);
+        const sameBank = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+        const unregistered = POPULAR_BANKS.filter((b) => !registered.some((r) => sameBank(r, b)));
+        const picked = [...registered, ...unregistered].find((b) => sameBank(b, trimmed));
+        if (flow.step === 'BANCO' && sameBank(trimmed, OTHER_BANK_CHIP)) {
+          forsetiFlowRef.current = { kind: 'PAGAR', step: 'BANCO_OUTRO' };
+          reply({
+            text: '**Qual destes bancos?** Eu cadastro o cartão dele já em seguida.',
+            badge: 'NOVO BANCO',
+            chips: [...unregistered],
+          });
+          return;
+        }
+        if (!picked || (flow.step === 'BANCO_OUTRO' && registered.some((r) => sameBank(r, picked)))) {
+          reply({
+            text: 'Escolha uma das opções abaixo.',
+            badge: flow.step === 'BANCO' ? 'BANCO DO CARTÃO' : 'NOVO BANCO',
+            chips: flow.step === 'BANCO' ? [...registered.slice(0, 8), OTHER_BANK_CHIP] : [...unregistered],
+          });
+          return;
+        }
         // O banco vai na frase de apoio: ao final, a forma de pagamento confere se há cartão dele e, se não houver, oferece cadastrar
-        startRegistration('PAGAR', '', `no cartão de crédito ${trimmed}`);
+        startRegistration('PAGAR', '', `no cartão de crédito ${picked}`);
         return;
       } else if (flow.step === 'VALOR') {
         const purchase = flow.kind === 'PAGAR' ? readPurchase(trimmed) : null;
@@ -829,9 +853,9 @@ export function useForsetiChat({
       forsetiFlowRef.current = { kind: 'PAGAR', step: 'BANCO' };
       const bankNames = listPaymentInstitutions(accounts, cards, banks).map((i) => i.name);
       reply({
-        text: 'Anotado, foi no cartão. **De qual banco é o cartão?**\n\nEscolha uma opção ou escreva o nome do banco.',
+        text: 'Anotado, foi no cartão. **De qual banco é o cartão?**\n\nToque em uma das opções. Se não estiver na lista, escolha **Outro**.',
         badge: 'BANCO DO CARTÃO',
-        chips: bankNames.slice(0, 8),
+        chips: [...bankNames.slice(0, 8), OTHER_BANK_CHIP],
       });
       return;
     }

@@ -47,7 +47,7 @@ export const DOUBT_CHIPS = [
 /** Registro guiado em andamento: a próxima mensagem responde à pergunta do passo atual. */
 export interface ForsetiFlow {
   kind: 'RECEBER' | 'PAGAR';
-  step: 'BANCO' | 'VALOR' | 'DATA' | 'CATEGORIA' | 'DESCRICAO' | 'CARTAO_NOME' | 'CARTAO_VENCIMENTO' | 'CARTAO_FECHAMENTO' | 'FEEDBACK_TIPO' | 'FEEDBACK_TEXTO';
+  step: 'BANCO' | 'BANCO_OUTRO' | 'VALOR' | 'DATA' | 'CATEGORIA' | 'DESCRICAO' | 'CARTAO_NOME' | 'CARTAO_VENCIMENTO' | 'CARTAO_FECHAMENTO' | 'FEEDBACK_TIPO' | 'FEEDBACK_TEXTO';
   /** Tipo escolhido no feedback em andamento (kind 'RECEBER'/'PAGAR' não é usado nesse fluxo). */
   feedbackKind?: FeedbackKind;
   title?: string;
