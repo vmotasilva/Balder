@@ -1,8 +1,9 @@
 import { firstInvoiceDueDate } from './cardPurchase';
 import { defaultClosingDay } from './setupCatalog';
-import type { BankAccount, CopilotInteractiveOption, ExpenseNature, ForsetiPendingAction, CopilotPendingConfirmation, CreditCardItem, ForsetiActivity, Goal, InvoiceNatureItemBreakdown, MonthlyGridProjectionRow, Movement } from '../types';
+import type { BankAccount, CopilotInteractiveOption, PaymentWizardState, ExpenseNature, ForsetiPendingAction, CopilotPendingConfirmation, CreditCardItem, ForsetiActivity, Goal, InvoiceNatureItemBreakdown, MonthlyGridProjectionRow, Movement } from '../types';
 import type { ForecastEntry, ForecastPeriod, ForecastWindow } from './forecastWindow';
 import { CASH_IN_HAND } from './cashInHand';
+import type { PaymentInstitution } from './paymentInstitutions';
 import { trackingPeriodRange } from './periodSpending';
 import { resolveMovementNatureId } from './movementNature';
 import type { ForsetiRegistration, SpendPeriod } from './forsetiIntents';
@@ -126,12 +127,23 @@ const INCOME_WORDS = /\b(salario|freela|freelance|renda|rendimentos?|bonus|comis
 export function shorthandRegistration(text: string): 'PAGAR' | 'RECEBER' | null {
   if (isQuestion(text)) return null;
   const t = stripAccents(text).trim();
-  if (t.split(/\s+/).length > 5) return null;
+  // Forma de pagamento junto ("59,36 refeição cartão de crédito nubank"): cabe mais palavras, e o gasto fica claro
+  const payWords = /\b(cartao|credito|debito|pix|dinheiro)\b/.test(t);
+  if (t.split(/\s+/).length > (payWords ? 9 : 5)) return null;
   // Parcelamento ("3x mercado") e mais de um valor ("mercado 30 farmácia 20") pedem a conversa completa
   if (/\d\s*(x|vezes)\b/.test(t)) return null;
   if ((withoutDates(t).match(/\d+(?:[.,]\d+)*/g) || []).length !== 1 || parseAmount(text) === null) return null;
   if (INCOME_WORDS.test(t)) return 'RECEBER';
-  return inferExpenseCategory(text) ? 'PAGAR' : null;
+  if (inferExpenseCategory(text)) return 'PAGAR';
+  // Valor + forma de pagamento + o que foi ("59,36 refeição cartão de crédito nubank"): só "cartão 3000" segue como dúvida
+  if (payWords) {
+    const rest = t
+      .replace(/\d+(?:[.,]\d+)*/g, ' ')
+      .split(/[^a-z]+/)
+      .filter((w) => w.length >= 3 && !GENERIC_NAME_WORDS.has(w) && !BANK_MENTIONS.some((b) => b.re.test(w)) && !['pix', 'dinheiro', 'reais', 'real', 'paguei', 'gastei'].includes(w));
+    if (rest.length > 0) return 'PAGAR';
+  }
+  return null;
 }
 
 /**
@@ -206,6 +218,7 @@ export function extractTitle(text: string): string {
     // A forma de pagamento citada não faz parte do título ("TV no cartão Inter" → "TV")
     .replace(PAYMENT_TAIL, ' ')
     .replace(BANK_TAIL, ' ')
+    .replace(PAYMENT_WORDS_AT_END, ' ')
     .replace(/^\s*(?:de|do|da|no|na|em|com|pelo|pela|um|uma|o|a|os|as|para|pra)\s+/i, '')
     .replace(/\s+/g, ' ')
     // "de" duplicado que sobra depois de tirar o valor ("pagamento de 200 de luz" → "pagamento de de luz")
@@ -219,6 +232,9 @@ export function extractTitle(text: string): string {
 
 const PAYMENT_TAIL =
   /\s(?:no|na|com|pelo|pela|via|usando|em)\s+(?:(?:o|a|meu|minha)\s+)?(?:cart[aã]o|cr[eé]dito|d[eé]bito|pix|dinheiro|esp[eé]cie|boleto)(?:\s|$).*$/i;
+// Forma de pagamento escrita no fim, sem preposição ("refeição cartão de crédito nubank" → "refeição"); só sai se sobra um título
+const PAYMENT_WORDS_AT_END =
+  /(?<=\S)\s+(?:cart[aã]o|cr[eé]dito|d[eé]bito|pix|dinheiro)(?:\s+(?:de|cart[aã]o|cr[eé]dito|d[eé]bito|nu ?bank|inter|ita[uú]|santander|bradesco|banco do brasil|caixa|c6|xp|btg|picpay|mercado ?pago|next|neon|sicoob|sicredi))*\s*$/i;
 const BANK_TAIL =
   /\s(?:no|na|pelo|pela|via)\s+(?:banco\s+|conta\s+(?:do\s+|da\s+)?)?(?:nu ?bank|inter|ita[uú]|santander|bradesco|banco do brasil|caixa|c6|xp|btg|picpay|mercado ?pago|next|neon|sicoob|sicredi)\b.*$/i;
 
@@ -578,6 +594,30 @@ export function pickPaymentOptions(
     note,
     options: [...shortlist, other],
   };
+}
+
+/**
+ * Ponto de partida do registro em etapas, a partir do que a pessoa já disse (a frase, o banco escolhido):
+ * dinheiro, banco, crédito ou débito. Só pergunta o que ficou em aberto, sem repetir o que já se sabe.
+ * Devolve null quando nada foi dito (o registro começa em "banco ou dinheiro?").
+ */
+export function presetPaymentWizard(hint: string, institutions: PaymentInstitution[], installments = 1): PaymentWizardState | null {
+  const t = stripAccents(hint);
+  if (/\b(dinheiro|especie|em maos|cash)\b/.test(t)) return { step: 'SUMMARY', where: 'CASH', installments: 1 };
+  const saysDebit = /\b(pix|debito|transferencia|ted)\b/.test(t);
+  const saysCard = !saysDebit && /\b(cartao|credito)\b/.test(t);
+  const bankRe = BANK_MENTIONS.find((b) => b.re.test(t));
+  const mentioned = institutions.filter(
+    (i) => (!!bankRe && bankRe.re.test(stripAccents(i.name))) || nameWords(i.name).some((w) => new RegExp(`\\b${w}\\b`).test(t))
+  );
+  const inst = mentioned.length === 1 ? mentioned[0] : undefined;
+  if (!inst) return saysCard ? { step: 'BANK', where: 'BANK', method: 'CREDITO', installments } : null;
+  if (saysCard && !inst.noCredit) {
+    // A fatura é do banco: sem fechamento e vencimento conhecidos, pergunta só isso
+    return { step: inst.terms ? 'SUMMARY' : 'INVOICE', where: 'BANK', institution: inst.name, method: 'CREDITO', installments };
+  }
+  if (saysDebit || inst.noCredit) return { step: 'SUMMARY', where: 'BANK', institution: inst.name, method: 'DEBITO', installments: 1 };
+  return { step: 'METHOD', where: 'BANK', institution: inst.name, installments };
 }
 
 // ── Dúvidas ───────────────────────────────────────────────────────────────────
