@@ -15,6 +15,12 @@ const currentMonthKey = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 };
 
+const latestStateRule = (item: MappingItem, monthKey: string) =>
+  (item.stateRules || [])
+    .filter((r) => r.fromMonth <= monthKey)
+    .sort((a, b) => a.fromMonth.localeCompare(b.fromMonth))
+    .pop();
+
 /**
  * Situação de um item mapeado em uma competência (YYYY-MM).
  * Precedência: ajuste pontual do mês > regra mais recente cujo início seja <= competência > padrão (previsto).
@@ -23,10 +29,7 @@ export function resolveMappingItemState(item: MappingItem, monthKey: string): Ma
   const override = item.monthStates?.[monthKey];
   if (override) return override;
 
-  const rule = (item.stateRules || [])
-    .filter((r) => r.fromMonth <= monthKey)
-    .sort((a, b) => a.fromMonth.localeCompare(b.fromMonth))
-    .pop();
+  const rule = latestStateRule(item, monthKey);
   if (!rule) return {};
   return {
     realized: rule.realized,
@@ -40,6 +43,45 @@ export function resolveMappingItemState(item: MappingItem, monthKey: string): Ma
 /** Fora dos valores da competência: pago por outra pessoa ou não vai acontecer. */
 export function isExcludedState(state: MappingItemMonthState): boolean {
   return !!(state.paidByOthers || state.skipped);
+}
+
+/**
+ * "Pago por outra pessoa" vindo de uma regra recorrente ainda não confirmada na competência: o item segue fora da
+ * projeção (o flag vale), mas a pessoa precisa confirmar mês a mês que o terceiro arcou. Só pede para competências
+ * que já começaram; a competência em que a regra foi criada já nasce confirmada.
+ */
+export function needsOthersConfirmation(item: MappingItem, monthKey: string): boolean {
+  if (item.monthStates?.[monthKey] || monthKey > currentMonthKey()) return false;
+  const rule = latestStateRule(item, monthKey);
+  return !!rule && !!rule.paidByOthers && !rule.skipped && rule.fromMonth < monthKey;
+}
+
+/** Confirma (a pessoa de fato pagou o item) ou nega (eu paguei) o "pago por outra pessoa" da competência. */
+export function confirmOthersPayment(
+  item: MappingItem,
+  monthKey: string,
+  paidByOthers: boolean
+): Pick<MappingItem, 'monthStates' | 'stateRules'> {
+  const { paidBy } = resolveMappingItemState(item, monthKey);
+  return applyMappingItemState(item, monthKey, { paidByOthers, ...(paidByOthers && paidBy ? { paidBy } : {}) }, false);
+}
+
+export interface MappingExcludedSummary {
+  amount: number;  // previsto dos itens fora da projeção na competência
+  count: number;
+  toConfirm: number; // itens "pago por outra pessoa" aguardando a confirmação do mês
+}
+
+/** O que o mapeamento tem na competência mas não entra na projeção (pago por terceiros ou que não vai acontecer). */
+export function resolveMappingExcluded(items: MappingItem[], monthKey: string): MappingExcludedSummary {
+  const result: MappingExcludedSummary = { amount: 0, count: 0, toConfirm: 0 };
+  items.forEach((item) => {
+    if (!isExcludedState(resolveMappingItemState(item, monthKey))) return;
+    result.amount = round2(result.amount + mappingItemBaseValue(item, monthKey));
+    result.count += 1;
+    if (needsOthersConfirmation(item, monthKey)) result.toConfirm += 1;
+  });
+  return result;
 }
 
 /** Preço por ocorrência vigente na competência (considera reajustes agendados). */
