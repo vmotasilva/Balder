@@ -430,6 +430,9 @@ export function registerMappingPayment(
     .filter(({ s }) => !isExcludedState(s.state));
   if (eligible.length === 0) return [];
   const totalBase = eligible.reduce((acc, e) => acc + e.s.base, 0);
+  // O previsto dispensado vai só para quem ainda tem pendente (item já pago não absorve a dispensa)
+  const totalPending = eligible.reduce((acc, e) => acc + e.s.pending, 0);
+  const lastPending = eligible.reduce((acc, e, i) => (e.s.pending > 0.005 ? i : acc), eligible.length - 1);
   const id = `mpay_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const split = (total: number, s: { base: number }, i: number, remaining: number) =>
     i === eligible.length - 1 ? remaining : round2(totalBase > 0 ? (total * s.base) / totalBase : total / eligible.length);
@@ -438,7 +441,16 @@ export function registerMappingPayment(
   return eligible.map(({ item, s }, i) => {
     const share = split(amount, s, i, remaining);
     remaining = round2(remaining - share);
-    const waivedShare = waive > 0 ? split(waive, s, i, remainingWaive) : 0;
+    const waivedShare =
+      waive <= 0
+        ? 0
+        : totalPending > 0.005
+        ? i === lastPending
+          ? remainingWaive
+          : s.pending > 0.005
+          ? round2(Math.min(s.pending, (waive * s.pending) / totalPending, remainingWaive))
+          : 0
+        : split(waive, s, i, remainingWaive);
     remainingWaive = round2(remainingWaive - waivedShare);
     const payment: MappingItemPayment = {
       id: `${id}_${item.id}`,
