@@ -239,9 +239,11 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     const sum = (income: boolean) =>
       periodMovements.filter((m) => isMovementIncome(m) === income).reduce((acc, m) => acc + movementValue(m), 0);
     const income = sum(true);
-    const expense = sum(false);
+    // Gastos esperados pelas naturezas (sem lançamento ainda) contam como saída prevista
+    const expected = periodWindow.entries.filter((e) => e.source === 'NATUREZA').reduce((acc, e) => acc + e.amount, 0);
+    const expense = sum(false) + expected;
     return { income, expense, net: income - expense };
-  }, [periodMovements]);
+  }, [periodMovements, periodWindow]);
 
   // Últimas solicitações à Forseti: pop-up pelo ícone ao lado da caixa de texto
   const [showActivity, setShowActivity] = useState(false);
