@@ -23210,6 +23210,13 @@ input[type="month"]::-webkit-calendar-picker-indicator:hover {
 }
 
 .period-mov-list li.is-clickable { cursor: pointer; }
+.period-mov-list li.period-mov-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 0;
+  padding-top: 0;
+}
 .period-mov-list li.is-clickable:hover { background: var(--bg-input); }
 
 /* Parcelar / desfazer parcelamento no pop-up de uma despesa */

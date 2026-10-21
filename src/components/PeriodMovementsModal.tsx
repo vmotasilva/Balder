@@ -4,6 +4,7 @@ import { Search } from 'lucide-react';
 import { Modal } from './Modal';
 import { MovementDetailModal } from './MovementDetailModal';
 import { useFinancial } from '../context/FinancialContext';
+import { useForecastEntryActions } from '../hooks/useForecastEntryActions';
 import type { Movement } from '../types';
 import type { ForecastEntry } from '../utils/forecastWindow';
 
@@ -19,6 +20,8 @@ interface PeriodMovementsModalProps {
   movements: Movement[];
   /** Gastos esperados das naturezas (ainda sem lançamento): entram como saídas previstas. */
   expectedEntries?: ForecastEntry[];
+  /** Plano B das ações dos gastos esperados quando o item não é encontrado para agir aqui. */
+  onNavigate?: (tab: 'FATURAS' | 'NATUREZAS') => void;
 }
 
 const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -32,7 +35,7 @@ export const movementValue = (m: Movement) => (m.status === 'REALIZADA' ? m.actu
 export const movementDate = (m: Movement) => (m.status === 'REALIZADA' && m.paymentDate ? m.paymentDate : m.dueDate);
 
 /** Pop-up com as movimentações de um período, filtráveis por entrada/saída, situação e texto. */
-export const PeriodMovementsModal: React.FC<PeriodMovementsModalProps> = ({ isOpen, onClose, title, subtitle, movements, expectedEntries = [] }) => {
+export const PeriodMovementsModal: React.FC<PeriodMovementsModalProps> = ({ isOpen, onClose, title, subtitle, movements, expectedEntries = [], onNavigate = () => {} }) => {
   const [flow, setFlow] = useState<FlowFilter>('TODAS');
   const [status, setStatus] = useState<StatusFilter>('TODAS');
   const [query, setQuery] = useState('');
@@ -43,6 +46,9 @@ export const PeriodMovementsModal: React.FC<PeriodMovementsModalProps> = ({ isOp
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }, []);
   const { natures } = useFinancial();
+  const { renderAction, renderSkip, modals } = useForecastEntryActions(onNavigate);
+  // Gasto esperado aberto para pagar ou desconsiderar
+  const [openEntryId, setOpenEntryId] = useState<string | null>(null);
   // Natureza e item do teto ligados à movimentação; sem ligação, cai na categoria bruta
   const movementLabel = (m: Movement) => {
     const nature = m.natureId ? natures.find((n) => n.id === m.natureId) : undefined;
@@ -57,7 +63,7 @@ export const PeriodMovementsModal: React.FC<PeriodMovementsModalProps> = ({ isOp
   const [editing, setEditing] = useState<Movement | null>(null);
 
   // Linha da lista: lançamento real ou gasto esperado de uma natureza
-  type Row = { id: string; date: string; title: string; label: string; bank: string; income: boolean; amount: number; movement?: Movement };
+  type Row = { id: string; date: string; title: string; label: string; bank: string; income: boolean; amount: number; movement?: Movement; entry?: ForecastEntry };
 
   const rows = useMemo<Row[]>(() => {
     const q = query.trim().toLowerCase();
@@ -70,7 +76,7 @@ export const PeriodMovementsModal: React.FC<PeriodMovementsModalProps> = ({ isOp
         ? []
         : expectedEntries
             .filter((e) => e.source === 'NATUREZA')
-            .map((e) => ({ id: e.id, date: e.date, title: e.title, label: e.detail || '', bank: 'Previsto', income: false, amount: e.amount }));
+            .map((e) => ({ id: e.id, date: e.date, title: e.title, label: e.detail || '', bank: 'Previsto', income: false, amount: e.amount, entry: e }));
     return [...real, ...expected]
       .filter((r) => until === 'PERIODO' || r.date <= todayIso)
       .filter((r) => !q || `${r.title} ${r.label} ${r.bank} ${r.movement?.category ?? ''}`.toLowerCase().includes(q))
@@ -115,41 +121,54 @@ export const PeriodMovementsModal: React.FC<PeriodMovementsModalProps> = ({ isOp
           <ul className="period-mov-list">
             {rows.map((r) => {
               const m = r.movement;
+              const e = r.entry;
               const sign = r.income ? '+' : '−';
               const skipped = m ? skippedValue(m) : 0;
               return (
-                <li
-                  key={r.id}
-                  className={m ? 'is-clickable' : undefined}
-                  onClick={m ? () => setEditing(m) : undefined}
-                  onKeyDown={m ? (e) => e.key === 'Enter' && setEditing(m) : undefined}
-                  tabIndex={m ? 0 : undefined}
-                  role={m ? 'button' : undefined}
-                  title={m ? 'Ajustar valor, data ou parcelamento' : 'Gasto esperado pela natureza'}
-                >
-                  <span className="period-mov-date">{shortDate(r.date)}</span>
-                  <span className="period-mov-main">
-                    <b>{r.title.replace(/^Despesas?:\s*/i, "")}</b>
-                    <small>
-                      {r.label} · {r.bank} · {skipped > 0 ? 'Desconsiderada' : m?.status === 'REALIZADA' ? 'Realizada' : 'Prevista'}
-                    </small>
-                  </span>
-                  <strong className={`period-mov-amount ${r.income ? 'text-emerald' : 'text-rose'}`}>
-                    {skipped > 0 && (
-                      <s className="period-mov-struck" title="Valor que teria sido realizado">
-                        {sign} {formatBRL(skipped)}
-                      </s>
-                    )}
-                    <span>
-                      {sign} {formatBRL(r.amount)}
+                <React.Fragment key={r.id}>
+                  <li
+                    className={m || e ? 'is-clickable' : undefined}
+                    onClick={m ? () => setEditing(m) : e ? () => setOpenEntryId(openEntryId === r.id ? null : r.id) : undefined}
+                    onKeyDown={(ev) => {
+                      if (ev.key !== 'Enter') return;
+                      if (m) setEditing(m);
+                      else if (e) setOpenEntryId(openEntryId === r.id ? null : r.id);
+                    }}
+                    tabIndex={m || e ? 0 : undefined}
+                    role={m || e ? 'button' : undefined}
+                    title={m ? 'Ajustar valor, data ou parcelamento' : 'Pagar ou desconsiderar este gasto esperado'}
+                  >
+                    <span className="period-mov-date">{shortDate(r.date)}</span>
+                    <span className="period-mov-main">
+                      <b>{r.title.replace(/^Despesas?:\s*/i, "")}</b>
+                      <small>
+                        {r.label} · {r.bank} · {skipped > 0 ? 'Desconsiderada' : m?.status === 'REALIZADA' ? 'Realizada' : 'Prevista'}
+                      </small>
                     </span>
-                  </strong>
-                </li>
+                    <strong className={`period-mov-amount ${r.income ? 'text-emerald' : 'text-rose'}`}>
+                      {skipped > 0 && (
+                        <s className="period-mov-struck" title="Valor que teria sido realizado">
+                          {sign} {formatBRL(skipped)}
+                        </s>
+                      )}
+                      <span>
+                        {sign} {formatBRL(r.amount)}
+                      </span>
+                    </strong>
+                  </li>
+                  {e && openEntryId === r.id && (
+                    <li className="period-mov-actions" onClick={(ev) => ev.stopPropagation()}>
+                      {renderAction(e)}
+                      {renderSkip(e)}
+                    </li>
+                  )}
+                </React.Fragment>
               );
             })}
           </ul>
         )}
       </div>
+      {modals}
       {editing && <MovementDetailModal isOpen movement={editing} onClose={() => setEditing(null)} />}
     </Modal>
   );
