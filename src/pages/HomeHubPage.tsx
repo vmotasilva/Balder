@@ -453,6 +453,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
         title={`Movimentações ${labels.this}`}
         subtitle={periodRangeLabel(period, periodRange)}
         movements={periodMovements}
+        expectedEntries={periodWindow.entries}
       />
 
       {/* Período: vale para os dois cards */}

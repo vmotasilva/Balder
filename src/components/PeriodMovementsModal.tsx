@@ -5,6 +5,7 @@ import { Modal } from './Modal';
 import { MovementDetailModal } from './MovementDetailModal';
 import { useFinancial } from '../context/FinancialContext';
 import type { Movement } from '../types';
+import type { ForecastEntry } from '../utils/forecastWindow';
 
 type FlowFilter = 'TODAS' | 'ENTRADAS' | 'SAIDAS';
 type StatusFilter = 'TODAS' | 'REALIZADA' | 'PREVISTA';
@@ -16,6 +17,8 @@ interface PeriodMovementsModalProps {
   title: string;
   subtitle: string;
   movements: Movement[];
+  /** Gastos esperados das naturezas (ainda sem lançamento): entram como saídas previstas. */
+  expectedEntries?: ForecastEntry[];
 }
 
 const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -28,11 +31,8 @@ export const movementValue = (m: Movement) => (m.status === 'REALIZADA' ? m.actu
 /** Dia em que a movimentação conta: o pagamento, se já aconteceu; senão o vencimento. */
 export const movementDate = (m: Movement) => (m.status === 'REALIZADA' && m.paymentDate ? m.paymentDate : m.dueDate);
 
-const sumBy = (list: Movement[], income: boolean) =>
-  list.filter((m) => isMovementIncome(m) === income).reduce((acc, m) => acc + movementValue(m), 0);
-
 /** Pop-up com as movimentações de um período, filtráveis por entrada/saída, situação e texto. */
-export const PeriodMovementsModal: React.FC<PeriodMovementsModalProps> = ({ isOpen, onClose, title, subtitle, movements }) => {
+export const PeriodMovementsModal: React.FC<PeriodMovementsModalProps> = ({ isOpen, onClose, title, subtitle, movements, expectedEntries = [] }) => {
   const [flow, setFlow] = useState<FlowFilter>('TODAS');
   const [status, setStatus] = useState<StatusFilter>('TODAS');
   const [query, setQuery] = useState('');
@@ -52,22 +52,33 @@ export const PeriodMovementsModal: React.FC<PeriodMovementsModalProps> = ({ isOp
       : undefined;
     return item?.description ? `${nature.name} › ${item.description}` : nature.name;
   };
-  const hasFuture = movements.some((m) => movementDate(m) > todayIso);
+  const hasFuture = movements.some((m) => movementDate(m) > todayIso) || expectedEntries.some((e) => e.date > todayIso);
   // Movimentação aberta para ajustar valor, data, parcelamento e demais dados
   const [editing, setEditing] = useState<Movement | null>(null);
 
-  const filtered = useMemo(() => {
+  // Linha da lista: lançamento real ou gasto esperado de uma natureza
+  type Row = { id: string; date: string; title: string; label: string; bank: string; income: boolean; amount: number; movement?: Movement };
+
+  const rows = useMemo<Row[]>(() => {
     const q = query.trim().toLowerCase();
-    return movements
+    const real: Row[] = movements
       .filter((m) => (flow === 'TODAS' ? true : flow === 'ENTRADAS' ? isMovementIncome(m) : !isMovementIncome(m)))
       .filter((m) => (status === 'TODAS' ? true : m.status === status))
-      .filter((m) => until === 'PERIODO' || movementDate(m) <= todayIso)
-      .filter((m) => !q || `${m.title} ${m.category} ${movementLabel(m)} ${m.bank}`.toLowerCase().includes(q))
-      .sort((a, b) => movementDate(a).localeCompare(movementDate(b)));
-  }, [movements, flow, status, query, until, todayIso]);
+      .map((m) => ({ id: m.id, date: movementDate(m), title: m.title, label: movementLabel(m), bank: m.bank, income: isMovementIncome(m), amount: movementValue(m), movement: m }));
+    const expected: Row[] =
+      flow === 'ENTRADAS' || status === 'REALIZADA'
+        ? []
+        : expectedEntries
+            .filter((e) => e.source === 'NATUREZA')
+            .map((e) => ({ id: e.id, date: e.date, title: e.title, label: e.detail || '', bank: 'Previsto', income: false, amount: e.amount }));
+    return [...real, ...expected]
+      .filter((r) => until === 'PERIODO' || r.date <= todayIso)
+      .filter((r) => !q || `${r.title} ${r.label} ${r.bank} ${r.movement?.category ?? ''}`.toLowerCase().includes(q))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [movements, expectedEntries, flow, status, query, until, todayIso]);
 
-  const income = sumBy(filtered, true);
-  const expense = sumBy(filtered, false);
+  const income = rows.filter((r) => r.income).reduce((acc, r) => acc + r.amount, 0);
+  const expense = rows.filter((r) => !r.income).reduce((acc, r) => acc + r.amount, 0);
 
   const chips = <T extends string>(value: T, set: (v: T) => void, options: [T, string][]) => (
     <div className="period-mov-chips" role="group">
@@ -98,31 +109,39 @@ export const PeriodMovementsModal: React.FC<PeriodMovementsModalProps> = ({ isOp
           <span>Saldo <strong className={income - expense < 0 ? 'text-rose' : 'text-emerald'}>{formatBRL(income - expense)}</strong></span>
         </div>
 
-        {filtered.length === 0 ? (
+        {rows.length === 0 ? (
           <p className="period-mov-empty">Nenhuma movimentação com esses filtros.</p>
         ) : (
           <ul className="period-mov-list">
-            {filtered.map((m) => {
-              const isIncome = isMovementIncome(m);
-              const sign = isIncome ? '+' : '−';
-              const skipped = skippedValue(m);
+            {rows.map((r) => {
+              const m = r.movement;
+              const sign = r.income ? '+' : '−';
+              const skipped = m ? skippedValue(m) : 0;
               return (
-                <li key={m.id} className="is-clickable" onClick={() => setEditing(m)} onKeyDown={(e) => e.key === 'Enter' && setEditing(m)} tabIndex={0} role="button" title="Ajustar valor, data ou parcelamento">
-                  <span className="period-mov-date">{shortDate(movementDate(m))}</span>
+                <li
+                  key={r.id}
+                  className={m ? 'is-clickable' : undefined}
+                  onClick={m ? () => setEditing(m) : undefined}
+                  onKeyDown={m ? (e) => e.key === 'Enter' && setEditing(m) : undefined}
+                  tabIndex={m ? 0 : undefined}
+                  role={m ? 'button' : undefined}
+                  title={m ? 'Ajustar valor, data ou parcelamento' : 'Gasto esperado pela natureza'}
+                >
+                  <span className="period-mov-date">{shortDate(r.date)}</span>
                   <span className="period-mov-main">
-                    <b>{m.title.replace(/^Despesas?:\s*/i, "")}</b>
+                    <b>{r.title.replace(/^Despesas?:\s*/i, "")}</b>
                     <small>
-                      {movementLabel(m)} · {m.bank} · {skipped > 0 ? 'Desconsiderada' : m.status === 'REALIZADA' ? 'Realizada' : 'Prevista'}
+                      {r.label} · {r.bank} · {skipped > 0 ? 'Desconsiderada' : m?.status === 'REALIZADA' ? 'Realizada' : 'Prevista'}
                     </small>
                   </span>
-                  <strong className={`period-mov-amount ${isIncome ? 'text-emerald' : 'text-rose'}`}>
+                  <strong className={`period-mov-amount ${r.income ? 'text-emerald' : 'text-rose'}`}>
                     {skipped > 0 && (
                       <s className="period-mov-struck" title="Valor que teria sido realizado">
                         {sign} {formatBRL(skipped)}
                       </s>
                     )}
                     <span>
-                      {sign} {formatBRL(movementValue(m))}
+                      {sign} {formatBRL(r.amount)}
                     </span>
                   </strong>
                 </li>
