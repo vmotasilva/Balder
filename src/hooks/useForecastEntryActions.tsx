@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { useAccountScope } from '../context/AccountScopeContext';
-import { getItemOccurrences, waiveMappingPeriod } from '../utils/mappingItemState';
-import { trackingPeriodRange } from '../utils/periodSpending';
+import { getItemOccurrences, registerMappingPayment, resolveMappingMonth } from '../utils/mappingItemState';
 import type { ForecastEntry } from '../utils/forecastWindow';
 import type { Movement } from '../types';
 import type { PaymentHow } from '../utils/paymentHow';
@@ -260,10 +259,9 @@ export function useForecastEntryActions(onNavigate: (tab: 'FATURAS' | 'NATUREZAS
       const mapping = natures.find((n) => n.id === entry.natureId)?.mappings.find((m) => m.id === entry.mappingId);
       if (!mapping) return null;
       const monthKey = entry.date.slice(0, 7);
-      const week = trackingPeriodRange('SEMANA', new Date(Number(entry.date.slice(0, 4)), Number(entry.date.slice(5, 7)) - 1, Number(entry.date.slice(8, 10))));
-      const monthStart = `${monthKey}-01`;
-      const range = { from: week.from < monthStart ? monthStart : week.from, to: week.to };
       const scope = { items: mapping.items.filter((it) => it.paymentMethod !== 'CARTAO') };
+      // Dispensa exatamente o valor da linha (o previsto da semana já abatido de pagamentos de outras semanas)
+      const waive = Math.min(entry.amount, resolveMappingMonth(scope, monthKey).pending);
       return (
         <button
           type="button"
@@ -275,7 +273,7 @@ export function useForecastEntryActions(onNavigate: (tab: 'FATURAS' | 'NATUREZAS
               confirmLabel: 'Desconsiderar',
               variant: 'warning',
               onConfirm: () =>
-                waiveMappingPeriod(scope, monthKey, range).changes.forEach((c) =>
+                registerMappingPayment(scope, monthKey, { paidAt: entry.date, amount: 0, waive }).forEach((c) =>
                   updateMappingItemState(entry.natureId!, mapping.id, c.itemId, c.patch)
                 ),
             })
