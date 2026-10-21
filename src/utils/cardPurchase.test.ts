@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ForsetiActivity, Movement } from '../types';
-import { addCardPurchaseToInvoices, invoiceAfterRemovingItems } from './cardPurchase';
+import { addCardPurchaseToInvoices, invoiceAfterRemovingItems, invoiceItemEditUpdates } from './cardPurchase';
 import { createdMovementsOf, invoiceItemsOf } from './forsetiAssistant';
 
 const invoice = (over: Partial<Movement> = {}): Movement => ({
@@ -81,5 +81,32 @@ describe('itens de fatura de uma solicitação da Forseti', () => {
 
   it('se o item já foi tirado da fatura, não há o que desfazer nela', () => {
     expect(invoiceItemsOf(activity(), [invoice({ invoiceBreakdown: [] })])).toEqual([]);
+  });
+});
+
+describe('invoiceItemEditUpdates', () => {
+  const invoice = {
+    id: 'inv1',
+    type: 'CARTAO',
+    amount: 100,
+    status: 'PREVISTA',
+    invoiceBreakdown: [
+      { id: 'a', natureId: 'n1', natureName: 'Lazer', mappingId: 'm1', mappingItemId: 'i1', description: 'Netflix (1/3)', amount: 40, isAnalyzed: true, installments: 3, currentInstallment: 1 },
+      { id: 'b', natureName: 'Não Analisada', description: 'Outro', amount: 60, isAnalyzed: false },
+    ],
+  } as unknown as import('../types').Movement;
+
+  it('renomeia e troca natureza/mapeamento mantendo valor e sufixo de parcela', () => {
+    const up = invoiceItemEditUpdates(invoice, 'a', { description: 'Disney+', natureId: 'n2', natureName: 'Streaming', mappingId: 'm2', mappingItemId: 'i2' });
+    const a = up!.invoiceBreakdown!.find((i) => i.id === 'a')!;
+    expect(a).toMatchObject({ description: 'Disney+ (1/3)', natureId: 'n2', natureName: 'Streaming', mappingId: 'm2', mappingItemId: 'i2', amount: 40, isAnalyzed: true });
+    expect(up!.invoiceBreakdown!.find((i) => i.id === 'b')).toEqual(invoice.invoiceBreakdown![1]);
+  });
+
+  it('Outros e sem natureza limpam o mapeamento', () => {
+    const others = invoiceItemEditUpdates(invoice, 'a', { description: 'x', natureId: 'OUTROS', natureName: '' })!.invoiceBreakdown![0];
+    expect(others).toMatchObject({ natureId: undefined, natureName: 'Outros', mappingId: undefined, mappingItemId: undefined, isAnalyzed: true });
+    const none = invoiceItemEditUpdates(invoice, 'a', { description: 'x', natureId: '', natureName: '' })!.invoiceBreakdown![0];
+    expect(none).toMatchObject({ natureName: 'Não Analisada', isAnalyzed: false });
   });
 });

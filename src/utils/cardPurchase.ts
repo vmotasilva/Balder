@@ -51,6 +51,43 @@ export const invoiceItemCompetenceDate = (invoice: Movement, item: InvoiceNature
 export const canRefundIof = (item: InvoiceNatureItemBreakdown): boolean =>
   !!item.iofRefund || (item.natureId || '').toUpperCase() !== 'OUTROS';
 
+export interface InvoiceItemEdit {
+  description: string;
+  /** id da natureza, 'OUTROS' ou vazio (sem natureza) */
+  natureId: string;
+  natureName: string;
+  mappingId?: string;
+  mappingItemId?: string;
+}
+
+/**
+ * Renomeia um item da fatura e ajusta sua natureza/mapeamento (valores e parcelas não mudam).
+ * Em compra parcelada o sufixo "(n/total)" da descrição é mantido.
+ */
+export const invoiceItemEditUpdates = (invoice: Movement, itemId: string, edit: InvoiceItemEdit): Partial<Movement> | null => {
+  const breakdown = invoice.invoiceBreakdown || [];
+  const target = breakdown.find((i) => i.id === itemId);
+  if (!target) return null;
+  const suffix = (target.description.match(/\s*\(\d+\/\d+\)$/) || [''])[0];
+  const clean = edit.description.trim().replace(/\s*\(\d+\/\d+\)$/, '');
+  const description = (clean || target.description.replace(/\s*\(\d+\/\d+\)$/, '')) + suffix;
+  const isOthers = edit.natureId === 'OUTROS';
+  const updated = breakdown.map((i) =>
+    i.id === itemId
+      ? {
+          ...i,
+          description,
+          natureId: edit.natureId && !isOthers ? edit.natureId : undefined,
+          natureName: isOthers ? 'Outros' : edit.natureId ? edit.natureName : 'Não Analisada',
+          mappingId: edit.natureId && !isOthers ? edit.mappingId : undefined,
+          mappingItemId: edit.natureId && !isOthers ? edit.mappingItemId : undefined,
+          isAnalyzed: !!edit.natureId,
+        }
+      : i
+  );
+  return { invoiceBreakdown: updated };
+};
+
 export const iofRefundUpdates = (invoice: Movement, itemId: string, refund: number): Partial<Movement> | null => {
   const breakdown = invoice.invoiceBreakdown || [];
   const target = breakdown.find((i) => i.id === itemId);
