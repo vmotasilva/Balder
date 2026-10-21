@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { useAccountScope } from '../context/AccountScopeContext';
-import { getItemOccurrences, registerItemPayment, registerMappingPayment, resolveMappingMonth } from '../utils/mappingItemState';
+import { getItemOccurrences, registerItemPayment, registerMappingPayment, resolveMappingItemMonth, resolveMappingMonth } from '../utils/mappingItemState';
 import type { ForecastEntry } from '../utils/forecastWindow';
 import type { Movement } from '../types';
 import type { PaymentHow } from '../utils/paymentHow';
@@ -344,6 +344,51 @@ export function useForecastEntryActions(onNavigate: (tab: 'FATURAS' | 'NATUREZAS
     );
   };
 
+  /**
+   * Desconsiderar direto, sem abrir o pop-up do item: vale para o que se resolve num toque (conta solta,
+   * mapeamento em Resumo, item com uma única cobrança em aberto no mês). Nos demais, cai em "Outra situação".
+   */
+  const renderSkip = (entry: ForecastEntry) => {
+    if (entry.source === 'NATUREZA' && !entry.mappingSummary) {
+      const found = findNatureItem(entry);
+      if (!found) return null;
+      const monthKey = entry.date.slice(0, 7);
+      const covered = resolveMappingItemMonth(found.item, monthKey).coveredDates;
+      const open = getItemOccurrences(found.item, monthKey).filter((o) => !covered.has(o.date));
+      if (open.length !== 1) return renderSecondary(entry);
+      return (
+        <button
+          type="button"
+          className="btn btn-secondary btn-xs"
+          onClick={() =>
+            confirmAction({
+              title: 'Desconsiderar previsto',
+              message: `${entry.title} deixa de contar no previsto deste mês. Nenhum pagamento é lançado.`,
+              confirmLabel: 'Desconsiderar',
+              variant: 'warning',
+              onConfirm: () =>
+                updateMappingItemState(
+                  found.nat.id,
+                  found.mapping.id,
+                  found.item.id,
+                  registerItemPayment(found.item, monthKey, {
+                    paidAt: isoToday(),
+                    amount: 0,
+                    coveredDates: [open[0].date],
+                    reason: 'Desconsiderado',
+                    action: 'QUITADO',
+                  })
+                ),
+            })
+          }
+        >
+          Desconsiderar
+        </button>
+      );
+    }
+    return renderSecondary(entry);
+  };
+
   const modals = (
     <>
       <MappingItemStateModal target={itemState} onClose={() => setItemState(null)} />
@@ -353,5 +398,5 @@ export function useForecastEntryActions(onNavigate: (tab: 'FATURAS' | 'NATUREZAS
     </>
   );
 
-  return { renderAction, renderSecondary, modals };
+  return { renderAction, renderSecondary, renderSkip, modals };
 }
