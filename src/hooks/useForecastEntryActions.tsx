@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
 import { useAccountScope } from '../context/AccountScopeContext';
-import { getItemOccurrences, registerMappingPayment, resolveMappingMonth } from '../utils/mappingItemState';
+import { getItemOccurrences, registerItemPayment, registerMappingPayment, resolveMappingMonth } from '../utils/mappingItemState';
 import type { ForecastEntry } from '../utils/forecastWindow';
 import type { Movement } from '../types';
 import type { PaymentHow } from '../utils/paymentHow';
@@ -20,6 +20,11 @@ import { RealizationConfirmModal, realizedMovementUpdates, type RealizationTarge
  * Compartilhado entre o Início e o pop-up de contas em aberto da Central.
  * `onNavigate` é o plano B quando o lançamento não é encontrado para agir aqui mesmo.
  */
+const isoToday = () => {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+};
+
 export function useForecastEntryActions(onNavigate: (tab: 'FATURAS' | 'NATUREZAS') => void) {
   const { user } = useAuth();
   const { viewing } = useAccountScope();
@@ -166,6 +171,19 @@ export function useForecastEntryActions(onNavigate: (tab: 'FATURAS' | 'NATUREZAS
                 expectedAmount: entry.amount,
                 dueDate: occurrences[0].date,
                 askHow: true,
+                onDismiss: () =>
+                  updateMappingItemState(
+                    found.nat.id,
+                    found.mapping.id,
+                    item.id,
+                    registerItemPayment(item, monthKey, {
+                      paidAt: isoToday(),
+                      amount: 0,
+                      coveredDates: [occurrences[0].date],
+                      reason: 'Desconsiderado',
+                      action: 'QUITADO',
+                    })
+                  ),
                 onConfirm: (amount, paidAt, how) =>
                   how
                     ? settleWithHow({
@@ -236,6 +254,7 @@ export function useForecastEntryActions(onNavigate: (tab: 'FATURAS' | 'NATUREZAS
                 expectedAmount: mov.amount,
                 dueDate: mov.dueDate,
                 askHow: entry.kind !== 'ENTRADA',
+                onDismiss: () => updateMovement(mov.id, { status: 'CANCELADA' }),
                 onConfirm: (amount, date, how) =>
                   how
                     ? settleWithHow({ how, title: mov.title, amount, date, dueDate: mov.dueDate, category: mov.category, existing: mov })
