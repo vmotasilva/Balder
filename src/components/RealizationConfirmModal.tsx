@@ -18,6 +18,8 @@ export interface RealizationTarget {
   /** Pagamento: pergunta também como foi pago (dinheiro, débito ou crédito); `how` vem vazio se a pessoa não informar. */
   askHow?: boolean;
   onConfirm: (amount: number, date: string, how?: PaymentHow) => void;
+  /** Já foi pago por fora (ou não vale mais): tira do em aberto sem lançar pagamento nem mexer no saldo. */
+  onDismiss?: () => void;
 }
 
 interface RealizationConfirmModalProps {
@@ -221,6 +223,22 @@ const RealizationConfirmForm: React.FC<{ target: RealizationTarget; onClose: () 
           </p>
         )}
         {futureDate && <p className="mapping-pay-feedback text-rose">A data não pode ser depois de hoje.</p>}
+
+        {target.onDismiss && (
+          <p className="mapping-pay-feedback">
+            Já estava pago e o saldo já reflete isso?{' '}
+            <button
+              type="button"
+              className="realization-chip"
+              onClick={() => {
+                target.onDismiss?.();
+                onClose();
+              }}
+            >
+              Desconsiderar, já foi pago
+            </button>
+          </p>
+        )}
 
         <div className="mapping-pay-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>
