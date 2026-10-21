@@ -51,6 +51,8 @@ import {
   mappingItemBaseValue,
   mappingItemMonthValue,
   isExcludedState,
+  needsOthersConfirmation,
+  confirmOthersPayment,
   resolveMappingItemMonth,
   resolveMappingItemState,
 } from '../utils/mappingItemState';
@@ -153,6 +155,7 @@ export interface CellBreakdownSubItem {
   paidBy?: string;
   skipped?: boolean;      // não vai acontecer nesta competência
   skipReason?: string;
+  needsOthersConfirmation?: boolean; // pago por terceiros vindo de regra recorrente: confirmar o mês
   baseValue?: number; // valor planejado, exibido riscado quando pago por terceiros
   occurrenceDate?: string; // data da ocorrência (YYYY-MM-DD) no agrupamento por data
   isMappingSummary?: boolean; // linha-resumo de um mapeamento (nome + valor total)
@@ -322,6 +325,7 @@ function natureItemStateFields(ni: NatureItemEntry, monthKey: string): Partial<C
     paidBy: state.paidBy,
     skipped: !!state.skipped,
     skipReason: state.skipReason,
+    needsOthersConfirmation: needsOthersConfirmation(ni.item, monthKey),
     baseValue: summary.base,
     paidAmount: round2(sources.reduce((acc, s) => acc + (isExcludedState(s.state) ? 0 : s.paid), 0)),
     pendingAmount: round2(sources.reduce((acc, s) => acc + (isExcludedState(s.state) ? 0 : s.pending), 0)),
@@ -1064,6 +1068,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
     banks,
     cards,
     natureDetailModes,
+    updateMappingItemState,
   } = useFinancial();
 
   // Mapeamentos exibidos só pelo título com o total previsto: escolha do mapeamento ou, sem ela, da natureza
@@ -3028,6 +3033,34 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
                   <Check size={10} /> Realizado
                 </span>
               ) : null)}
+
+            {/* O flag "pago por terceiros" é recorrente, mas cada mês pede a confirmação da pessoa */}
+            {isNatureItem && sub.paidByOthers && !sub.skipped && sub.needsOthersConfirmation && (
+              <span className="flex items-center gap-1.5 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                <span className="text-[11px] text-muted">{sub.paidBy || 'Outra pessoa'} pagou este mês?</span>
+                {[
+                  { label: 'Sim', paidByOthers: true },
+                  { label: 'Não, eu paguei', paidByOthers: false },
+                ].map(({ label, paidByOthers }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    className="btn btn-outline btn-xs"
+                    onClick={() => {
+                      const ref = sub.natureItemRef;
+                      const target = ref
+                        ? natures.find((n) => n.id === ref.natureId)?.mappings.find((m) => m.id === ref.mappingId)?.items.find((it) => it.id === ref.itemId)
+                        : undefined;
+                      if (ref && target && currentRow) {
+                        updateMappingItemState(ref.natureId, ref.mappingId, ref.itemId, confirmOthersPayment(target, currentRow.monthKey, paidByOthers));
+                      }
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </span>
+            )}
 
             {sub.isInvoiceItem && (
               <span

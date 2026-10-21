@@ -2,7 +2,14 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { parseDecimal, parseMoney } from '../utils/parseDecimal';
 import { useFinancial } from '../context/FinancialContext';
 import { userNatures } from '../utils/baseNatures';
-import { isExcludedState, resolveMappingItemMonth, resolveMappingMonth } from '../utils/mappingItemState';
+import {
+  confirmOthersPayment,
+  isExcludedState,
+  needsOthersConfirmation,
+  resolveMappingExcluded,
+  resolveMappingItemMonth,
+  resolveMappingMonth,
+} from '../utils/mappingItemState';
 import { getPendingFixedBills, type PendingFixedBill } from '../utils/fixedBillsAlert';
 import type { Movement, MovementType, FixedExpenseMapping, NatureDetailMode } from '../types';
 import {
@@ -37,6 +44,7 @@ import { NatureModal } from '../components/NatureModal';
 import { MappingModal } from '../components/MappingModal';
 import { InfoButton } from '../components/InfoButton';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
+import { MappingItemStateModal, type MappingItemStateTarget } from '../components/MappingItemStateModal';
 import { RealizationConfirmModal, type RealizationTarget } from '../components/RealizationConfirmModal';
 import { MappingDirectPlanned } from '../components/MappingDirectPlanned';
 import { MappingPaymentModal, type MappingPaymentTarget } from '../components/MappingPaymentModal';
@@ -61,6 +69,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
     deleteMapping,
     addItemToMapping,
     updateMappingItem,
+    updateMappingItemState,
     deleteMappingItem,
     moveMappingItem,
     moveMappingOrder,
@@ -74,6 +83,8 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
     loadSuggestedMappingsForNature,
   } = useFinancial();
   const natures = useMemo(() => userNatures(allNatures), [allNatures]);
+  // Situação do item no mês atual (quem paga / não vai acontecer), aberta a partir do selo "fora da projeção"
+  const [itemStateTarget, setItemStateTarget] = useState<MappingItemStateTarget | null>(null);
 
   // Real do mês de pagamentos ligados direto ao mapeamento (sem item): mapeamentos sem itens também têm Real
   const linkedMappingReal = (mappingId: string, monthKey: string) =>
@@ -1580,17 +1591,29 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                 },
                                 { real: linkedMappingReal(mapping.id, monthKey), planned: 0 }
                               );
+                              const outside = resolveMappingExcluded(mapping.items || [], monthKey);
                               return (
-                                <span
-                                  className="badge badge-cyan mapping-rp-badge"
-                                  title={`${monthLabel} • Real: já pago • Previsto: a pagar • ${teto}`}
-                                >
-                                  <span className="mapping-rp-label">Real</span>
-                                  {brl(split.real)}
-                                  <span className="rp-sep" aria-hidden="true">|</span>
-                                  <span className="mapping-rp-label">Previsto</span>
-                                  {brl(split.planned)}
-                                </span>
+                                <>
+                                  <span
+                                    className="badge badge-cyan mapping-rp-badge"
+                                    title={`${monthLabel} • Real: já pago • Previsto: a pagar • ${teto}`}
+                                  >
+                                    <span className="mapping-rp-label">Real</span>
+                                    {brl(split.real)}
+                                    <span className="rp-sep" aria-hidden="true">|</span>
+                                    <span className="mapping-rp-label">Previsto</span>
+                                    {brl(split.planned)}
+                                  </span>
+                                  {outside.count > 0 && (
+                                    <span
+                                      className="badge badge-amber mapping-rp-badge"
+                                      title={`${monthLabel} • ${outside.count} ${outside.count === 1 ? 'item' : 'itens'} com valor, mas fora da projeção (pago por outra pessoa ou sem ocorrência no mês)`}
+                                    >
+                                      <span className="mapping-rp-label">Fora da projeção</span>
+                                      {brl(outside.amount)}
+                                    </span>
+                                  )}
+                                </>
                               );
                             })();
                     const modeToggle = (iconOnly = false) => (() => {
@@ -1630,7 +1653,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                         !mapping.applicableMonths ||
                         mapping.applicableMonths.length === 0 ||
                         mapping.applicableMonths.includes(now.getMonth() + 1);
-                      if (!applies) return { applies, real: 0, planned: mappingTotal };
+                      if (!applies) return { applies, real: 0, planned: mappingTotal, outside: 0, toConfirm: 0 };
                       const split = (mapping.items || []).reduce(
                         (acc, it) => {
                           const st = resolveMappingItemMonth(it, monthKey);
@@ -1639,7 +1662,8 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                         },
                         { real: linkedMappingReal(mapping.id, monthKey), planned: 0 }
                       );
-                      return { applies, ...split };
+                      const outside = resolveMappingExcluded(mapping.items || [], monthKey);
+                      return { applies, ...split, outside: outside.amount, toConfirm: outside.toConfirm };
                     })();
                     const brlMobile = (v: number) =>
                       v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2 });
@@ -1906,6 +1930,12 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                               <span className="mmh-stat-label">Previsto</span>
                               <strong className="mmh-stat-value text-amber">{brlMobile(mobileStats.planned)}</strong>
                             </div>
+                            {mobileStats.outside > 0.005 && (
+                              <div className="mmh-stat mmh-stat-wide" title="Itens com valor que não entram na projeção do mês">
+                                <span className="mmh-stat-label">Fora da projeção</span>
+                                <strong className="mmh-stat-value text-muted">{brlMobile(mobileStats.outside)}</strong>
+                              </div>
+                            )}
                           </div>
 
                           <button
@@ -2295,6 +2325,43 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                                             )}
                                           </button>
                                         </div>
+
+                                        {(() => {
+                                          const now = new Date();
+                                          const itemMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+                                          const state = resolveMappingItemMonth(item, itemMonthKey).state;
+                                          if (!isExcludedState(state)) return null;
+                                          const toConfirm = needsOthersConfirmation(item, itemMonthKey);
+                                          const who = state.paidBy || 'outra pessoa';
+                                          const openState = () =>
+                                            setItemStateTarget({ natureId: selectedNature.id, mappingId: mapping.id, itemId: item.id, monthKey: itemMonthKey });
+                                          const answer = (paidByOthers: boolean) =>
+                                            updateMappingItemState(selectedNature.id, mapping.id, item.id, confirmOthersPayment(item, itemMonthKey, paidByOthers));
+                                          return (
+                                            <div className="item-outside-flag" style={{ paddingLeft: '24px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px' }}>
+                                              <button
+                                                type="button"
+                                                className="badge badge-amber"
+                                                style={{ fontSize: '11px', cursor: 'pointer' }}
+                                                title="Tem valor, mas não entra na projeção deste mês. Toque para alterar"
+                                                onClick={openState}
+                                              >
+                                                {state.skipped ? 'Fora da projeção: não vai acontecer' : `Fora da projeção: pago por ${who}`}
+                                              </button>
+                                              {toConfirm && (
+                                                <>
+                                                  <span className="text-xs text-muted">{who} pagou este mês?</span>
+                                                  <button type="button" className="btn btn-outline btn-xs" onClick={() => answer(true)}>
+                                                    Sim, confirmar
+                                                  </button>
+                                                  <button type="button" className="btn btn-outline btn-xs" onClick={() => answer(false)}>
+                                                    Não, eu paguei
+                                                  </button>
+                                                </>
+                                              )}
+                                            </div>
+                                          );
+                                        })()}
 
                                         {item.keywords && item.keywords.length > 0 && (
                                           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px', paddingLeft: '24px', marginTop: '4px' }}>
@@ -3235,6 +3302,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
           </div>
         </Modal>
       )}
+      <MappingItemStateModal target={itemStateTarget} onClose={() => setItemStateTarget(null)} />
       <ConfirmDialog {...confirmDialogProps} />
       <RealizationConfirmModal target={realization} onClose={() => setRealization(null)} />
       <MappingPaymentModal target={mappingPayTarget} onClose={() => setMappingPayTarget(null)} />
