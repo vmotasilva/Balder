@@ -158,11 +158,14 @@ export function buildForecastWindow(params: {
 
   // Itens comprados no cartão em faturas ainda abertas, por item da natureza. Quando a fatura é paga, a
   // reconciliação registra o pagamento no item; até lá, a compra no cartão já conta como resolvida.
+  // Compra ligada só ao mapeamento (sem o item) abate o que estiver em aberto nos itens dele
   const cardCredit = new Map<string, number>();
+  const mappingCardCredit = new Map<string, number>();
   movements.forEach((inv) => {
     if (inv.type !== 'CARTAO' || inv.status !== 'PREVISTA') return;
     (inv.invoiceBreakdown || []).forEach((ib) => {
       if (ib.mappingItemId) cardCredit.set(ib.mappingItemId, (cardCredit.get(ib.mappingItemId) || 0) + ib.amount);
+      else if (ib.mappingId) mappingCardCredit.set(ib.mappingId, (mappingCardCredit.get(ib.mappingId) || 0) + ib.amount);
     });
   });
 
@@ -173,6 +176,7 @@ export function buildForecastWindow(params: {
       const mappingBuckets = new Map<string, { amount: number; count: number; first: string; overdue: boolean }>();
       const mappingItemIds = new Set<string>();
       let mappingSettled = 0;
+      let mappingCreditLeft = mappingCardCredit.get(mapping.id) || 0;
 
       mapping.items.forEach((item) => {
         if (item.paymentMethod === 'CARTAO') return;
@@ -234,7 +238,11 @@ export function buildForecastWindow(params: {
           if (credit > 0 && buckets.size > 0) mappingSettled += credit;
           return;
         }
-        let left = credit;
+        // Crédito do mapeamento (sem item): vale pelo que este item ainda tem em aberto
+        const itemOpen = [...buckets.values()].reduce((acc, b) => acc + b.amount, 0);
+        const fromMapping = Math.min(mappingCreditLeft, Math.max(0, itemOpen - credit));
+        mappingCreditLeft -= fromMapping;
+        let left = credit + fromMapping;
         [...buckets.values()]
           .sort((a, b) => a.first.localeCompare(b.first))
           .forEach((b) => {
@@ -259,6 +267,8 @@ export function buildForecastWindow(params: {
           });
         });
       });
+
+      if (summarized && mappingBuckets.size > 0) mappingSettled += mappingCreditLeft;
 
       [...mappingBuckets.keys()].sort().forEach((key) => {
         if (mappingSettled <= 0.005) return;
