@@ -20,10 +20,12 @@ import {
   Copy,
   ArrowLeft,
   MoreVertical,
+  Pencil,
 } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import type { Movement, InvoiceNatureItemBreakdown } from '../types';
 import { MovementDetailModal } from '../components/MovementDetailModal';
+import { CardPurchaseModal } from '../components/CardPurchaseModal';
 import { NewInvoiceModal } from '../components/NewInvoiceModal';
 import { InvoiceImportModal } from '../components/InvoiceImportModal';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
@@ -91,6 +93,8 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
   // Abate de IOF: item da fatura em edição e o valor digitado
   const [invoiceMenuId, setInvoiceMenuId] = useState<string | null>(null);
   const [iofEdit, setIofEdit] = useState<{ invoiceId: string; itemId: string; value: string } | null>(null);
+  // Compra no cartão aberta no pop-up de visualização e edição
+  const [purchase, setPurchase] = useState<{ invoiceId: string; itemId: string } | null>(null);
   const [inlineItemInstallments, setInlineItemInstallments] = useState<Record<string, number>>({});
 
   // Obter todos os movimentos de Cartão de Crédito
@@ -1486,9 +1490,9 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                                   </td>
                                   <td
                                     className="inv-c-desc"
-                                    style={{ fontWeight: 600, color: 'var(--text-primary)', cursor: canRefundIof(item) ? 'pointer' : undefined }}
-                                    onClick={() => canRefundIof(item) && setIofEdit({ invoiceId: m.id, itemId: item.id, value: item.iofRefund ? String(item.iofRefund).replace('.', ',') : '' })}
-                                    title={canRefundIof(item) ? 'Clique para abater IOF neste item' : undefined}
+                                    style={{ fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer' }}
+                                    onClick={() => setPurchase({ invoiceId: m.id, itemId: item.id })}
+                                    title="Ver e editar a compra"
                                   >
                                     {item.description}
                                     {item.iofRefund ? (
@@ -1527,6 +1531,14 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                                     {itemPct.toFixed(1)}%
                                   </td>
                                   <td className="inv-c-act" style={{ textAlign: 'center' }}>
+                                    <button
+                                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px', borderRadius: '6px' }}
+                                      onClick={() => setPurchase({ invoiceId: m.id, itemId: item.id })}
+                                      title="Ver e editar a compra"
+                                      aria-label="Ver e editar a compra"
+                                    >
+                                      <Pencil size={14} />
+                                    </button>
                                     {canRefundIof(item) && (
                                       <button
                                         style={{
@@ -1751,6 +1763,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
           currentInvoiceAmount={importingInvoice.actualAmount ?? importingInvoice.amount}
         />
       )}
+      <CardPurchaseModal target={purchase} onClose={() => setPurchase(null)} />
       <ConfirmDialog {...confirmDialogProps} />
       <RealizationConfirmModal target={realization} onClose={() => setRealization(null)} />
     </div>
