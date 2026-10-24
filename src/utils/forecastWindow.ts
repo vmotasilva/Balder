@@ -1,5 +1,6 @@
 import type { ExpenseNature, Movement } from '../types';
 import { getItemOccurrences, isExcludedState, resolveMappingItemMonth } from './mappingItemState';
+import { findMappingSpendCandidates, spendAmount, spendDate } from './mappingSpendCandidates';
 import { isSalaryMovement } from './projectionMath';
 
 export type ForecastEntrySource =
@@ -280,6 +281,33 @@ export function buildForecastWindow(params: {
       });
 
       if (summarized && mappingBuckets.size > 0) mappingSettled += mappingCreditLeft;
+
+      // Gasto já lançado na semana (antes ou depois do dia do vencimento) baixa a semana; o que sobra abate as seguintes
+      if (summarized && mappingBuckets.size > 0) {
+        const keys = [...mappingBuckets.keys()].sort();
+        const weekStart = new Date(`${keys[0]}T00:00:00`);
+        weekStart.setDate(weekStart.getDate() - 6);
+        const spendByWeek = new Map<string, number>();
+        findMappingSpendCandidates({
+          movements,
+          natures,
+          natureId: nat.id,
+          mappingId: mapping.id,
+          range: { from: isoOf(weekStart), to: keys[keys.length - 1] },
+          onlyMatching: true,
+        }).forEach((m) => {
+          const week = weekEndIso(spendDate(m));
+          spendByWeek.set(week, (spendByWeek.get(week) || 0) + spendAmount(m));
+        });
+        let carry = 0;
+        keys.forEach((key) => {
+          const b = mappingBuckets.get(key)!;
+          const available = (spendByWeek.get(key) || 0) + carry;
+          const drained = Math.min(b.amount, available);
+          b.amount -= drained;
+          carry = available - drained;
+        });
+      }
 
       [...mappingBuckets.keys()].sort().forEach((key) => {
         if (mappingSettled <= 0.005) return;
