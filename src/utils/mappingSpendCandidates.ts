@@ -25,8 +25,10 @@ export function findMappingSpendCandidates(params: {
   range: { from: string; to: string };
   /** Data prevista da compra: desempata os gastos pela proximidade dela (o mais perto primeiro). */
   near?: string;
+  /** Só os que citam o mapeamento (nome ou palavras-chave) ou já são dele: seguro para baixar vencimentos sozinho. */
+  onlyMatching?: boolean;
 }): Movement[] {
-  const { movements, natures, natureId, mappingId, range, near } = params;
+  const { movements, natures, natureId, mappingId, range, near, onlyMatching } = params;
   const mapping = natures.find((n) => n.id === natureId)?.mappings.find((m) => m.id === mappingId);
   if (!mapping) return [];
 
@@ -63,6 +65,7 @@ export function findMappingSpendCandidates(params: {
       if (linkedMovementIds.has(m.id)) return false;
       if (m.mappingItemId && itemIds.has(m.mappingItemId)) return false;
       if (m.mappingId && m.mappingId !== mappingId) return false;
+      if (onlyMatching && m.mappingId !== mappingId && score(m) === 0) return false;
       return resolveMovementNatureId(m, natures) === natureId;
     })
     .sort((a, b) => score(b) - score(a) || distance(a) - distance(b) || spendDate(a).localeCompare(spendDate(b)));
