@@ -110,3 +110,38 @@ describe('invoiceItemEditUpdates', () => {
     expect(none).toMatchObject({ natureName: 'Não Analisada', isAnalyzed: false });
   });
 });
+
+describe('invoiceItemEditUpdates: valores e data', () => {
+  const base = (status: 'PREVISTA' | 'REALIZADA') =>
+    ({
+      id: 'inv1',
+      type: 'CARTAO',
+      amount: 100,
+      status,
+      invoiceBreakdown: [
+        { id: 'a', natureId: 'n1', natureName: 'Lazer', description: 'Prime', amount: 40, isAnalyzed: true, purchaseDate: '2026-10-24' },
+        { id: 'b', natureId: 'OUTROS', natureName: 'Outros', description: 'Resto', amount: 60, isAnalyzed: true },
+      ],
+    }) as unknown as import('../types').Movement;
+  const edit = { description: 'Prime', natureId: 'n1', natureName: 'Lazer' };
+
+  it('corrigir o valor da compra muda o total da fatura em aberto pela diferença', () => {
+    const up = invoiceItemEditUpdates(base('PREVISTA'), 'a', { ...edit, amount: 50, purchaseDate: '2026-10-21' })!;
+    expect(up.amount).toBe(110);
+    expect(up.unanalyzedAmount).toBe(0);
+    expect(up.invoiceBreakdown![0]).toMatchObject({ amount: 50, purchaseDate: '2026-10-21' });
+  });
+
+  it('fatura já paga não muda de valor: a diferença fica sem detalhar', () => {
+    const up = invoiceItemEditUpdates(base('REALIZADA'), 'a', { ...edit, amount: 30 })!;
+    expect(up.amount).toBe(100);
+    expect(up.unanalyzedAmount).toBe(10);
+    expect(up.category).toBe('Não Analisada');
+  });
+
+  it('sem valor informado, o total e a data não mudam', () => {
+    const up = invoiceItemEditUpdates(base('PREVISTA'), 'a', edit)!;
+    expect(up.amount).toBeUndefined();
+    expect(up.invoiceBreakdown![0]).toMatchObject({ amount: 40, purchaseDate: '2026-10-24' });
+  });
+});

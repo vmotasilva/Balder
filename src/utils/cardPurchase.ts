@@ -58,16 +58,24 @@ export interface InvoiceItemEdit {
   natureName: string;
   mappingId?: string;
   mappingItemId?: string;
+  /** Data da compra (AAAA-MM-DD); omitida, não muda. */
+  purchaseDate?: string;
+  /** Valor do item nesta fatura; omitido, não muda. Fatura em aberto sobe/desce pela diferença. */
+  amount?: number;
+  /** Valor final da compra (parcelada); omitido, não muda. */
+  finalAmount?: number;
 }
 
 /**
- * Renomeia um item da fatura e ajusta sua natureza/mapeamento (valores e parcelas não mudam).
- * Em compra parcelada o sufixo "(n/total)" da descrição é mantido.
+ * Edita um item da fatura: nome, natureza/mapeamento, data da compra e valores.
+ * Em compra parcelada o sufixo "(n/total)" da descrição é mantido. Mudar o valor do item muda o total da fatura em
+ * aberto pela diferença; fatura já paga não muda de valor e a diferença fica em "Não Analisada".
  */
 export const invoiceItemEditUpdates = (invoice: Movement, itemId: string, edit: InvoiceItemEdit): Partial<Movement> | null => {
   const breakdown = invoice.invoiceBreakdown || [];
   const target = breakdown.find((i) => i.id === itemId);
   if (!target) return null;
+  const round = (v: number) => Math.round(v * 100) / 100;
   const suffix = (target.description.match(/\s*\(\d+\/\d+\)$/) || [''])[0];
   const clean = edit.description.trim().replace(/\s*\(\d+\/\d+\)$/, '');
   const description = (clean || target.description.replace(/\s*\(\d+\/\d+\)$/, '')) + suffix;
@@ -82,10 +90,22 @@ export const invoiceItemEditUpdates = (invoice: Movement, itemId: string, edit: 
           mappingId: edit.natureId && !isOthers ? edit.mappingId : undefined,
           mappingItemId: edit.natureId && !isOthers ? edit.mappingItemId : undefined,
           isAnalyzed: !!edit.natureId,
+          purchaseDate: edit.purchaseDate || i.purchaseDate,
+          amount: edit.amount !== undefined ? round(edit.amount) : i.amount,
+          finalAmount: edit.finalAmount !== undefined ? round(edit.finalAmount) : i.finalAmount,
         }
       : i
   );
-  return { invoiceBreakdown: updated };
+  const delta = edit.amount !== undefined ? round(edit.amount - target.amount) : 0;
+  if (delta === 0) return { invoiceBreakdown: updated };
+  const amount = invoice.status === 'REALIZADA' ? invoice.amount : Math.max(0, round(invoice.amount + delta));
+  const unanalyzed = Math.max(0, round(amount - updated.reduce((acc, i) => acc + i.amount, 0)));
+  return {
+    amount,
+    invoiceBreakdown: updated,
+    unanalyzedAmount: unanalyzed,
+    category: unanalyzed > 0.01 ? 'Não Analisada' : 'Fatura de Cartão',
+  };
 };
 
 export const iofRefundUpdates = (invoice: Movement, itemId: string, refund: number): Partial<Movement> | null => {

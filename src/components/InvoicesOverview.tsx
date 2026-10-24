@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, CreditCard, Pencil } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import type { PeriodRange } from '../utils/periodSpending';
-import { canRefundIof, iofRefundUpdates, invoiceItemEditUpdates } from '../utils/cardPurchase';
-import { userNatures } from '../utils/baseNatures';
+import { canRefundIof, iofRefundUpdates } from '../utils/cardPurchase';
+import { CardPurchaseModal } from './CardPurchaseModal';
 import { parseMoney } from '../utils/parseDecimal';
 
 const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -20,9 +20,9 @@ interface InvoicesOverviewProps {
  * última vencida se não houver).
  */
 export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range }) => {
-  const { movements, updateMovement, natures } = useFinancial();
-  // Edição do item da fatura: nome, natureza e mapeamento (com o item do mapeamento, quando houver)
-  const [edit, setEdit] = useState<{ itemId: string; description: string; natureId: string; mappingItem: string } | null>(null);
+  const { movements, updateMovement } = useFinancial();
+  // Compra aberta no pop-up de visualização e edição
+  const [purchase, setPurchase] = useState<{ invoiceId: string; itemId: string } | null>(null);
   // Abate de IOF em edição: item da fatura e valor digitado
   const [iofEdit, setIofEdit] = useState<{ itemId: string; value: string } | null>(null);
   const open = useMemo(
@@ -53,7 +53,7 @@ export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range }) => 
   useEffect(() => {
     setIndex(null);
     setIofEdit(null);
-    setEdit(null);
+    setPurchase(null);
   }, [activeBank, range.to]);
 
   if (invoices.length === 0) {
@@ -148,16 +148,9 @@ export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range }) => 
                   <button
                     type="button"
                     aria-label="Editar item"
-                    title="Renomear e ajustar natureza e mapeamento"
+                    title="Ver e editar a compra"
                     style={{ marginLeft: '6px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
-                    onClick={() =>
-                      setEdit({
-                        itemId: it.id,
-                        description: it.description.replace(/\s*\(\d+\/\d+\)$/, ''),
-                        natureId: it.natureId || (it.natureName === 'Outros' ? 'OUTROS' : ''),
-                        mappingItem: it.mappingId && it.mappingItemId ? `${it.mappingId}:::${it.mappingItemId}` : '',
-                      })
-                    }
+                    onClick={() => setPurchase({ invoiceId: m.id, itemId: it.id })}
                   >
                     <Pencil size={13} />
                   </button>
@@ -192,77 +185,6 @@ export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range }) => 
                 ) : null}
               </div>
             </div>
-            {edit?.itemId === it.id && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '4px 4px 8px' }}>
-                <input
-                  className="form-input"
-                  aria-label="Nome do item"
-                  value={edit.description}
-                  onChange={(e) => setEdit({ ...edit, description: e.target.value })}
-                />
-                <select
-                  className="form-input"
-                  aria-label="Natureza"
-                  value={edit.natureId}
-                  onChange={(e) => setEdit({ ...edit, natureId: e.target.value, mappingItem: '' })}
-                >
-                  <option value="">Sem natureza</option>
-                  {userNatures(natures).map((n) => (
-                    <option key={n.id} value={n.id}>
-                      {n.icon || '🏷️'} {n.name}
-                    </option>
-                  ))}
-                  <option value="OUTROS">📦 Outros</option>
-                </select>
-                {(() => {
-                  const mappings = edit.natureId && edit.natureId !== 'OUTROS' ? natures.find((n) => n.id === edit.natureId)?.mappings || [] : [];
-                  return (
-                    <select
-                      className="form-input"
-                      aria-label="Mapeamento"
-                      value={edit.mappingItem}
-                      onChange={(e) => setEdit({ ...edit, mappingItem: e.target.value })}
-                      disabled={mappings.length === 0}
-                    >
-                      <option value="">{mappings.length > 0 ? 'Mapeamento / item (opcional)' : 'Sem mapeamento'}</option>
-                      {mappings.map((mp) => (
-                        <optgroup key={mp.id} label={mp.name}>
-                          {mp.items.map((mi) => (
-                            <option key={mi.id} value={`${mp.id}:::${mi.id}`}>
-                              {mi.description}
-                            </option>
-                          ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                  );
-                })()}
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={() => {
-                      const nat = natures.find((n) => n.id === edit.natureId);
-                      const [mappingId, mappingItemId] = edit.mappingItem ? edit.mappingItem.split(':::') : [undefined, undefined];
-                      const updates = invoiceItemEditUpdates(m, it.id, {
-                        description: edit.description,
-                        natureId: edit.natureId,
-                        natureName: nat?.name || '',
-                        mappingId,
-                        mappingItemId,
-                      });
-                      if (updates) updateMovement(m.id, updates);
-                      setEdit(null);
-                    }}
-                  >
-                    Salvar
-                  </button>
-                  <button type="button" className="btn btn-secondary" onClick={() => setEdit(null)}>
-                    Cancelar
-                  </button>
-                </div>
-              </div>
-            )}
             {iofEdit?.itemId === it.id && (
               <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', padding: '2px 4px 6px' }}>
                 <span className="text-xs text-muted">IOF a abater (R$):</span>
@@ -303,6 +225,7 @@ export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range }) => 
         )}
       </div>
 
+      <CardPurchaseModal target={purchase} onClose={() => setPurchase(null)} />
     </div>
   );
 };
