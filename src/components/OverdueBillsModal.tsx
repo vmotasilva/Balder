@@ -49,9 +49,10 @@ export const OverdueBillsModal: React.FC<OverdueBillsModalProps> = ({ isOpen, on
     });
     if (found.length === 0) return null;
     const total = found.reduce((acc, mv) => acc + spendAmount(mv), 0);
+    const mappingName = natures.find((n) => n.id === e.natureId)?.mappings.find((mp) => mp.id === e.mappingId)?.name || e.title;
     return (
       <p className="open-bill-hint">
-        Já há {found.length === 1 ? 'um gasto' : `${found.length} gastos`} de {e.title} neste mês ({formatBRL(total)}) sem ligação com o
+        Já há {found.length === 1 ? 'um gasto' : `${found.length} gastos`} de {mappingName} neste mês ({formatBRL(total)}) sem ligação com o
         previsto. Se algum for esta compra, toque em Lançar e escolha "Já foi este".
       </p>
     );

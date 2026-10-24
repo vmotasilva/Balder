@@ -80,6 +80,17 @@ const weekEndIso = (iso: string) => {
 };
 const isoOf = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+/** "12 a 18/10" (ou "26/10 a 01/11" quando a semana cruza o mês) para a semana que termina no domingo informado. */
+const weekRangeLabel = (endIso: string) => {
+  const end = new Date(`${endIso}T00:00:00`);
+  const start = new Date(end);
+  start.setDate(end.getDate() - 6);
+  const dd = (d: Date) => String(d.getDate()).padStart(2, '0');
+  const mm = (d: Date) => String(d.getMonth() + 1).padStart(2, '0');
+  return start.getMonth() === end.getMonth()
+    ? `${dd(start)} a ${dd(end)}/${mm(end)}`
+    : `${dd(start)}/${mm(start)} a ${dd(end)}/${mm(end)}`;
+};
 
 /**
  * Projeção de caixa de hoje até o fim de um período, com a mesma lógica da grade mensal:
@@ -283,7 +294,7 @@ export function buildForecastWindow(params: {
         entries.push({
           id: `natmap_${mapping.id}_${key}`,
           date: b.first,
-          title: mapping.name,
+          title: `${mapping.name} · semana ${weekRangeLabel(key)}`,
           detail: `${nat.name} · ${mappingItemIds.size} ${mappingItemIds.size === 1 ? 'item' : 'itens'} no resumo`,
           kind: 'SAIDA',
           source: 'NATUREZA',
