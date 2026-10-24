@@ -225,3 +225,197 @@ export function invoiceAfterRemovingItems(invoice: Movement, itemIds: string[], 
     category: unanalyzed > 0.01 ? 'Não Analisada' : 'Fatura de Cartão',
   };
 }
+
+const roundMoney = (v: number) => Math.round(v * 100) / 100;
+const stripInstallmentSuffix = (text: string) => text.replace(/\s*\(\d+\/\d+\)$/, '');
+
+export interface PurchasePart {
+  invoice: Movement;
+  item: InvoiceNatureItemBreakdown;
+}
+
+/**
+ * Todas as parcelas de uma compra no cartão (a do item informado e as das outras faturas). A compra criada pelo
+ * Balder leva o mesmo prefixo nos ids das parcelas; sem ele, parcelas do mesmo banco com mesma descrição, mesmo
+ * número de parcelas e mesmo valor final são tratadas como a mesma compra.
+ */
+export function findPurchaseParts(invoices: Movement[], invoiceId: string, itemId: string): PurchasePart[] {
+  const cards = invoices.filter((m) => m.type === 'CARTAO');
+  const invoice = cards.find((m) => m.id === invoiceId);
+  const item = invoice?.invoiceBreakdown?.find((i) => i.id === itemId);
+  if (!invoice || !item) return [];
+  const all = cards.flatMap((inv) => (inv.invoiceBreakdown || []).map((it) => ({ invoice: inv, item: it })));
+  const groupOf = (id: string): string | null => {
+    const purchase = id.match(/^(purchase_.+)_\d+$/);
+    if (purchase) return purchase[1];
+    const future = id.match(/^breakdown_(breakdown_\d+)_inst_\d+$/);
+    if (future) return future[1];
+    return /^breakdown_\d+$/.test(id) ? id : null;
+  };
+  const group = groupOf(item.id);
+  const byId = group ? all.filter((p) => groupOf(p.item.id) === group) : [];
+  if (byId.length > 1 || (item.installments || 1) < 2) return byId.length > 0 ? byId : [{ invoice, item }];
+  const base = stripInstallmentSuffix(item.description);
+  const bank = (invoice.bank || invoice.title).trim().toLowerCase();
+  const similar = all.filter(
+    (p) =>
+      (p.invoice.bank || p.invoice.title).trim().toLowerCase() === bank &&
+      stripInstallmentSuffix(p.item.description) === base &&
+      p.item.installments === item.installments &&
+      p.item.finalAmount === item.finalAmount
+  );
+  const seen = new Set<number>();
+  const unique = similar.filter((p) => {
+    const n = p.item.currentInstallment || 1;
+    if (seen.has(n)) return false;
+    seen.add(n);
+    return true;
+  });
+  return unique.some((p) => p.item.id === item.id) ? unique : [{ invoice, item }];
+}
+
+/** Motivo de não dar para refazer a compra (parcela em fatura já paga), ou null quando dá. */
+export const purchaseRebuildBlock = (parts: PurchasePart[]): string | null =>
+  parts.some((p) => p.invoice.status === 'REALIZADA')
+    ? 'Parte desta compra está em fatura já paga: dá para corrigir nome, natureza, data e valores, mas não a forma de pagamento.'
+    : null;
+
+export interface PurchaseDetails {
+  title: string;
+  natureId?: string;
+  natureName?: string;
+  mappingId?: string;
+  mappingItemId?: string;
+  purchaseDate: string;
+  total: number;
+}
+
+/** Para onde a compra vai: parcelas em faturas do banco, ou paga na hora (débito, Pix ou dinheiro em mãos). */
+export type PurchaseDestination =
+  | { kind: 'CARD'; institution: string; parts: { dueDate: string; amount: number }[]; sameInstitution: (bank?: string) => boolean }
+  | { kind: 'PAID'; bank: string };
+
+export interface PurchaseRebuildResult {
+  updates: { id: string; updates: Partial<Movement> }[];
+  deletes: string[];
+  adds: Omit<Movement, 'id'>[];
+  /** Quando a compra segue para o saldo (débito/dinheiro), o item da natureza a marcar como pago. */
+  fulfill?: { natureId: string; mappingId: string; itemId: string; realizedValue: number; monthKey: string; paidAt: string };
+}
+
+/**
+ * Refaz uma compra no cartão com outra forma de pagamento: tira todas as parcelas das faturas em aberto onde estão
+ * (cada fatura diminui do que o item valia) e recoloca no destino: parcelas nas faturas do banco (a fatura sobe do que
+ * o item vale; sem fatura do mês, cria) ou um pagamento realizado no saldo. Tirar e recolocar na mesma fatura é neutro.
+ * Fatura que fica sem itens e sem valor some.
+ */
+export function rebuildCardPurchase(
+  movements: Movement[],
+  parts: PurchasePart[],
+  purchase: PurchaseDetails,
+  dest: PurchaseDestination
+): PurchaseRebuildResult {
+  const work = new Map<string, Movement>();
+  movements
+    .filter((m) => m.type === 'CARTAO')
+    .forEach((m) => work.set(m.id, { ...m, invoiceBreakdown: [...(m.invoiceBreakdown || [])] }));
+  const touched = new Set<string>();
+  const adds: Omit<Movement, 'id'>[] = [];
+
+  parts.forEach(({ invoice, item }) => {
+    const inv = work.get(invoice.id);
+    if (!inv) return;
+    inv.invoiceBreakdown = (inv.invoiceBreakdown || []).filter((i) => i.id !== item.id);
+    if (inv.status === 'PREVISTA') inv.amount = Math.max(0, roundMoney(inv.amount - item.amount));
+    touched.add(inv.id);
+  });
+
+  let fulfill: PurchaseRebuildResult['fulfill'];
+  if (dest.kind === 'PAID') {
+    const nature = purchase.natureId ? { natureId: purchase.natureId, mappingId: purchase.mappingId, mappingItemId: purchase.mappingItemId } : {};
+    adds.push({
+      title: purchase.title,
+      type: 'PAGAR',
+      amount: purchase.total,
+      dueDate: purchase.purchaseDate,
+      bank: dest.bank,
+      status: 'REALIZADA',
+      category: purchase.natureName || 'Outros',
+      paymentDate: purchase.purchaseDate,
+      actualAmount: purchase.total,
+      ...nature,
+    });
+    if (purchase.natureId && purchase.mappingId && purchase.mappingItemId) {
+      fulfill = {
+        natureId: purchase.natureId,
+        mappingId: purchase.mappingId,
+        itemId: purchase.mappingItemId,
+        realizedValue: purchase.total,
+        monthKey: purchase.purchaseDate.slice(0, 7),
+        paidAt: purchase.purchaseDate,
+      };
+    }
+  } else {
+    const groupId = `purchase_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const n = dest.parts.length;
+    dest.parts.forEach(({ dueDate, amount }, idx) => {
+      const item: InvoiceNatureItemBreakdown = {
+        id: `${groupId}_${idx + 1}`,
+        natureId: purchase.natureId || 'OUTROS',
+        natureName: purchase.natureName || 'Outros',
+        mappingId: purchase.mappingId,
+        mappingItemId: purchase.mappingItemId,
+        description: n > 1 ? `${purchase.title} (${idx + 1}/${n})` : purchase.title,
+        amount,
+        isAnalyzed: true,
+        installments: n,
+        currentInstallment: idx + 1,
+        finalAmount: purchase.total,
+        purchaseDate: purchase.purchaseDate,
+      };
+      const target = [...work.values()].find(
+        (inv) => inv.status === 'PREVISTA' && dest.sameInstitution(inv.bank) && inv.dueDate.startsWith(dueDate.substring(0, 7))
+      );
+      if (target) {
+        target.invoiceBreakdown = [...(target.invoiceBreakdown || []), item];
+        target.amount = roundMoney(target.amount + amount);
+        touched.add(target.id);
+      } else {
+        const monthName = new Date(`${dueDate}T12:00:00`).toLocaleDateString('pt-BR', { month: 'long' });
+        adds.push({
+          title: `Fatura ${dest.institution} (${monthName.charAt(0).toUpperCase()}${monthName.slice(1)})`,
+          type: 'CARTAO',
+          amount,
+          dueDate,
+          bank: dest.institution,
+          status: 'PREVISTA',
+          category: 'Fatura de Cartão',
+          invoiceBreakdown: [item],
+          unanalyzedAmount: 0,
+        });
+      }
+    });
+  }
+
+  const updates: PurchaseRebuildResult['updates'] = [];
+  const deletes: string[] = [];
+  touched.forEach((id) => {
+    const inv = work.get(id)!;
+    const breakdown = inv.invoiceBreakdown || [];
+    if (breakdown.length === 0 && inv.amount <= 0.01 && inv.status === 'PREVISTA') {
+      deletes.push(id);
+      return;
+    }
+    const unanalyzed = Math.max(0, roundMoney(inv.amount - breakdown.reduce((acc, i) => acc + i.amount, 0)));
+    updates.push({
+      id,
+      updates: {
+        amount: inv.amount,
+        invoiceBreakdown: breakdown,
+        unanalyzedAmount: unanalyzed,
+        category: unanalyzed > 0.01 ? 'Não Analisada' : 'Fatura de Cartão',
+      },
+    });
+  });
+  return { updates, deletes, adds, fulfill };
+}
