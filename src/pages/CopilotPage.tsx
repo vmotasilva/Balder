@@ -211,9 +211,8 @@ export const CopilotPage: React.FC<CopilotPageProps> = ({
     }
   };
 
-  // Detecta se há um card de OCR ativo (não conciliado) na última mensagem
-  const lastAssistantMsg = [...chatHistory].reverse().find((m) => m.role === 'assistant');
-  const hasActiveOcr = !!(lastAssistantMsg?.receiptReconciliation && !lastAssistantMsg.receiptReconciliation.isReconciled);
+  // Detecta se há algum card de OCR ativo (não conciliado); várias fotos geram um card por cupom
+  const hasActiveOcr = chatHistory.some((m) => m.receiptReconciliation && !m.receiptReconciliation.isReconciled);
 
   return (
     <div className={`page-container copilot-page animate-fade-in ${isPopup ? 'is-popup-mode' : ''}`}>

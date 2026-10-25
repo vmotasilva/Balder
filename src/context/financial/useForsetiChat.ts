@@ -211,74 +211,19 @@ export function useForsetiChat({
             )
           );
 
-          // Consolidar todos os itens e informações extraídas de todas as fotos
-          const allDetectedItems: ReceiptItemLine[] = [];
-          let totalDetectedAmount = 0;
-          let detectedStore = '';
-          let detectedDate = '';
-          let suggestedPaymentMethod: 'CARTAO' | 'DEBITO' | 'DINHEIRO' | 'PIX' = 'CARTAO';
-          let cashPaid: number | undefined;
-          let changeAmount: number | undefined;
-
           // Se o usuário disse do que se trata ("almoço", "refeição"...), isso vale mais que o aprendizado por item
-          const hintNorm = trimmed.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          const hintNorm = trimmed.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
           const mealHint = /almoc|jantar|refeic|restaurante|lanche|marmita|cafe da manha/.test(hintNorm);
           let hintedNature = matchNatureForTransaction(trimmed, undefined, natures);
           if (hintedNature.natureId === 'OUTROS' && mealHint) {
             const mealNature = natures.find((n) =>
               /refei|restaurante|almoc|lanch|comer fora|alimentacao fora/.test(
-                n.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                n.name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
               )
             );
             if (mealNature) hintedNature = { ...hintedNature, natureId: mealNature.id, natureName: mealNature.name };
           }
           const hasHint = hintedNature.natureId !== 'OUTROS' && (hintedNature.confidence >= 0.9 || mealHint);
-
-          ocrResults.forEach((res, rIdx) => {
-            if (!detectedStore && res.detectedStore) detectedStore = res.detectedStore;
-            if (!detectedDate && res.detectedDate) detectedDate = res.detectedDate;
-            if (res.suggestedPaymentMethod) suggestedPaymentMethod = res.suggestedPaymentMethod;
-            if (res.cashPaid !== undefined) cashPaid = res.cashPaid;
-            if (res.changeAmount !== undefined) changeAmount = res.changeAmount;
-
-            res.receiptItemLines.forEach((item, iIdx) => {
-              const match = matchNatureForTransaction(item.detectedName, undefined, natures);
-              allDetectedItems.push({
-                ...item,
-                id: `item_rec_${rIdx}_${iIdx}_${Date.now()}`,
-                ...(hasHint
-                  ? {
-                      natureId: hintedNature.natureId,
-                      newCategoryName: hintedNature.natureName,
-                      matchedMappingItemId: undefined,
-                      targetMappingId: undefined,
-                      isNewSuggestedItem: false,
-                    }
-                  : {
-                      natureId: item.natureId || match.natureId,
-                      newCategoryName: item.newCategoryName || match.natureName,
-                    }),
-              });
-            });
-            totalDetectedAmount += res.detectedAmount;
-          });
-
-          totalDetectedAmount = Math.round(totalDetectedAmount * 100) / 100;
-
-          // Nada legível: avisa em vez de montar um lançamento zerado
-          if (totalDetectedAmount <= 0 && allDetectedItems.length === 0) {
-            setChatHistory((prev) =>
-              prev.filter((m) => m.id !== loadingId).concat({
-                id: `ast_${Date.now()}`,
-                role: 'assistant',
-                content:
-                  '⚠️ Não consegui ler valores nesta foto. Tente de novo com o cupom aberto, bem iluminado e sem reflexo (de preferência de frente, sem inclinar), ou me diga o valor e o local por texto.',
-                timestamp: 'Agora',
-                actionBadge: 'VISÃO COMPUTACIONAL OCR',
-              })
-            );
-            return;
-          }
 
           // Análise de Intenção do Usuário
           const lower = (trimmed + ' ' + (userMessage.content || '')).toLowerCase();
@@ -307,62 +252,131 @@ export function useForsetiChat({
             cardInvoices.find((inv) => (inv.unanalyzedAmount || 0) > 0.01) ||
             cardInvoices[0];
 
-          // 1. Caso com Intenção Expressa de Abater da Fatura de Cartão e fatura existente
-          if (isInvoiceIntent && targetInvoice) {
-            const assocResult = associateReceiptItemsToInvoice(targetInvoice.id, allDetectedItems);
+          const brlFmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+          const today = new Date().toISOString().split('T')[0];
 
-            const assistantMsg: CopilotMessage = {
-              id: `ast_${Date.now()}`,
-              role: 'assistant',
-              content: `💳 **${assocResult.itemsCount} itens** de ${detectedStore || 'cupom'} (${assocResult.allocatedAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}) abatidos da fatura **${targetInvoice.bank}**. Não mapeado restante: **${assocResult.newUnanalyzed.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}**.`,
-              timestamp: 'Agora',
-              actionBadge: 'FATURA CONCILIADA',
-              receiptReconciliation: {
-                id: `rec_${Date.now()}`,
-                store: detectedStore || 'Comprovantes Fiscais',
-                date: detectedDate || new Date().toISOString().split('T')[0],
-                totalAmount: totalDetectedAmount,
-                paymentMethod: 'CARTAO',
-                items: allDetectedItems,
-                isReconciled: true,
-              },
+          // Cada foto é um cupom próprio: loja, data, total, itens e forma de pagamento não se misturam
+          const receipts = ocrResults.map((res, rIdx) => {
+            const items: ReceiptItemLine[] = res.receiptItemLines.map((item, iIdx) => {
+              const match = matchNatureForTransaction(item.detectedName, undefined, natures);
+              return {
+                ...item,
+                id: `item_rec_${rIdx}_${iIdx}_${Date.now()}`,
+                ...(hasHint
+                  ? {
+                      natureId: hintedNature.natureId,
+                      newCategoryName: hintedNature.natureName,
+                      matchedMappingItemId: undefined,
+                      targetMappingId: undefined,
+                      isNewSuggestedItem: false,
+                    }
+                  : {
+                      natureId: item.natureId || match.natureId,
+                      newCategoryName: item.newCategoryName || match.natureName,
+                    }),
+              };
+            });
+            return {
+              rIdx,
+              res,
+              items,
+              total: Math.round(res.detectedAmount * 100) / 100,
             };
+          });
 
-            setChatHistory((prev) => prev.filter((m) => m.id !== loadingId).concat(assistantMsg));
+          const readable = receipts.filter((r) => r.total > 0 || r.items.length > 0);
+          const unreadable = receipts.length - readable.length;
+
+          // Nada legível: avisa em vez de montar um lançamento zerado
+          if (readable.length === 0) {
+            setChatHistory((prev) =>
+              prev.filter((m) => m.id !== loadingId).concat({
+                id: `ast_${Date.now()}`,
+                role: 'assistant',
+                content:
+                  '⚠️ Não consegui ler valores nesta foto. Tente de novo com o cupom aberto, bem iluminado e sem reflexo (de preferência de frente, sem inclinar), ou me diga o valor e o local por texto.',
+                timestamp: 'Agora',
+                actionBadge: 'VISÃO COMPUTACIONAL OCR',
+              })
+            );
             return;
           }
 
-          // 2. Fluxo regular: uma mensagem curta + o card de conciliação (forma de pagamento e fatura ficam nele)
-          const brlTotal = totalDetectedAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-          const itemsLabel = allDetectedItems.length === 1 ? '1 item' : `${allDetectedItems.length} itens`;
-          const ocrText = `📄 **${detectedStore || 'Cupom'}** · ${(detectedDate || '').split('-').reverse().join('/')} · **${brlTotal}** · ${itemsLabel}\n\nConfira e confirme abaixo.`;
+          const multi = receipts.length > 1;
+          const warnUnreadable: CopilotMessage[] =
+            unreadable > 0
+              ? [
+                  {
+                    id: `ast_unreadable_${Date.now()}`,
+                    role: 'assistant',
+                    content: `⚠️ Não consegui ler ${unreadable === 1 ? '1 das fotos' : `${unreadable} das fotos`}. Reenvie ${unreadable === 1 ? 'ela' : 'elas'} com mais luz, sem reflexo, ou me diga o valor e o local por texto.`,
+                    timestamp: 'Agora',
+                    actionBadge: 'VISÃO COMPUTACIONAL OCR',
+                  },
+                ]
+              : [];
 
+          // 1. Intenção expressa de abater da fatura: cada cupom abate a sua parte
+          if (isInvoiceIntent && targetInvoice) {
+            const messages: CopilotMessage[] = readable.map(({ rIdx, res, items, total }) => {
+              const assocResult = associateReceiptItemsToInvoice(targetInvoice.id, items);
+              const store = res.detectedStore || 'cupom';
+              return {
+                id: `ast_${Date.now()}_${rIdx}`,
+                role: 'assistant',
+                content: `💳 **${assocResult.itemsCount} itens** de ${store} (${brlFmt(assocResult.allocatedAmount)}) abatidos da fatura **${targetInvoice.bank}**. Não mapeado restante: **${brlFmt(assocResult.newUnanalyzed)}**.`,
+                timestamp: 'Agora',
+                actionBadge: 'FATURA CONCILIADA',
+                receiptReconciliation: {
+                  id: `rec_${Date.now()}_${rIdx}`,
+                  store: res.detectedStore || 'Comprovantes Fiscais',
+                  date: res.detectedDate || today,
+                  totalAmount: total,
+                  paymentMethod: 'CARTAO',
+                  items,
+                  isReconciled: true,
+                },
+              };
+            });
+
+            setChatHistory((prev) => prev.filter((m) => m.id !== loadingId).concat(messages, warnUnreadable));
+            return;
+          }
+
+          // 2. Fluxo regular: um card de conciliação por cupom (forma de pagamento e fatura ficam em cada card)
           // Linhas que as regras não souberam associar: a Forseti sugere o item do mapeamento (uma chamada por cupom,
           // só com nomes, nunca valores). A pessoa confere no card; sem IA, o cupom segue como estava
-          const itemsReady = hasHint ? Promise.resolve(allDetectedItems) : suggestReceiptItems(allDetectedItems, natures);
-          itemsReady.then((cardItems) => {
-            const receiptReconciliation: ReceiptReconciliationData = {
-              id: `rec_${Date.now()}`,
-              store: detectedStore || 'Cupom Fiscal',
-              date: detectedDate || new Date().toISOString().split('T')[0],
-              totalAmount: totalDetectedAmount,
-              paymentMethod: suggestedPaymentMethod,
-              cashPaid,
-              changeAmount,
-              items: cardItems,
-              isReconciled: false,
-            };
+          Promise.all(
+            readable.map(({ items }) => (hasHint ? Promise.resolve(items) : suggestReceiptItems(items, natures)))
+          ).then((cardItemsPerReceipt) => {
+            const messages: CopilotMessage[] = readable.map(({ rIdx, res, total }, i) => {
+              const cardItems = cardItemsPerReceipt[i];
+              const itemsLabel = cardItems.length === 1 ? '1 item' : `${cardItems.length} itens`;
+              const prefix = multi ? `**Foto ${rIdx + 1} de ${receipts.length}**\n` : '';
+              const date = res.detectedDate || today;
+              const ocrText = `${prefix}📄 **${res.detectedStore || 'Cupom'}** · ${date.split('-').reverse().join('/')} · **${brlFmt(total)}** · ${itemsLabel}\n\nConfira e confirme abaixo.`;
 
-            const assistantMessage: CopilotMessage = {
-              id: `ast_${Date.now()}`,
-              role: 'assistant',
-              content: ocrText,
-              timestamp: 'Agora',
-              actionBadge: 'VISÃO COMPUTACIONAL OCR',
-              receiptReconciliation,
-            };
+              return {
+                id: `ast_${Date.now()}_${rIdx}`,
+                role: 'assistant',
+                content: ocrText,
+                timestamp: 'Agora',
+                actionBadge: 'VISÃO COMPUTACIONAL OCR',
+                receiptReconciliation: {
+                  id: `rec_${Date.now()}_${rIdx}`,
+                  store: res.detectedStore || 'Cupom Fiscal',
+                  date,
+                  totalAmount: total,
+                  paymentMethod: res.suggestedPaymentMethod || 'CARTAO',
+                  cashPaid: res.cashPaid,
+                  changeAmount: res.changeAmount,
+                  items: cardItems,
+                  isReconciled: false,
+                },
+              };
+            });
 
-            setChatHistory((prev) => prev.filter((m) => m.id !== loadingId).concat(assistantMessage));
+            setChatHistory((prev) => prev.filter((m) => m.id !== loadingId).concat(messages, warnUnreadable));
           });
         })
         .catch((err) => {
