@@ -22,7 +22,7 @@ import {
 } from '../../utils/forsetiAssistant';
 import {
   type CopilotAttachment, type CopilotMessage, type CreditCardItem, type PaymentWizardState,
-  type ReceiptItemLine, type ReceiptReconciliationData,
+  type ReceiptItemLine,
 } from '../../types';
 import { type SharePermissionKey, hasPermission } from '../../services/sharingService';
 import { type SpendPeriod } from '../../utils/forsetiIntents';
