@@ -435,10 +435,16 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
     };
 
     const updatedBreakdown = [...currentBreakdown, newRow];
+    // O item usa primeiro o que a fatura em aberto ainda tem sem detalhar; só o excedente aumenta o total
+    const round2 = (v: number) => Math.round(v * 100) / 100;
+    const free = m.unanalyzedAmount ?? Math.max(0, round2(m.amount - currentBreakdown.reduce((acc, i) => acc + i.amount, 0)));
+    const grow = m.status === 'REALIZADA' ? 0 : Math.max(0, round2(newRow.amount - free));
+    const newAmount = round2(m.amount + grow);
     const totalAllocated = updatedBreakdown.reduce((acc, i) => acc + i.amount, 0);
-    const unanalyzed = Math.max(0, m.amount - totalAllocated);
+    const unanalyzed = Math.max(0, round2(newAmount - totalAllocated));
 
     updateMovement(m.id, {
+      amount: newAmount,
       invoiceBreakdown: updatedBreakdown,
       unanalyzedAmount: unanalyzed,
       category: unanalyzed > 0.01 ? 'Não Analisada' : 'Fatura de Cartão',
@@ -480,9 +486,13 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
           const currentFutureBreakdown = targetInvoice.invoiceBreakdown || [];
           const updatedFutureBreakdown = [...currentFutureBreakdown, futureItem];
           const allocatedFuture = updatedFutureBreakdown.reduce((sum, it) => sum + it.amount, 0);
-          const futureUnanalyzed = Math.max(0, Math.round((targetInvoice.amount - allocatedFuture) * 100) / 100);
+          const futureFree = targetInvoice.unanalyzedAmount ?? Math.max(0, round2(targetInvoice.amount - allocatedFuture + futureItem.amount));
+          const futureGrow = targetInvoice.status === 'REALIZADA' ? 0 : Math.max(0, round2(futureItem.amount - futureFree));
+          const futureAmount = round2(targetInvoice.amount + futureGrow);
+          const futureUnanalyzed = Math.max(0, round2(futureAmount - allocatedFuture));
 
           updateMovement(targetInvoice.id, {
+            amount: futureAmount,
             invoiceBreakdown: updatedFutureBreakdown,
             unanalyzedAmount: futureUnanalyzed,
           });
