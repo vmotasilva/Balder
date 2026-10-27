@@ -7,7 +7,7 @@ import {
   type Goal, type GoalStatusInfo, type InvoiceNatureItemBreakdown, type Movement,
   type MovementStatus,
 } from '../../types';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { useCoreData } from './useCoreData';
 import type { useSharedPlanning } from './useSharedPlanning';
 import type { usePreferences } from './usePreferences';
@@ -173,6 +173,19 @@ export function useMovementsAndGoals({
       );
     }
   };
+
+  // Fatura em aberto com itens somando mais que o valor (itens lançados antes da correção): o total sobe para a soma
+  useEffect(() => {
+    if (viewing) return;
+    movements.forEach((m) => {
+      if (m.type !== 'CARTAO' || m.status !== 'PREVISTA' || !m.invoiceBreakdown?.length) return;
+      const sum = Math.round(m.invoiceBreakdown.reduce((acc, i) => acc + i.amount, 0) * 100) / 100;
+      if (sum - m.amount > 0.01) {
+        updateMovement(m.id, { amount: sum, unanalyzedAmount: 0, category: 'Fatura de Cartão' });
+      }
+    });
+  }, [movements]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   // Excluir Movimentação
 
