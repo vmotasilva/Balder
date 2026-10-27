@@ -336,17 +336,6 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
     }
   };
 
-  // Fatura em aberto com itens somando mais que o valor (itens lançados antes da correção): o total sobe para a soma
-  useEffect(() => {
-    movements.forEach((m) => {
-      if (m.type !== 'CARTAO' || m.status !== 'PREVISTA' || !m.invoiceBreakdown?.length) return;
-      const sum = Math.round(m.invoiceBreakdown.reduce((acc, i) => acc + i.amount, 0) * 100) / 100;
-      if (sum - m.amount > 0.01) {
-        updateMovement(m.id, { amount: sum, unanalyzedAmount: 0, category: 'Fatura de Cartão' });
-      }
-    });
-  }, [movements, updateMovement]);
-
   // Ajusta o valor da fatura para a soma dos itens (tira o que sobrou em "Não Analisada", ex.: de um item já removido)
   const handleShrinkInvoiceToItems = (m: Movement) => {
     const total = Math.round((m.invoiceBreakdown || []).reduce((acc, i) => acc + i.amount, 0) * 100) / 100;
