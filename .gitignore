@@ -28,3 +28,6 @@ dist-ssr
 .env.*
 !.env.example
 
+
+# Resultados das avaliações da IA (evals/*/results)
+evals/**/results/
