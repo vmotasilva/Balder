@@ -33,6 +33,7 @@ describe('registrationKind: o que é registro de pagamento ou recebimento', () =
     'me deu 30 reais de presente', // alguém me deu: é entrada
     'minha mãe me transferiu 100',
     'o João me pagou 50',
+    'ele ganhou 300 de bônus',
   ])('RECEBER: %s', (text) =>
     expect(registrationKind(text)).toBe('RECEBER')
   );
@@ -48,6 +49,7 @@ describe('registrationKind: o que é registro de pagamento ou recebimento', () =
     'vou pagar a conta', // "vou pagar" sem valor pode ser outro assunto
     'qual o previsto que não foi pago',
     'oi tudo bem',
+    'quem ganhou o jogo ontem', // "ganhou" sem valor é conversa
   ])('não é registro: %s', (text) => expect(registrationKind(text)).toBeNull());
 });
 

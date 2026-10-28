@@ -101,7 +101,9 @@ export function registrationKind(text: string): 'RECEBER' | 'PAGAR' | null {
   if (isQuestion(text) || isPlannedVsReal(text)) return null;
   const t = stripAccents(text);
   const hasAmount = parseAmount(text) !== null;
-  if (/\b(receberei|vou receber|recebi|recebeu|recebemos|ganhei|ganhou|vou ganhar|vai entrar|entrou|caiu na conta)\b/.test(t)) return 'RECEBER';
+  if (/\b(receberei|vou receber|recebi|recebeu|recebemos|ganhei|vai entrar|entrou|caiu na conta)\b/.test(t)) return 'RECEBER';
+  // "ganhou" / "vou ganhar" também falam de jogo e de sorte: só viram recebimento com valor
+  if (hasAmount && /\b(ganhou|vou ganhar)\b/.test(t)) return 'RECEBER';
   // Alguém fez para mim ("me pagou 100", "me transferiu 50", "me deu 30"): é entrada, e só vale com valor
   if (hasAmount && /\bme\s+(pagou|pagaram|transferiu|transferiram|mandou|mandaram|enviou|enviaram|depositou|depositaram|deu|deram)\b/.test(t)) return 'RECEBER';
   // Qualquer pessoa: "paguei", "pagou", "gastamos"…
@@ -720,9 +722,14 @@ const DOUBT_RULES: DoubtRule[] = [
   { id: 'ONDE_VER', patterns: [/^ver |onde (vejo|fica|encontro)/] },
 ];
 
+/** Preferência, prioridade ou restrição ("odeio parcelar", "meu foco é quitar", "não quero mexer na reserva"): é para a IA propor memória. */
+const PERSONAL_STATEMENT = /\b(odeio|detesto|prefiro|nunca quero|meu foco|minha prioridade|nao quero (?:mexer|tocar))\b/;
+
 /** Reconhece uma dúvida no texto (antes de tentar ler como gasto/recebimento: "quanto já gastei" não é um gasto). */
 export function detectDoubt(text: string): DoubtId | null {
   const t = stripAccents(text);
+  // Palavras soltas ("compras", "quitar", "reserva") não fazem de uma declaração pessoal uma dúvida
+  if (!isQuestion(text) && PERSONAL_STATEMENT.test(t.toLowerCase())) return null;
   const rule = DOUBT_RULES.find((r) => r.patterns?.some((re) => re.test(t)) || r.test?.(t, text));
   return rule?.id ?? null;
 }
