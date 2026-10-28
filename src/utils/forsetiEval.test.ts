@@ -11,7 +11,7 @@ describe('avaliação das regras: detectDoubt', () => {
   });
 });
 
-describe('avaliação das regras: lacunas conhecidas (devem seguir erradas até alguém corrigir)', () => {
+describe.skipIf(KNOWN_GAPS.length === 0)('avaliação das regras: lacunas conhecidas (devem seguir erradas até alguém corrigir)', () => {
   it.each(KNOWN_GAPS.map((c) => [c.text, c.expected] as const))('%s → %s', (text, expected) => {
     // Se isto falhar, a regra passou a acertar: mova a frase de KNOWN_GAPS para DOUBT_CASES
     expect(detectDoubt(text)).not.toBe(expected);

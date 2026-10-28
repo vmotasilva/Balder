@@ -18,7 +18,7 @@ export const DOUBT_CASES: DoubtCase[] = [
   ...group('BOM_DIA', ['bom dia', 'resumo do dia']),
   ...group('MEMORIAS', ['o que você sabe sobre mim', 'minhas memórias']),
   ...group('MENU', ['tenho uma dúvida', 'dúvida', 'outra dúvida']),
-  ...group('SALDO_HOJE', ['qual meu saldo hoje?', 'saldo atual', 'quanto tenho na conta', 'meu saldo', 'saldo em conta']),
+  ...group('SALDO_HOJE', ['qual meu saldo hoje?', 'saldo', 'quanto eu tenho', 'saldo atual', 'quanto tenho na conta', 'meu saldo', 'saldo em conta']),
   ...group('PROXIMO_RECEB', [
     'quando entra meu próximo recebimento?', 'quando recebo meu salário', 'quando cai o salário', 'próxima entrada', 'quando vou receber',
   ]),
@@ -32,7 +32,7 @@ export const DOUBT_CASES: DoubtCase[] = [
     'gastos desta semana', 'gastos de hoje', 'quanto gastei hoje', 'despesas da quinzena', 'gastos da semana', 'quanto saiu essa semana',
     'gastos por natureza', 'quanto gastei por categoria', 'gastos por natureza esse mês',
   ]),
-  ...group('GASTOS_DETALHE', ['gastos com mercado em setembro', 'quanto gastei com uber', 'gastos com mercado']),
+  ...group('GASTOS_DETALHE', ['gastos com mercado em setembro', 'quanto gastei com uber', 'gastos com mercado', 'gastei com ifood no mês passado']),
   ...group('CAIU', ['por que meu saldo previsto caiu?', 'por que o saldo caiu', 'porque meu saldo está negativo', 'por que diminuiu']),
   ...group('RESERVA', ['como está minha reserva de emergência', 'reserva de emergência', 'minha reserva']),
   ...group('METAS', ['minhas metas', 'metas', 'qual a minha meta', 'metas financeiras']),
@@ -45,13 +45,13 @@ export const DOUBT_CASES: DoubtCase[] = [
   ...group('GLOSSARIO', ['o que é natureza?', 'o que é competência', 'o que significa mapeamento', 'o que são naturezas']),
   ...group('ONDE_VER', ['onde vejo meus contratos', 'onde fica a fatura', 'ver contratos']),
   ...group('ULTIMAS', ['quais minhas últimas compras', 'últimas saídas', 'compras recentes', 'o que comprei recentemente', 'últimos lançamentos']),
-  ...group('PREVISTO_REAL', ['o que foi previsto e não foi pago', 'previsto e não registrado', 'gastei menos que o previsto']),
+  ...group('PREVISTO_REAL', ['o que foi previsto e não foi pago', 'previsto e não registrado', 'gastei menos que o previsto', 'o que eu previ e não paguei']),
   ...group('SEM_NATUREZA', [
-    'o que tem dentro de Outros?', 'o que tem em outros', 'o que é esse gasto da natureza Outros', 'sem natureza',
+    'o que tem dentro de Outros?', 'o que tem em outros', 'o que é esse gasto da natureza Outros', 'sem natureza', 'gastos sem categoria',
   ]),
   // Não são dúvida: registro, conversa solta ou assunto de outra camada (ambiguidade de cartão, por exemplo)
   ...group(null, [
-    'bom dia, paguei 50 na farmácia', 'paguei 50 na farmácia', '30 mercado', 'recebi 1000', 'obrigado', 'oi', 'fatura do cartão',
+    'bom dia, paguei 50 na farmácia', 'gastei 50 no ifood ontem', 'gastei cem reais no mercado em setembro', 'previ 50 de gasolina', 'paguei 50 na farmácia', '30 mercado', 'recebi 1000', 'obrigado', 'oi', 'fatura do cartão',
   ]),
 ];
 
@@ -62,10 +62,4 @@ export const REPORT_CASES: [string, DoubtId][] = [];
  * Lacunas conhecidas: frases que as regras ainda erram. O teste espera que continuem falhando; quando uma regra passar a
  * acertar, o teste avisa e a frase sobe para DOUBT_CASES.
  */
-export const KNOWN_GAPS: DoubtCase[] = [
-  { text: 'saldo', expected: 'SALDO_HOJE' },
-  { text: 'quanto eu tenho', expected: 'SALDO_HOJE' },
-  { text: 'gastei com ifood no mês passado', expected: 'GASTOS_DETALHE' },
-  { text: 'o que eu previ e não paguei', expected: 'PREVISTO_REAL' },
-  { text: 'gastos sem categoria', expected: 'SEM_NATUREZA' },
-];
+export const KNOWN_GAPS: DoubtCase[] = [];

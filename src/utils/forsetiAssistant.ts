@@ -657,7 +657,7 @@ export function spendPeriodFrom(text: string): SpendPeriod | null {
 /** Pergunta sobre previsto x realizado: "previsto que não foi registrado", "previsto e pagamos menos". */
 export function isPlannedVsReal(text: string): boolean {
   const t = stripAccents(text);
-  if (!/previst|planejad|orcad/.test(t)) return false;
+  if (!/previst|\bprevi\b|planejad|orcad/.test(t)) return false;
   return /(nao|n)\s+(foi|fo[ir]am|ser[aã]o)?\s*(gast|pag|registr|realiz|lanc|confirm)|sem (registro|lancar|pagar|confirmar)|(pag|gast)(amos|uei|ou|aram)\s+(a )?menos|a menos|menos (do )?que|abaixo do previst|economi|sobrou do previst/.test(t);
 }
 
@@ -667,7 +667,7 @@ export function isOthersQuestion(text: string): boolean {
   return (
     (/\boutros\b/.test(t) && /(natureza|categoria|gasto|valor|item|itens|lancamento)/.test(t)) ||
     /\bo que (tem|ha|esta|ta) (la )?(dentro )?(d[eo]|em|no)s? outros\b/.test(t) ||
-    /sem natureza/.test(t)
+    /sem (natureza|categoria)/.test(t)
   );
 }
 
@@ -690,7 +690,7 @@ const DOUBT_RULES: DoubtRule[] = [
   { id: 'BOM_DIA', test: (_t, raw) => isDigestRequest(raw) },
   { id: 'MEMORIAS', patterns: [/o que (voce )?(sabe|lembra|guardou|anotou) (sobre|de) mim|minhas memorias|o que (voce )?lembra de mim|memoria da forseti/] },
   { id: 'MENU', test: (t) => t.includes('tenho uma duvida') || t === 'duvida' || t === 'duvidas' || t.includes('outra duvida') },
-  { id: 'SALDO_HOJE', patterns: [/saldo (de )?hoje|quanto tenho|meu saldo( atual)?\??$|saldo atual|saldo em conta/] },
+  { id: 'SALDO_HOJE', patterns: [/saldo (de )?hoje|quanto tenho|quanto eu tenho\??$|^saldo\??$|meu saldo( atual)?\??$|saldo atual|saldo em conta/] },
   { id: 'PROXIMO_RECEB', patterns: [/quando (entra|recebo|cai|vou receber)|proximo recebimento|proxima entrada|quando o salario/] },
   { id: 'SOBRA', patterns: [/quanto (ainda )?(posso|consigo) gastar|sobrou|sobra |quanto (me )?sobra|livre para gastar/] },
   { id: 'VENCE', patterns: [/vence|vencimento|a pagar essa semana|contas? (atrasad|em atraso)|proximos dias/] },
