@@ -131,32 +131,7 @@ describe('título e categoria do gasto', () => {
   it('sem palavra conhecida, não inventa categoria', () => expect(inferExpenseCategory('presente do João')).toBeNull());
 });
 
-describe('detectDoubt: perguntas respondidas com os números do planejamento', () => {
-  it.each<[string, DoubtId]>([
-    ['qual meu saldo hoje?', 'SALDO_HOJE'],
-    ['quando entra meu próximo recebimento?', 'PROXIMO_RECEB'],
-    ['quanto ainda posso gastar este mês?', 'SOBRA'],
-    ['o que vence nos próximos dias?', 'VENCE'],
-    ['quanto já gastei este mês?', 'GASTEI'],
-    ['gastos desta semana', 'GASTOS_PERIODO'],
-    ['gastos por natureza', 'GASTOS_PERIODO'],
-    ['quais minhas últimas compras', 'ULTIMAS'],
-    ['por que meu saldo previsto caiu?', 'CAIU'],
-    ['tenho uma dúvida', 'MENU'],
-    ['o que é natureza?', 'GLOSSARIO'],
-    ['o que foi previsto e não foi pago', 'PREVISTO_REAL'],
-    ['o que tem dentro de Outros?', 'SEM_NATUREZA'],
-    ['o que tem em outros', 'SEM_NATUREZA'],
-    ['o que é esse gasto da natureza Outros', 'SEM_NATUREZA'],
-    ['vale a pena quitar meu empréstimo?', 'QUITAR'],
-    ['posso comprar um carro?', 'COMPRA'],
-    ['como funciona?', 'COMO_FUNCIONA'],
-    ['como está minha reserva de emergência', 'RESERVA'],
-    ['minhas metas', 'METAS'],
-  ])('%s → %s', (text, id) => expect(detectDoubt(text)).toBe(id));
-
-  it.each(['bom dia, paguei 50 na farmácia', 'paguei 50 na farmácia'])('não é dúvida: %s', (text) => expect(detectDoubt(text)).toBeNull());
-});
+// Os casos de detectDoubt ficam em forsetiEvalCases.ts (rodados por forsetiEval.test.ts).
 
 describe('continuação do assunto (resolveFollowUp)', () => {
   const now = 1_000_000_000_000;
