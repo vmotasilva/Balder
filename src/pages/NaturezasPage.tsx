@@ -46,6 +46,8 @@ import { InfoButton } from '../components/InfoButton';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
 import { MappingItemStateModal, type MappingItemStateTarget } from '../components/MappingItemStateModal';
 import { RealizationConfirmModal, type RealizationTarget } from '../components/RealizationConfirmModal';
+import { usePaymentSettle } from '../hooks/usePaymentSettle';
+import type { PaymentHow } from '../utils/paymentHow';
 import { MappingDirectPlanned } from '../components/MappingDirectPlanned';
 import { MappingPaymentModal, type MappingPaymentTarget } from '../components/MappingPaymentModal';
 import {
@@ -103,6 +105,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
   const { confirm: confirmAction, dialogProps: confirmDialogProps } = useConfirmDialog();
   // Pop-up que confere valor e data antes de registrar o pagamento de uma conta fixa
   const [realization, setRealization] = useState<RealizationTarget | null>(null);
+  const settleWithHow = usePaymentSettle();
   // Registro do real no mapeamento (os itens só compõem o previsto)
   const [mappingPayTarget, setMappingPayTarget] = useState<MappingPaymentTarget | null>(null);
 
@@ -341,9 +344,21 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
   }, [pendingFixedBills, dismissedBills]);
 
   // Ação rápida: Confirmar pagamento de conta fixa (valor e data conferidos no pop-up)
-  const handleConfirmBillDirectly = (bill: PendingFixedBill, amount: number, paidAt: string) => {
-    // 1. Cria a movimentação de saída realizada
-    addMovement({
+  const handleConfirmBillDirectly = (bill: PendingFixedBill, amount: number, paidAt: string, how?: PaymentHow) => {
+    // 1. Cria a movimentação de saída realizada (ou, se disse como pagou, grava conforme a escolha)
+    const notes = `Pagamento automático de conta fixa mapeada (${bill.itemDescriptions.join(', ')})`;
+    if (how) {
+      settleWithHow({
+        how,
+        title: `${bill.mappingName} (${bill.natureName})`,
+        amount,
+        date: paidAt,
+        dueDate: bill.dueDate,
+        category: bill.natureName,
+        nature: { natureId: bill.natureId, mappingId: bill.mappingId },
+        notes,
+      });
+    } else addMovement({
       title: `${bill.mappingName} (${bill.natureName})`,
       type: 'PAGAR',
       amount,
@@ -354,7 +369,7 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
       bank: 'Nubank',
       status: 'REALIZADA',
       category: bill.natureName,
-      notes: `Pagamento automático de conta fixa mapeada (${bill.itemDescriptions.join(', ')})`,
+      notes,
     });
 
     // 2. Marca todos os itens do mapeamento como realizados no mês
@@ -630,7 +645,8 @@ export const NaturezasPage: React.FC<NaturezasPageProps> = ({ embedded = false, 
                         title: `${bill.mappingName} (${bill.natureName})`,
                         expectedAmount: bill.totalAmount,
                         dueDate: bill.dueDate,
-                        onConfirm: (amount, paidAt) => handleConfirmBillDirectly(bill, amount, paidAt),
+                        askHow: true,
+                        onConfirm: (amount, paidAt, how) => handleConfirmBillDirectly(bill, amount, paidAt, how),
                       })
                     }
                     title="Confirmar pagamento e registrar saída realizada"
