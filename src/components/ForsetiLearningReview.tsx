@@ -3,7 +3,7 @@ import { ClipboardCopy, Check } from 'lucide-react';
 import { ForsetiLearningService } from '../services/forsetiLearningService';
 import {
   type LearningReport, NEW_INTENT, handledEverywhere, pendingGroups, pendingSuggestions, signalsOf, testCaseLine, testCaseSnippet,
-  toggleHandled,
+  toggleHandled, usageShares,
 } from '../utils/forsetiLearningReview';
 
 const fmtDay = (iso: string) => iso.split('-').reverse().join('/');
@@ -108,6 +108,50 @@ export const ForsetiLearningReview: React.FC = () => {
         <code> src/utils/forsetiEvalCases.ts</code>; a regra em si é escrita no código.
       </p>
       {notice && <p className="text-sm text-emerald" role="status">{notice}</p>}
+
+      <section className="space-y-2">
+        <h4>Quem resolveu as frases digitadas</h4>
+        <p className="text-muted text-sm">
+          Regras são rápidas e sem custo; “só a IA” tem custo e mostra o que falta virar regra; “sem resposta” inclui o que a IA também não resolveu.
+        </p>
+        <div className="admin-users-table-wrap">
+          <table className="movements-table" style={{ width: '100%' }}>
+            <thead>
+              <tr>
+                <th>Dia</th>
+                <th title="Frases digitadas na conversa">Frases</th>
+                <th>Regras</th>
+                <th>Só a IA</th>
+                <th>Sem resposta</th>
+                <th title="Respostas avaliadas como não úteis">Não úteis</th>
+                <th title="Ações desfeitas">Desfeitas</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reports.map((r) => {
+                const s = r.stats;
+                const share = s ? usageShares(s) : null;
+                return (
+                  <tr key={r.date} style={r.date === selected ? { fontWeight: 600 } : undefined}>
+                    <td>{fmtDay(r.date)}</td>
+                    <td>{s ? s.conversation : '—'}</td>
+                    <td>{share ? `${share.rules}%` : '—'}</td>
+                    <td>{share ? `${share.ai}%` : '—'}</td>
+                    <td>{share ? `${share.notUnderstood}%` : '—'}</td>
+                    <td>{s ? s.notUseful : '—'}</td>
+                    <td>{s ? s.undone : '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {reports.some((r) => !r.stats) && (
+          <p className="text-muted text-sm">
+            Dias sem números foram gerados antes das métricas existirem (ou o script <code>supabase/forseti_learning_reports.sql</code> ainda não foi rodado de novo).
+          </p>
+        )}
+      </section>
 
       <section className="space-y-2">
         <div className="flex gap-2 items-center" style={{ justifyContent: 'space-between', flexWrap: 'wrap' }}>

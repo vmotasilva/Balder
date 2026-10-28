@@ -37,6 +37,23 @@ export function normalizePhrase(text: string): string {
     .slice(0, 120);
 }
 
+/** Como a Forseti atendeu o dia: quem resolveu cada frase digitada e como as respostas foram recebidas. */
+export interface UsageStats {
+  /** Solicitações do dia (um evento final por solicitação), de qualquer tipo. */
+  total: number;
+  /** Frases digitadas na conversa; o restante são ações guiadas (registrar um pagamento, anexar um comprovante). */
+  conversation: number;
+  /** Frases resolvidas pelas regras do aplicativo (rápidas e sem custo). */
+  rules: number;
+  /** Frases que as regras não entenderam e só a IA resolveu (têm custo: candidatas a virar regra). */
+  ai: number;
+  /** Frases sem resposta útil: resposta padrão ou pergunta A/B/C. Inclui as que a IA também não resolveu. */
+  notUnderstood: number;
+  useful: number;
+  notUseful: number;
+  undone: number;
+}
+
 const signals = (g: PhraseGroup) => g.notUnderstood + g.notUseful + g.undone + g.viaAi;
 const isNotUnderstood = (result: string) => NOT_UNDERSTOOD_MARKERS.some((m) => result.includes(m));
 
@@ -48,6 +65,23 @@ export function latestPerActivity(rows: ConversationRow[]): ConversationRow[] {
     if (!prev || (r.event_at || '') >= (prev.event_at || '')) latest.set(r.activity_id, r);
   });
   return [...latest.values()];
+}
+
+/** Conta, entre as frases digitadas, quantas foram resolvidas pelas regras, pela IA ou ficaram sem resposta. */
+export function buildUsageStats(rows: ConversationRow[]): UsageStats {
+  const requests = latestPerActivity(rows).filter((r) => r.request?.trim());
+  const stats: UsageStats = { total: requests.length, conversation: 0, rules: 0, ai: 0, notUnderstood: 0, useful: 0, notUseful: 0, undone: 0 };
+  requests.forEach((r) => {
+    if (r.rating === 'UTIL') stats.useful += 1;
+    if (r.rating === 'NAO_UTIL') stats.notUseful += 1;
+    if (r.undone_at) stats.undone += 1;
+    if (r.kind !== 'CONVERSA' && r.kind !== 'CONVERSA_IA') return;
+    stats.conversation += 1;
+    if (r.kind === 'CONVERSA_IA') stats.ai += 1;
+    else if (isNotUnderstood(r.result || '')) stats.notUnderstood += 1;
+    else stats.rules += 1;
+  });
+  return stats;
 }
 
 /**

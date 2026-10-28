@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPhraseGroups, latestPerActivity, normalizePhrase, type ConversationRow } from './forsetiLearning';
+import { buildPhraseGroups, buildUsageStats, latestPerActivity, normalizePhrase, type ConversationRow } from './forsetiLearning';
 
 const row = (over: Partial<ConversationRow> & { activity_id: string; request: string }): ConversationRow => ({
   kind: 'CONVERSA',
@@ -67,5 +67,31 @@ describe('buildPhraseGroups: onde a Forseti atendeu mal', () => {
     const { total, groups } = buildPhraseGroups(rows, 3);
     expect(total).toBe(5);
     expect(groups).toHaveLength(3);
+  });
+});
+
+describe('buildUsageStats: quem resolveu cada frase digitada', () => {
+  it('separa regras, IA e sem resposta; conta avaliações e ações desfeitas', () => {
+    const stats = buildUsageStats([
+      row({ activity_id: 'a', request: 'saldo atual', result: 'Seu saldo é...' }),
+      row({ activity_id: 'b', request: 'quanto sobra', result: 'Sobra...', rating: 'UTIL' }),
+      row({ activity_id: 'c', request: 'frase estranha', result: 'Não entendi bem o que você quis dizer' }),
+      row({ activity_id: 'd', request: 'me mostra o mercado', kind: 'CONVERSA_IA', result: 'Gastos com mercado...', rating: 'NAO_UTIL' }),
+      row({ activity_id: 'e', request: 'paguei 50 no mercado', kind: 'PAGAMENTO', result: 'Registrado', undone_at: '2026-10-28T10:00:00Z' }),
+    ]);
+    expect(stats).toEqual({ total: 5, conversation: 4, rules: 2, ai: 1, notUnderstood: 1, useful: 1, notUseful: 1, undone: 1 });
+  });
+
+  it('usa só o evento mais recente de cada solicitação e ignora pedidos vazios', () => {
+    const stats = buildUsageStats([
+      row({ activity_id: 'a', request: 'saldo', result: 'ok', event_at: '2026-10-28T10:00:00Z' }),
+      row({ activity_id: 'a', request: 'saldo', result: 'ok', rating: 'UTIL', event_at: '2026-10-28T10:05:00Z' }),
+      row({ activity_id: 'b', request: '   ', result: 'Não entendi bem' }),
+    ]);
+    expect(stats).toMatchObject({ total: 1, conversation: 1, rules: 1, useful: 1 });
+  });
+
+  it('sem solicitações, tudo zero', () => {
+    expect(buildUsageStats([])).toEqual({ total: 0, conversation: 0, rules: 0, ai: 0, notUnderstood: 0, useful: 0, notUseful: 0, undone: 0 });
   });
 });

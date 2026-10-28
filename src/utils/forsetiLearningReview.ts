@@ -1,4 +1,5 @@
 import { FORSETI_INTENTS } from './forsetiIntents';
+import type { UsageStats } from './forsetiLearning';
 
 /**
  * Revisão do relatório diário de aprendizado da Forseti (gerado por api/cron/forseti-learning): lê o que veio do banco
@@ -29,12 +30,31 @@ export interface LearningReport {
   suggestions: ReviewSuggestion[];
   /** Frases que o gestor já tratou. */
   handled: string[];
+  /** Métricas do dia; null nos relatórios gerados antes de existirem. */
+  stats: UsageStats | null;
 }
 
 export const NEW_INTENT = 'NOVA';
 
 const text = (v: unknown, max: number) => (typeof v === 'string' ? v.slice(0, max) : '');
 const count = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : 0);
+
+/** Lê as métricas do dia; null se não há (relatório antigo ou coluna vazia). */
+export function parseStats(v: unknown): UsageStats | null {
+  if (!v || typeof v !== 'object') return null;
+  const x = v as Record<string, unknown>;
+  if (typeof x.total !== 'number' || typeof x.conversation !== 'number') return null;
+  return {
+    total: count(x.total), conversation: count(x.conversation), rules: count(x.rules), ai: count(x.ai), notUnderstood: count(x.notUnderstood),
+    useful: count(x.useful), notUseful: count(x.notUseful), undone: count(x.undone),
+  };
+}
+
+/** Parte das frases digitadas resolvida por cada caminho, em % (0 quando não houve conversa). */
+export function usageShares(s: UsageStats): { rules: number; ai: number; notUnderstood: number } {
+  const of = (n: number) => (s.conversation > 0 ? Math.round((n / s.conversation) * 100) : 0);
+  return { rules: of(s.rules), ai: of(s.ai), notUnderstood: of(s.notUnderstood) };
+}
 
 /** Lê uma linha de forseti_learning_reports; devolve null se não for um relatório (nada vindo do banco é confiado como veio). */
 export function parseReport(row: unknown): LearningReport | null {
@@ -59,7 +79,7 @@ export function parseReport(row: unknown): LearningReport | null {
     return [{ phrase, intent, keywords, note: text(x.note, 300) }];
   });
   const handled = (Array.isArray(r.handled_phrases) ? r.handled_phrases : []).filter((p): p is string => typeof p === 'string');
-  return { date: r.report_date, totalRequests: count(r.total_requests), groups, suggestions, handled };
+  return { date: r.report_date, totalRequests: count(r.total_requests), groups, suggestions, handled, stats: parseStats(r.stats) };
 }
 
 /** Todas as frases já tratadas em qualquer relatório: marcar uma vez vale para os outros dias. */

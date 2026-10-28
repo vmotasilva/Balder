@@ -18,4 +18,7 @@ CREATE TABLE IF NOT EXISTS public.forseti_learning_reports (
   suggestions JSONB NOT NULL DEFAULT '[]'::jsonb
 );
 
+-- Métricas do dia (quantas frases as regras, a IA e ninguém resolveram). Pode rodar de novo sem problemas.
+ALTER TABLE public.forseti_learning_reports ADD COLUMN IF NOT EXISTS stats JSONB NOT NULL DEFAULT '{}'::jsonb;
+
 ALTER TABLE public.forseti_learning_reports ENABLE ROW LEVEL SECURITY;
