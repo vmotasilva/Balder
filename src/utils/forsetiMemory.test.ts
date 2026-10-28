@@ -52,6 +52,7 @@ describe('titleFromBody', () => {
 describe('detectMemoryStatement: frases em que a pessoa conta algo sobre si', () => {
   it.each<[string, string, string]>([
     ['evito parcelar compras', 'RESTRICAO', 'Evito parcelar compras'],
+    ['eu odeio parcelar compras', 'RESTRICAO', 'Eu odeio parcelar compras'],
     ['eu não gosto de dívida no cartão', 'RESTRICAO', 'Eu não gosto de dívida no cartão'],
     ['prefiro pagar à vista', 'PREFERENCIA', 'Prefiro pagar à vista'],
     ['lembra que eu divido o aluguel com a esposa', 'CONTEXTO', 'Eu divido o aluguel com a esposa'],
@@ -60,6 +61,8 @@ describe('detectMemoryStatement: frases em que a pessoa conta algo sobre si', ()
     ['minha prioridade é quitar o empréstimo', 'PRIORIDADE', 'Quitar o empréstimo'],
     ['minha prioridade agora: montar a reserva de emergência.', 'PRIORIDADE', 'Montar a reserva de emergência'],
     ['quero priorizar a viagem de dezembro', 'PRIORIDADE', 'A viagem de dezembro'],
+    ['meu foco esse ano é quitar o empréstimo antes de investir', 'PRIORIDADE', 'Quitar o empréstimo antes de investir'],
+    ['meu foco agora: montar a reserva', 'PRIORIDADE', 'Montar a reserva'],
   ])('%s → %s', (text, kind, body) => {
     const r = detectMemoryStatement(text);
     expect(r?.kind).toBe(kind);
@@ -68,6 +71,7 @@ describe('detectMemoryStatement: frases em que a pessoa conta algo sobre si', ()
 
   it.each([
     'quanto gastei este mês?', 'paguei 50 na farmácia', 'bom dia', 'prefiro?', 'lembra que ganho R$ 5000', 'evito', 'lembra que meu cpf é 123.456.789-09',
+    'meu foco é quitar o empréstimo, quanto falta?', 'odeio?',
   ])('não é memória: %s', (text) => expect(detectMemoryStatement(text)).toBeNull());
 });
 

@@ -94,14 +94,16 @@ function transferTitle(text: string): string | null {
 }
 
 export const isQuestion = (text: string) =>
-  text.includes('?') || /^(quanto|quando|como|o que|qual|quais|por ?que|posso|vale|onde|devo|consigo)\b/i.test(stripAccents(text.trim()));
+  text.includes('?') || /^(quanto|quando|como|o que|qual|quais|quem|por ?que|posso|vale|onde|devo|consigo)\b/i.test(stripAccents(text.trim()));
 
 /** Frase de registro ("paguei 50 no mercado", "vou receber 1.200 dia 10"); perguntas nunca contam. */
 export function registrationKind(text: string): 'RECEBER' | 'PAGAR' | null {
   if (isQuestion(text) || isPlannedVsReal(text)) return null;
   const t = stripAccents(text);
   const hasAmount = parseAmount(text) !== null;
-  if (/\b(receberei|vou receber|recebi|recebeu|recebemos|ganhei|ganhou|vou ganhar|vai entrar|entrou|caiu na conta)\b/.test(t)) return 'RECEBER';
+  if (/\b(receberei|vou receber|recebi|recebeu|recebemos|vai entrar|entrou|caiu na conta)\b/.test(t)) return 'RECEBER';
+  // "ganhei" só é dinheiro com valor ou palavra de renda: "ganhou o jogo" é outro assunto
+  if (/\b(ganhei|ganhou|vou ganhar)\b/.test(t) && (hasAmount || INCOME_WORDS.test(t) || MONEY_WORDS.test(t))) return 'RECEBER';
   // Alguém fez para mim ("me pagou 100", "me transferiu 50", "me deu 30"): é entrada, e só vale com valor
   if (hasAmount && /\bme\s+(pagou|pagaram|transferiu|transferiram|mandou|mandaram|enviou|enviaram|depositou|depositaram|deu|deram)\b/.test(t)) return 'RECEBER';
   // Qualquer pessoa: "paguei", "pagou", "gastamos"…
@@ -115,6 +117,8 @@ export function registrationKind(text: string): 'RECEBER' | 'PAGAR' | null {
   return null;
 }
 
+/** Palavras de dinheiro que bastam para "ganhei" ser um recebimento mesmo sem valor na frase. */
+const MONEY_WORDS = /\b(dinheiro|reais|real|grana|pix|premio|loteria|mesada|gorjeta)\b/;
 const INCOME_WORDS = /\b(salario|freela|freelance|renda|rendimentos?|bonus|comissao|reembolso|restituicao|decimo terceiro|13o|venda|recebid[ao]|recebimento)\b/;
 
 /**

@@ -109,12 +109,12 @@ export const INTENT_CASES: IntentCase[] = [
   c('neg-04', 'pergunta-com-numero', 'vale a pena pegar 10 mil emprestado?', { intent: ['COMPRA', 'DESCONHECIDO'] }),
 
   // ── Memória: algo duradouro sobre a pessoa ──
-  c('mem-01', 'memoria', 'nunca quero parcelar nada', { intent: 'DESCONHECIDO', memory: true }),
+  c('mem-01', 'memoria', 'sou autonomo e minha renda muda muito de um mes pro outro', { intent: 'DESCONHECIDO', memory: 'CONTEXTO' }),
   c('mem-02', 'memoria', 'divido o aluguel com a minha esposa', { intent: 'DESCONHECIDO', memory: 'CONTEXTO' }),
-  c('mem-03', 'memoria', 'minha prioridade esse ano e zerar o emprestimo antes de investir', { intent: 'DESCONHECIDO', memory: 'PRIORIDADE' }),
+  c('mem-03', 'memoria', 'o mais importante pra mim agora e zerar o emprestimo antes de investir', { intent: 'DESCONHECIDO', memory: 'PRIORIDADE' }),
   c('mem-04', 'memoria', 'de jeito nenhum quero tocar no dinheiro da emergencia', { intent: 'DESCONHECIDO', memory: 'RESTRICAO' }),
   c('mem-05', 'memoria', 'moro com meus pais e nao pago aluguel', { intent: 'DESCONHECIDO', memory: 'CONTEXTO' }),
-  c('mem-06', 'memoria', 'prefiro pagar tudo no pix', { intent: 'DESCONHECIDO', memory: 'PREFERENCIA' }),
+  c('mem-06', 'memoria', 'pra mim pagar no pix e bem mais pratico', { intent: 'DESCONHECIDO', memory: 'PREFERENCIA' }),
 
   // ── Memória com dado sensível: o app nunca pode guardar ──
   c('sen-01', 'memoria-sensivel', 'meu cpf e 123.456.789-00 e eu prefiro pagar no pix', { intent: 'DESCONHECIDO' }),

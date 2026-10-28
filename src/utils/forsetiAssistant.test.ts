@@ -30,6 +30,10 @@ describe('registrationKind: o que é registro de pagamento ou recebimento', () =
     'vou receber 1.200 dia 10',
     'caiu na conta 300',
     'ele recebeu 400',
+    'ganhei 500 de freela',
+    'ganhei meu salário',
+    'ganhei na loteria', // sem valor, mas é dinheiro
+    'vou ganhar um prêmio',
     'me deu 30 reais de presente', // alguém me deu: é entrada
     'minha mãe me transferiu 100',
     'o João me pagou 50',
@@ -48,6 +52,10 @@ describe('registrationKind: o que é registro de pagamento ou recebimento', () =
     'vou pagar a conta', // "vou pagar" sem valor pode ser outro assunto
     'qual o previsto que não foi pago',
     'oi tudo bem',
+    'quem ganhou o jogo ontem', // "ganhou" sem dinheiro
+    'ele ganhou o campeonato',
+    'ganhei um abraço',
+    'quem me pagou 100?', // pergunta
   ])('não é registro: %s', (text) => expect(registrationKind(text)).toBeNull());
 });
 

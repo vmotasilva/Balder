@@ -80,9 +80,9 @@ export const findDuplicateMemory = (list: ForsetiMemory[], draft: Pick<MemoryDra
 // ── Captação por regras (sem IA): frases em que a pessoa pede para lembrar ou conta uma preferência ──────────
 
 const REMEMBER = /^(?:por favor[, ]+)?(?:forseti[, ]+)?(?:lembra|lembre|lembrar|anota|anote|guarda|guarde|memoriza|memorize)(?: isso)?(?: que|:)?\s+(.{3,})$/;
-const AVOID = /^(?:eu\s+)?(evito|nao gosto de|nao quero|nunca|nao costumo|detesto)\s+(.{3,})$/;
+const AVOID = /^(?:eu\s+)?(evito|nao gosto de|nao quero|nunca|nao costumo|detesto|odeio)\s+(.{3,})$/;
 const PREFER = /^(?:eu\s+)?(prefiro|gosto de|costumo|sempre)\s+(.{3,})$/;
-const PRIORITY = /^(?:(?:a\s+)?minha prioridade(?: agora| no momento)?\s*(?:e|eh|:)|minha meta principal\s*(?:e|eh|:)|(?:eu\s+)?(?:quero|preciso)\s+priorizar)\s*(.{3,})$/;
+const PRIORITY = /^(?:(?:a\s+)?minha prioridade(?: agora| no momento)?\s*(?:e|eh|:)|minha meta principal\s*(?:e|eh|:)|meu foco(?: principal)?(?: esse ano| este ano| agora| no momento)?\s*(?:e|eh|:)|(?:eu\s+)?(?:quero|preciso)\s+priorizar)\s*(.{3,})$/;
 
 /** Frase em que a pessoa conta algo duradouro sobre si. Devolve null se não é isso, é pergunta ou traz dado sensível. */
 export function detectMemoryStatement(text: string): MemoryDraft | null {
