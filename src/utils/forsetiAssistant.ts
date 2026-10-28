@@ -671,36 +671,60 @@ export function isOthersQuestion(text: string): boolean {
   );
 }
 
+/**
+ * Uma regra de dúvida. `patterns` casa com o texto sem acentos; `test` cobre o que uma regex sozinha não diz
+ * (combinações e funções). A regra vale se qualquer um dos dois casar.
+ */
+interface DoubtRule {
+  id: DoubtId;
+  patterns?: RegExp[];
+  test?: (t: string, raw: string) => boolean;
+}
+
+/**
+ * Regras de dúvida, da mais específica para a mais geral: a PRIMEIRA que casar vence, então a ordem é a prioridade.
+ * Para uma frase nova: acrescente o caso em forsetiEvalCases.ts e depois a regra (ou uma palavra-chave) aqui,
+ * antes de qualquer regra mais geral que a engoliria (ex.: "reserva" casa com qualquer frase que a contenha).
+ */
+const DOUBT_RULES: DoubtRule[] = [
+  { id: 'BOM_DIA', test: (_t, raw) => isDigestRequest(raw) },
+  { id: 'MEMORIAS', patterns: [/o que (voce )?(sabe|lembra|guardou|anotou) (sobre|de) mim|minhas memorias|o que (voce )?lembra de mim|memoria da forseti/] },
+  { id: 'MENU', test: (t) => t.includes('tenho uma duvida') || t === 'duvida' || t === 'duvidas' || t.includes('outra duvida') },
+  { id: 'SALDO_HOJE', patterns: [/saldo (de )?hoje|quanto tenho|meu saldo( atual)?\??$|saldo atual|saldo em conta/] },
+  { id: 'PROXIMO_RECEB', patterns: [/quando (entra|recebo|cai|vou receber)|proximo recebimento|proxima entrada|quando o salario/] },
+  { id: 'SOBRA', patterns: [/quanto (ainda )?(posso|consigo) gastar|sobrou|sobra |quanto (me )?sobra|livre para gastar/] },
+  { id: 'VENCE', patterns: [/vence|vencimento|a pagar essa semana|contas? (atrasad|em atraso)|proximos dias/] },
+  { id: 'PREVISTO_REAL', test: (t) => isPlannedVsReal(t) },
+  { id: 'SEM_NATUREZA', test: (t) => isOthersQuestion(t) },
+  { id: 'ULTIMAS', patterns: [/ultim[oa]s? (compras?|gastos?|saidas?|despesas?|pagamentos?|lancamentos?|movimentac)|(compras?|gastos?) recentes?|o que (eu )?(comprei|gastei|paguei) (recentemente|ultimamente)/] },
+  // Gastos com assunto ou período específico ("com mercado em setembro", "no mês passado"): a resposta com detalhe
+  { id: 'GASTOS_DETALHE', test: (_t, raw) => !!detectSpendDetail(raw) },
+  // "Gastos por natureza / categoria" (com ou sem período): quebra dos gastos por natureza
+  { id: 'GASTOS_PERIODO', test: (t) => /(gastos?|despesas?|saidas?|gastei)/.test(t) && /(por|de cada|em cada|em quais) (natureza|categoria|origem)/.test(t) },
+  // "Este mês" segue para a resposta do mês (GASTEI), que traz a projeção completa
+  {
+    id: 'GASTOS_PERIODO',
+    test: (t) => {
+      const period = spendPeriodFrom(t);
+      return !!period && period !== 'MES' && /gastos?|despesas?|saidas?|gastei|paguei|quanto sai/.test(t);
+    },
+  },
+  { id: 'GASTEI', patterns: [/quanto (ja )?gastei|ja gastei|meus gastos|gastos (d[eo]|d?este|d?esse|no) mes|gastei (esse|este|no) mes/] },
+  { id: 'CAIU', patterns: [/(por ?que|porque).*(caiu|diminuiu|baixou|negativo|saldo)/] },
+  { id: 'RESERVA', patterns: [/reserva/] },
+  { id: 'METAS', patterns: [/\bmetas?\b/] },
+  { id: 'QUITAR', patterns: [/quita|quitar|amortiz|antecipar parcela/] },
+  { id: 'COMPRA', patterns: [/posso comprar|da pra comprar|consigo comprar|vale a pena comprar|\bcarro\b|financiar/] },
+  { id: 'COMO_FUNCIONA', patterns: [/como funciona|o que (voce|vc) faz|me ajuda|^ajuda|como usar/] },
+  { id: 'GLOSSARIO', patterns: [/o que (e|sao|significa)\b/] },
+  { id: 'ONDE_VER', patterns: [/^ver |onde (vejo|fica|encontro)/] },
+];
+
 /** Reconhece uma dúvida no texto (antes de tentar ler como gasto/recebimento: "quanto já gastei" não é um gasto). */
 export function detectDoubt(text: string): DoubtId | null {
   const t = stripAccents(text);
-  if (isDigestRequest(text)) return 'BOM_DIA';
-  if (/o que (voce )?(sabe|lembra|guardou|anotou) (sobre|de) mim|minhas memorias|o que (voce )?lembra de mim|memoria da forseti/.test(t)) return 'MEMORIAS';
-  if (t.includes('tenho uma duvida') || t === 'duvida' || t === 'duvidas' || t.includes('outra duvida')) return 'MENU';
-  if (/saldo (de )?hoje|quanto tenho|meu saldo( atual)?\??$|saldo atual|saldo em conta/.test(t)) return 'SALDO_HOJE';
-  if (/quando (entra|recebo|cai|vou receber)|proximo recebimento|proxima entrada|quando o salario/.test(t)) return 'PROXIMO_RECEB';
-  if (/quanto (ainda )?(posso|consigo) gastar|sobrou|sobra |quanto (me )?sobra|livre para gastar/.test(t)) return 'SOBRA';
-  if (/vence|vencimento|a pagar essa semana|contas? (atrasad|em atraso)|proximos dias/.test(t)) return 'VENCE';
-  if (isPlannedVsReal(t)) return 'PREVISTO_REAL';
-  if (isOthersQuestion(t)) return 'SEM_NATUREZA';
-  if (/ultim[oa]s? (compras?|gastos?|saidas?|despesas?|pagamentos?|lancamentos?|movimentac)|(compras?|gastos?) recentes?|o que (eu )?(comprei|gastei|paguei) (recentemente|ultimamente)/.test(t)) return 'ULTIMAS';
-  // Gastos com assunto ou período específico ("com mercado em setembro", "no mês passado"): a resposta com detalhe
-  if (detectSpendDetail(text)) return 'GASTOS_DETALHE';
-  // "Gastos por natureza / categoria" (com ou sem período): quebra dos gastos por natureza
-  if (/(gastos?|despesas?|saidas?|gastei)/.test(t) && /(por|de cada|em cada|em quais) (natureza|categoria|origem)/.test(t)) return 'GASTOS_PERIODO';
-  // "Este mês" segue para a resposta do mês (GASTEI), que traz a projeção completa
-  const spendPeriod = spendPeriodFrom(t);
-  if (spendPeriod && spendPeriod !== 'MES' && /gastos?|despesas?|saidas?|gastei|paguei|quanto sai/.test(t)) return 'GASTOS_PERIODO';
-  if (/quanto (ja )?gastei|ja gastei|meus gastos|gastos (d[eo]|d?este|d?esse|no) mes|gastei (esse|este|no) mes/.test(t)) return 'GASTEI';
-  if (/(por ?que|porque).*(caiu|diminuiu|baixou|negativo|saldo)/.test(t)) return 'CAIU';
-  if (t.includes('reserva')) return 'RESERVA';
-  if (/\bmetas?\b/.test(t)) return 'METAS';
-  if (/quita|quitar|amortiz|antecipar parcela/.test(t)) return 'QUITAR';
-  if (/posso comprar|da pra comprar|consigo comprar|vale a pena comprar|\bcarro\b|financiar/.test(t)) return 'COMPRA';
-  if (/como funciona|o que (voce|vc) faz|me ajuda|^ajuda|como usar/.test(t)) return 'COMO_FUNCIONA';
-  if (/o que (e|sao|significa)\b/.test(t)) return 'GLOSSARIO';
-  if (/^ver |onde (vejo|fica|encontro)/.test(t)) return 'ONDE_VER';
-  return null;
+  const rule = DOUBT_RULES.find((r) => r.patterns?.some((re) => re.test(t)) || r.test?.(t, text));
+  return rule?.id ?? null;
 }
 
 export interface ForsetiReply {
