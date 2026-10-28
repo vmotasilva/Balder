@@ -2,7 +2,7 @@ import { FORSETI_INTENTS } from './forsetiIntents';
 
 /**
  * Revisão do relatório diário de aprendizado da Forseti (gerado por api/cron/forseti-learning): lê o que veio do banco
- * com cuidado, esconde o que já foi tratado e transforma cada sugestão num caso de teste para forsetiAssistant.test.ts.
+ * com cuidado, esconde o que já foi tratado e transforma cada sugestão num caso de teste para forsetiEvalCases.ts.
  */
 
 export interface ReviewGroup {
@@ -81,7 +81,7 @@ export function phraseForTest(phrase: string): string | null {
 }
 
 /**
- * Linha para a lista de casos de detectDoubt em src/utils/forsetiAssistant.test.ts (`['frase', 'INTENCAO'],`), ou um comentário
+ * Linha para REPORT_CASES em src/utils/forsetiEvalCases.ts (`['frase', 'INTENCAO'],`), ou um comentário
  * quando a sugestão é uma intenção NOVA, que ainda precisa ser criada. Null se a sugestão não serve de teste.
  */
 export function testCaseLine(s: ReviewSuggestion): string | null {

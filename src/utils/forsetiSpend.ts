@@ -147,10 +147,12 @@ const SPEND_WORD = /\b(gast\w*|despesas?|saidas?|paguei|pagamos|pagou|comprei|co
 export function detectSpendDetail(text: string, today: Date = new Date()): SpendQuery | null {
   const t = stripAccents(text);
   if (!SPEND_WORD.test(t)) return null;
-  // "paguei 50 na farmácia" é um registro, não uma pergunta: sem substantivo de gasto, só vale como pergunta
-  if (!SPEND_NOUN.test(t) && !/\?|\bquant\w*\b|\bquais?\b|\bqual\b|\bmostr\w+|\bver\b/.test(t)) return null;
-  const { subject, shown } = spendSubjectWords(text);
   const range = parseSpendRange(text, today);
+  // "gastei com ifood no mês passado": sem valor e com um período já passado, é pergunta (um registro traz o valor)
+  const pastPeriodNoAmount = !!range && !CURRENT_LABELS.includes(range.label) && !/\d|\breais?\b|\bmil\b/.test(t);
+  // "paguei 50 na farmácia" é um registro, não uma pergunta: sem substantivo de gasto, só vale como pergunta
+  if (!SPEND_NOUN.test(t) && !pastPeriodNoAmount && !/\?|\bquant\w*\b|\bquais?\b|\bqual\b|\bmostr\w+|\bver\b/.test(t)) return null;
+  const { subject, shown } = spendSubjectWords(text);
   if (!subject && (!range || CURRENT_LABELS.includes(range.label))) return null;
   return { subject, ...(subject ? { shown } : {}), ...(range ? { range } : {}) };
 }

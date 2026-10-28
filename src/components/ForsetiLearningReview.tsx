@@ -104,8 +104,8 @@ export const ForsetiLearningReview: React.FC = () => {
         </label>
       </div>
       <p className="text-muted text-sm">
-        Frases sem números, e-mails nem links. “Copiar caso de teste” gera a linha para a lista de <code>detectDoubt</code> em
-        <code> src/utils/forsetiAssistant.test.ts</code>; a regra em si é escrita no código.
+        Frases sem números, e-mails nem links. “Copiar caso de teste” gera a linha para <code>REPORT_CASES</code> em
+        <code> src/utils/forsetiEvalCases.ts</code>; a regra em si é escrita no código.
       </p>
       {notice && <p className="text-sm text-emerald" role="status">{notice}</p>}
 
