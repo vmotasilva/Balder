@@ -53,6 +53,11 @@ export const DOUBT_CASES: DoubtCase[] = [
   ...group(null, [
     'bom dia, paguei 50 na farmácia', 'gastei 50 no ifood ontem', 'gastei cem reais no mercado em setembro', 'previ 50 de gasolina', 'paguei 50 na farmácia', '30 mercado', 'recebi 1000', 'obrigado', 'oi', 'fatura do cartão',
   ]),
+  // Preferência, prioridade, restrição e conversa fora do tema: seguem para a IA (memória), sem cair numa palavra solta
+  ...group(null, [
+    'eu odeio parcelar compras', 'meu foco esse ano e quitar o emprestimo antes de investir', 'nao quero mexer na minha reserva de jeito nenhum',
+    'quem ganhou o jogo ontem',
+  ]),
 ];
 
 /** Casos vindos dos relatórios de aprendizado: cole aqui as linhas geradas pelo painel (`['frase', 'INTENCAO'],`). */
