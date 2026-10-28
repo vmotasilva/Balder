@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { FORSETI_INTENTS } from '../src/utils/forsetiIntents';
 import { MEMORY_KINDS } from '../src/utils/forsetiMemory';
-import { detectDoubt, registrationKind, resolveFollowUp, shorthandRegistration } from '../src/utils/forsetiAssistant';
+import { detectDoubt, isQuestion, parseAmount, registrationKind, resolveFollowUp, shorthandRegistration } from '../src/utils/forsetiAssistant';
+import { detectMemoryStatement } from '../src/utils/forsetiMemory';
 import { INTENT_CASES, type CaseTag, type IntentCase } from '../evals/forseti-intent/cases';
 import { costUsd, gradeAnswer, summarize, type EvalRow } from '../evals/forseti-intent/grade';
 import type { IntentAnswer } from '../api/_forsetiIntentAi';
@@ -27,7 +28,9 @@ describe('casos da avaliação da IA', () => {
   it('só têm frases que as regras do aplicativo deixam passar (é o que a IA recebe em produção)', () => {
     const caught = INTENT_CASES.filter((k) => {
       const topic = k.context ? { intent: k.context.intent, period: k.context.period, text: k.context.previous, at: Date.now() } : null;
-      return detectDoubt(k.text) || registrationKind(k.text) || shorthandRegistration(k.text) || (topic && resolveFollowUp(k.text, topic));
+      // Mesma porta de memória do chat (useForsetiChat): sem pergunta, sem valor e sem registro
+      const localMemory = !isQuestion(k.text) && parseAmount(k.text) === null && !registrationKind(k.text) ? detectMemoryStatement(k.text) : null;
+      return detectDoubt(k.text) || registrationKind(k.text) || shorthandRegistration(k.text) || localMemory || (topic && resolveFollowUp(k.text, topic));
     });
     expect(caught.map((k) => k.id)).toEqual([]);
   });
