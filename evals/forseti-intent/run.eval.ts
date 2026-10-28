@@ -2,7 +2,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { classify, MODEL } from '../../api/_forsetiIntentAi';
+import { classify, modelInUse } from '../../api/_forsetiIntentAi';
 import { EVAL_DAY, INTENT_CASES, type IntentCase } from './cases';
 import { costUsd, gradeAnswer, summarize, type EvalRow } from './grade';
 
@@ -15,7 +15,7 @@ import { costUsd, gradeAnswer, summarize, type EvalRow } from './grade';
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
-const MODEL_UNDER_TEST = process.env.EVAL_MODEL || MODEL;
+const MODEL_UNDER_TEST = process.env.EVAL_MODEL || modelInUse();
 const VARIANT = process.env.EVAL_VARIANT || MODEL_UNDER_TEST;
 const REPS = Math.max(1, Number(process.env.EVAL_REPS) || 1);
 const CONCURRENCY = Math.max(1, Number(process.env.EVAL_CONCURRENCY) || 4);
@@ -116,6 +116,10 @@ describe('avaliação da IA que entende a frase', () => {
     console.log(`  passou ${fmt(s.pass)} · intenção ${fmt(s.intent)} · conteúdo ${fmt(s.payload)} · registros falsos ${s.falseRegistrations}`);
     console.log(`  registro: precisão ${fmt(s.registration.precision)} revocação ${fmt(s.registration.recall)} · memória: precisão ${fmt(s.memory.precision)} revocação ${fmt(s.memory.recall)}`);
     console.log(`  por categoria: ${Object.entries(s.byTag).map(([t, v]) => `${t} ${fmt(v.pass)} (${v.cases})`).join(' · ')}`);
+    const truncated = rows.filter((r) => r.stop_reason === 'max_tokens').length;
+    if (truncated) console.log(`  ATENÇÃO: ${truncated} resposta(s) cortadas por max_tokens (contam como erro de nota)`);
+    const cacheRead = rows.reduce((acc, r) => acc + r.usage.cache_read_input_tokens, 0);
+    console.log(`  cache: ${cacheRead} tokens lidos do cache, ${rows.reduce((acc, r) => acc + r.usage.cache_creation_input_tokens, 0)} gravados`);
     console.log(`  mediana ${s.latencyMedianS ?? '—'}s · ${s.inputTokens} tokens de entrada, ${s.outputTokens} de saída · custo ~US$ ${cost.toFixed(4)}`);
     wrong.forEach((r) => console.log(`  ✗ ${r.id} (${r.tag}) "${r.text}" → ${r.grade.notes.join('; ')}`));
     console.log(`  arquivos: ${outDir}\n`);

@@ -4,7 +4,9 @@
 import { type MemoryDraft, parseMemory } from '../src/utils/forsetiMemory.js';
 import { FORSETI_INTENTS, SPEND_PERIODS, type ForsetiRegistration, type ForsetiSpendQuery, isForsetiIntent, isSpendPeriod, parseRegistration, parseSpendQuery } from '../src/utils/forsetiIntents.js';
 
+/** Modelo padrão. Para trocar (ou voltar) sem novo deploy, defina FORSETI_INTENT_MODEL na Vercel, por exemplo claude-haiku-5-5. */
 export const MODEL = 'claude-haiku-4-5-20251001';
+export const modelInUse = () => process.env.FORSETI_INTENT_MODEL?.trim() || MODEL;
 
 export interface IntentAnswer {
   intent: string;
@@ -109,14 +111,17 @@ export type ClassifyResult =
 
 /** Pergunta à IA qual é a intenção da frase. `day` (AAAA-MM-DD) é o "hoje" que ela usa para entender "amanhã" e "dia 12". */
 export async function classify(args: { key: string; text: string; context: string; day: string; model?: string }): Promise<ClassifyResult> {
-  const { key, text, context, day, model = MODEL } = args;
+  const { key, text, context, day, model = modelInUse() } = args;
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
       model,
-      max_tokens: 250,
-      system: SYSTEM,
+      // Folga para o tokenizador da Haiku 5.5 (~30% mais tokens): uma resposta cortada vira "DESCONHECIDO" sem aviso
+      max_tokens: 400,
+      // O prefixo (ferramentas + prompt) é o mesmo em toda chamada: o cache corta o custo e a latência dele. Abaixo do mínimo do
+      // modelo (4.096 tokens na Haiku 4.5, 512 na 5.5) a API ignora o marcador, sem erro.
+      system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }],
       tools: TOOLS,
       tool_choice: { type: 'tool', name: 'classificar' },
       messages: [{ role: 'user', content: `hoje: ${day}\n${context ? `contexto: ${context}\n` : ''}frase: ${text}` }],

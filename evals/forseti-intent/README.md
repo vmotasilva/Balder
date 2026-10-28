@@ -14,9 +14,23 @@ aplicativo não entenderam. É o que decide, com número, se vale trocar o model
 Uma rodada de 53 casos custa na ordem de **US$ 0,10 a 0,20** na Haiku 4.5 (cerca de 1.700 tokens de entrada por chamada;
 o custo real aparece no fim da rodada).
 
+## Comparar o modelo atual com a Haiku 5.5 (antes de trocar em produção)
+
+```bash
+export ANTHROPIC_API_KEY=...
+EVAL_MODEL=claude-haiku-4-5-20251001 EVAL_REPS=3 EVAL_RUN=1 npm run eval:intent   # baseline
+EVAL_MODEL=claude-haiku-5-5          EVAL_REPS=3 EVAL_RUN=1 npm run eval:intent   # candidata
+```
+
+Compare, nesta ordem: **registros falsos** (precisa ficar em 0), "passou" por categoria, precisão do registro e da memória,
+respostas cortadas por `max_tokens` (precisa ser 0), latência e custo. Só então troque em produção definindo
+`FORSETI_INTENT_MODEL=claude-haiku-5-5` na Vercel (sem novo deploy; para voltar, apague a variável).
+O cache de prompt aparece nas linhas "cache:" da rodada: na Haiku 4.5 fica em 0 (o prefixo é menor que o mínimo de 4.096 tokens);
+na 5.5 deve aparecer leitura de cache a partir da segunda chamada.
+
 ## Variáveis
 
-- `EVAL_MODEL`: modelo testado (padrão: o de produção, `MODEL` em `api/_forsetiIntentAi.ts`).
+- `EVAL_MODEL`: modelo testado (padrão: o de produção, `FORSETI_INTENT_MODEL` ou `MODEL` em `api/_forsetiIntentAi.ts`).
 - `EVAL_VARIANT`: nome da pasta de resultados (padrão: o modelo).
 - `EVAL_REPS`: repetições por caso (padrão 1). Use 3 ou mais para medir ruído antes de concluir qualquer coisa.
 - `EVAL_ONLY`: ids separados por vírgula, para rodar só alguns casos (`EVAL_ONLY=reg-01,mem-02`).

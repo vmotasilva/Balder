@@ -284,5 +284,38 @@ describe('/api/forseti-intent', () => {
       expect(lastAiBody).toMatch(/spend/);
     });
   });
-});
 
+  describe('modelo e cache de prompt', () => {
+    const sent = async (text = 'qual meu saldo agora de verdade') => {
+      await call(await load(), { text }, 'Bearer valido');
+      return JSON.parse(lastAiBody) as { model: string; messages: unknown; max_tokens: number; system: { type: string; text: string; cache_control?: { type: string } }[]; tool_choice: unknown };
+    };
+
+    it('usa o modelo padrão e marca o prompt fixo para cache', async () => {
+      const body = await sent();
+      expect(body.model).toBe('claude-haiku-4-5-20251001');
+      expect(body.system).toHaveLength(1);
+      expect(body.system[0]).toMatchObject({ type: 'text', cache_control: { type: 'ephemeral' } });
+      expect(body.system[0].text).toMatch(/Você classifica mensagens/);
+      expect(body.tool_choice).toEqual({ type: 'tool', name: 'classificar' });
+    });
+
+    it('FORSETI_INTENT_MODEL troca o modelo sem mexer no resto da requisição', async () => {
+      const before = await sent();
+      vi.resetModules();
+      vi.stubEnv('FORSETI_INTENT_MODEL', ' claude-haiku-5-5 ');
+      const after = await sent('quanto eu tenho agora de verdade');
+      expect(after.model).toBe('claude-haiku-5-5');
+      expect({ ...after, model: '', messages: 0 }).toEqual({ ...before, model: '', messages: 0 });
+    });
+
+    it('variável vazia volta ao modelo padrão', async () => {
+      vi.stubEnv('FORSETI_INTENT_MODEL', '  ');
+      expect((await sent()).model).toBe('claude-haiku-4-5-20251001');
+    });
+
+    it('deixa folga em max_tokens para o tokenizador novo', async () => {
+      expect((await sent()).max_tokens).toBeGreaterThanOrEqual(400);
+    });
+  });
+});
