@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { detectDoubt } from './forsetiAssistant';
 import {
-  type LearningReport, handledEverywhere, parseReport, pendingGroups, pendingSuggestions, phraseForTest, signalsOf, testCaseLine, testCaseSnippet,
+  type LearningReport, handledEverywhere, parseReport, parseStats, usageShares, pendingGroups, pendingSuggestions, phraseForTest, signalsOf, testCaseLine, testCaseSnippet,
   toggleHandled,
 } from './forsetiLearningReview';
 
@@ -94,5 +94,26 @@ describe('casos de teste', () => {
     expect(out.split('\n')).toHaveLength(2);
     expect(out).toContain("['quanto sobrou ate o fim do mes', 'SOBRA'],");
     expect(testCaseSnippet([])).toBe('');
+  });
+});
+
+describe('métricas do dia', () => {
+  const stats = { total: 12, conversation: 10, rules: 6, ai: 3, notUnderstood: 1, useful: 2, notUseful: 1, undone: 0 };
+
+  it('lê as métricas do relatório e aceita relatório antigo sem elas', () => {
+    expect(parseReport({ ...row, stats })!.stats).toEqual(stats);
+    expect(parseReport(row)!.stats).toBeNull();
+    expect(parseReport({ ...row, stats: {} })!.stats).toBeNull();
+  });
+
+  it('corrige números ruins e descarta o que não é objeto', () => {
+    expect(parseStats({ total: 5, conversation: 4, rules: -2, ai: 'x', notUnderstood: 1.9 })).toMatchObject({ rules: 0, ai: 0, notUnderstood: 1 });
+    expect(parseStats('x')).toBeNull();
+    expect(parseStats(null)).toBeNull();
+  });
+
+  it('calcula a parte de cada caminho, sem dividir por zero', () => {
+    expect(usageShares(stats)).toEqual({ rules: 60, ai: 30, notUnderstood: 10 });
+    expect(usageShares({ ...stats, conversation: 0, rules: 0, ai: 0, notUnderstood: 0 })).toEqual({ rules: 0, ai: 0, notUnderstood: 0 });
   });
 });

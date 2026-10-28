@@ -5,7 +5,7 @@
 //   CRON_SECRET                 (a Vercel envia no cabeçalho Authorization das chamadas agendadas)
 //   SUPABASE_URL ou VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 //   ANTHROPIC_API_KEY           (opcional: acrescenta sugestões de regra ao relatório)
-import { buildPhraseGroups, type ConversationRow, type PhraseGroup } from '../../src/utils/forsetiLearning.js';
+import { buildPhraseGroups, buildUsageStats, type ConversationRow, type PhraseGroup } from '../../src/utils/forsetiLearning.js';
 import { FORSETI_INTENTS } from '../../src/utils/forsetiIntents.js';
 
 const MODEL = 'claude-haiku-4-5-20251001';
@@ -92,10 +92,15 @@ export async function GET(request: Request): Promise<Response> {
     groups,
     suggestions,
   };
-  const save = await fetch(`${base}/rest/v1/forseti_learning_reports?on_conflict=report_date`, {
-    method: 'POST',
-    headers: { ...headers, Prefer: 'resolution=merge-duplicates' },
-    body: JSON.stringify(report),
-  });
-  return Response.json({ ...report, saved: save.ok }, { headers: { 'Cache-Control': 'no-store' } });
+  const stats = buildUsageStats(rows);
+  const saveReport = (body: object) =>
+    fetch(`${base}/rest/v1/forseti_learning_reports?on_conflict=report_date`, {
+      method: 'POST',
+      headers: { ...headers, Prefer: 'resolution=merge-duplicates' },
+      body: JSON.stringify(body),
+    });
+  // Sem a coluna stats (supabase/forseti_learning_reports.sql ainda não rodou de novo), grava o relatório sem as métricas
+  let save = await saveReport({ ...report, stats });
+  if (!save.ok) save = await saveReport(report);
+  return Response.json({ ...report, stats, saved: save.ok }, { headers: { 'Cache-Control': 'no-store' } });
 }
