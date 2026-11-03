@@ -142,7 +142,6 @@ const CardPurchaseForm: React.FC<FormProps> = ({ invoiceId, itemId, onClose }) =
   const ruleDue = purchaseDate && bankTerms ? firstInvoiceDueDate(purchaseDate, bankTerms.closingDay, bankTerms.dueDay) : '';
   const currentFirstDue = parts.map((p) => p.invoice.dueDate).sort()[0] || invoice.dueDate;
   const sourcePaid = parts.some((p) => p.invoice.status === 'REALIZADA');
-  const moveBlocked = sourcePaid && parts.length > 1;
   const moveOptions = useMemo(() => {
     const due = new Set<string>();
     movements.forEach((m) => {
@@ -154,7 +153,7 @@ const CardPurchaseForm: React.FC<FormProps> = ({ invoiceId, itemId, onClose }) =
   const [moveTo, setMoveTo] = useState('');
   const moveTarget = moveOptions.includes(moveTo) ? moveTo : moveOptions.includes(ruleDue) ? ruleDue : moveOptions[0] || '';
   const ruleSuggestsMove = !!ruleDue && ruleDue.slice(0, 7) !== currentFirstDue.slice(0, 7);
-  const canMove = !rebuild && !moveBlocked && !!originalBank && moveOptions.length > 0;
+  const canMove = !rebuild && !!originalBank && moveOptions.length > 0;
   const moveToInvoice = () => {
     if (!canMove || !moveTarget) return;
     const sched = inst > 1 ? installmentSchedule(finalValue, inst, moveTarget, bankTerms?.dueDay) : [{ dueDate: moveTarget, amount: finalValue }];
@@ -282,39 +281,35 @@ const CardPurchaseForm: React.FC<FormProps> = ({ invoiceId, itemId, onClose }) =
           <DateInput id="card-purchase-date" className="form-input" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} />
         </div>
 
-        {(canMove || moveBlocked) && (
+        {canMove && (
           <div style={{ padding: '10px 14px', borderRadius: '12px', border: `1px solid ${ruleSuggestsMove ? 'var(--accent-amber, #FBBF24)' : 'var(--border-default)'}`, background: 'var(--bg-card)' }}>
             <span className="form-label">Mover para outra fatura</span>
-            {moveBlocked ? (
-              <div className="text-xs text-muted">Esta compra tem parcelas em fatura já paga: não dá para mover todas de uma vez.</div>
-            ) : (
-              <>
-                {ruleSuggestsMove && (
-                  <div className="text-xs" style={{ margin: '4px 0 8px' }}>
-                    Pelo fechamento do {originalBank} (dia {bankTerms?.closingDay}), uma compra de {ddmm(purchaseDate)} cai na fatura que vence {ddmm(ruleDue)}, mas esta está na de {ddmm(currentFirstDue)}.
-                  </div>
-                )}
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' }}>
-                  <select className="form-input" style={{ flex: 1, minWidth: '160px' }} value={moveTarget} onChange={(e) => setMoveTo(e.target.value)} aria-label="Fatura de destino">
-                    {moveOptions.map((d) => (
-                      <option key={d} value={d}>
-                        {originalBank} · vence {ddmm(d)}/{d.slice(0, 4)}
-                        {d === ruleDue ? ' (pela regra do banco)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <button type="button" className="btn btn-primary btn-sm" onClick={moveToInvoice}>
-                    Mover para a fatura certa
-                  </button>
+            <>
+              {ruleSuggestsMove && (
+                <div className="text-xs" style={{ margin: '4px 0 8px' }}>
+                  Pelo fechamento do {originalBank} (dia {bankTerms?.closingDay}), uma compra de {ddmm(purchaseDate)} cai na fatura que vence {ddmm(ruleDue)}, mas esta está na de {ddmm(currentFirstDue)}.
                 </div>
-                {parts.length > 1 && <div className="text-xs text-muted" style={{ marginTop: '6px' }}>As {parts.length} parcelas serão refeitas a partir da fatura escolhida.</div>}
-                {sourcePaid && (
-                  <div className="text-xs text-rose" style={{ marginTop: '6px' }}>
-                    A fatura de origem já foi paga: o total dela não muda e o valor fica em "Não Analisada" nela, mas passa a contar também na fatura escolhida. Confira para não contar duas vezes.
-                  </div>
-                )}
-              </>
-            )}
+              )}
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' }}>
+                <select className="form-input" style={{ flex: 1, minWidth: '160px' }} value={moveTarget} onChange={(e) => setMoveTo(e.target.value)} aria-label="Fatura de destino">
+                  {moveOptions.map((d) => (
+                    <option key={d} value={d}>
+                      {originalBank} · vence {ddmm(d)}/{d.slice(0, 4)}
+                      {d === ruleDue ? ' (pela regra do banco)' : ''}
+                    </option>
+                  ))}
+                </select>
+                <button type="button" className="btn btn-primary btn-sm" onClick={moveToInvoice}>
+                  Mover para a fatura certa
+                </button>
+              </div>
+              {parts.length > 1 && <div className="text-xs text-muted" style={{ marginTop: '6px' }}>A fatura escolhida recebe a 1ª parcela e as demais seguem mês a mês ({parts.length} parcelas refeitas).</div>}
+              {sourcePaid && (
+                <div className="text-xs text-rose" style={{ marginTop: '6px' }}>
+                  Há parcela em fatura já paga: o total dela não muda e o valor fica em "Não Analisada" nela, mas passa a contar também nas novas faturas. Confira para não contar duas vezes.
+                </div>
+              )}
+            </>
           </div>
         )}
 
