@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { ForsetiActivity, Movement } from '../types';
-import { addCardPurchaseToInvoices, findPurchaseParts, invoiceAfterRemovingItems, invoiceItemEditUpdates, purchaseRebuildBlock, rebuildCardPurchase } from './cardPurchase';
+import type { ForsetiActivity, InvoiceNatureItemBreakdown, Movement } from '../types';
+import { addCardPurchaseToInvoices, displayPurchaseDate, findPurchaseParts, invoiceAfterRemovingItems, invoiceItemEditUpdates, purchaseRebuildBlock, rebuildCardPurchase } from './cardPurchase';
 import { createdMovementsOf, invoiceItemsOf } from './forsetiAssistant';
 
 const invoice = (over: Partial<Movement> = {}): Movement => ({
@@ -221,5 +221,18 @@ describe('refazer a compra no cartão (forma de pagamento)', () => {
     const r = rebuildCardPurchase([a], findPurchaseParts([a], 'i1', 'purchase_1_ab_1'), { ...details, total: 100 }, { kind: 'PAID', bank: 'Dinheiro em mãos' });
     expect(r.deletes).toEqual([]);
     expect(apply([a], r)[0]).toMatchObject({ amount: 200, unanalyzedAmount: 0, category: 'Fatura de Cartão' });
+  });
+});
+
+describe('displayPurchaseDate', () => {
+  const inv = { id: 'i', title: 'Fatura', type: 'CARTAO', amount: 1, dueDate: '2026-11-10', bank: 'Nubank', status: 'PREVISTA', category: 'x' } as Movement;
+  const mk = (over: Partial<InvoiceNatureItemBreakdown>) => ({ id: 'a', natureName: 'x', description: 'x', amount: 1, isAnalyzed: true, ...over });
+
+  it('parcela sem data fica no início do ciclo da fatura', () => {
+    expect(displayPurchaseDate(inv, mk({ installments: 3, currentInstallment: 2 }), { closingDay: 3, dueDay: 10 })).toBe('2026-10-03');
+  });
+  it('mantém a data própria e não inventa data para item à vista', () => {
+    expect(displayPurchaseDate(inv, mk({ purchaseDate: '2026-10-20' }))).toBe('2026-10-20');
+    expect(displayPurchaseDate(inv, mk({}), { closingDay: 3, dueDay: 10 })).toBeUndefined();
   });
 });
