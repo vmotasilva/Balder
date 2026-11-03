@@ -4,7 +4,6 @@ import { useFinancial } from '../context/FinancialContext';
 import { listPaymentInstitutions } from '../utils/paymentInstitutions';
 import { getBankBranding } from '../utils/bankBranding';
 import { parseMoney } from '../utils/parseDecimal';
-import { defaultClosingDay } from '../utils/setupCatalog';
 import { firstInvoiceDueDate } from '../utils/cardPurchase';
 import { findMappingForTitle, findMappingItemForTitle } from '../utils/mappingMatch';
 import { userNatures } from '../utils/baseNatures';
@@ -26,7 +25,7 @@ interface Props {
  * banco ou dinheiro → banco → débito ou crédito → parcelas → resumo editável.
  */
 export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) => {
-  const { accounts, cards, banks, natures, setBankInvoiceTerms, updatePaymentWizard, confirmPaymentWizard, cancelPaymentWizard } = useFinancial();
+  const { accounts, cards, banks, movements, natures, setBankInvoiceTerms, updatePaymentWizard, confirmPaymentWizard, cancelPaymentWizard } = useFinancial();
   const wizard = pending.wizard as PaymentWizardState;
   const data = pending.pendingData;
   const isIncome = data.type === 'RECEBER';
@@ -36,16 +35,15 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
 
   const [amountText, setAmountText] = useState(String(data.amount).replace('.', ','));
   const [customInstallments, setCustomInstallments] = useState('');
-  const [termsDue, setTermsDue] = useState(10);
-  const [termsClosing, setTermsClosing] = useState(defaultClosingDay(10));
-  const [closingTouched, setClosingTouched] = useState(false);
+  const [termsDue, setTermsDue] = useState<number | ''>('');
+  const [termsClosing, setTermsClosing] = useState<number | ''>('');
   // Começou direto na fatura (banco já conhecido): depois dela vai ao resumo
   const [termsFromSummary, setTermsFromSummary] = useState(wizard.step === 'INVOICE');
 
   // Pagamento: um banco por vez; recebimento: a conta que recebe
   const institutions = isIncome
     ? accounts.map((a) => ({ name: a.name, color: getBankBranding(a.bankName || a.name).primaryColor, noCredit: false, terms: undefined }))
-    : listPaymentInstitutions(accounts, cards, banks).map((i) => ({ name: i.name, color: i.color, noCredit: i.noCredit, terms: i.terms }));
+    : listPaymentInstitutions(accounts, cards, banks, movements).map((i) => ({ name: i.name, color: i.color, noCredit: i.noCredit, terms: i.terms }));
 
   // Despesa: a Forseti sugere natureza e item do teto pelo nome; a pessoa confirma ou troca no resumo
   const ownNatures = userNatures(natures);
@@ -85,15 +83,14 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
   };
 
   const credit = wizard.method === 'CREDITO';
-  const terms = credit ? listPaymentInstitutions(accounts, cards, banks).find((i) => i.name === wizard.institution)?.terms : undefined;
+  const terms = credit ? listPaymentInstitutions(accounts, cards, banks, movements).find((i) => i.name === wizard.institution)?.terms : undefined;
   const invoiceDue = terms ? firstInvoiceDueDate(data.dueDate, terms.closingDay, terms.dueDay) : '';
 
   // Fechamento e vencimento são do banco: ficam guardados nele e valem para todas as compras no crédito
   const openTerms = (fromSummary: boolean, extra: Partial<PaymentWizardState> = {}) => {
     setTermsFromSummary(fromSummary);
-    setTermsDue(terms?.dueDay ?? 10);
-    setTermsClosing(terms?.closingDay ?? defaultClosingDay(terms?.dueDay ?? 10));
-    setClosingTouched(!!terms);
+    setTermsDue(terms?.dueDay ?? '');
+    setTermsClosing(terms?.closingDay ?? '');
     go({ ...extra, step: 'INVOICE' });
   };
   // Cartão já dito e banco escolhido na lista: vai direto ao crédito, sem perguntar "débito ou crédito?"
@@ -103,12 +100,13 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
       return;
     }
     setTermsFromSummary(false);
-    setTermsDue(10);
-    setTermsClosing(defaultClosingDay(10));
-    setClosingTouched(false);
+    setTermsDue('');
+    setTermsClosing('');
     go({ institution: name, method: 'CREDITO', step: 'INVOICE' });
   };
   const saveTerms = () => {
+    // Só grava o que a pessoa informou: nada de valor padrão salvo como se fosse do banco
+    if (termsClosing === '' || termsDue === '') return;
     setBankInvoiceTerms(wizard.institution || '', { closingDay: termsClosing, dueDay: termsDue });
     go({ step: termsFromSummary ? 'SUMMARY' : 'INSTALLMENTS' });
   };
@@ -204,8 +202,8 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
                   max={31}
                   value={termsClosing}
                   onChange={(e) => {
-                    setClosingTouched(true);
-                    setTermsClosing(Math.min(31, Math.max(1, parseInt(e.target.value, 10) || 1)));
+                    const n = parseInt(e.target.value, 10);
+                    setTermsClosing(n ? Math.min(31, Math.max(1, n)) : '');
                   }}
                 />
               </dd>
@@ -219,17 +217,16 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
                   max={31}
                   value={termsDue}
                   onChange={(e) => {
-                    const d = Math.min(31, Math.max(1, parseInt(e.target.value, 10) || 1));
-                    setTermsDue(d);
-                    if (!closingTouched) setTermsClosing(defaultClosingDay(d));
+                    const n = parseInt(e.target.value, 10);
+                    setTermsDue(n ? Math.min(31, Math.max(1, n)) : '');
                   }}
                 />
               </dd>
             </div>
           </dl>
-          {!closingTouched && <span className="pay-wizard-hint">Fechamento estimado (uma semana antes do vencimento): confira no app do banco.</span>}
+          <span className="pay-wizard-hint">Confira no app do banco: é o que define em qual fatura cada compra cai.</span>
           <div className="pay-wizard-actions">
-            <button type="button" className="pay-wizard-confirm" onClick={saveTerms}>
+            <button type="button" className="pay-wizard-confirm" onClick={saveTerms} disabled={termsClosing === '' || termsDue === ''}>
               Continuar
             </button>
           </div>

@@ -1,6 +1,6 @@
 import { SupabaseService } from '../../services/supabaseService';
 import { canonicalBankName } from '../../utils/paymentInstitutions';
-import { deduplicateCards, getCardIdentityKey } from '../../utils/cardUtils';
+import { deduplicateCards, getCardIdentityKey, normalizeBankKey } from '../../utils/cardUtils';
 import { getBankBranding } from '../../utils/bankBranding';
 import { monthDateKeepingDay } from '../../utils/cardPurchase';
 import {
@@ -224,7 +224,8 @@ export function useBankEntities({
 
   const setBankInvoiceTerms = (bankName: string, terms: { closingDay?: number; dueDay?: number }) => {
     const name = bankName.trim();
-    const existing = banks.find((b) => b.name.trim().toLowerCase() === name.toLowerCase());
+    // "Banco Inter" e "Inter" são o mesmo banco: não cria um segundo cadastro
+    const existing = banks.find((b) => b.name.trim().toLowerCase() === name.toLowerCase() || normalizeBankKey(b.name) === normalizeBankKey(name));
     const patch: Partial<BankInstitution> = {
       ...(terms.closingDay ? { closingDay: terms.closingDay } : {}),
       ...(terms.dueDay ? { dueDay: terms.dueDay } : {}),

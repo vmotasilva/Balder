@@ -92,7 +92,7 @@ export function useForsetiActions({
     if (!pc || !w) return;
     const pending = pc.pendingData;
     const category = pending.category || 'Outros';
-    const inst = listPaymentInstitutions(accounts, cards, banks).find((i) => i.name === w.institution);
+    const inst = listPaymentInstitutions(accounts, cards, banks, movements).find((i) => i.name === w.institution);
     let option: CopilotInteractiveOption;
     if (pending.type === 'RECEBER') {
       const bank = w.where === 'CASH' ? CASH_IN_HAND : w.institution || 'Geral';
@@ -344,7 +344,7 @@ export function useForsetiActions({
     // Pagamento agendado: tocar numa forma de pagamento mostra o resumo ("Confira o agendamento") em vez de gravar na hora.
     // O "Confirmar agendamento" do resumo volta aqui com outra opção (opt_wizard*), que aí sim grava.
     if (pending.status === 'PREVISTA' && pending.type !== 'RECEBER') {
-      const wizard = wizardForPaymentOption(option, listPaymentInstitutions(accounts, cards, banks), pending.installments && pending.installments >= 2 ? pending.installments : 1);
+      const wizard = wizardForPaymentOption(option, listPaymentInstitutions(accounts, cards, banks, movements), pending.installments && pending.installments >= 2 ? pending.installments : 1);
       if (wizard) {
         setChatHistory((prev) =>
           prev.map((m) => (m.id === messageId && m.pendingConfirmation ? { ...m, pendingConfirmation: { ...m.pendingConfirmation, options: [], wizard } } : m))
