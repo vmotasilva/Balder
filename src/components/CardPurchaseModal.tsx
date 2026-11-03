@@ -61,7 +61,7 @@ const CardPurchaseForm: React.FC<FormProps> = ({ invoiceId, itemId, onClose }) =
   const hasInstallments = inst > 1;
   const finalValue = item.finalAmount ?? item.amount * inst;
 
-  const institutions = useMemo(() => listPaymentInstitutions(accounts, cards, banks), [accounts, cards, banks]);
+  const institutions = useMemo(() => listPaymentInstitutions(accounts, cards, banks, movements), [accounts, cards, banks, movements]);
   const originalBank = canonicalBankName(invoice.bank || invoice.title, banks, cards);
   const parts = useMemo(() => findPurchaseParts(movements, invoiceId, itemId), [movements, invoiceId, itemId]);
   const block = purchaseRebuildBlock(parts);
@@ -111,14 +111,58 @@ const CardPurchaseForm: React.FC<FormProps> = ({ invoiceId, itemId, onClose }) =
   const valid = description.trim().length > 0 && total > 0 && !futurePaid && (!rebuild || !needsBank || !!chosenBank);
   const share = invoice.amount > 0 ? (item.amount / invoice.amount) * 100 : 0;
 
+  // Refaz a compra (todas as parcelas) no destino informado, com os campos atuais do formulário
+  const runRebuild = (dest: PurchaseDestination, totalValueToUse: number) => {
+    const nat = natures.find((n) => n.id === natureId);
+    const [mappingId, mappingItemId] = mappingItem ? mappingItem.split(':::') : [undefined, undefined];
+    const real = natureId && natureId !== 'OUTROS' ? natureId : undefined;
+    const result = rebuildCardPurchase(
+      movements,
+      parts,
+      {
+        title: description.trim(),
+        natureId: real,
+        natureName: natureId === 'OUTROS' ? 'Outros' : nat?.name,
+        mappingId: real ? mappingId : undefined,
+        mappingItemId: real ? mappingItemId : undefined,
+        purchaseDate: purchaseDate || today,
+        total: totalValueToUse,
+      },
+      dest
+    );
+    result.updates.forEach((u) => updateMovement(u.id, u.updates));
+    result.deletes.forEach((id) => deleteMovement(id));
+    result.adds.forEach((m) => addMovement(m));
+    if (result.fulfill) markMappingItemsFulfilled([result.fulfill]);
+    onClose();
+  };
+
+  // Fatura certa pelas regras do banco (fechamento/vencimento) para a data da compra, no banco da fatura atual
+  const bankTerms = institutions.find((i) => i.name.toLowerCase() === originalBank.toLowerCase())?.terms;
+  const rightFirstDue = purchaseDate && bankTerms ? firstInvoiceDueDate(purchaseDate, bankTerms.closingDay, bankTerms.dueDay) : '';
+  const currentFirstDue = parts.map((p) => p.invoice.dueDate).sort()[0] || invoice.dueDate;
+  const misplaced = !block && !rebuild && !!rightFirstDue && rightFirstDue.slice(0, 7) !== currentFirstDue.slice(0, 7);
+  const moveToRightInvoice = () => {
+    if (!misplaced || !bankTerms) return;
+    const sched = inst > 1 ? installmentSchedule(finalValue, inst, rightFirstDue, bankTerms.dueDay) : [{ dueDate: rightFirstDue, amount: finalValue }];
+    runRebuild(
+      {
+        kind: 'CARD',
+        institution: originalBank,
+        parts: sched,
+        sameInstitution: (bank) => canonicalBankName(bank, banks, cards).toLowerCase() === originalBank.toLowerCase(),
+      },
+      finalValue
+    );
+  };
+
   const save = () => {
     if (!valid) return;
     const nat = natures.find((n) => n.id === natureId);
     const [mappingId, mappingItemId] = mappingItem ? mappingItem.split(':::') : [undefined, undefined];
 
     if (rebuild) {
-      const real = natureId && natureId !== 'OUTROS' ? natureId : undefined;
-      const dest: PurchaseDestination =
+      runRebuild(
         how === 'CREDITO'
           ? {
               kind: 'CARD',
@@ -126,26 +170,9 @@ const CardPurchaseForm: React.FC<FormProps> = ({ invoiceId, itemId, onClose }) =
               parts: schedule,
               sameInstitution: (bank) => canonicalBankName(bank, banks, cards).toLowerCase() === chosenBank.toLowerCase(),
             }
-          : { kind: 'PAID', bank: how === 'CASH' ? CASH_IN_HAND : institutions.find((i) => i.name === chosenBank)?.account?.name ?? chosenBank };
-      const result = rebuildCardPurchase(
-        movements,
-        parts,
-        {
-          title: description.trim(),
-          natureId: real,
-          natureName: natureId === 'OUTROS' ? 'Outros' : nat?.name,
-          mappingId: real ? mappingId : undefined,
-          mappingItemId: real ? mappingItemId : undefined,
-          purchaseDate: purchaseDate || today,
-          total,
-        },
-        dest
+          : { kind: 'PAID', bank: how === 'CASH' ? CASH_IN_HAND : institutions.find((i) => i.name === chosenBank)?.account?.name ?? chosenBank },
+        total
       );
-      result.updates.forEach((u) => updateMovement(u.id, u.updates));
-      result.deletes.forEach((id) => deleteMovement(id));
-      result.adds.forEach((m) => addMovement(m));
-      if (result.fulfill) markMappingItemsFulfilled([result.fulfill]);
-      onClose();
       return;
     }
 
@@ -241,6 +268,18 @@ const CardPurchaseForm: React.FC<FormProps> = ({ invoiceId, itemId, onClose }) =
           <label className="form-label" htmlFor="card-purchase-date">Data da compra</label>
           <DateInput id="card-purchase-date" className="form-input" value={purchaseDate} onChange={(e) => setPurchaseDate(e.target.value)} />
         </div>
+
+        {misplaced && (
+          <div style={{ padding: '10px 14px', borderRadius: '12px', border: '1px solid var(--accent-amber, #FBBF24)', background: 'var(--bg-card)' }}>
+            <div className="text-xs" style={{ marginBottom: '8px' }}>
+              Pelo fechamento do {originalBank} (dia {bankTerms?.closingDay}), uma compra de {ddmm(purchaseDate)} cai na fatura que vence {ddmm(rightFirstDue)}, mas esta compra está na de {ddmm(currentFirstDue)}.
+              {parts.length > 1 ? ` As ${parts.length} parcelas serão refeitas.` : ''}
+            </div>
+            <button type="button" className="btn btn-primary btn-sm" onClick={moveToRightInvoice}>
+              Mover para a fatura certa
+            </button>
+          </div>
+        )}
 
         <div className="form-group">
           <span className="form-label">Forma de pagamento</span>
