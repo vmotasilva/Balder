@@ -486,7 +486,7 @@ export function useForsetiChat({
       const parcelas = plan ? ` em **${plan.count}x de ${brl(Math.round((amount / plan.count) * 100) / 100)}**` : '';
       // Cartão citado e não cadastrado: segue o cadastro na conversa; senão, o registro em etapas
       // O que a pessoa já disse (cartão, banco, dinheiro) define o ponto de partida: nada é perguntado duas vezes
-      const preset = presetPaymentWizard(ctx.hint || '', listPaymentInstitutions(accounts, cards, banks), plan?.count ?? 1);
+      const preset = presetPaymentWizard(ctx.hint || '', listPaymentInstitutions(accounts, cards, banks, movements), plan?.count ?? 1);
       // Banco que já existe não pede cadastro de cartão: a fatura é do banco
       const needsRegister = pick.options.some((o) => o.payload.action === OPTION_REGISTER_CARD) && !preset?.institution;
       let wizard: PaymentWizardState | undefined;
@@ -495,7 +495,7 @@ export function useForsetiChat({
         // A forma de pagamento já estava clara na frase: vai direto ao resumo, para conferir
         const real = pick.options.filter((o) => o.payload.action !== OPTION_OTHER_PAYMENT);
         if (real.length === 1 && pick.question.startsWith('Confirma')) {
-          const insts = listPaymentInstitutions(accounts, cards, banks);
+          const insts = listPaymentInstitutions(accounts, cards, banks, movements);
           const o = real[0];
           const byCard = insts.find((i) => i.card && o.id === `opt_pay_card_${i.card.id}`);
           const byAccount = insts.find((i) => i.account && o.id === `opt_pay_${i.account.id}`);
@@ -751,7 +751,7 @@ export function useForsetiChat({
         const parcelas = plan ? ` em **${plan.count}x de ${brl(Math.round((plan.total / plan.count) * 100) / 100)}**` : '';
         // Pagamento agendado: vai direto ao resumo ("Confira o agendamento"), que já é a confirmação
         if (purchase.status === 'PREVISTA') {
-          const wizard = wizardForPaymentOption(cardOption[0], listPaymentInstitutions(accounts, [...cards, { ...cardData, id: 'novo' }], banks), plan?.count ?? 1);
+          const wizard = wizardForPaymentOption(cardOption[0], listPaymentInstitutions(accounts, [...cards, { ...cardData, id: 'novo' }], banks, movements), plan?.count ?? 1);
           if (wizard) {
             reply(
               { text: `${saved}\n\nAgora o agendamento: **${brl(purchase.amount)}** em **${purchase.rawTitle}**${parcelas}.`, badge: 'CARTÃO CADASTRADO', chips: [] },
@@ -780,7 +780,7 @@ export function useForsetiChat({
         );
         return;
       } else if (flow.step === 'BANCO' || flow.step === 'BANCO_OUTRO') {
-        const registered = listPaymentInstitutions(accounts, cards, banks).map((i) => i.name);
+        const registered = listPaymentInstitutions(accounts, cards, banks, movements).map((i) => i.name);
         const sameBank = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
         if (flow.step === 'BANCO_OUTRO') {
           // Só aqui o nome do banco é digitado
@@ -878,7 +878,7 @@ export function useForsetiChat({
     if (trimmed === CHIP_PAGAR_CARTAO) {
       // Primeiro confirma o banco; depois o sistema vê se há cartão cadastrado para ele
       forsetiFlowRef.current = { kind: 'PAGAR', step: 'BANCO' };
-      const bankNames = listPaymentInstitutions(accounts, cards, banks).map((i) => i.name);
+      const bankNames = listPaymentInstitutions(accounts, cards, banks, movements).map((i) => i.name);
       reply({
         text: 'Anotado, foi no cartão. **De qual banco é o cartão?**\n\nToque em uma das opções. Se não estiver na lista, escolha **Outro**.',
         badge: 'BANCO DO CARTÃO',
@@ -900,7 +900,7 @@ export function useForsetiChat({
         return;
       }
       // 0. Ações (abrir tela, criar natureza ou mapeamento): a Forseti propõe e só faz depois do "Confirmar"
-      const bankInvoiceInfo: BankInvoiceInfo[] = listPaymentInstitutions(accounts, cards, banks)
+      const bankInvoiceInfo: BankInvoiceInfo[] = listPaymentInstitutions(accounts, cards, banks, movements)
         .filter((i) => i.card || banks.some((b) => b.name === i.name))
         .map((i) => ({
           name: i.name,

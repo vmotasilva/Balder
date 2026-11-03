@@ -17,4 +17,15 @@ describe('listPaymentInstitutions', () => {
     expect(list[0].card?.id).toBe('c1');
     expect(list[1].account?.id).toBe('a1');
   });
+  it('sem fechamento/vencimento cadastrados, usa o vencimento da fatura em aberto do banco', () => {
+    const movements = [{ type: 'CARTAO', status: 'PREVISTA', bank: 'Banco Inter', dueDate: '2026-11-15' }] as never[];
+    const list = listPaymentInstitutions([], [], [bank('Banco Inter')], movements);
+    expect(list[0].terms).toEqual({ closingDay: 8, dueDay: 15 });
+  });
+
+  it('o cadastro do banco tem prioridade sobre a fatura em aberto', () => {
+    const b = { ...bank('Banco Inter'), closingDay: 3, dueDay: 10 } as BankInstitution;
+    const movements = [{ type: 'CARTAO', status: 'PREVISTA', bank: 'Banco Inter', dueDate: '2026-11-15' }] as never[];
+    expect(listPaymentInstitutions([], [], [b], movements)[0].terms).toEqual({ closingDay: 3, dueDay: 10 });
+  });
 });

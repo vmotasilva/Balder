@@ -1,4 +1,4 @@
-import type { BankAccount, BankInstitution, CreditCardItem } from '../types';
+import type { BankAccount, BankInstitution, CreditCardItem, Movement } from '../types';
 import { getBankBranding } from './bankBranding';
 import { normalizeBankKey } from './cardUtils';
 
@@ -20,7 +20,12 @@ const same = (a?: string, b?: string) => !!a && !!b && a.trim().toLowerCase() ==
 const sameBank = (a?: string, b?: string) => !!a && !!b && (same(a, b) || normalizeBankKey(a) === normalizeBankKey(b));
 
 /** Cada banco uma única vez, com a conta e o cartão dele (só o nome, com a cor da marca). */
-export function listPaymentInstitutions(accounts: BankAccount[], cards: CreditCardItem[], banks: BankInstitution[]): PaymentInstitution[] {
+export function listPaymentInstitutions(
+  accounts: BankAccount[],
+  cards: CreditCardItem[],
+  banks: BankInstitution[],
+  movements: Pick<Movement, 'type' | 'status' | 'bank' | 'dueDate'>[] = []
+): PaymentInstitution[] {
   const names: string[] = [];
   const add = (n?: string) => {
     if (n && n.trim() && !names.some((x) => sameBank(x, n))) names.push(n.trim());
@@ -36,10 +41,24 @@ export function listPaymentInstitutions(accounts: BankAccount[], cards: CreditCa
     const accountsOfBank = accounts.filter((a) => sameBank(a.bankName, name) || a.name.toLowerCase().includes(name.toLowerCase()));
     const bank = banks.find((b) => sameBank(b.name, name));
     const card = cards.find((c) => sameBank(c.bank, name) || same(c.name, name));
+    // Sem cadastro de fechamento/vencimento: usa o vencimento da fatura em aberto do banco (fechamento estimado)
+    const openInvoice = movements
+      .filter((m) => m.type === 'CARTAO' && m.status === 'PREVISTA' && sameBank(canonicalBankName(m.bank, banks, cards), name))
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
+    const inferredDue = openInvoice ? parseInt(openInvoice.dueDate.slice(8, 10), 10) : 0;
     return {
       name,
       color: getBankBranding(name).primaryColor,
-      terms: bank?.closingDay && bank?.dueDay ? { closingDay: bank.closingDay, dueDay: bank.dueDay } : card ? { closingDay: card.closingDay, dueDay: card.dueDay } : undefined,
+      terms:
+        bank?.closingDay && bank?.dueDay
+          ? { closingDay: bank.closingDay, dueDay: bank.dueDay }
+          : card?.closingDay && card?.dueDay
+          ? { closingDay: card.closingDay, dueDay: card.dueDay }
+          : inferredDue
+          ? { closingDay: bank?.closingDay || (inferredDue - 7 >= 1 ? inferredDue - 7 : inferredDue + 23), dueDay: inferredDue }
+          : card
+          ? { closingDay: card.closingDay, dueDay: card.dueDay }
+          : undefined,
       account: accountsOfBank.find((a) => debitTypes.includes(a.type)) || accountsOfBank[0],
       card,
       noCredit: !!bank?.noCredit,

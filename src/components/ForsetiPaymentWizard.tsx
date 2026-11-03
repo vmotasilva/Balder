@@ -26,7 +26,7 @@ interface Props {
  * banco ou dinheiro → banco → débito ou crédito → parcelas → resumo editável.
  */
 export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) => {
-  const { accounts, cards, banks, natures, setBankInvoiceTerms, updatePaymentWizard, confirmPaymentWizard, cancelPaymentWizard } = useFinancial();
+  const { accounts, cards, banks, movements, natures, setBankInvoiceTerms, updatePaymentWizard, confirmPaymentWizard, cancelPaymentWizard } = useFinancial();
   const wizard = pending.wizard as PaymentWizardState;
   const data = pending.pendingData;
   const isIncome = data.type === 'RECEBER';
@@ -45,7 +45,7 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
   // Pagamento: um banco por vez; recebimento: a conta que recebe
   const institutions = isIncome
     ? accounts.map((a) => ({ name: a.name, color: getBankBranding(a.bankName || a.name).primaryColor, noCredit: false, terms: undefined }))
-    : listPaymentInstitutions(accounts, cards, banks).map((i) => ({ name: i.name, color: i.color, noCredit: i.noCredit, terms: i.terms }));
+    : listPaymentInstitutions(accounts, cards, banks, movements).map((i) => ({ name: i.name, color: i.color, noCredit: i.noCredit, terms: i.terms }));
 
   // Despesa: a Forseti sugere natureza e item do teto pelo nome; a pessoa confirma ou troca no resumo
   const ownNatures = userNatures(natures);
@@ -85,7 +85,7 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
   };
 
   const credit = wizard.method === 'CREDITO';
-  const terms = credit ? listPaymentInstitutions(accounts, cards, banks).find((i) => i.name === wizard.institution)?.terms : undefined;
+  const terms = credit ? listPaymentInstitutions(accounts, cards, banks, movements).find((i) => i.name === wizard.institution)?.terms : undefined;
   const invoiceDue = terms ? firstInvoiceDueDate(data.dueDate, terms.closingDay, terms.dueDay) : '';
 
   // Fechamento e vencimento são do banco: ficam guardados nele e valem para todas as compras no crédito
