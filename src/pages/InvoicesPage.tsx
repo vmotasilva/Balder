@@ -34,7 +34,7 @@ import { getBankBranding } from '../utils/bankBranding';
 import { InfoButton } from '../components/InfoButton';
 import { BankPicker } from '../components/BankPicker';
 import { BankInvoiceTerms } from '../components/BankInvoiceTerms';
-import { canonicalBankName } from '../utils/paymentInstitutions';
+import { canonicalBankName, sameBank } from '../utils/paymentInstitutions';
 import { todayIso, iofRefundUpdates, canRefundIof } from '../utils/cardPurchase';
 
 const competenceMonthLabel = (iso: string) =>
@@ -466,7 +466,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
           (inv) =>
             inv.id !== m.id &&
             inv.type === 'CARTAO' &&
-            (inv.bank === m.bank || inv.title.toLowerCase().includes((m.bank || '').toLowerCase())) &&
+            sameBank(inv.bank || inv.title, m.bank || m.title) &&
             inv.dueDate.startsWith(futureMonthPrefix)
         );
 

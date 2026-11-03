@@ -3,6 +3,7 @@ import { denySharedAction } from './sharedAccess';
 import { isUuid } from './helpers';
 import { learnReceiptItemAssociation } from '../../services/receiptMemoryService';
 import { matchNatureForTransaction } from '../../services/invoiceFileParser';
+import { sameBank } from '../../utils/paymentInstitutions';
 import {
   type Goal, type GoalStatusInfo, type InvoiceNatureItemBreakdown, type Movement,
   type MovementStatus,
@@ -36,7 +37,7 @@ export function useMovementsAndGoals({
         (m) =>
           m.type === 'CARTAO' &&
           m.status === 'PREVISTA' &&
-          (m.bank || '').trim().toLowerCase() === (item.bank || '').trim().toLowerCase() &&
+          sameBank(m.bank, item.bank) &&
           m.dueDate === item.dueDate &&
           Math.abs(m.amount - item.amount) < 0.01
       );

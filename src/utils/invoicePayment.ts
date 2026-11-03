@@ -1,5 +1,6 @@
 import type { InvoiceNatureItemBreakdown, Movement } from '../types';
 import { monthDateKeepingDay } from './cardPurchase';
+import { sameBank } from './paymentInstitutions';
 
 const round = (v: number) => Math.round(v * 100) / 100;
 
@@ -38,9 +39,9 @@ export function carryInvoiceDifference(
 ): void {
   const shift = round(invoice.amount - paid); // > 0: a próxima recebe mais
   if (Math.abs(shift) < 0.01) return;
-  const bank = (invoice.bank || invoice.title).trim().toLowerCase();
+  const bank = invoice.bank || invoice.title;
   const next = movements
-    .filter((m) => m.type === 'CARTAO' && m.status === 'PREVISTA' && m.id !== invoice.id && (m.bank || m.title).trim().toLowerCase() === bank && m.dueDate > invoice.dueDate)
+    .filter((m) => m.type === 'CARTAO' && m.status === 'PREVISTA' && m.id !== invoice.id && sameBank(m.bank || m.title, bank) && m.dueDate > invoice.dueDate)
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
   if (next) {
     const free = next.unanalyzedAmount ?? 0;

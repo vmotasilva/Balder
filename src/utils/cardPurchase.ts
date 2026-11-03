@@ -1,4 +1,5 @@
 import type { InvoiceNatureItemBreakdown, Movement } from '../types';
+import { sameBank } from './paymentInstitutions';
 
 /** Hoje no formato AAAA-MM-DD (horário local). */
 export const todayIso = (): string => {
@@ -185,7 +186,7 @@ export function addCardPurchaseToInvoices(
       (inv) =>
         inv.type === 'CARTAO' &&
         inv.status === 'PREVISTA' &&
-        (inv.bank || '').trim().toLowerCase() === purchase.institution.trim().toLowerCase() &&
+        sameBank(inv.bank, purchase.institution) &&
         inv.dueDate.startsWith(dueDate.substring(0, 7))
     );
     let grow = amount;
@@ -267,7 +268,7 @@ export function findPurchaseParts(invoices: Movement[], invoiceId: string, itemI
   const bank = (invoice.bank || invoice.title).trim().toLowerCase();
   const similar = all.filter(
     (p) =>
-      (p.invoice.bank || p.invoice.title).trim().toLowerCase() === bank &&
+      sameBank(p.invoice.bank || p.invoice.title, bank) &&
       stripInstallmentSuffix(p.item.description) === base &&
       p.item.installments === item.installments &&
       p.item.finalAmount === item.finalAmount

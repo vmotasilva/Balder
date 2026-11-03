@@ -17,7 +17,7 @@ export interface PaymentInstitution {
 
 const same = (a?: string, b?: string) => !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
 /** Mesmo banco escrito de jeitos diferentes ("Banco Inter" e "Inter", "Nubank S.A." e "Nubank"). */
-const sameBank = (a?: string, b?: string) => !!a && !!b && (same(a, b) || normalizeBankKey(a) === normalizeBankKey(b));
+export const sameBank = (a?: string, b?: string) => !!a && !!b && (same(a, b) || normalizeBankKey(a) === normalizeBankKey(b));
 
 /** Cada banco uma única vez, com a conta e o cartão dele (só o nome, com a cor da marca). */
 export function listPaymentInstitutions(
