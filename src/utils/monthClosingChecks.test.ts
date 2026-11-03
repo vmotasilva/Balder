@@ -51,3 +51,10 @@ describe('invoiceWithExtra', () => {
     expect(invoiceWithExtra(invoice({ unanalyzedAmount: 20 }), 300)).toMatchObject({ amount: 1300, unanalyzedAmount: 320 });
   });
 });
+
+describe('closingInMonth', () => {
+  it('dá a data do fechamento da fatura dentro do mês fechado', () => {
+    const [c] = buildMonthClosingChecks('2026-10', [invoice({})], [], [], [bank], '2026-10-31');
+    expect(c.closingInMonth).toBe('2026-10-03');
+  });
+});

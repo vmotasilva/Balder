@@ -1,4 +1,4 @@
-import type { Movement } from '../types';
+import type { InvoiceNatureItemBreakdown, Movement } from '../types';
 import { monthDateKeepingDay } from './cardPurchase';
 import { sameBank } from './paymentInstitutions';
 
@@ -67,4 +67,111 @@ export function carryInvoiceDifference(
     invoiceBreakdown: [],
     unanalyzedAmount: shift,
   });
+}
+
+const cents = (v: number) => Math.round(v * 100);
+
+/** Itens da fatura que podem ter caído na próxima: com valor, mais recentes primeiro (compras perto do fechamento). */
+export const carryCandidateItems = (invoice: Movement): InvoiceNatureItemBreakdown[] =>
+  [...(invoice.invoiceBreakdown || [])]
+    .filter((i) => i.amount > 0)
+    .sort((a, b) => (b.purchaseDate || '').localeCompare(a.purchaseDate || ''));
+
+/**
+ * Sugere quais itens foram para a próxima fatura: procura, entre os mais recentes, o conjunto que soma exatamente a
+ * diferença (`diff` = quanto a fatura paga ficou abaixo do registrado). Sem soma exata, leva os mais recentes
+ * enquanto couberem na diferença. Devolve os ids e se a soma bate exatamente.
+ */
+export function suggestNextInvoiceItems(invoice: Movement, diff: number): { ids: string[]; exact: boolean } {
+  const target = cents(diff);
+  if (target <= 0) return { ids: [], exact: false };
+  const items = carryCandidateItems(invoice).slice(0, 24);
+  const values = items.map((i) => cents(i.amount));
+  let nodes = 0;
+  const pick: number[] = [];
+  const dfs = (idx: number, left: number): boolean => {
+    if (left === 0) return true;
+    if (idx >= items.length || ++nodes > 200000) return false;
+    if (values[idx] <= left) {
+      pick.push(idx);
+      if (dfs(idx + 1, left - values[idx])) return true;
+      pick.pop();
+    }
+    return dfs(idx + 1, left);
+  };
+  if (dfs(0, target)) return { ids: pick.map((i) => items[i].id), exact: true };
+  const ids: string[] = [];
+  let left = target;
+  items.forEach((it, i) => {
+    if (values[i] <= left) {
+      ids.push(it.id);
+      left -= values[i];
+    }
+  });
+  return { ids, exact: false };
+}
+
+/** Próxima fatura prevista do mesmo banco (a que recebe o que passa para frente). */
+export const nextOpenInvoice = (invoice: Movement, movements: Movement[]): Movement | undefined => {
+  const bank = (invoice.bank || invoice.title).trim().toLowerCase();
+  return movements
+    .filter((m) => m.type === 'CARTAO' && m.status === 'PREVISTA' && m.id !== invoice.id && (m.bank || m.title).trim().toLowerCase() === bank && m.dueDate > invoice.dueDate)
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
+};
+
+export interface CarryItemsPlan {
+  /** Campos a aplicar na fatura paga (itens que ficaram e o que sobrou sem detalhar). */
+  invoiceUpdates: Partial<Movement>;
+  nextUpdate?: { id: string; updates: Partial<Movement> };
+  nextAdd?: Omit<Movement, 'id'>;
+}
+
+/**
+ * Passa itens escolhidos da fatura paga para a próxima do mesmo banco. A próxima sobe pela diferença paga a menos
+ * (no mínimo a soma dos itens): os itens entram detalhados e o que sobra da diferença fica "sem detalhar".
+ */
+export function planCarryWithItems(invoice: Movement, paid: number, movements: Movement[], itemIds: string[]): CarryItemsPlan {
+  const moved = (invoice.invoiceBreakdown || []).filter((i) => itemIds.includes(i.id));
+  const kept = (invoice.invoiceBreakdown || []).filter((i) => !itemIds.includes(i.id));
+  const movedSum = round(moved.reduce((acc, i) => acc + i.amount, 0));
+  const delta = Math.max(round(invoice.amount - paid), movedSum);
+  const residual = round(delta - movedSum);
+  const keptSum = kept.reduce((acc, i) => acc + i.amount, 0);
+  const invoiceUpdates: Partial<Movement> = {
+    invoiceBreakdown: kept,
+    unanalyzedAmount: Math.max(0, round(paid - keptSum)),
+  };
+  const next = nextOpenInvoice(invoice, movements);
+  if (next) {
+    const free = round((next.unanalyzedAmount ?? 0) + residual);
+    return {
+      invoiceUpdates,
+      nextUpdate: {
+        id: next.id,
+        updates: {
+          amount: round(next.amount + delta),
+          invoiceBreakdown: [...(next.invoiceBreakdown || []), ...moved],
+          unanalyzedAmount: free,
+          category: free > 0.01 ? 'Não Analisada' : 'Fatura de Cartão',
+        },
+      },
+    };
+  }
+  const [y, mo, d] = invoice.dueDate.split('-').map((n) => parseInt(n, 10));
+  const dueDate = monthDateKeepingDay(y, mo, d);
+  const monthName = new Date(`${dueDate}T12:00:00`).toLocaleDateString('pt-BR', { month: 'long' });
+  return {
+    invoiceUpdates,
+    nextAdd: {
+      title: `Fatura ${invoice.bank || invoice.title} (${monthName.charAt(0).toUpperCase()}${monthName.slice(1)})`,
+      type: 'CARTAO',
+      amount: delta,
+      dueDate,
+      bank: invoice.bank,
+      status: 'PREVISTA',
+      category: residual > 0.01 ? 'Não Analisada' : 'Fatura de Cartão',
+      invoiceBreakdown: moved,
+      unanalyzedAmount: residual,
+    },
+  };
 }
