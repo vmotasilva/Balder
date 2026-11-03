@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, CreditCard, Pencil } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CreditCard, Pencil, Plus } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import type { PeriodRange } from '../utils/periodSpending';
 import { canRefundIof, iofRefundUpdates } from '../utils/cardPurchase';
 import { CardPurchaseModal } from './CardPurchaseModal';
+import { AddInvoiceItemModal } from './AddInvoiceItemModal';
 import { parseMoney } from '../utils/parseDecimal';
 
 const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -25,6 +26,8 @@ export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range }) => 
   const [purchase, setPurchase] = useState<{ invoiceId: string; itemId: string } | null>(null);
   // Abate de IOF em edição: item da fatura e valor digitado
   const [iofEdit, setIofEdit] = useState<{ itemId: string; value: string } | null>(null);
+  // Fatura que recebe um novo registro (pop-up de adicionar)
+  const [adding, setAdding] = useState<string | null>(null);
   const open = useMemo(
     () =>
       movements
@@ -119,9 +122,20 @@ export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range }) => 
         </button>
       </div>
 
-      <div style={{ textAlign: 'center' }}>
-        <div className="text-xs text-muted">Valor da fatura</div>
-        <strong style={{ fontSize: '28px' }}>{formatBRL(m.amount)}</strong>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div className="text-xs text-muted">Valor da fatura</div>
+          <strong style={{ fontSize: '28px' }}>{formatBRL(m.amount)}</strong>
+        </div>
+        <button
+          type="button"
+          style={{ ...arrow(false), width: '38px', height: '38px', background: 'var(--accent-primary, #0ea5e9)', color: '#fff', border: 'none' }}
+          aria-label="Novo registro na fatura"
+          title="Novo registro na fatura"
+          onClick={() => setAdding(m.id)}
+        >
+          <Plus size={20} />
+        </button>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '45vh', overflowY: 'auto' }}>
@@ -226,6 +240,7 @@ export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range }) => 
       </div>
 
       <CardPurchaseModal target={purchase} onClose={() => setPurchase(null)} />
+      <AddInvoiceItemModal invoiceId={adding} onClose={() => setAdding(null)} />
     </div>
   );
 };
