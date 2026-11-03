@@ -34,8 +34,8 @@ import { getBankBranding } from '../utils/bankBranding';
 import { InfoButton } from '../components/InfoButton';
 import { BankPicker } from '../components/BankPicker';
 import { BankInvoiceTerms } from '../components/BankInvoiceTerms';
-import { canonicalBankName, sameBank } from '../utils/paymentInstitutions';
-import { todayIso, iofRefundUpdates, canRefundIof } from '../utils/cardPurchase';
+import { canonicalBankName, listPaymentInstitutions, sameBank } from '../utils/paymentInstitutions';
+import { todayIso, iofRefundUpdates, canRefundIof, displayPurchaseDate } from '../utils/cardPurchase';
 
 const competenceMonthLabel = (iso: string) =>
   new Date(`${iso.slice(0, 7)}-15T12:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -46,6 +46,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
     updateMovement,
     addMovement,
     deleteMovement,
+    accounts,
     cards,
     banks,
     natures,
@@ -60,6 +61,9 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
   // Primeiro a escolha do banco; as faturas aparecem depois
   const [showBankPicker, setShowBankPicker] = useState(newInvoiceSignal === 0);
   const bankOf = (m: Movement) => canonicalBankName(m.bank, banks, cards);
+  // Fechamento e vencimento do banco da fatura (definem o início do ciclo, a data das parcelas sem data própria)
+  const institutions = useMemo(() => listPaymentInstitutions(accounts, cards, banks), [accounts, cards, banks]);
+  const bankTermsOf = (m: Movement) => institutions.find((i) => sameBank(i.name, bankOf(m)))?.terms;
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<'ALL' | 'PREVISTA' | 'REALIZADA'>('ALL');
   const [selectedConciliationFilter, setSelectedConciliationFilter] = useState<'ALL' | 'RECONCILED' | 'PARTIAL' | 'UNANALYZED'>('ALL');
   const [selectedMonthFilter, setSelectedMonthFilter] = useState('ALL');
@@ -1472,6 +1476,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                           </thead>
                           <tbody>
                             {[...breakdown]
+                              .map((it) => ({ ...it, purchaseDate: displayPurchaseDate(m, it, bankTermsOf(m)) }))
                               // Cronológico pela data da compra; itens sem data (ex.: "Outros" sem detalhe) ficam no fim
                               .sort((a, b) => (a.purchaseDate || '9999-99-99').localeCompare(b.purchaseDate || '9999-99-99'))
                               .map((item) => {

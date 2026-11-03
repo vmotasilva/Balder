@@ -36,6 +36,12 @@ export const monthDateKeepingDay = (year: number, monthIndex: number, day: numbe
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 };
 
+/** Data (AAAA-MM-DD) avançada em `months` meses, mantendo o dia (limitado ao fim do mês). */
+export const shiftIsoMonths = (iso: string, months: number): string => {
+  const [y, m, d] = iso.split('-').map((n) => parseInt(n, 10));
+  return monthDateKeepingDay(y, m - 1 + months, d);
+};
+
 /** Vencimentos das N faturas consecutivas a partir da primeira. */
 export const invoiceDueDates = (firstDue: string, count: number): string[] => {
   const [y, m, d] = firstDue.split('-').map((n) => parseInt(n, 10));
@@ -281,6 +287,20 @@ export function findPurchaseParts(invoices: Movement[], invoiceId: string, itemI
     return true;
   });
   return unique.some((p) => p.item.id === item.id) ? unique : [{ invoice, item }];
+}
+
+/** Início do ciclo da fatura (AAAA-MM-DD): o fechamento da fatura anterior (ex.: fatura que vence 10/11 e fecha 03/11 começa em 03/10). */
+export const invoiceCycleStart = (dueDate: string, closingDay?: number, dueDay?: number): string =>
+  shiftIsoMonths(invoiceClosingDate(dueDate, closingDay, dueDay), -1);
+
+/**
+ * Data da compra a mostrar para um item. Parcela sem data própria fica no início do ciclo da fatura em que está;
+ * item à vista sem data segue sem data.
+ */
+export function displayPurchaseDate(invoice: Movement, item: InvoiceNatureItemBreakdown, terms?: { closingDay?: number; dueDay?: number }): string | undefined {
+  if (item.purchaseDate) return item.purchaseDate;
+  if ((item.installments ?? 1) < 2) return undefined;
+  return invoiceCycleStart(invoice.dueDate, terms?.closingDay, terms?.dueDay);
 }
 
 /** Motivo de não dar para refazer a compra (parcela em fatura já paga), ou null quando dá. */
