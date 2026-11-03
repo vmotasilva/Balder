@@ -215,6 +215,14 @@ const MonthClosingModalContent: React.FC<
                     {c.bank}
                     {c.closingDay ? <span className="text-slate-400 font-normal"> · fecha dia {c.closingDay}</span> : null}
                   </div>
+                  {c.closingInMonth && (
+                    <p className="text-slate-400">
+                      Fechamento da fatura neste mês: <strong className="text-white">{brDate(c.closingInMonth)}</strong>
+                      {c.open && c.open.closingDate !== c.closingInMonth ? (
+                        <> · próximo: <strong className="text-white">{brDate(c.open.closingDate)}</strong></>
+                      ) : null}
+                    </p>
+                  )}
 
                   {c.closingMissing && (
                     <label className="flex items-center gap-2 text-amber-300">
