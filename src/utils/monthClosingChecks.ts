@@ -25,6 +25,8 @@ export interface BankClosingCheck {
   dueDay?: number;
   /** O fechamento não foi cadastrado de fato (veio estimado pelo vencimento). */
   closingMissing: boolean;
+  /** Data em que a fatura fechou (ou fecha) dentro da competência fechada. */
+  closingInMonth?: string;
   /** Fatura em aberto que ainda não fechou e pode crescer. */
   open?: OpenInvoiceCheck;
   /** Compras do mês feitas a partir do fechamento: já pertencem à fatura seguinte. */
@@ -89,6 +91,7 @@ export function buildMonthClosingChecks(
       closingDay,
       dueDay,
       closingMissing,
+      closingInMonth: closingDay ? monthDateKeepingDay(parseInt(monthKey.slice(0, 4), 10), parseInt(monthKey.slice(5, 7), 10) - 1, closingDay) : undefined,
       open,
       afterClosing: { count, total: Math.round(total * 100) / 100 },
       unpaidDueInMonth: mine.filter((m) => m.status === 'PREVISTA' && m.dueDate.startsWith(monthKey)),
