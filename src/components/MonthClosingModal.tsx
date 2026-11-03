@@ -12,6 +12,12 @@ import {
   Sparkles,
 } from 'lucide-react';
 import type { MonthlyGridProjectionRow } from '../types';
+import { useFinancial } from '../context/FinancialContext';
+import { buildMonthClosingChecks, invoiceWithExtra } from '../utils/monthClosingChecks';
+import { todayIso } from '../utils/cardPurchase';
+
+const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const brDate = (iso: string) => iso.split('-').reverse().join('/');
 
 interface MonthClosingModalProps {
   isOpen: boolean;
@@ -69,6 +75,18 @@ const MonthClosingModalContent: React.FC<
 
   const [notes, setNotes] = useState<string>(() => row.closingDetails?.notes || '');
 
+  // Pontos do fechamento: a fatura segue recebendo compras até um dia antes do fechamento do cartão
+  const { movements, accounts, cards, banks, updateMovement, setBankInvoiceTerms } = useFinancial();
+  const checks = useMemo(
+    () => buildMonthClosingChecks(row.monthKey, movements, accounts, cards, banks, todayIso()),
+    [row.monthKey, movements, accounts, cards, banks]
+  );
+  const [extraInput, setExtraInput] = useState<Record<string, string>>({});
+  const [closingDayInput, setClosingDayInput] = useState<Record<string, string>>({});
+  const [paidConfirmed, setPaidConfirmed] = useState<Record<string, boolean>>({});
+  const [balanceChecked, setBalanceChecked] = useState(!!row.isClosed);
+  const hasPendingPaid = checks.some((c) => c.unpaidDueInMonth.length > 0 && !paidConfirmed[c.bank]);
+
   // Atualizar quando o row mudar
   useEffect(() => {
     if (row.closingDetails) {
@@ -98,6 +116,12 @@ const MonthClosingModalContent: React.FC<
 
   const handleConfirmClosing = (e: React.FormEvent) => {
     e.preventDefault();
+    checks.forEach((c) => {
+      const day = parseInt(closingDayInput[c.bank] || '', 10);
+      if (c.closingMissing && day >= 1 && day <= 31 && c.dueDay) setBankInvoiceTerms(c.bank, { closingDay: day, dueDay: c.dueDay });
+      const extra = Math.round(parseMoney(extraInput[c.bank] || '') * 100) / 100;
+      if (c.open && extra > 0) updateMovement(c.open.invoice.id, invoiceWithExtra(c.open.invoice, extra));
+    });
     onCloseMonth(row.monthKey, numericClosingValue, projectedBalance, notes.trim() || undefined);
     onClose();
   };
@@ -181,6 +205,74 @@ const MonthClosingModalContent: React.FC<
             </div>
           </div>
 
+          {/* Pontos do fechamento por cartão */}
+          {checks.length > 0 && (
+            <div className="space-y-3">
+              <span className="text-xs font-semibold text-slate-200 block">Antes de fechar: confira os cartões</span>
+              {checks.map((c) => (
+                <div key={c.bank} className="p-3.5 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2.5 text-xs text-slate-300">
+                  <div className="font-semibold text-white">
+                    {c.bank}
+                    {c.closingDay ? <span className="text-slate-400 font-normal"> · fecha dia {c.closingDay}</span> : null}
+                  </div>
+
+                  {c.closingMissing && (
+                    <label className="flex items-center gap-2 text-amber-300">
+                      <span>O dia de fechamento não está confirmado. Fecha no dia</span>
+                      <input
+                        type="number" min={1} max={31} inputMode="numeric"
+                        value={closingDayInput[c.bank] ?? (c.closingDay ? String(c.closingDay) : '')}
+                        onChange={(e) => setClosingDayInput((p) => ({ ...p, [c.bank]: e.target.value }))}
+                        className="w-16 px-2 py-1 bg-slate-950 border border-slate-700 rounded-lg text-white"
+                      />
+                    </label>
+                  )}
+
+                  {c.open && (
+                    <div className="space-y-1.5">
+                      <p>
+                        A fatura de <strong className="text-white">{brDate(c.open.invoice.dueDate)}</strong> ({brl(c.open.invoice.amount)}) só fecha em{' '}
+                        <strong className="text-white">{brDate(c.open.closingDate)}</strong>: compras entram nela até{' '}
+                        <strong className="text-white">{brDate(c.open.lastPurchaseDate)}</strong>. Ainda deve entrar mais algum gasto?
+                      </p>
+                      <div className="relative w-44">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs">R$</span>
+                        <input
+                          type="text" inputMode="decimal" placeholder="0,00"
+                          value={extraInput[c.bank] ?? ''}
+                          onChange={(e) => setExtraInput((p) => ({ ...p, [c.bank]: e.target.value }))}
+                          className="w-full pl-8 pr-3 py-1.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono"
+                        />
+                      </div>
+                      <p className="text-[11px] text-slate-500">O valor informado é somado à fatura prevista, para a previsão já sair realista.</p>
+                    </div>
+                  )}
+
+                  {c.afterClosing.count > 0 && (
+                    <p>
+                      {c.afterClosing.count} {c.afterClosing.count === 1 ? 'compra' : 'compras'} deste mês ({brl(c.afterClosing.total)}) foram feitas a partir do
+                      fechamento e já pertencem à fatura seguinte.
+                    </p>
+                  )}
+
+                  {c.unpaidDueInMonth.length > 0 && (
+                    <label className="flex items-start gap-2 text-amber-300">
+                      <input
+                        type="checkbox" className="mt-0.5"
+                        checked={!!paidConfirmed[c.bank]}
+                        onChange={(e) => setPaidConfirmed((p) => ({ ...p, [c.bank]: e.target.checked }))}
+                      />
+                      <span>
+                        A fatura que vencia neste mês ({c.unpaidDueInMonth.map((m) => brl(m.amount)).join(' + ')}) ainda consta como não paga. Confirmo que
+                        já tratei o pagamento dela (ou que fica em aberto de propósito).
+                      </span>
+                    </label>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* Saldo Apurado vs Saldo Real de Fechamento */}
           <div className="bg-slate-800/40 rounded-xl p-4 border border-slate-800 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-700/50">
@@ -231,6 +323,11 @@ const MonthClosingModalContent: React.FC<
                 />
               </div>
             </div>
+
+            <label className="flex items-start gap-2 text-xs text-slate-300">
+              <input type="checkbox" className="mt-0.5" checked={balanceChecked} onChange={(e) => setBalanceChecked(e.target.checked)} />
+              <span>Conferi o saldo atual na conta e ele bate com o valor informado acima.</span>
+            </label>
 
             {/* Impacto no próximo mês */}
             <div className="p-3 bg-primary-500/10 border border-primary-500/20 rounded-xl flex items-start gap-3">
@@ -302,7 +399,8 @@ const MonthClosingModalContent: React.FC<
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-500 active:bg-primary-700 rounded-xl shadow-lg shadow-primary-900/30 transition-all flex items-center gap-2"
+              disabled={!balanceChecked || hasPendingPaid}
+              className="disabled:opacity-40 disabled:cursor-not-allowed px-5 py-2 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-500 active:bg-primary-700 rounded-xl shadow-lg shadow-primary-900/30 transition-all flex items-center gap-2"
             >
               <Lock className="w-3.5 h-3.5" />
               {row.isClosed ? 'Atualizar Fechamento' : 'Efetivar Fechamento'}
