@@ -1498,6 +1498,26 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                                     onClick={() => setPurchase({ invoiceId: m.id, itemId: item.id })}
                                     title="Ver e editar a compra"
                                   >
+                                    {item.purchaseDate ? (
+                                      <span
+                                        title={`Compra em ${item.purchaseDate.split('-').reverse().join('/')}`}
+                                        style={{
+                                          display: 'inline-block',
+                                          marginRight: '8px',
+                                          padding: '1px 7px',
+                                          borderRadius: '9999px',
+                                          border: '1px solid var(--border-color, rgba(148, 163, 184, 0.35))',
+                                          background: 'rgba(148, 163, 184, 0.12)',
+                                          color: 'var(--text-muted)',
+                                          fontSize: '10px',
+                                          fontWeight: 700,
+                                          whiteSpace: 'nowrap',
+                                          verticalAlign: 'middle',
+                                        }}
+                                      >
+                                        {item.purchaseDate.slice(8, 10)}/{item.purchaseDate.slice(5, 7)}
+                                      </span>
+                                    ) : null}
                                     {item.description}
                                     {item.iofRefund ? (
                                       <div style={{ fontSize: '11px', fontWeight: 600, color: '#34D399' }}>
