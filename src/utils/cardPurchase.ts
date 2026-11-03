@@ -19,6 +19,14 @@ export const firstInvoiceDueDate = (purchaseDate: string, closingDay?: number, d
   return monthDateKeepingDay(y, m - 1 + dueMonthOffset, due);
 };
 
+/** Fechamento (AAAA-MM-DD) da fatura que vence em `dueDate`: o dia de fechamento do mês anterior ao vencimento (ou do mesmo mês, se fechar antes). */
+export const invoiceClosingDate = (dueDate: string, closingDay?: number, dueDay?: number): string => {
+  const [y, m, d] = dueDate.split('-').map((n) => parseInt(n, 10));
+  const due = dueDay || d;
+  const closing = closingDay || Math.max(1, due - 7);
+  return monthDateKeepingDay(y, m - 1 - (due > closing ? 0 : 1), closing);
+};
+
 /** Data do mês indicado (índice pode extrapolar), limitando o dia ao fim do mês. */
 export const monthDateKeepingDay = (year: number, monthIndex: number, day: number): string => {
   const lastDay = new Date(year, monthIndex + 1, 0).getDate();
