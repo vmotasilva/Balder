@@ -1471,7 +1471,10 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                             </tr>
                           </thead>
                           <tbody>
-                            {breakdown.map((item) => {
+                            {[...breakdown]
+                              // Cronológico pela data da compra; itens sem data (ex.: "Outros" sem detalhe) ficam no fim
+                              .sort((a, b) => (a.purchaseDate || '9999-99-99').localeCompare(b.purchaseDate || '9999-99-99'))
+                              .map((item) => {
                               const itemPct = m.amount > 0 ? (item.amount / m.amount) * 100 : 0;
                               const isOutros = item.natureId === 'OUTROS';
                               const inst = item.installments || 1;
