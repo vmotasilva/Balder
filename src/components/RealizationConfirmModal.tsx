@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { CheckCircle2 } from 'lucide-react';
 import { Modal } from './Modal';
 import { DecimalInput } from './DecimalInput';
@@ -6,7 +6,15 @@ import { useFinancial } from '../context/FinancialContext';
 import { listPaymentInstitutions } from '../utils/paymentInstitutions';
 import { INSTALLMENT_CHOICES, type PaymentHow } from '../utils/paymentHow';
 import type { Movement } from '../types';
-import { carryInvoiceDifference, invoiceDifferenceReasons, type DifferenceReason } from '../utils/invoicePayment';
+import {
+  carryCandidateItems,
+  carryInvoiceDifference,
+  invoiceDifferenceReasons,
+  nextOpenInvoice,
+  planCarryWithItems,
+  suggestNextInvoiceItems,
+  type DifferenceReason,
+} from '../utils/invoicePayment';
 
 /** O que está sendo confirmado como pago ou recebido. */
 export interface RealizationTarget {
@@ -20,7 +28,9 @@ export interface RealizationTarget {
   askHow?: boolean;
   /** Fatura de cartão: se o valor pago difere do registrado, pergunta o motivo (`reason`) para acertar as faturas futuras. */
   askDifferenceReason?: boolean;
-  onConfirm: (amount: number, date: string, how?: PaymentHow, reason?: DifferenceReason) => void;
+  /** Fatura paga a menos: dá para indicar quais itens dela caíram na próxima (com a próxima fatura de referência). */
+  carryContext?: { invoice: Movement; next?: Movement };
+  onConfirm: (amount: number, date: string, how?: PaymentHow, reason?: DifferenceReason, carryItemIds?: string[]) => void;
   /** Já foi pago por fora (ou não vale mais): tira do em aberto sem lançar pagamento nem mexer no saldo. */
   onDismiss?: () => void;
 }
@@ -112,11 +122,27 @@ const RealizationConfirmForm: React.FC<{ target: RealizationTarget; onClose: () 
   const reasons = target.askDifferenceReason && Math.abs(diff) >= 0.01 ? invoiceDifferenceReasons(diff) : [];
   const [reasonId, setReasonId] = useState<string | null>(null);
   const reason = reasons.find((r) => r.id === reasonId);
-  const valid = amount > 0 && !!date && !futureDate && (reasons.length === 0 || !!reason);
+  // Compras do fim do ciclo que caíram na próxima fatura: o sistema sugere os itens pela diferença de valor
+  const ctx = target.carryContext;
+  const pickItems = !!ctx && reason?.id === 'NEXT_PURCHASES' && diff < 0;
+  const candidates = useMemo(() => (ctx ? carryCandidateItems(ctx.invoice) : []), [ctx]);
+  const suggestion = useMemo(() => (ctx ? suggestNextInvoiceItems(ctx.invoice, Math.abs(diff)) : { ids: [], exact: false }), [ctx, diff]);
+  const [picked, setPicked] = useState<string[] | null>(null);
+  const selectedIds = picked ?? suggestion.ids;
+  const selectedSum = Math.round(candidates.filter((i) => selectedIds.includes(i.id)).reduce((acc, i) => acc + i.amount, 0) * 100) / 100;
+  const [carryConfirmed, setCarryConfirmed] = useState(false);
+  const toggleItem = (id: string) => {
+    setCarryConfirmed(false);
+    setPicked(selectedIds.includes(id) ? selectedIds.filter((x) => x !== id) : [...selectedIds, id]);
+  };
+  const needsCarryConfirm = pickItems && selectedIds.length > 0;
+  const nextAfter = ctx?.next ? Math.round((ctx.next.amount + Math.max(Math.abs(diff), selectedSum)) * 100) / 100 : undefined;
+
+  const valid = amount > 0 && !!date && !futureDate && (reasons.length === 0 || !!reason) && (!needsCarryConfirm || carryConfirmed);
 
   const confirm = () => {
     if (!valid) return;
-    target.onConfirm(Math.round(amount * 100) / 100, date, howResult, reason);
+    target.onConfirm(Math.round(amount * 100) / 100, date, howResult, reason, pickItems ? selectedIds : undefined);
     onClose();
   };
 
@@ -251,6 +277,47 @@ const RealizationConfirmForm: React.FC<{ target: RealizationTarget; onClose: () 
             )}
           </div>
         )}
+        {pickItems && candidates.length > 0 && (
+          <div className="mapping-pay-fields" style={{ display: 'block' }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Quais itens devem constar na próxima fatura?{' '}
+              {suggestion.exact && picked === null ? '(sugeridos pela diferença de valor)' : ''}
+            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px', maxHeight: '180px', overflowY: 'auto' }}>
+              {candidates.map((it) => (
+                <label key={it.id} style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '12px' }}>
+                  <input type="checkbox" checked={selectedIds.includes(it.id)} onChange={() => toggleItem(it.id)} />
+                  <span style={{ flex: 1 }}>
+                    {it.description}
+                    {it.purchaseDate ? ` · ${formatDate(it.purchaseDate)}` : ''}
+                  </span>
+                  <strong>{formatBRL(it.amount)}</strong>
+                </label>
+              ))}
+            </div>
+            <p className="mapping-pay-feedback">
+              Selecionado <strong>{formatBRL(selectedSum)}</strong> de <strong>{formatBRL(Math.abs(diff))}</strong> de diferença
+              {Math.abs(selectedSum - Math.abs(diff)) >= 0.01
+                ? selectedSum < Math.abs(diff)
+                  ? `: ${formatBRL(Math.abs(diff) - selectedSum)} ficam na próxima fatura sem detalhar.`
+                  : '.'
+                : ': bate certinho.'}
+            </p>
+            {ctx?.next && nextAfter !== undefined && (
+              <p className="mapping-pay-feedback">
+                Próxima fatura (vence {formatDate(ctx.next.dueDate)}): {formatBRL(ctx.next.amount)} → <strong>{formatBRL(nextAfter)}</strong> com esses itens.
+              </p>
+            )}
+            {needsCarryConfirm && (
+              <label style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', fontSize: '12px', marginTop: '8px' }}>
+                <input type="checkbox" checked={carryConfirmed} onChange={(e) => setCarryConfirmed(e.target.checked)} />
+                <span>
+                  Confirmo que {selectedIds.length} {selectedIds.length === 1 ? 'item' : 'itens'} ({formatBRL(selectedSum)}) saem desta fatura e passam para a fatura seguinte.
+                </span>
+              </label>
+            )}
+          </div>
+        )}
         {futureDate && <p className="mapping-pay-feedback text-rose">A data não pode ser depois de hoje.</p>}
 
         {target.onDismiss && (
@@ -298,7 +365,15 @@ export const invoiceRealizationTarget = (
   expectedAmount: invoice.amount,
   dueDate: invoice.dueDate,
   askDifferenceReason: true,
-  onConfirm: (amount, date, _how, reason) => {
+  carryContext: { invoice, next: nextOpenInvoice(invoice, movements) },
+  onConfirm: (amount, date, _how, reason, carryItemIds) => {
+    if (reason?.id === 'NEXT_PURCHASES' && carryItemIds && carryItemIds.length > 0) {
+      const plan = planCarryWithItems(invoice, amount, movements, carryItemIds);
+      ops.updateMovement(invoice.id, { ...realizedMovementUpdates(invoice, amount, date), ...plan.invoiceUpdates });
+      if (plan.nextUpdate) ops.updateMovement(plan.nextUpdate.id, plan.nextUpdate.updates);
+      if (plan.nextAdd) ops.addMovement(plan.nextAdd);
+      return;
+    }
     ops.updateMovement(invoice.id, realizedMovementUpdates(invoice, amount, date));
     if (reason?.carry) carryInvoiceDifference(invoice, amount, movements, ops);
   },
