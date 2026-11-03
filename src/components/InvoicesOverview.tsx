@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, CreditCard, Pencil } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CreditCard, Pencil, Plus } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import type { PeriodRange } from '../utils/periodSpending';
-import { canRefundIof, iofRefundUpdates } from '../utils/cardPurchase';
+import { canRefundIof, iofRefundUpdates, invoiceClosingDate, todayIso } from '../utils/cardPurchase';
 import { CardPurchaseModal } from './CardPurchaseModal';
+import { AddInvoiceItemModal } from './AddInvoiceItemModal';
 import { parseMoney } from '../utils/parseDecimal';
+import { canonicalBankName, listPaymentInstitutions } from '../utils/paymentInstitutions';
 
 const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
@@ -20,17 +22,25 @@ interface InvoicesOverviewProps {
  * última vencida se não houver).
  */
 export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range }) => {
-  const { movements, updateMovement } = useFinancial();
+  const { movements, updateMovement, accounts, cards, banks: bankEntities } = useFinancial();
+  const institutions = useMemo(() => listPaymentInstitutions(accounts, cards, bankEntities), [accounts, cards, bankEntities]);
   // Compra aberta no pop-up de visualização e edição
   const [purchase, setPurchase] = useState<{ invoiceId: string; itemId: string } | null>(null);
   // Abate de IOF em edição: item da fatura e valor digitado
   const [iofEdit, setIofEdit] = useState<{ itemId: string; value: string } | null>(null);
+  // Fatura que recebe um novo registro (pop-up de adicionar)
+  const [adding, setAdding] = useState<string | null>(null);
   const open = useMemo(
     () =>
       movements
-        .filter((m) => m.type === 'CARTAO' && m.status === 'PREVISTA' && m.amount > 0.004)
+        .filter(
+          (m) =>
+            m.type === 'CARTAO' &&
+            m.amount > 0.004 &&
+            (m.status === 'PREVISTA' || (m.status === 'REALIZADA' && m.dueDate >= range.from))
+        )
         .sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
-    [movements]
+    [movements, range.from]
   );
   const banks = useMemo(() => {
     const map = new Map<string, string>();
@@ -57,13 +67,23 @@ export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range }) => 
   }, [activeBank, range.to]);
 
   if (invoices.length === 0) {
-    return <p className="text-sm text-muted">Nenhuma fatura em aberto com valor.</p>;
+    return <p className="text-sm text-muted">Nenhuma fatura com valor.</p>;
   }
 
   const m = invoices[current];
   const items = m.invoiceBreakdown || [];
   const undetailed = m.unanalyzedAmount && m.unanalyzedAmount > 0.004 ? m.unanalyzedAmount : 0;
-  const status = m.dueDate < range.from ? 'vencida' : m.dueDate > range.to ? 'fatura aberta' : 'vence neste período';
+  const paid = m.status === 'REALIZADA';
+  const terms = institutions.find((i) => i.name.toLowerCase() === canonicalBankName(m.bank || m.title, bankEntities, cards).toLowerCase())?.terms;
+  const today = todayIso();
+  const closed = invoiceClosingDate(m.dueDate, terms?.closingDay, terms?.dueDay) <= today;
+  const badge = paid
+    ? { label: 'paga', color: '#34D399' }
+    : m.dueDate < today
+    ? { label: 'vencida', color: 'var(--accent-rose, #f87171)' }
+    : closed
+    ? { label: 'fechada', color: '#FBBF24' }
+    : { label: 'aberta', color: 'var(--text-muted)' };
   const arrow = (disabled: boolean): React.CSSProperties => ({
     background: 'var(--bg-card)',
     border: '1px solid var(--border-default)',
@@ -104,8 +124,7 @@ export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range }) => 
             <CreditCard size={14} /> {m.bank || m.title}
           </div>
           <div className="text-xs text-muted">
-            <span style={m.dueDate < range.from ? { color: 'var(--accent-rose, #f87171)', fontWeight: 600 } : undefined}>{status}</span> · vence{' '}
-            {ddmm(m.dueDate)} · {current + 1} de {invoices.length}
+            <span style={{ color: badge.color, fontWeight: 700 }}>fatura {badge.label}</span> · vence {ddmm(m.dueDate)} · {current + 1} de {invoices.length}
           </div>
         </div>
         <button
@@ -119,9 +138,22 @@ export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range }) => 
         </button>
       </div>
 
-      <div style={{ textAlign: 'center' }}>
-        <div className="text-xs text-muted">Valor da fatura</div>
-        <strong style={{ fontSize: '28px' }}>{formatBRL(m.amount)}</strong>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div className="text-xs text-muted">Valor da fatura</div>
+          <strong style={{ fontSize: '28px' }}>{formatBRL(m.amount)}</strong>
+        </div>
+        {!paid && (
+        <button
+          type="button"
+          style={{ ...arrow(false), width: '38px', height: '38px', background: 'var(--accent-primary, #0ea5e9)', color: '#fff', border: 'none' }}
+          aria-label="Novo registro na fatura"
+          title="Novo registro na fatura"
+          onClick={() => setAdding(m.id)}
+        >
+          <Plus size={20} />
+        </button>
+        )}
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '45vh', overflowY: 'auto' }}>
@@ -226,6 +258,7 @@ export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range }) => 
       </div>
 
       <CardPurchaseModal target={purchase} onClose={() => setPurchase(null)} />
+      <AddInvoiceItemModal invoiceId={adding} onClose={() => setAdding(null)} />
     </div>
   );
 };

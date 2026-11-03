@@ -13,7 +13,7 @@ import { installmentSchedule } from '../utils/forsetiAssistant';
 import { MappingItemStateModal, type MappingItemStateTarget } from '../components/MappingItemStateModal';
 import { MappingPaymentModal, type MappingPaymentTarget } from '../components/MappingPaymentModal';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
-import { RealizationConfirmModal, realizedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
+import { RealizationConfirmModal, invoiceRealizationTarget, realizedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
 
 /**
  * Ação de cada lançamento previsto (Já paguei / Já recebi / Lançar) e os pop-ups que ela abre.
@@ -117,13 +117,7 @@ export function useForecastEntryActions(onNavigate: (tab: 'FATURAS' | 'NATUREZAS
           className="btn btn-outline btn-xs"
           onClick={() =>
             invoice
-              ? setRealization({
-                  kind: 'SAIDA',
-                  title: entry.title,
-                  expectedAmount: invoice.amount,
-                  dueDate: invoice.dueDate,
-                  onConfirm: (amount, date) => updateMovement(invoice.id, realizedMovementUpdates(invoice, amount, date)),
-                })
+              ? setRealization(invoiceRealizationTarget(invoice, movements, { addMovement, updateMovement }, entry.title))
               : onNavigate('FATURAS')
           }
         >

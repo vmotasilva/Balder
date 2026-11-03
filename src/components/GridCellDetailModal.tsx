@@ -59,7 +59,7 @@ import {
 import { collectMappingPaidEntries } from '../utils/mappingPaidEntries';
 import { MappingItemStateModal, type MappingItemStateTarget } from './MappingItemStateModal';
 import { MappingPaymentModal, type MappingPaymentTarget } from './MappingPaymentModal';
-import { RealizationConfirmModal, realizedMovementUpdates, reopenConfirmOptions, reopenedMovementUpdates, type RealizationTarget } from './RealizationConfirmModal';
+import { RealizationConfirmModal, invoiceRealizationTarget, reopenConfirmOptions, reopenedMovementUpdates, type RealizationTarget } from './RealizationConfirmModal';
 import { ConfirmDialog, useConfirmDialog } from './ConfirmDialog';
 import {
   DetailViewStyleBar,
@@ -1178,13 +1178,7 @@ export const GridCellDetailModal: React.FC<GridCellDetailModalProps> = ({
       confirmReopen(reopenConfirmOptions(m, () => updateMovement(m.id, reopenedMovementUpdates(m))));
       return;
     }
-    setRealization({
-      kind: 'SAIDA',
-      title: m.title,
-      expectedAmount: m.amount,
-      dueDate: m.dueDate,
-      onConfirm: (amount, date) => updateMovement(m.id, realizedMovementUpdates(m, amount, date)),
-    });
+    setRealization(invoiceRealizationTarget(m, movements, { addMovement, updateMovement }));
   };
 
   // Item mapeado cuja situação na competência está sendo definida

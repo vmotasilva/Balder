@@ -31,7 +31,7 @@ import { MovementDetailModal } from '../components/MovementDetailModal';
 import { ImmediateActionsModal } from '../components/ImmediateActionsModal';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
 import { futureReceiptSiblings } from '../components/ReceiptChangeDialog';
-import { RealizationConfirmModal, realizedMovementUpdates, reopenConfirmOptions, reopenedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
+import { RealizationConfirmModal, invoiceRealizationTarget, realizedMovementUpdates, reopenConfirmOptions, reopenedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
 import { getPendingFixedBills, type PendingFixedBill } from '../utils/fixedBillsAlert';
 
 interface MovementsPageProps {
@@ -469,13 +469,17 @@ export const MovementsPage: React.FC<MovementsPageProps> = ({ onOpenNewMovementM
                 confirmAction(reopenConfirmOptions(item, () => updateMovement(item.id, reopenedMovementUpdates(item))));
                 return;
               }
-              setRealization({
-                kind: isIncome ? 'ENTRADA' : 'SAIDA',
-                title: item.title,
-                expectedAmount: item.amount,
-                dueDate: item.dueDate,
-                onConfirm: (amount, date) => updateMovement(item.id, realizedMovementUpdates(item, amount, date)),
-              });
+              setRealization(
+                item.type === 'CARTAO'
+                  ? invoiceRealizationTarget(item, movements, { addMovement, updateMovement })
+                  : {
+                      kind: isIncome ? 'ENTRADA' : 'SAIDA',
+                      title: item.title,
+                      expectedAmount: item.amount,
+                      dueDate: item.dueDate,
+                      onConfirm: (amount, date) => updateMovement(item.id, realizedMovementUpdates(item, amount, date)),
+                    }
+              );
             }}
             title={isRealized ? 'Marcar como prevista' : 'Confirmar liquidação'}
           >

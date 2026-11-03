@@ -6,6 +6,7 @@ import { useFinancial } from '../context/FinancialContext';
 import { listPaymentInstitutions } from '../utils/paymentInstitutions';
 import { INSTALLMENT_CHOICES, type PaymentHow } from '../utils/paymentHow';
 import type { Movement } from '../types';
+import { carryInvoiceDifference, invoiceDifferenceReasons, type DifferenceReason } from '../utils/invoicePayment';
 
 /** O que está sendo confirmado como pago ou recebido. */
 export interface RealizationTarget {
@@ -17,7 +18,9 @@ export interface RealizationTarget {
   dueDate: string;
   /** Pagamento: pergunta também como foi pago (dinheiro, débito ou crédito); `how` vem vazio se a pessoa não informar. */
   askHow?: boolean;
-  onConfirm: (amount: number, date: string, how?: PaymentHow) => void;
+  /** Fatura de cartão: se o valor pago difere do registrado, pergunta o motivo (`reason`) para acertar as faturas futuras. */
+  askDifferenceReason?: boolean;
+  onConfirm: (amount: number, date: string, how?: PaymentHow, reason?: DifferenceReason) => void;
   /** Já foi pago por fora (ou não vale mais): tira do em aberto sem lançar pagamento nem mexer no saldo. */
   onDismiss?: () => void;
 }
@@ -106,11 +109,14 @@ const RealizationConfirmForm: React.FC<{ target: RealizationTarget; onClose: () 
 
   const diff = Math.round((amount - target.expectedAmount) * 100) / 100;
   const futureDate = date > today;
-  const valid = amount > 0 && !!date && !futureDate;
+  const reasons = target.askDifferenceReason && Math.abs(diff) >= 0.01 ? invoiceDifferenceReasons(diff) : [];
+  const [reasonId, setReasonId] = useState<string | null>(null);
+  const reason = reasons.find((r) => r.id === reasonId);
+  const valid = amount > 0 && !!date && !futureDate && (reasons.length === 0 || !!reason);
 
   const confirm = () => {
     if (!valid) return;
-    target.onConfirm(Math.round(amount * 100) / 100, date, howResult);
+    target.onConfirm(Math.round(amount * 100) / 100, date, howResult, reason);
     onClose();
   };
 
@@ -222,6 +228,29 @@ const RealizationConfirmForm: React.FC<{ target: RealizationTarget; onClose: () 
             que o previsto.
           </p>
         )}
+        {reasons.length > 0 && (
+          <div className="mapping-pay-fields" style={{ display: 'block' }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Por que o valor é diferente da fatura registrada?</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
+              {reasons.map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  className={`realization-chip ${reasonId === r.id ? 'is-active' : ''}`}
+                  style={{ textAlign: 'left', whiteSpace: 'normal' }}
+                  onClick={() => setReasonId(r.id)}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            {reason?.carry && (
+              <p className="mapping-pay-feedback">
+                {formatBRL(Math.abs(diff))} {diff < 0 ? 'passam para' : 'saem d'}a próxima fatura, para as contas baterem.
+              </p>
+            )}
+          </div>
+        )}
         {futureDate && <p className="mapping-pay-feedback text-rose">A data não pode ser depois de hoje.</p>}
 
         {target.onDismiss && (
@@ -256,3 +285,21 @@ const RealizationConfirmForm: React.FC<{ target: RealizationTarget; onClose: () 
     </Modal>
   );
 };
+
+/** Pedido de confirmação do pagamento de uma fatura: se o valor pago difere, pergunta o motivo e acerta a próxima fatura. */
+export const invoiceRealizationTarget = (
+  invoice: Movement,
+  movements: Movement[],
+  ops: { addMovement: (m: Omit<Movement, 'id'>) => void; updateMovement: (id: string, u: Partial<Movement>) => void },
+  title: string = invoice.title
+): RealizationTarget => ({
+  kind: 'SAIDA',
+  title,
+  expectedAmount: invoice.amount,
+  dueDate: invoice.dueDate,
+  askDifferenceReason: true,
+  onConfirm: (amount, date, _how, reason) => {
+    ops.updateMovement(invoice.id, realizedMovementUpdates(invoice, amount, date));
+    if (reason?.carry) carryInvoiceDifference(invoice, amount, movements, ops);
+  },
+});

@@ -29,7 +29,7 @@ import { CardPurchaseModal } from '../components/CardPurchaseModal';
 import { NewInvoiceModal } from '../components/NewInvoiceModal';
 import { InvoiceImportModal } from '../components/InvoiceImportModal';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
-import { RealizationConfirmModal, realizedMovementUpdates, reopenConfirmOptions, reopenedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
+import { RealizationConfirmModal, invoiceRealizationTarget, reopenConfirmOptions, reopenedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
 import { getBankBranding } from '../utils/bankBranding';
 import { InfoButton } from '../components/InfoButton';
 import { BankPicker } from '../components/BankPicker';
@@ -555,13 +555,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
       confirmAction(reopenConfirmOptions(m, () => updateMovement(m.id, reopenedMovementUpdates(m))));
       return;
     }
-    setRealization({
-      kind: 'SAIDA',
-      title: m.title,
-      expectedAmount: m.amount,
-      dueDate: m.dueDate,
-      onConfirm: (amount, date) => updateMovement(m.id, realizedMovementUpdates(m, amount, date)),
-    });
+    setRealization(invoiceRealizationTarget(m, movements, { addMovement, updateMovement }));
   };
 
   // Confirmar importação de extrato para criar uma Nova Fatura
