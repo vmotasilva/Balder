@@ -22,8 +22,8 @@ interface InvoicesOverviewProps {
  * última vencida se não houver).
  */
 export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range }) => {
-  const { movements, updateMovement, accounts, cards, banks } = useFinancial();
-  const institutions = useMemo(() => listPaymentInstitutions(accounts, cards, banks), [accounts, cards, banks]);
+  const { movements, updateMovement, accounts, cards, banks: bankEntities } = useFinancial();
+  const institutions = useMemo(() => listPaymentInstitutions(accounts, cards, bankEntities), [accounts, cards, bankEntities]);
   // Compra aberta no pop-up de visualização e edição
   const [purchase, setPurchase] = useState<{ invoiceId: string; itemId: string } | null>(null);
   // Abate de IOF em edição: item da fatura e valor digitado
@@ -74,7 +74,7 @@ export const InvoicesOverview: React.FC<InvoicesOverviewProps> = ({ range }) => 
   const items = m.invoiceBreakdown || [];
   const undetailed = m.unanalyzedAmount && m.unanalyzedAmount > 0.004 ? m.unanalyzedAmount : 0;
   const paid = m.status === 'REALIZADA';
-  const terms = institutions.find((i) => i.name.toLowerCase() === canonicalBankName(m.bank || m.title, banks, cards).toLowerCase())?.terms;
+  const terms = institutions.find((i) => i.name.toLowerCase() === canonicalBankName(m.bank || m.title, bankEntities, cards).toLowerCase())?.terms;
   const today = todayIso();
   const closed = invoiceClosingDate(m.dueDate, terms?.closingDay, terms?.dueDay) <= today;
   const badge = paid

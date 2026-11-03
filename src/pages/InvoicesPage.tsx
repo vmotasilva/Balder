@@ -29,7 +29,7 @@ import { CardPurchaseModal } from '../components/CardPurchaseModal';
 import { NewInvoiceModal } from '../components/NewInvoiceModal';
 import { InvoiceImportModal } from '../components/InvoiceImportModal';
 import { ConfirmDialog, useConfirmDialog } from '../components/ConfirmDialog';
-import { RealizationConfirmModal, invoiceRealizationTarget, realizedMovementUpdates, reopenConfirmOptions, reopenedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
+import { RealizationConfirmModal, invoiceRealizationTarget, reopenConfirmOptions, reopenedMovementUpdates, type RealizationTarget } from '../components/RealizationConfirmModal';
 import { getBankBranding } from '../utils/bankBranding';
 import { InfoButton } from '../components/InfoButton';
 import { BankPicker } from '../components/BankPicker';

@@ -59,7 +59,7 @@ import {
 import { collectMappingPaidEntries } from '../utils/mappingPaidEntries';
 import { MappingItemStateModal, type MappingItemStateTarget } from './MappingItemStateModal';
 import { MappingPaymentModal, type MappingPaymentTarget } from './MappingPaymentModal';
-import { RealizationConfirmModal, invoiceRealizationTarget, realizedMovementUpdates, reopenConfirmOptions, reopenedMovementUpdates, type RealizationTarget } from './RealizationConfirmModal';
+import { RealizationConfirmModal, invoiceRealizationTarget, reopenConfirmOptions, reopenedMovementUpdates, type RealizationTarget } from './RealizationConfirmModal';
 import { ConfirmDialog, useConfirmDialog } from './ConfirmDialog';
 import {
   DetailViewStyleBar,
