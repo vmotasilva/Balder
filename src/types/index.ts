@@ -263,13 +263,15 @@ export interface CopilotPendingConfirmation {
 }
 
 export interface PaymentWizardState {
-  step: 'WHERE' | 'BANK' | 'METHOD' | 'INVOICE' | 'INSTALLMENTS' | 'SUMMARY';
+  step: 'WHERE' | 'BANK' | 'METHOD' | 'DATE' | 'INVOICE' | 'INSTALLMENTS' | 'SUMMARY';
   where?: 'BANK' | 'CASH';
   /** Banco escolhido (pagamento) ou nome da conta (recebimento). */
   institution?: string;
   method?: 'DEBITO' | 'CREDITO';
   /** 1 = à vista. */
   installments: number;
+  /** Crédito: vencimento (AAAA-MM-DD) da fatura em que a compra cai, quando a pessoa o informou (vale no lugar do cálculo pelo fechamento). */
+  invoiceDueDate?: string;
 }
 
 export interface ReceiptItemLine {

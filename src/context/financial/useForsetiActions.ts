@@ -103,6 +103,8 @@ export function useForsetiActions({
       // A fatura é do banco: fechamento e vencimento vêm do banco (ou do cartão dele), sem exigir cartão cadastrado
       const bank = w.institution || 'Geral';
       const terms = inst?.terms;
+      // Fatura informada pela pessoa vale no lugar do cálculo pelo fechamento
+      const invoiceDue = w.invoiceDueDate || firstInvoiceDueDate(pending.dueDate, terms?.closingDay, terms?.dueDay);
       option = {
         id: 'opt_wizard_card',
         label: `${bank} (crédito)`,
@@ -112,8 +114,8 @@ export function useForsetiActions({
           bank,
           type: 'CARTAO',
           category,
-          dueDate: firstInvoiceDueDate(pending.dueDate, terms?.closingDay, terms?.dueDay),
-          dueDay: terms?.dueDay || 10,
+          dueDate: invoiceDue,
+          dueDay: terms?.dueDay || parseInt(invoiceDue.slice(8, 10), 10) || 10,
         },
       };
     } else {

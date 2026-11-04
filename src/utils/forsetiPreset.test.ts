@@ -6,12 +6,12 @@ const inst = (name: string, terms?: { closingDay: number; dueDay: number }, noCr
 const list = [inst('Nubank S.A.', { closingDay: 28, dueDay: 5 }), inst('Banco Inter'), inst('Caixa Econômica', undefined, true)];
 
 describe('presetPaymentWizard', () => {
-  it('cartão + banco com fatura conhecida vai direto ao resumo', () => {
-    expect(presetPaymentWizard('no cartão de crédito Nubank 59,36', list)).toMatchObject({ step: 'SUMMARY', where: 'BANK', institution: 'Nubank S.A.', method: 'CREDITO' });
+  it('cartão + banco com fatura conhecida pergunta a data da compra', () => {
+    expect(presetPaymentWizard('no cartão de crédito Nubank 59,36', list)).toMatchObject({ step: 'DATE', where: 'BANK', institution: 'Nubank S.A.', method: 'CREDITO' });
   });
 
-  it('cartão + banco sem fechamento e vencimento pergunta só a fatura', () => {
-    expect(presetPaymentWizard('cartão de crédito inter', list)).toMatchObject({ step: 'INVOICE', institution: 'Banco Inter', method: 'CREDITO' });
+  it('cartão + banco sem fechamento e vencimento também começa pela data da compra', () => {
+    expect(presetPaymentWizard('cartão de crédito inter', list)).toMatchObject({ step: 'DATE', institution: 'Banco Inter', method: 'CREDITO' });
   });
 
   it('cartão sem banco pergunta só o banco (já como crédito)', () => {
