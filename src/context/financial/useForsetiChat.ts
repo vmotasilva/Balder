@@ -499,7 +499,7 @@ export function useForsetiChat({
           const o = real[0];
           const byCard = insts.find((i) => i.card && o.id === `opt_pay_card_${i.card.id}`);
           const byAccount = insts.find((i) => i.account && o.id === `opt_pay_${i.account.id}`);
-          if (byCard) wizard = { step: 'SUMMARY', where: 'BANK', institution: byCard.name, method: 'CREDITO', installments: plan?.count ?? 1 };
+          if (byCard) wizard = { step: ctx.date ? 'SUMMARY' : 'DATE', where: 'BANK', institution: byCard.name, method: 'CREDITO', installments: plan?.count ?? 1 };
           else if (byAccount) wizard = { step: 'SUMMARY', where: 'BANK', institution: byAccount.name, method: 'DEBITO', installments: 1 };
           else if (o.payload.bank === CASH_IN_HAND) wizard = { step: 'SUMMARY', where: 'CASH', installments: 1 };
         }

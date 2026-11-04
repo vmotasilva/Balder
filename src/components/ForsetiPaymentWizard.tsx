@@ -4,7 +4,7 @@ import { useFinancial } from '../context/FinancialContext';
 import { listPaymentInstitutions } from '../utils/paymentInstitutions';
 import { getBankBranding } from '../utils/bankBranding';
 import { parseMoney } from '../utils/parseDecimal';
-import { firstInvoiceDueDate } from '../utils/cardPurchase';
+import { firstInvoiceDueDate, todayIso } from '../utils/cardPurchase';
 import { findMappingForTitle, findMappingItemForTitle } from '../utils/mappingMatch';
 import { userNatures } from '../utils/baseNatures';
 import { scheduleNote } from '../utils/forsetiAssistant';
@@ -35,10 +35,9 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
 
   const [amountText, setAmountText] = useState(String(data.amount).replace('.', ','));
   const [customInstallments, setCustomInstallments] = useState('');
-  const [termsDue, setTermsDue] = useState<number | ''>('');
-  const [termsClosing, setTermsClosing] = useState<number | ''>('');
-  // Começou direto na fatura (banco já conhecido): depois dela vai ao resumo
-  const [termsFromSummary, setTermsFromSummary] = useState(wizard.step === 'INVOICE');
+  const [invoiceInput, setInvoiceInput] = useState('');
+  // Veio do resumo (Alterar a fatura): depois dela volta ao resumo
+  const [termsFromSummary, setTermsFromSummary] = useState(false);
 
   // Pagamento: um banco por vez; recebimento: a conta que recebe
   const institutions = isIncome
@@ -77,38 +76,45 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
   const back = () => {
     if (wizard.step === 'BANK') go({ step: 'WHERE', where: undefined });
     else if (wizard.step === 'METHOD') go({ step: 'BANK' });
-    else if (wizard.step === 'INVOICE') go({ step: termsFromSummary ? 'SUMMARY' : 'METHOD' });
-    else if (wizard.step === 'INSTALLMENTS') go({ step: 'METHOD' });
+    else if (wizard.step === 'DATE') go({ step: 'BANK' });
+    else if (wizard.step === 'INVOICE') go({ step: termsFromSummary ? 'SUMMARY' : 'DATE' });
+    else if (wizard.step === 'INSTALLMENTS') go({ step: 'DATE' });
     else if (wizard.step === 'SUMMARY') go({ step: 'WHERE', where: undefined, institution: undefined, method: undefined, installments: 1 });
   };
 
   const credit = wizard.method === 'CREDITO';
   const terms = credit ? listPaymentInstitutions(accounts, cards, banks, movements).find((i) => i.name === wizard.institution)?.terms : undefined;
-  const invoiceDue = terms ? firstInvoiceDueDate(data.dueDate, terms.closingDay, terms.dueDay) : '';
+  // A fatura da compra: a que a pessoa informou ou, havendo fechamento e vencimento do banco, a calculada pela data da compra
+  const invoiceDue = wizard.invoiceDueDate || (terms ? firstInvoiceDueDate(data.dueDate, terms.closingDay, terms.dueDay) : '');
+  const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 
-  // Fechamento e vencimento são do banco: ficam guardados nele e valem para todas as compras no crédito
-  const openTerms = (fromSummary: boolean, extra: Partial<PaymentWizardState> = {}) => {
+  // Depois da data (e da fatura, se preciso): parcelas, ou o resumo quando já veio parcelado
+  const afterInvoice = () => go({ step: termsFromSummary || wizard.installments > 1 ? 'SUMMARY' : 'INSTALLMENTS' });
+  const openInvoice = (fromSummary: boolean) => {
     setTermsFromSummary(fromSummary);
-    setTermsDue(terms?.dueDay ?? '');
-    setTermsClosing(terms?.closingDay ?? '');
-    go({ ...extra, step: 'INVOICE' });
+    setInvoiceInput(invoiceDue);
+    go({ step: 'INVOICE' });
   };
-  // Cartão já dito e banco escolhido na lista: vai direto ao crédito, sem perguntar "débito ou crédito?"
-  const pickCredit = (name: string, bankTerms?: { closingDay: number; dueDay: number }) => {
-    if (bankTerms) {
-      go({ institution: name, method: 'CREDITO', step: 'SUMMARY' });
+  const confirmDate = () => {
+    setTermsFromSummary(false);
+    if (terms) {
+      go({ invoiceDueDate: undefined, step: wizard.installments > 1 ? 'SUMMARY' : 'INSTALLMENTS' });
       return;
     }
-    setTermsFromSummary(false);
-    setTermsDue('');
-    setTermsClosing('');
-    go({ institution: name, method: 'CREDITO', step: 'INVOICE' });
+    // Banco sem fechamento e vencimento: pergunta só em que fatura a compra caiu
+    setInvoiceInput(wizard.invoiceDueDate || '');
+    go({ step: 'INVOICE' });
   };
-  const saveTerms = () => {
-    // Só grava o que a pessoa informou: nada de valor padrão salvo como se fosse do banco
-    if (termsClosing === '' || termsDue === '') return;
-    setBankInvoiceTerms(wizard.institution || '', { closingDay: termsClosing, dueDay: termsDue });
-    go({ step: termsFromSummary ? 'SUMMARY' : 'INSTALLMENTS' });
+  const pickCredit = (name: string) => {
+    setTermsFromSummary(false);
+    go({ institution: name, method: 'CREDITO', invoiceDueDate: undefined, step: 'DATE' });
+  };
+  const saveInvoice = () => {
+    if (!invoiceInput) return;
+    // Só o dia do vencimento vira dado do banco; o fechamento real ele não informou
+    if (!terms) setBankInvoiceTerms(wizard.institution || '', { dueDay: parseInt(invoiceInput.slice(8, 10), 10) });
+    go({ invoiceDueDate: invoiceInput });
+    afterInvoice();
   };
   const perInstallment = wizard.installments > 1 ? Math.round((data.amount / wizard.installments) * 100) / 100 : data.amount;
   const payLabel =
@@ -130,7 +136,8 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
           {wizard.step === 'WHERE' && (isIncome ? (scheduled ? 'Onde o dinheiro vai entrar?' : 'Onde o dinheiro entrou?') : scheduled ? 'Como você vai pagar?' : 'Como você pagou?')}
           {wizard.step === 'BANK' && (isIncome ? 'Em qual conta?' : 'Qual banco?')}
           {wizard.step === 'METHOD' && `${wizard.institution}: débito ou crédito?`}
-          {wizard.step === 'INVOICE' && `Fatura do ${wizard.institution}`}
+          {wizard.step === 'DATE' && 'Quando foi a compra?'}
+          {wizard.step === 'INVOICE' && `Em qual fatura do ${wizard.institution}?`}
           {wizard.step === 'INSTALLMENTS' && 'Em quantas vezes?'}
           {wizard.step === 'SUMMARY' && (scheduled ? 'Confira o agendamento' : 'Confira e confirme')}
         </strong>
@@ -161,7 +168,7 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
               style={{ borderColor: i.color }}
               onClick={() =>
                 !isIncome && wizard.method === 'CREDITO' && !i.noCredit
-                  ? pickCredit(i.name, i.terms)
+                  ? pickCredit(i.name)
                   : go(i.noCredit && !isIncome ? { institution: i.name, method: 'DEBITO', installments: 1, step: 'SUMMARY' } : { institution: i.name, step: isIncome ? 'SUMMARY' : 'METHOD' })
               }
             >
@@ -179,54 +186,44 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
           </button>
           <button
             type="button"
-            onClick={() => {
-              if (terms) go({ method: 'CREDITO', step: 'INSTALLMENTS' });
-              else openTerms(false, { method: 'CREDITO' });
-            }}
+            onClick={() => pickCredit(wizard.institution || '')}
           >
             💳 Crédito
           </button>
         </div>
       )}
 
+      {wizard.step === 'DATE' && (
+        <>
+          <span className="pay-wizard-hint">É a data da compra que define em qual fatura ela cai. Pode ser de outro dia, não só de hoje.</span>
+          <DateInput
+            type="date"
+            showToday
+            value={data.dueDate}
+            max={todayIso()}
+            onChange={(e) => e.target.value && updatePaymentWizard(messageId, undefined, { dueDate: e.target.value })}
+          />
+          {terms && data.dueDate && (
+            <span className="pay-wizard-hint">Cai na fatura que vence em {ddmm(firstInvoiceDueDate(data.dueDate, terms.closingDay, terms.dueDay))}.</span>
+          )}
+          <div className="pay-wizard-actions">
+            <button type="button" className="pay-wizard-confirm" onClick={confirmDate} disabled={!data.dueDate}>
+              Continuar
+            </button>
+          </div>
+        </>
+      )}
+
       {wizard.step === 'INVOICE' && (
         <>
-          <span className="pay-wizard-hint">Em que dia a fatura fecha e vence? Vale para todas as compras no crédito deste banco.</span>
-          <dl className="pay-wizard-summary">
-            <div className="pay-wizard-field">
-              <dt>Fecha dia</dt>
-              <dd>
-                <input
-                  type="number"
-                  min={1}
-                  max={31}
-                  value={termsClosing}
-                  onChange={(e) => {
-                    const n = parseInt(e.target.value, 10);
-                    setTermsClosing(n ? Math.min(31, Math.max(1, n)) : '');
-                  }}
-                />
-              </dd>
-            </div>
-            <div className="pay-wizard-field">
-              <dt>Vence dia</dt>
-              <dd>
-                <input
-                  type="number"
-                  min={1}
-                  max={31}
-                  value={termsDue}
-                  onChange={(e) => {
-                    const n = parseInt(e.target.value, 10);
-                    setTermsDue(n ? Math.min(31, Math.max(1, n)) : '');
-                  }}
-                />
-              </dd>
-            </div>
-          </dl>
-          <span className="pay-wizard-hint">Confira no app do banco: é o que define em qual fatura cada compra cai.</span>
+          <span className="pay-wizard-hint">
+            {terms
+              ? 'Informe o vencimento da fatura em que esta compra entrou.'
+              : `Compra de ${ddmm(data.dueDate)}. Ainda não sei o fechamento deste banco: em qual fatura ela caiu? Informe o vencimento dela, que está no app do banco.`}
+          </span>
+          <DateInput type="date" value={invoiceInput} onChange={(e) => setInvoiceInput(e.target.value)} />
           <div className="pay-wizard-actions">
-            <button type="button" className="pay-wizard-confirm" onClick={saveTerms} disabled={termsClosing === '' || termsDue === ''}>
+            <button type="button" className="pay-wizard-confirm" onClick={saveInvoice} disabled={!invoiceInput || invoiceInput < data.dueDate}>
               Continuar
             </button>
           </div>
@@ -287,7 +284,12 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
             </dd>
             <dt>{credit ? 'Data da compra' : scheduled ? 'Agendado para' : isIncome ? 'Data' : 'Data do pagamento'}</dt>
             <dd>
-              <DateInput type="date" showToday={!credit && !isIncome} value={data.dueDate} onChange={(e) => e.target.value && updatePaymentWizard(messageId, undefined, { dueDate: e.target.value })} />
+              <DateInput type="date" showToday={!credit && !isIncome} value={data.dueDate} onChange={(e) => {
+                  if (!e.target.value) return;
+                  // Outra data da compra pode cair em outra fatura: com o fechamento do banco, o cálculo volta a valer
+                  if (terms) go({ invoiceDueDate: undefined });
+                  updatePaymentWizard(messageId, undefined, { dueDate: e.target.value });
+                }} />
             </dd>
             {!isIncome && (
               <>
@@ -330,14 +332,12 @@ export const ForsetiPaymentWizard: React.FC<Props> = ({ messageId, pending }) =>
                 Alterar
               </button>
             </dd>
-            {credit && terms && (
+            {credit && invoiceDue && (
               <>
                 <dt>Fatura</dt>
                 <dd className="pay-wizard-edit-row">
-                  <span>
-                    Fecha dia {terms.closingDay} · vence {invoiceDue.slice(8, 10)}/{invoiceDue.slice(5, 7)}
-                  </span>
-                  <button type="button" className="pay-wizard-link" onClick={() => openTerms(true)}>
+                  <span>Vence em {ddmm(invoiceDue)}</span>
+                  <button type="button" className="pay-wizard-link" onClick={() => openInvoice(true)}>
                     Alterar
                   </button>
                 </dd>

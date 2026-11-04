@@ -615,8 +615,8 @@ export function presetPaymentWizard(hint: string, institutions: PaymentInstituti
   const inst = mentioned.length === 1 ? mentioned[0] : undefined;
   if (!inst) return saysCard ? { step: 'BANK', where: 'BANK', method: 'CREDITO', installments } : null;
   if (saysCard && !inst.noCredit) {
-    // A fatura é do banco: sem fechamento e vencimento conhecidos, pergunta só isso
-    return { step: inst.terms ? 'SUMMARY' : 'INVOICE', where: 'BANK', institution: inst.name, method: 'CREDITO', installments };
+    // No crédito, antes de tudo pergunta a data da compra: é ela que define a fatura
+    return { step: 'DATE', where: 'BANK', institution: inst.name, method: 'CREDITO', installments };
   }
   if (saysDebit || inst.noCredit) return { step: 'SUMMARY', where: 'BANK', institution: inst.name, method: 'DEBITO', installments: 1 };
   return { step: 'METHOD', where: 'BANK', institution: inst.name, installments };
