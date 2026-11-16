@@ -13,6 +13,7 @@ export interface FulfilledItemInput {
   paidAt?: string;        // data do pagamento (YYYY-MM-DD)
   movementId?: string;    // movimentação de origem
   previousAmount?: number; // valor anterior da movimentação (substitui o pagamento já lançado)
+  openBalanceDueDate?: string; // pagou só uma parte: o restante continua previsto e vence nesta data
 }
 
 export interface FinancialContextType {

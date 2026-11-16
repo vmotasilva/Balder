@@ -240,8 +240,19 @@ export function buildForecastWindow(params: {
 
           uncovered.forEach((o) => add(o.date, summarized ? o.value : perOccurrence));
           if (summarized && monthHasBucket) mappingSettled += Math.max(0, rawUncovered - pendingUncovered);
-          // Diferenças deixadas em aberto (SALDO_ABERTO) ficam para hoje
-          if (summary.openBalance > 0 && monthKey === currentMonthKey) add(fromDate, summary.openBalance);
+          // Diferenças deixadas em aberto (SALDO_ABERTO): vencem na data combinada para o restante; sem data, ficam para hoje
+          if (summary.openBalance > 0) {
+            let dated = 0;
+            summary.payments.forEach((p) => {
+              const left = Math.round((p.expectedAmount - p.amount) * 100) / 100;
+              if (p.action === 'SALDO_ABERTO' && p.balanceDueDate && left > 0.005) {
+                dated += left;
+                add(p.balanceDueDate, left);
+              }
+            });
+            const undated = Math.round((summary.openBalance - dated) * 100) / 100;
+            if (undated > 0.005 && monthKey === currentMonthKey) add(fromDate, undated);
+          }
         });
 
         // Compra no cartão ligada ao item (fatura ainda em aberto): já resolve a pendência, não cobrar de novo

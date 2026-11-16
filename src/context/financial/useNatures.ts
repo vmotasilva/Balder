@@ -552,7 +552,12 @@ export function useNatures({
                 const day = open.length
                   ? open.reduce((best, o) => (Math.abs(Date.parse(o.date) - Date.parse(target)) < Math.abs(Date.parse(best.date) - Date.parse(target)) ? o : best)).date
                   : target;
-                const patch = registerItemPayment(base, matched.monthKey, { paidAt, amount, coveredDates: [day] });
+                const patch = registerItemPayment(base, matched.monthKey, {
+                  paidAt,
+                  amount,
+                  coveredDates: [day],
+                  ...(matched.openBalanceDueDate ? { action: 'SALDO_ABERTO' as const, balanceDueDate: matched.openBalanceDueDate } : {}),
+                });
                 if (!patch.payments) return { ...base };
                 const list = [...(patch.payments[matched.monthKey] || [])];
                 if (list.length > 0 && matched.movementId) list[list.length - 1] = { ...list[list.length - 1], movementId: matched.movementId };

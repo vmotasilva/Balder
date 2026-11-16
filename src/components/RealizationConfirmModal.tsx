@@ -30,7 +30,16 @@ export interface RealizationTarget {
   askDifferenceReason?: boolean;
   /** Fatura paga a menos: dá para indicar quais itens dela caíram na próxima (com a próxima fatura de referência). */
   carryContext?: { invoice: Movement; next?: Movement };
-  onConfirm: (amount: number, date: string, how?: PaymentHow, reason?: DifferenceReason, carryItemIds?: string[]) => void;
+  /** Pagamento: se o valor é menor que o previsto, pergunta se é só uma parte e quando o restante será pago (`remainder`). */
+  allowPartial?: boolean;
+  onConfirm: (
+    amount: number,
+    date: string,
+    how?: PaymentHow,
+    reason?: DifferenceReason,
+    carryItemIds?: string[],
+    remainder?: { amount: number; dueDate: string }
+  ) => void;
   /** Já foi pago por fora (ou não vale mais): tira do em aberto sem lançar pagamento nem mexer no saldo. */
   onDismiss?: () => void;
 }
@@ -48,14 +57,21 @@ const todayIso = () => {
 };
 
 /** Campos de uma movimentação confirmada com o valor e a data informados (o previsto fica em originalAmount). */
-export const realizedMovementUpdates = (m: Movement, amount: number, date: string): Partial<Movement> => {
+export const realizedMovementUpdates = (m: Movement, amount: number, date: string, partial = false): Partial<Movement> => {
   const changed = Math.abs(amount - m.amount) >= 0.005;
   return {
     status: 'REALIZADA',
     paymentDate: date,
     actualAmount: amount,
-    ...(changed ? { amount, originalAmount: m.originalAmount ?? m.amount } : {}),
+    // Pagamento parcial: o restante vira outra movimentação, então o previsto original não é guardado para reabrir
+    ...(changed ? { amount, ...(partial ? {} : { originalAmount: m.originalAmount ?? m.amount }) } : {}),
   };
+};
+
+const addDaysIso = (iso: string, days: number) => {
+  const d = new Date(`${iso}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
 /**
@@ -138,11 +154,33 @@ const RealizationConfirmForm: React.FC<{ target: RealizationTarget; onClose: () 
   const needsCarryConfirm = pickItems && selectedIds.length > 0;
   const nextAfter = ctx?.next ? Math.round((ctx.next.amount + Math.max(Math.abs(diff), selectedSum)) * 100) / 100 : undefined;
 
-  const valid = amount > 0 && !!date && !futureDate && (reasons.length === 0 || !!reason) && (!needsCarryConfirm || carryConfirmed);
+  // Pagou menos que o previsto: é só uma parte (e o restante tem data) ou era esse o valor mesmo?
+  const askPartial = !!target.allowPartial && !isIncome && diff < -0.009 && amount > 0;
+  const [partialChoice, setPartialChoice] = useState<'PARTIAL' | 'FULL' | null>(null);
+  const [remainderDate, setRemainderDate] = useState(() => addDaysIso(target.dueDate > today ? target.dueDate : today, 7));
+  const isPartial = askPartial && partialChoice === 'PARTIAL';
+  const remainderAmount = Math.round(-diff * 100) / 100;
+  const remainderDateOk = remainderDate >= today;
+
+  const valid =
+    amount > 0 &&
+    !!date &&
+    !futureDate &&
+    (reasons.length === 0 || !!reason) &&
+    (!needsCarryConfirm || carryConfirmed) &&
+    (!askPartial || partialChoice !== null) &&
+    (!isPartial || (!!remainderDate && remainderDateOk));
 
   const confirm = () => {
     if (!valid) return;
-    target.onConfirm(Math.round(amount * 100) / 100, date, howResult, reason, pickItems ? selectedIds : undefined);
+    target.onConfirm(
+      Math.round(amount * 100) / 100,
+      date,
+      howResult,
+      reason,
+      pickItems ? selectedIds : undefined,
+      isPartial ? { amount: remainderAmount, dueDate: remainderDate } : undefined
+    );
     onClose();
   };
 
@@ -253,6 +291,36 @@ const RealizationConfirmForm: React.FC<{ target: RealizationTarget; onClose: () 
             </strong>{' '}
             que o previsto.
           </p>
+        )}
+        {askPartial && (
+          <div className="mapping-pay-fields" style={{ display: 'block' }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>É um pagamento parcial?</span>
+            <div className="realization-chips" style={{ marginTop: '6px' }}>
+              <button type="button" className={`realization-chip ${partialChoice === 'PARTIAL' ? 'is-active' : ''}`} onClick={() => setPartialChoice('PARTIAL')}>
+                Estou pagando só uma parte
+              </button>
+              <button type="button" className={`realization-chip ${partialChoice === 'FULL' ? 'is-active' : ''}`} onClick={() => setPartialChoice('FULL')}>
+                Não, o valor era esse mesmo
+              </button>
+            </div>
+            {isPartial && (
+              <>
+                <label style={{ display: 'block', marginTop: '8px' }}>
+                  <span>A outra parte ({formatBRL(remainderAmount)}) será paga em</span>
+                  <input type="date" className="form-input" value={remainderDate} min={today} onChange={(e) => setRemainderDate(e.target.value)} />
+                </label>
+                {!remainderDateOk && <p className="mapping-pay-feedback text-rose">A data do restante não pode ser anterior a hoje.</p>}
+                {remainderDateOk && remainderDate && (
+                  <p className="mapping-pay-feedback">
+                    Registra {formatBRL(amount)} pagos agora e deixa {formatBRL(remainderAmount)} previstos para {formatDate(remainderDate)}.
+                  </p>
+                )}
+              </>
+            )}
+            {partialChoice === 'FULL' && (
+              <p className="mapping-pay-feedback">O valor desta conta passa a ser {formatBRL(amount)}; nada fica em aberto.</p>
+            )}
+          </div>
         )}
         {reasons.length > 0 && (
           <div className="mapping-pay-fields" style={{ display: 'block' }}>

@@ -262,6 +262,8 @@ export interface ItemPaymentInput {
   /** O que não foi pago é redistribuído para as ocorrências seguintes ainda abertas da competência. */
   redistribute?: boolean;
   paymentMethod?: MappingItem['paymentMethod'];
+  /** Com SALDO_ABERTO: quando o restante será pago. */
+  balanceDueDate?: string;
 }
 
 /**
@@ -293,6 +295,7 @@ export function registerItemPayment(
     ...(input.reason ? { reason: input.reason } : {}),
     ...(input.paymentMethod ? { paymentMethod: input.paymentMethod } : {}),
     ...(input.action && Math.abs(input.amount - expectedAmount) >= 0.01 ? { action: input.action } : {}),
+    ...(input.action === 'SALDO_ABERTO' && input.balanceDueDate ? { balanceDueDate: input.balanceDueDate } : {}),
   };
 
   if (input.redistribute && expectedAmount - payment.amount > 0.005) {

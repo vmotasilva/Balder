@@ -49,8 +49,10 @@ export function useForecastEntryActions(onNavigate: (tab: 'FATURAS' | 'NATUREZAS
     category: string;
     link?: { natureId: string; mappingId: string; itemId: string };
     existing?: Movement;
+    /** Pagou só uma parte: o restante fica previsto na data combinada. */
+    remainder?: { amount: number; dueDate: string };
   }) => {
-    const { how, title, amount, date, dueDate, category, link, existing } = params;
+    const { how, title, amount, date, dueDate, category, link, existing, remainder } = params;
     const natureFields = link
       ? { natureId: link.natureId, mappingId: link.mappingId, mappingItemId: link.itemId }
       : existing?.natureId
@@ -85,15 +87,34 @@ export function useForecastEntryActions(onNavigate: (tab: 'FATURAS' | 'NATUREZAS
           ? CASH_IN_HAND
           : listPaymentInstitutions(accounts, cards, banks).find((i) => i.name === how.institution)?.account?.name ?? how.institution;
       if (existing) {
-        updateMovement(existing.id, { ...realizedMovementUpdates(existing, amount, date), bank });
+        updateMovement(existing.id, { ...realizedMovementUpdates(existing, amount, date, !!remainder), bank });
       } else {
         addMovement({ title, type: 'PAGAR', amount, dueDate, bank, status: 'REALIZADA', category, paymentDate: date, actualAmount: amount, ...natureFields });
       }
     }
     // O item da natureza passa a pago com o valor e a data informados
     if (link) {
-      markMappingItemsFulfilled([{ ...link, realizedValue: amount, monthKey: dueDate.slice(0, 7), paidAt: date }]);
+      markMappingItemsFulfilled([
+        { ...link, realizedValue: amount, monthKey: dueDate.slice(0, 7), paidAt: date, ...(remainder ? { openBalanceDueDate: remainder.dueDate } : {}) },
+      ]);
     }
+    // Conta que existia como movimentação: o restante vira uma nova previsão na data combinada
+    if (existing && remainder) addRemainderMovement(existing, remainder);
+  };
+
+  /** Restante de um pagamento parcial: nova movimentação prevista com o que faltou, na data combinada. */
+  const addRemainderMovement = (source: Movement, remainder: { amount: number; dueDate: string }) => {
+    const { id: _id, ...rest } = source;
+    addMovement({
+      ...rest,
+      title: /\(restante\)$/.test(source.title) ? source.title : `${source.title} (restante)`,
+      amount: remainder.amount,
+      dueDate: remainder.dueDate,
+      status: 'PREVISTA',
+      paymentDate: undefined,
+      actualAmount: undefined,
+      originalAmount: undefined,
+    });
   };
 
   const findNatureItem = (entry: ForecastEntry) => {
@@ -165,6 +186,7 @@ export function useForecastEntryActions(onNavigate: (tab: 'FATURAS' | 'NATUREZAS
                 expectedAmount: entry.amount,
                 dueDate: occurrences[0].date,
                 askHow: true,
+                allowPartial: true,
                 onDismiss: () =>
                   updateMappingItemState(
                     found.nat.id,
@@ -178,7 +200,7 @@ export function useForecastEntryActions(onNavigate: (tab: 'FATURAS' | 'NATUREZAS
                       action: 'QUITADO',
                     })
                   ),
-                onConfirm: (amount, paidAt, how) =>
+                onConfirm: (amount, paidAt, how, _reason, _carry, remainder) =>
                   how
                     ? settleWithHow({
                         how,
@@ -188,6 +210,7 @@ export function useForecastEntryActions(onNavigate: (tab: 'FATURAS' | 'NATUREZAS
                         dueDate: occurrences[0].date,
                         category: found.nat.name,
                         link: { natureId: found.nat.id, mappingId: found.mapping.id, itemId: item.id },
+                        remainder,
                       })
                     : updateMappingItemState(found.nat.id, found.mapping.id, item.id, {
                     payments: {
@@ -200,6 +223,7 @@ export function useForecastEntryActions(onNavigate: (tab: 'FATURAS' | 'NATUREZAS
                           amount,
                           expectedAmount: entry.amount,
                           coveredDates: [occurrences[0].date],
+                          ...(remainder ? { action: 'SALDO_ABERTO' as const, balanceDueDate: remainder.dueDate } : {}),
                         },
                       ],
                     },
@@ -248,11 +272,16 @@ export function useForecastEntryActions(onNavigate: (tab: 'FATURAS' | 'NATUREZAS
                 expectedAmount: mov.amount,
                 dueDate: mov.dueDate,
                 askHow: entry.kind !== 'ENTRADA',
+                allowPartial: entry.kind !== 'ENTRADA',
                 onDismiss: () => updateMovement(mov.id, { status: 'CANCELADA' }),
-                onConfirm: (amount, date, how) =>
-                  how
-                    ? settleWithHow({ how, title: mov.title, amount, date, dueDate: mov.dueDate, category: mov.category, existing: mov })
-                    : updateMovement(mov.id, realizedMovementUpdates(mov, amount, date)),
+                onConfirm: (amount, date, how, _reason, _carry, remainder) => {
+                  if (how) {
+                    settleWithHow({ how, title: mov.title, amount, date, dueDate: mov.dueDate, category: mov.category, existing: mov, remainder });
+                    return;
+                  }
+                  updateMovement(mov.id, realizedMovementUpdates(mov, amount, date, !!remainder));
+                  if (remainder) addRemainderMovement(mov, remainder);
+                },
               })
             : undefined
         }
