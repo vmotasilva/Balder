@@ -552,6 +552,9 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
     let finalUnanalyzed: number | undefined = undefined;
     let finalCategory = category;
 
+    // Parcela desta fatura (1..N); linhas novas/sem número começam na 1ª
+    const curInst = (r: ModalBreakdownRow) => Math.min(Math.max(r.currentInstallment || 1, 1), r.installments || 1);
+
     if (movement.type === 'CARTAO' && breakdownRows.length > 0) {
       finalBreakdown = breakdownRows
         .filter((r) => parseBRL(r.amountInput) > 0)
@@ -567,11 +570,11 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
             natureName: r.natureName || (r.natureId === 'OUTROS' ? 'Outros' : 'Não Analisada'),
             mappingId: r.mappingId,
             mappingItemId: r.mappingItemId,
-            description: instCount > 1 ? `${cleanDesc} (1/${instCount})` : cleanDesc,
+            description: instCount > 1 ? `${cleanDesc} (${curInst(r)}/${instCount})` : cleanDesc,
             amount: currentAmount,
             isAnalyzed: !!r.natureId,
             installments: instCount,
-            currentInstallment: 1,
+            currentInstallment: curInst(r),
             finalAmount: finalTotal,
             ...(r.purchaseDate ? { purchaseDate: r.purchaseDate } : {}),
             ...(r.iofRefund ? { iofRefund: r.iofRefund } : {}),
@@ -614,8 +617,9 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
           const finalTotal = parseBRL(r.finalAmountInput) || Math.round(installmentAmount * instCount * 100) / 100;
           const cleanDesc = (r.description || r.natureName || 'Item da Fatura').replace(/\s*\(\d+\/\d+\)$/, '');
 
-          for (let p = 2; p <= instCount; p++) {
-            const futureDate = new Date(baseYear, baseMonth - 1 + (p - 1), baseDay);
+          const cur = curInst(r);
+          for (let p = cur + 1; p <= instCount; p++) {
+            const futureDate = new Date(baseYear, baseMonth - 1 + (p - cur), baseDay);
             const futureDueDate = futureDate.toISOString().split('T')[0];
             const futureMonthPrefix = futureDueDate.substring(0, 7);
 
