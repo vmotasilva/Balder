@@ -1,8 +1,10 @@
 export interface LearnedItemRecord {
   keyword: string;
-  mappingItemId: string;
+  /** Mapeamento de destino: é o que a associação realmente decide. */
   targetMappingId: string;
   natureId: string;
+  /** Item da memória de cálculo que serviu de pista (opcional; só um detalhe). */
+  mappingItemId?: string;
 }
 
 const DEFAULT_DICTIONARY: LearnedItemRecord[] = [
@@ -78,8 +80,8 @@ export function getLearnedDictionary(): LearnedItemRecord[] {
   }
 }
 
-export function learnReceiptItemAssociation(keyword: string, mappingItemId: string, targetMappingId: string, natureId = 'nat_alimentacao') {
-  if (!keyword || !mappingItemId) return;
+export function learnReceiptItemAssociation(keyword: string, targetMappingId: string, natureId = 'nat_alimentacao', mappingItemId?: string) {
+  if (!keyword || !targetMappingId) return;
   try {
     const cleanKey = keyword.toLowerCase().trim();
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -106,7 +108,7 @@ export function learnReceiptItemAssociation(keyword: string, mappingItemId: stri
   }
 }
 
-import type { ExpenseNature, MappingItem } from '../types';
+import type { ExpenseNature, FixedExpenseMapping } from '../types';
 
 export function getActiveNaturesFromStorage(): ExpenseNature[] {
   try {
@@ -130,61 +132,87 @@ export function matchItemToLearnedRecord(itemName: string, natures?: ExpenseNatu
   const lowerNorm = lower.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const tokens = lowerNorm.split(/[\s,.\-\/]+/).filter((t) => t.length >= 3);
 
-  // 1. Prioridade Máxima: Pesquisa direta nos itens e palavras-chave dos Mapeamentos do Usuário
+  // 1. Prioridade Máxima: Pesquisa direta nos Mapeamentos do Usuário.
+  // O destino é o MAPEAMENTO; nome, palavras-chave e itens da memória de cálculo só servem de pista.
   const activeNatures = (natures && natures.length > 0) ? natures : getActiveNaturesFromStorage();
   if (activeNatures && activeNatures.length > 0) {
-    // O destino é o MAPEAMENTO: os itens/palavras-chave só servem de pista.
-    // Cada item que casa soma pontos ao seu mapeamento; vence o mapeamento com mais evidência.
     const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
-    let best: { score: number; bestItemScore: number; record: LearnedItemRecord } | null = null;
+    let best: { score: number; bestHintScore: number; hintLen: number; record: LearnedItemRecord } | null = null;
+
+    // Pontua um termo cadastrado (descrição ou palavra-chave) contra o texto do cupom
+    const scoreTerm = (termNorm: string, strong: number): number => {
+      if (!termNorm) return 0;
+      if (lowerNorm.includes(termNorm) || termNorm.includes(lowerNorm)) return strong;
+      if (tokens.some((tok) => termNorm.includes(tok) || tok.includes(termNorm))) return 1;
+      return 0;
+    };
 
     for (const nat of activeNatures) {
       for (const map of (nat.mappings || [])) {
         let mapScore = 0;
-        let bestItemScore = 0;
-        let bestItem: { id: string; keyword: string } | null = null;
+        let bestHintScore = 0;
+        let hintKeyword = '';
+        let hintItemId: string | undefined;
 
+        // Nome e palavras-chave do próprio mapeamento
+        const mapName = norm(map.name || '');
+        if (mapName.length >= 4 && lowerNorm.includes(mapName)) {
+          mapScore += 2;
+          bestHintScore = 2;
+          hintKeyword = mapName;
+        }
+        for (const kw of map.keywords || []) {
+          const s = scoreTerm(norm(kw), 2);
+          if (s > 0) {
+            mapScore += s;
+            if (s > bestHintScore) {
+              bestHintScore = s;
+              hintKeyword = norm(kw);
+            }
+          }
+        }
+
+        // Itens da memória de cálculo: cada um que casa soma evidência ao mapeamento
         for (const item of (map.items || [])) {
           const itemDescNorm = norm(item.description);
-          let itemScore = 0;
+          let itemScore =
+            itemDescNorm && (lowerNorm.includes(itemDescNorm) || itemDescNorm.includes(lowerNorm)) ? 3 : 0;
           let itemKeyword = itemDescNorm;
 
-          // A) Descrição do item (pista mais forte)
-          if (itemDescNorm && (lowerNorm.includes(itemDescNorm) || itemDescNorm.includes(lowerNorm))) {
-            itemScore = 3;
-          }
-
-          // B) Palavras-chave cadastradas no item
-          if (itemScore === 0 && item.keywords && item.keywords.length > 0) {
-            for (const kw of item.keywords) {
+          if (itemScore === 0) {
+            for (const kw of item.keywords || []) {
               const kwNorm = norm(kw);
-              if (!kwNorm) continue;
-              if (lowerNorm.includes(kwNorm) || kwNorm.includes(lowerNorm)) {
-                itemScore = 2;
-                itemKeyword = kwNorm;
-                break;
-              }
-              if (itemScore === 0 && tokens.some((tok) => kwNorm.includes(tok) || tok.includes(kwNorm))) {
-                itemScore = 1;
+              const s = scoreTerm(kwNorm, 2);
+              if (s > itemScore) {
+                itemScore = s;
                 itemKeyword = kwNorm;
               }
+              if (itemScore === 2) break;
             }
           }
 
           if (itemScore > 0) {
             mapScore += itemScore;
-            if (itemScore > bestItemScore) {
-              bestItemScore = itemScore;
-              bestItem = { id: item.id, keyword: itemKeyword };
+            if (itemScore > bestHintScore) {
+              bestHintScore = itemScore;
+              hintKeyword = itemKeyword;
+              hintItemId = item.id;
             }
           }
         }
 
-        if (bestItem && (!best || mapScore > best.score || (mapScore === best.score && bestItemScore > best.bestItemScore))) {
+        // Empate: vence a pista mais forte e, depois, a mais específica (termo casado mais longo)
+        const better =
+          !best ||
+          mapScore > best.score ||
+          (mapScore === best.score &&
+            (bestHintScore > best.bestHintScore || (bestHintScore === best.bestHintScore && hintKeyword.length > best.hintLen)));
+        if (mapScore > 0 && better) {
           best = {
             score: mapScore,
-            bestItemScore,
-            record: { keyword: bestItem.keyword, mappingItemId: bestItem.id, targetMappingId: map.id, natureId: nat.id },
+            bestHintScore,
+            hintLen: hintKeyword.length,
+            record: { keyword: hintKeyword, targetMappingId: map.id, natureId: nat.id, mappingItemId: hintItemId },
           };
         }
       }
@@ -196,7 +224,7 @@ export function matchItemToLearnedRecord(itemName: string, natures?: ExpenseNatu
   // 2. Busca no dicionário aprendido / padrão global
   const dict = getLearnedDictionary();
   for (const record of dict) {
-    const recKw = record.keyword.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const recKw = record.keyword.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
     if (lowerNorm.includes(recKw) || recKw.includes(lowerNorm)) {
       return record;
     }
@@ -206,36 +234,32 @@ export function matchItemToLearnedRecord(itemName: string, natures?: ExpenseNatu
 }
 
 /**
- * Associa automaticamente o texto detectado na nota fiscal/comprovante
- * como palavra-chave do item mapeado no Balder, além de memorizar na IA.
+ * Associa automaticamente o texto detectado na nota fiscal/comprovante ao MAPEAMENTO escolhido:
+ * vira palavra-chave do mapeamento (facilita as próximas compras) e fica memorizado no dicionário de IA.
  */
-export function autoAssociateReceiptTextToItemKeywords(
+export function autoAssociateReceiptTextToMappingKeywords(
   receiptText: string,
-  mappingItemId: string,
   natureId: string,
   mappingId: string,
-  updateMappingItem?: (natureId: string, mappingId: string, itemId: string, updates: Partial<MappingItem>) => void,
-  natures?: ExpenseNature[]
+  updateMapping?: (natureId: string, mappingId: string, updates: Partial<FixedExpenseMapping>) => void,
+  natures?: ExpenseNature[],
+  mappingItemId?: string
 ) {
-  if (!receiptText || !mappingItemId) return;
+  if (!receiptText || !mappingId) return;
   const cleanKeyword = receiptText.toLowerCase().trim().replace(/[^\w\sÀ-ÿ]/g, '');
   if (!cleanKeyword || cleanKeyword.length < 2) return;
 
-  // 1. Aprende no dicionário efêmero e permanente de IA
-  learnReceiptItemAssociation(cleanKeyword, mappingItemId, mappingId, natureId);
+  // 1. Aprende no dicionário permanente (nível do mapeamento)
+  learnReceiptItemAssociation(cleanKeyword, mappingId, natureId, mappingItemId);
 
-  // 2. Adiciona como palavra-chave do item no cadastro do usuário se updateMappingItem estiver disponível
-  if (updateMappingItem && natures) {
-    const targetNat = natures.find((n) => n.id === natureId);
-    const targetMap = targetNat?.mappings.find((m) => m.id === mappingId);
-    const targetItem = targetMap?.items.find((i) => i.id === mappingItemId);
-    if (targetItem) {
-      const currentKeywords = targetItem.keywords || [];
+  // 2. Adiciona como palavra-chave do mapeamento no cadastro do usuário
+  if (updateMapping && natures) {
+    const targetMap = natures.find((n) => n.id === natureId)?.mappings.find((m) => m.id === mappingId);
+    if (targetMap) {
+      const currentKeywords = targetMap.keywords || [];
       if (!currentKeywords.some((k) => k.toLowerCase().trim() === cleanKeyword)) {
-        const nextKeywords = [...currentKeywords, cleanKeyword];
-        updateMappingItem(natureId, mappingId, mappingItemId, { keywords: nextKeywords });
+        updateMapping(natureId, mappingId, { keywords: [...currentKeywords, cleanKeyword] });
       }
     }
   }
 }
-

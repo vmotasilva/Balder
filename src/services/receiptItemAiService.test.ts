@@ -35,19 +35,20 @@ afterEach(() => vi.unstubAllGlobals());
 const run = async (items: ReceiptItemLine[]) => (await import('./receiptItemAiService')).suggestReceiptItems(items, natures);
 
 describe('suggestReceiptItems', () => {
-  it('sugere o item e marca a linha como sugestão da Forseti', async () => {
-    apiAnswer = [{ name: 'ARROZ TIO JOAO 5KG', option: 'item_arroz' }];
+  it('sugere o mapeamento e marca a linha como sugestão da Forseti', async () => {
+    apiAnswer = [{ name: 'ARROZ TIO JOAO 5KG', option: 'map' }];
     const [out] = await run([line('ARROZ TIO JOAO 5KG')]);
-    expect(out).toMatchObject({ matchedMappingItemId: 'item_arroz', targetMappingId: 'map', natureId: 'nat', aiSuggested: true });
+    expect(out).toMatchObject({ targetMappingId: 'map', natureId: 'nat', aiSuggested: true });
+    expect(out.matchedMappingItemId).toBeUndefined();
     expect(apiCalls).toBe(1);
   });
 
   it('a mesma descrição em outro cupom não volta à IA', async () => {
-    apiAnswer = [{ name: 'ARROZ TIO JOAO 5KG', option: 'item_arroz' }];
+    apiAnswer = [{ name: 'ARROZ TIO JOAO 5KG', option: 'map' }];
     await run([line('ARROZ TIO JOAO 5KG')]);
     const [again] = await run([line('arroz tio joão 5kg')]);
     expect(apiCalls).toBe(1);
-    expect(again.matchedMappingItemId).toBe('item_arroz');
+    expect(again.targetMappingId).toBe('map');
   });
 
   it('guarda também o "sem sugestão", para não perguntar de novo', async () => {
@@ -55,11 +56,11 @@ describe('suggestReceiptItems', () => {
     await run([line('SABAO EM PO OMO')]);
     const [again] = await run([line('SABAO EM PO OMO')]);
     expect(apiCalls).toBe(1);
-    expect(again.matchedMappingItemId).toBeUndefined();
+    expect(again.targetMappingId).toBeUndefined();
   });
 
   it('só pergunta pelas linhas que as regras não associaram', async () => {
-    const mapped = line('LEITE', { matchedMappingItemId: 'item_arroz', isNewSuggestedItem: false });
+    const mapped = line('LEITE', { targetMappingId: 'map', natureId: 'nat', isNewSuggestedItem: false });
     expect(await run([mapped])).toEqual([mapped]);
     expect(apiCalls).toBe(0);
   });
@@ -69,12 +70,12 @@ describe('suggestReceiptItems', () => {
     const items = [line('ARROZ TIO JOAO 5KG')];
     expect(await run(items)).toEqual(items);
     apiStatus = 200;
-    apiAnswer = [{ name: 'ARROZ TIO JOAO 5KG', option: 'item_arroz' }];
-    expect((await run(items))[0].matchedMappingItemId).toBe('item_arroz');
+    apiAnswer = [{ name: 'ARROZ TIO JOAO 5KG', option: 'map' }];
+    expect((await run(items))[0].targetMappingId).toBe('map');
     expect(apiCalls).toBe(2);
   });
 
-  it('sem itens cadastrados no mapeamento, nem chama a IA', async () => {
+  it('sem mapeamentos cadastrados, nem chama a IA', async () => {
     const { suggestReceiptItems } = await import('./receiptItemAiService');
     const items = [line('ARROZ')];
     expect(await suggestReceiptItems(items, [])).toEqual(items);

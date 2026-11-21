@@ -1,7 +1,7 @@
 import { SupabaseService } from '../../services/supabaseService';
 import { denySharedAction } from './sharedAccess';
 import { isUuid } from './helpers';
-import { learnReceiptItemAssociation } from '../../services/receiptMemoryService';
+import { learnReceiptItemAssociation, matchItemToLearnedRecord } from '../../services/receiptMemoryService';
 import { matchNatureForTransaction } from '../../services/invoiceFileParser';
 import { sameBank } from '../../utils/paymentInstitutions';
 import {
@@ -297,6 +297,7 @@ export function useMovementsAndGoals({
       amount?: number;
       natureId?: string;
       natureName?: string;
+      targetMappingId?: string;
       quantity?: number;
       unit?: string;
     }>
@@ -346,6 +347,7 @@ export function useMovementsAndGoals({
         id: `breakdown_photo_${Date.now()}_${idx}_${Math.random().toString(36).substring(2, 6)}`,
         natureId: assignedNatId || 'OUTROS',
         natureName: assignedNatName || 'Outros',
+        mappingId: it.natureId && it.targetMappingId && assignedNatId === it.natureId ? it.targetMappingId : undefined,
         description: itemDesc,
         amount: Math.round(itemAmount * 100) / 100,
         isAnalyzed: true,
@@ -359,57 +361,39 @@ export function useMovementsAndGoals({
     const newUnanalyzed = Math.max(0, Math.round((targetInvoice.amount - newTotalAllocated) * 100) / 100);
     const allocatedAmount = Math.round(newBreakdownItems.reduce((sum, row) => sum + row.amount, 0) * 100) / 100;
 
-    // Treinar e associar palavras-chave automaticamente aos itens de mapeamento das naturezas
+    // Treinar: associa o texto do item ao MAPEAMENTO (palavra-chave do mapeamento), usando o destino já escolhido
+    // ou, na falta dele, o mapeamento que as regras reconhecem.
     items.forEach((it) => {
       const detected = (it.detectedName || it.description || it.rawName || '').trim();
       if (!detected || detected.length < 2) return;
 
-      let matchedItemRef: { natId: string; mapId: string; itemId: string } | null = null;
-      for (const nat of natures) {
-        for (const map of nat.mappings) {
-          for (const mItem of map.items) {
-            const descNorm = mItem.description.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-            const detNorm = detected.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-            if (
-              detNorm.includes(descNorm) ||
-              descNorm.includes(detNorm) ||
-              mItem.keywords?.some((k) => detNorm.includes(k.toLowerCase()))
-            ) {
-              matchedItemRef = { natId: nat.id, mapId: map.id, itemId: mItem.id };
-              break;
-            }
-          }
-          if (matchedItemRef) break;
-        }
-        if (matchedItemRef) break;
+      let target: { natId: string; mapId: string } | null = null;
+      if (it.natureId && it.targetMappingId) {
+        target = { natId: it.natureId, mapId: it.targetMappingId };
+      } else {
+        const rec = matchItemToLearnedRecord(detected, natures);
+        if (rec) target = { natId: rec.natureId, mapId: rec.targetMappingId };
       }
+      if (!target) return;
 
-      if (matchedItemRef) {
-        const cleanKw = detected.toLowerCase().replace(/[^\w\sÀ-ÿ]/g, '').trim();
-        if (cleanKw) {
-          learnReceiptItemAssociation(cleanKw, matchedItemRef.itemId, matchedItemRef.mapId, matchedItemRef.natId);
-          setNatures((prevNats) =>
-            prevNats.map((nat) => {
-              if (nat.id !== matchedItemRef?.natId) return nat;
-              return {
-                ...nat,
-                mappings: nat.mappings.map((m) => {
-                  if (m.id !== matchedItemRef?.mapId) return m;
-                  return {
-                    ...m,
-                    items: m.items.map((i) => {
-                      if (i.id !== matchedItemRef?.itemId) return i;
-                      const kws = i.keywords || [];
-                      if (kws.includes(cleanKw)) return i;
-                      return { ...i, keywords: [...kws, cleanKw] };
-                    }),
-                  };
-                }),
-              };
-            })
-          );
-        }
-      }
+      const cleanKw = detected.toLowerCase().replace(/[^\w\sÀ-ÿ]/g, '').trim();
+      if (!cleanKw) return;
+      const { natId, mapId } = target;
+      learnReceiptItemAssociation(cleanKw, mapId, natId);
+      setNatures((prevNats) =>
+        prevNats.map((nat) => {
+          if (nat.id !== natId) return nat;
+          return {
+            ...nat,
+            mappings: nat.mappings.map((m) => {
+              if (m.id !== mapId) return m;
+              const kws = m.keywords || [];
+              if (kws.includes(cleanKw)) return m;
+              return { ...m, keywords: [...kws, cleanKw] };
+            }),
+          };
+        })
+      );
     });
 
     updateMovement(targetInvoice.id, {

@@ -205,7 +205,7 @@ export function parseReceiptText(text: string, _userText?: string): OCRResult {
       matchedMappingItemId: learned?.mappingItemId,
       targetMappingId: learned?.targetMappingId,
       natureId: learned?.natureId,
-      isNewSuggestedItem: !learned?.mappingItemId,
+      isNewSuggestedItem: !learned?.targetMappingId,
     });
   }
 

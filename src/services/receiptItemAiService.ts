@@ -3,8 +3,8 @@ import type { ExpenseNature, ReceiptItemLine } from '../types';
 import { MAX_ITEMS_PER_CALL, applySuggestions, buildOptions, cleanItemName, itemKey } from '../utils/receiptItemSuggest';
 
 /**
- * Pede à IA (api/forseti-items), em UMA chamada por cupom, em qual item do mapeamento cada linha desconhecida entra.
- * Só saem nomes (linhas do cupom e itens do mapeamento), nunca valores. O que já foi perguntado fica guardado neste aparelho:
+ * Pede à IA (api/forseti-items), em UMA chamada por cupom, em qual mapeamento cada linha desconhecida entra.
+ * Só saem nomes (linhas do cupom, mapeamentos e itens como pistas), nunca valores. O que já foi perguntado fica guardado neste aparelho:
  * a mesma descrição não volta à IA. Sem login, offline, lento ou sem sugestão, o cupom segue exatamente como estava.
  */
 
@@ -67,7 +67,7 @@ async function askApi(names: string[], options: ReturnType<typeof buildOptions>)
 export async function suggestReceiptItems(items: ReceiptItemLine[], natures: ExpenseNature[]): Promise<ReceiptItemLine[]> {
   try {
     const options = buildOptions(natures);
-    const pending = items.filter((it) => !it.matchedMappingItemId);
+    const pending = items.filter((it) => !it.targetMappingId);
     if (options.length === 0 || pending.length === 0) return items;
 
     const validIds = new Set(options.map((o) => o.id));

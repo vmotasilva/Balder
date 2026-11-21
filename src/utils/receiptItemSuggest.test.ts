@@ -34,41 +34,47 @@ describe('itemKey: a mesma descrição em outro cupom é a mesma chave', () => {
 });
 
 describe('buildOptions', () => {
-  it('lista os itens do mapeamento, só com nomes', () => {
+  it('lista os mapeamentos, só com nomes; itens e palavras-chave entram como pistas', () => {
     const opts = buildOptions(natures);
-    expect(opts.map((o) => o.id)).toEqual(['item_arroz', 'item_leite', 'item_tomate']);
-    expect(opts[2]).toEqual({ id: 'item_tomate', label: 'Tomate', routine: 'Feira', nature: 'Alimentação' });
-    expect(Object.keys(opts[0]).sort()).toEqual(['id', 'label', 'nature', 'routine']);
+    expect(opts.map((o) => o.id)).toEqual(['map_mercado', 'map_feira']);
+    expect(opts[1]).toEqual({ id: 'map_feira', label: 'Feira', nature: 'Alimentação', hints: ['Tomate'] });
+    expect(opts[0].hints).toEqual(['Arroz', 'Leite']);
+    expect(Object.keys(opts[0]).sort()).toEqual(['hints', 'id', 'label', 'nature']);
+  });
+  it('limita as pistas e junta as palavras-chave do mapeamento e dos itens', () => {
+    const rich = [{ id: 'n', name: 'N', mappings: [{ id: 'm', name: 'M', keywords: ['atacadao'], items: [{ id: 'i', description: 'Arroz', keywords: ['tio joao', 'Arroz'] }] }] }] as unknown as ExpenseNature[];
+    expect(buildOptions(rich)[0].hints).toEqual(['atacadao', 'Arroz', 'tio joao']);
   });
   it('sem naturezas, lista vazia', () => expect(buildOptions([])).toEqual([]));
 });
 
 describe('parseItemMatches: a resposta da IA nunca é confiada como veio', () => {
-  const valid = new Set(['item_arroz', 'item_leite']);
+  const valid = new Set(['map_mercado', 'map_feira']);
   it('lê as escolhas válidas e deixa o resto sem sugestão', () => {
-    expect(parseItemMatches([{ index: 0, option: 'item_arroz' }, { index: 2, option: 'item_leite' }], 3, valid)).toEqual(['item_arroz', null, 'item_leite']);
+    expect(parseItemMatches([{ index: 0, option: 'map_mercado' }, { index: 2, option: 'map_feira' }], 3, valid)).toEqual(['map_mercado', null, 'map_feira']);
   });
   it('descarta id que a pessoa não tem, índice fora da lista, repetido e malformado', () => {
     expect(
       parseItemMatches(
-        [{ index: 0, option: 'item_inventado' }, { index: 9, option: 'item_leite' }, { index: 1, option: 'item_leite' }, { index: 1, option: 'item_arroz' }, { index: '0', option: 'item_arroz' }, null, 'x', { index: 1.5, option: 'item_arroz' }],
+        [{ index: 0, option: 'map_inventado' }, { index: 9, option: 'map_feira' }, { index: 1, option: 'map_feira' }, { index: 1, option: 'map_mercado' }, { index: '0', option: 'map_mercado' }, null, 'x', { index: 1.5, option: 'map_mercado' }],
         2,
         valid
       )
-    ).toEqual([null, 'item_leite']);
+    ).toEqual([null, 'map_feira']);
   });
   it.each([undefined, null, 'texto', {}, 42])('resposta que não é lista (%j): sem sugestões', (v) => expect(parseItemMatches(v, 2, valid)).toEqual([null, null]));
 });
 
 describe('applySuggestions', () => {
-  const sugg = new Map<string, string | null>([[itemKey('ARROZ TIO JOAO 5KG'), 'item_arroz'], [itemKey('SABAO EM PO'), null], [itemKey('TOMATE ITAL'), 'item_inventado']]);
+  const sugg = new Map<string, string | null>([[itemKey('ARROZ TIO JOAO 5KG'), 'map_mercado'], [itemKey('SABAO EM PO'), null], [itemKey('TOMATE ITAL'), 'map_inventado']]);
 
-  it('marca a linha como sugerida, com a rotina e a natureza do item', () => {
+  it('marca a linha como sugerida, com o mapeamento e a natureza dele', () => {
     const [out] = applySuggestions([line('ARROZ TIO JOAO 5KG')], sugg, natures);
-    expect(out).toMatchObject({ matchedMappingItemId: 'item_arroz', targetMappingId: 'map_mercado', natureId: 'nat_alim', isNewSuggestedItem: false, aiSuggested: true });
+    expect(out).toMatchObject({ targetMappingId: 'map_mercado', natureId: 'nat_alim', isNewSuggestedItem: false, aiSuggested: true });
+    expect(out.matchedMappingItemId).toBeUndefined();
   });
-  it('não mexe em quem já tem item, em quem ficou sem sugestão nem em id que não existe mais', () => {
-    const already = line('ARROZ TIO JOAO 5KG', { matchedMappingItemId: 'item_leite', targetMappingId: 'map_mercado', isNewSuggestedItem: false });
+  it('não mexe em quem já tem mapeamento, em quem ficou sem sugestão nem em id que não existe mais', () => {
+    const already = line('ARROZ TIO JOAO 5KG', { targetMappingId: 'map_feira', natureId: 'nat_alim', isNewSuggestedItem: false });
     const noMatch = line('SABAO EM PO');
     const bogus = line('TOMATE ITAL');
     const out = applySuggestions([already, noMatch, bogus], sugg, natures);

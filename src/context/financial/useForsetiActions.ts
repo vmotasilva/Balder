@@ -627,57 +627,68 @@ export function useForsetiActions({
           nat.name.toLowerCase().includes('aliment') ||
           nat.name.toLowerCase().includes('mercado');
 
-        if (!isAlimentacao) return nat;
+        const hasAssignedLines = data.items.some((r) => r.natureId === nat.id && !!r.targetMappingId);
+
+        if (!isAlimentacao && !hasAssignedLines) return nat;
 
         modifiedNatId = nat.id;
         const updatedMappings = nat.mappings.map((mapping) => {
-          const updatedItems = mapping.items.map((mItem) => {
-            const matchedReceiptItems = data.items.filter((rItem) => rItem.matchedMappingItemId === mItem.id);
-            if (matchedReceiptItems.length > 0) {
-              const addedSum = matchedReceiptItems.reduce((acc, curr) => acc + curr.price, 0);
-              allocatedByRoutine[mapping.name] = (allocatedByRoutine[mapping.name] || 0) + addedSum;
+          const stripAcc = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+          const updatedItems = mapping.items.map((mItem) => ({ ...mItem }));
 
-              // Memorizar associação para os próximos cupons
-              matchedReceiptItems.forEach((rItem) => {
-                learnReceiptItemAssociation(rItem.rawName, mItem.id, mapping.id, nat.id);
-              });
-
-              const lastPrice = matchedReceiptItems[matchedReceiptItems.length - 1].price;
-              return {
-                ...mItem,
-                realizedValue: (mItem.realizedValue || 0) + addedSum,
-                price: lastPrice, // Reflete o preço mais recente praticado na compra
-              };
-            }
-            return mItem;
-          });
+          // Linhas do cupom que o usuário (ou a IA) associou a ESTE mapeamento.
+          // O item da memória de cálculo é opcional: serve só para saber onde somar o realizado.
+          const linesForMapping = data.items.filter(
+            (rItem) =>
+              !rItem.isNewSuggestedItem &&
+              (rItem.targetMappingId === mapping.id ||
+                (!rItem.targetMappingId && rItem.matchedMappingItemId && mapping.items.some((i) => i.id === rItem.matchedMappingItemId)))
+          );
 
           // Adicionar novos itens sugeridos com quantidade 0 (conforme solicitado pelo usuário!)
-          const itemsToAddToThisMapping = data.items.filter(
+          const newLines = data.items.filter(
             (rItem) => rItem.isNewSuggestedItem && (rItem.targetMappingId === mapping.id || (!rItem.targetMappingId && (mapping.id === 'map_mercado_mensal' || mapping.id.includes('mercado'))))
           );
 
-          if (itemsToAddToThisMapping.length > 0) {
-            itemsToAddToThisMapping.forEach((rItem) => {
-              newlyMappedCount++;
-              allocatedByRoutine[mapping.name] = (allocatedByRoutine[mapping.name] || 0) + rItem.price;
-              const newItemId = `item_new_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-
-              learnReceiptItemAssociation(rItem.rawName, newItemId, mapping.id, nat.id);
-
-              updatedItems.push({
-                id: newItemId,
-                description: rItem.detectedName,
-                quantity: 0, // Solicitado: mapear no sistema com quantidade 0
-                price: rItem.price,
-                multiplierWeeks: 1,
-                totalValue: 0,
-                realizedValue: rItem.price,
-                isFulfilled: true,
-                paymentMethod: isCredit ? 'CARTAO' : 'PIX',
-              });
+          const addNewItem = (rItem: (typeof data.items)[number]) => {
+            newlyMappedCount++;
+            const newItemId = `item_new_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+            learnReceiptItemAssociation(rItem.rawName, mapping.id, nat.id, newItemId);
+            updatedItems.push({
+              id: newItemId,
+              description: rItem.detectedName,
+              quantity: 0, // Solicitado: mapear no sistema com quantidade 0
+              price: rItem.price,
+              multiplierWeeks: 1,
+              totalValue: 0,
+              realizedValue: rItem.price,
+              isFulfilled: true,
+              paymentMethod: isCredit ? 'CARTAO' : 'PIX',
             });
-          }
+          };
+
+          linesForMapping.forEach((rItem) => {
+            allocatedByRoutine[mapping.name] = (allocatedByRoutine[mapping.name] || 0) + rItem.price;
+            // Memorizar a associação (no nível do mapeamento) para os próximos cupons
+            learnReceiptItemAssociation(rItem.rawName, mapping.id, nat.id, rItem.matchedMappingItemId);
+
+            // Onde somar o realizado: item indicado; senão, item de mesmo nome; senão, novo item
+            const name = stripAcc(rItem.detectedName || rItem.rawName);
+            const target =
+              updatedItems.find((i) => i.id === rItem.matchedMappingItemId) ||
+              updatedItems.find((i) => name && stripAcc(i.description) === name);
+            if (target) {
+              target.realizedValue = (target.realizedValue || 0) + rItem.price;
+              target.price = rItem.price; // Reflete o preço mais recente praticado na compra
+            } else {
+              addNewItem(rItem);
+            }
+          });
+
+          newLines.forEach((rItem) => {
+            allocatedByRoutine[mapping.name] = (allocatedByRoutine[mapping.name] || 0) + rItem.price;
+            addNewItem(rItem);
+          });
 
           return { ...mapping, items: updatedItems };
         });

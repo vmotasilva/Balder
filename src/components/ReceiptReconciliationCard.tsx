@@ -6,7 +6,7 @@ import { useFinancial } from '../context/FinancialContext';
 import { QuickCreateMappingItemModal } from './QuickCreateMappingItemModal';
 import { MappingCombobox } from './MappingCombobox';
 import type { ComboboxOption } from './MappingCombobox';
-import { learnReceiptItemAssociation, autoAssociateReceiptTextToItemKeywords } from '../services/receiptMemoryService';
+import { learnReceiptItemAssociation, autoAssociateReceiptTextToMappingKeywords } from '../services/receiptMemoryService';
 import { Check, Plus, Edit2, AlertCircle, ShoppingBag, Sparkles, Store, Calendar, DollarSign, Wallet, CheckCircle2, CreditCard } from 'lucide-react';
 import { DateInput } from './DateInput';
 
@@ -23,7 +23,7 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
   natures,
   onConfirm,
 }) => {
-  const { addItemToMapping, updateMappingItem, addMappingToNature, movements, associateReceiptItemsToInvoice } = useFinancial();
+  const { addItemToMapping, updateMapping, addMappingToNature, movements, associateReceiptItemsToInvoice } = useFinancial();
   const [store, setStore] = useState(data.store);
   const [date, setDate] = useState(data.date);
   const [totalAmount, setTotalAmount] = useState(data.totalAmount);
@@ -43,37 +43,35 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [notificationMsg, setNotificationMsg] = useState<string | null>(null);
 
-  // Mapear todas as opções disponíveis de itens fixos no Balder (estrutura raw)
-  const availableMappingOptions: { id: string; routineId: string; routineName: string; label: string; natureId: string }[] = [];
+  // Opções = MAPEAMENTOS (o destino da associação). Os itens da memória de cálculo são só palavras-chave.
+  const availableMappingOptions: { id: string; name: string; natureName: string; natureId: string; itemCount: number }[] = [];
   natures.forEach((nat) => {
     nat.mappings.forEach((map) => {
-      map.items.forEach((item) => {
-        availableMappingOptions.push({
-          id: item.id,
-          routineId: map.id,
-          routineName: map.name,
-          label: item.description,
-          natureId: nat.id,
-        });
+      availableMappingOptions.push({
+        id: map.id,
+        name: map.name,
+        natureName: nat.name,
+        natureId: nat.id,
+        itemCount: (map.items || []).length,
       });
     });
   });
 
-  // Opções formatadas para o combobox com grupos por rotina
+  // Opções formatadas para o combobox, agrupadas por natureza
   const buildComboboxOptions = (forItem: ReceiptItemLine): ComboboxOption[] => {
     const regular: ComboboxOption[] = availableMappingOptions.map((opt) => ({
       value: opt.id,
-      label: opt.label,
-      sublabel: opt.routineName,
-      group: opt.routineName,
-      isMatched: forItem.matchedMappingItemId === opt.id,
+      label: opt.name,
+      sublabel: opt.natureName,
+      group: opt.natureName,
+      isMatched: forItem.targetMappingId === opt.id,
     }));
 
     const specials: ComboboxOption[] = [
       {
         value: 'NEW_ITEM',
         label: 'Mapear como Novo Item',
-        sublabel: 'Criar e vincular na rotina',
+        sublabel: 'Criar o item e vincular ao mapeamento',
         group: 'Ações Especiais',
         isSpecial: true,
       },
@@ -131,12 +129,7 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
 
     // 2. Treinar Forseti imediatamente para este e futuros cupons
     if (targetItem) {
-      learnReceiptItemAssociation(
-        targetItem.detectedName,
-        createdItemId,
-        mappingId,
-        natureId
-      );
+      learnReceiptItemAssociation(targetItem.detectedName, mappingId, natureId, createdItemId);
     }
 
     // 3. Atualizar a linha na tabela de conciliação imediatamente
@@ -171,6 +164,7 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
           return {
             ...it,
             matchedMappingItemId: undefined,
+            targetMappingId: undefined,
             isNewSuggestedItem: true,
             aiSuggested: false,
           };
@@ -186,6 +180,7 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
           return {
             ...it,
             matchedMappingItemId: undefined,
+            targetMappingId: undefined,
             isNewSuggestedItem: false,
             aiSuggested: false,
           };
@@ -196,12 +191,11 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
 
     const foundOpt = availableMappingOptions.find((opt) => opt.id === targetOptId);
     if (targetIt && foundOpt) {
-      autoAssociateReceiptTextToItemKeywords(
+      autoAssociateReceiptTextToMappingKeywords(
         targetIt.rawName || targetIt.detectedName,
-        targetOptId,
         foundOpt.natureId,
-        foundOpt.routineId,
-        updateMappingItem,
+        foundOpt.id,
+        updateMapping,
         natures
       );
     }
@@ -211,8 +205,9 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
         if (it.id !== itemId) return it;
         return {
           ...it,
-          matchedMappingItemId: targetOptId,
-          targetMappingId: foundOpt?.routineId,
+          // Trocar o mapeamento invalida o item que servia de pista para o anterior
+          matchedMappingItemId: it.targetMappingId === targetOptId ? it.matchedMappingItemId : undefined,
+          targetMappingId: foundOpt?.id,
           natureId: foundOpt?.natureId || 'nat_alimentacao',
           isNewSuggestedItem: false,
           aiSuggested: false,
@@ -235,14 +230,14 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
 
   const handleConfirm = () => {
     items.forEach((it) => {
-      if (it.matchedMappingItemId && it.natureId && it.targetMappingId) {
-        autoAssociateReceiptTextToItemKeywords(
+      if (it.natureId && it.targetMappingId) {
+        autoAssociateReceiptTextToMappingKeywords(
           it.rawName || it.detectedName,
-          it.matchedMappingItemId,
           it.natureId,
           it.targetMappingId,
-          updateMappingItem,
-          natures
+          updateMapping,
+          natures,
+          it.matchedMappingItemId
         );
       }
     });
@@ -262,14 +257,14 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
     if (!selectedInvoiceId) return;
 
     items.forEach((it) => {
-      if (it.matchedMappingItemId && it.natureId && it.targetMappingId) {
-        autoAssociateReceiptTextToItemKeywords(
+      if (it.natureId && it.targetMappingId) {
+        autoAssociateReceiptTextToMappingKeywords(
           it.rawName || it.detectedName,
-          it.matchedMappingItemId,
           it.natureId,
           it.targetMappingId,
-          updateMappingItem,
-          natures
+          updateMapping,
+          natures,
+          it.matchedMappingItemId
         );
       }
     });
@@ -431,7 +426,7 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
             </thead>
             <tbody>
               {items.map((it) => {
-                const isMapped = !!it.matchedMappingItemId;
+                const isMapped = !!it.targetMappingId;
                 const isNewSuggested = it.isNewSuggestedItem;
 
                 return (
@@ -462,10 +457,10 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
                         value={
                           it.isNewSuggestedItem
                             ? 'NEW_ITEM_ZERO_QTY'
-                            : it.matchedMappingItemId || 'UNMAPPED_AVULSO'
+                            : it.targetMappingId || 'UNMAPPED_AVULSO'
                         }
                         onChange={(val) => handleItemMappingChange(it.id, val)}
-                        placeholder="Buscar rotina ou item..."
+                        placeholder="Buscar mapeamento..."
                       />
                     </td>
 
@@ -473,7 +468,7 @@ export const ReceiptReconciliationCard: React.FC<Props> = ({
                       {isMapped ? (
                         <span
                           className={`badge item-status-badge ${it.aiSuggested ? 'badge-amber' : 'badge-emerald'}`}
-                          title={it.aiSuggested ? 'A Forseti sugeriu este item. Confira e troque se estiver errado.' : undefined}
+                          title={it.aiSuggested ? 'A Forseti sugeriu este mapeamento. Confira e troque se estiver errado.' : undefined}
                         >
                           {it.aiSuggested ? <Sparkles size={11} /> : <Check size={11} />} {it.aiSuggested ? 'Sugerido' : 'Mapeado'}
                         </span>

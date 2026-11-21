@@ -281,8 +281,8 @@ export interface ReceiptItemLine {
   price: number;
   quantity?: number;
   unit?: string;
-  matchedMappingItemId?: string; // id do item no mapeamento (ex: 'item_f1', 'item_f2', etc.)
-  targetMappingId?: string;       // id da rotina (ex: 'map_feira_semanal', 'map_mercado_mensal')
+  matchedMappingItemId?: string; // (opcional) item da memória de cálculo que serviu de pista; o destino é o mapeamento
+  targetMappingId?: string;       // id do MAPEAMENTO de destino (ex: 'map_feira_semanal', 'map_mercado_mensal'): o que define "mapeado"
   natureId?: string;              // id da natureza (ex: 'nat_alimentacao')
   isNewSuggestedItem?: boolean;   // Adicionar ao mapeamento com quantidade 0
   aiSuggested?: boolean;          // O item do mapeamento foi sugerido pela Forseti (a pessoa confere antes de confirmar)

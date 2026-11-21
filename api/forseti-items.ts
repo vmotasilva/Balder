@@ -1,9 +1,9 @@
-// Função do servidor (Vercel): sugere, para as linhas de um cupom, em qual item do mapeamento da pessoa cada uma entra.
-// Recebe só nomes (linhas do cupom e itens do mapeamento), nunca valores; a IA escolhe entre os itens enviados, e a resposta
+// Função do servidor (Vercel): sugere, para as linhas de um cupom, em qual mapeamento da pessoa cada uma entra.
+// Recebe só nomes (linhas do cupom, mapeamentos e itens como pistas), nunca valores; a IA escolhe entre os mapeamentos enviados, e a resposta
 // é validada de novo aqui. Precisa da variável ANTHROPIC_API_KEY na Vercel; sem ela responde 501 e o app segue só com as regras.
 // Exige o login do Supabase e o plano com a Forseti, e limita o uso por pessoa (na memória da instância, como forseti-intent).
 import { requireFeature } from './_access.js';
-import { MAX_ITEMS_PER_CALL, MAX_OPTIONS, cleanItemName, parseItemMatches } from '../src/utils/receiptItemSuggest.js';
+import { MAX_HINTS, MAX_ITEMS_PER_CALL, MAX_OPTIONS, cleanItemName, parseItemMatches } from '../src/utils/receiptItemSuggest.js';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 const LIMIT_PER_HOUR = 20;
@@ -22,11 +22,12 @@ function withinLimit(userId: string): boolean {
 }
 
 const SYSTEM = `Você ajuda um app de finanças pessoais em português do Brasil.
-Recebe linhas de um cupom fiscal (nomes abreviados, em maiúsculas, com marca e peso) e a lista de itens que a pessoa já cadastrou,
-cada um com id, nome, rotina e natureza. Para cada linha do cupom, escolha o id do item cadastrado que ela representa
-(ex.: "ARROZ TIO JOAO 5KG" → o item "Arroz"). Só escolha quando tiver boa certeza de que é o mesmo produto ou claramente da mesma
-família que a pessoa agrupou nesse item. Na dúvida, deixe option vazio: é melhor não sugerir do que sugerir errado.
-Use apenas ids da lista. Nunca invente ids.`;
+Recebe linhas de um cupom fiscal (nomes abreviados, em maiúsculas, com marca e peso) e a lista de mapeamentos que a pessoa já
+cadastrou (ex.: "Mercado", "Padaria"), cada um com id, nome, natureza e "pistas": nomes de itens e palavras-chave que a pessoa
+já agrupou nesse mapeamento. Para cada linha do cupom, escolha o id do MAPEAMENTO em que a compra se encaixa
+(ex.: "ARROZ TIO JOAO 5KG" → o mapeamento "Mercado", pois "Arroz" está entre as pistas dele). As pistas só ajudam a decidir: o
+resultado é sempre o mapeamento. Só escolha quando tiver boa certeza. Na dúvida, deixe option vazio: é melhor não sugerir do que
+sugerir errado. Use apenas ids da lista. Nunca invente ids.`;
 
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '');
 
@@ -37,7 +38,7 @@ export async function POST(request: Request): Promise<Response> {
   if (access instanceof Response) return access;
 
   let names: string[] = [];
-  let options: { id: string; label: string; routine: string; nature: string }[] = [];
+  let options: { id: string; label: string; nature: string; hints: string[] }[] = [];
   try {
     const body = await request.json();
     const rawNames: unknown[] = Array.isArray(body.items) ? body.items : [];
@@ -46,7 +47,8 @@ export async function POST(request: Request): Promise<Response> {
     options = rawOptions
       .map((o) => {
         const r = (o && typeof o === 'object' ? o : {}) as Record<string, unknown>;
-        return { id: str(r.id, 80), label: str(r.label, 60), routine: str(r.routine, 60), nature: str(r.nature, 60) };
+        const hints = (Array.isArray(r.hints) ? r.hints : []).map((h) => str(h, 60)).filter(Boolean).slice(0, MAX_HINTS);
+        return { id: str(r.id, 80), label: str(r.label, 60), nature: str(r.nature, 60), hints };
       })
       .filter((o) => o.id && o.label)
       .slice(0, MAX_OPTIONS);
@@ -66,7 +68,7 @@ export async function POST(request: Request): Promise<Response> {
       tools: [
         {
           name: 'associar',
-          description: 'Item cadastrado que cada linha do cupom representa',
+          description: 'Mapeamento cadastrado em que cada linha do cupom se encaixa',
           input_schema: {
             type: 'object',
             properties: {
@@ -89,7 +91,7 @@ export async function POST(request: Request): Promise<Response> {
           role: 'user',
           content: JSON.stringify({
             linhas_do_cupom: names.map((name, index) => ({ index, name })),
-            itens_cadastrados: options.map((o) => ({ id: o.id, nome: o.label, rotina: o.routine, natureza: o.nature })),
+            mapeamentos_cadastrados: options.map((o) => ({ id: o.id, nome: o.label, natureza: o.nature, pistas: o.hints })),
           }),
         },
       ],

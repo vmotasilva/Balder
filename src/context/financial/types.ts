@@ -131,6 +131,7 @@ export interface FinancialContextType {
       amount?: number;
       natureId?: string;
       natureName?: string;
+      targetMappingId?: string;
       quantity?: number;
       unit?: string;
     }>
