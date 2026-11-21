@@ -54,6 +54,26 @@ describe('desfazer compra no cartão', () => {
     expect(undone.unanalyzedAmount).toBe(20);
   });
 
+  it('fatura do mês marcada como paga recebe a compra em vez de criar outra com o mesmo vencimento', () => {
+    const paid = invoice({ status: 'REALIZADA', amount: 1000, actualAmount: 1000, unanalyzedAmount: 0 });
+    const { items, added, updates } = buy([paid], 36);
+    expect(added).toHaveLength(0);
+    expect(items[0].grow).toBe(36);
+    expect(updates.inv1.amount).toBe(1036);
+    expect(updates.inv1.actualAmount).toBe(1036);
+    const after = { ...paid, ...updates.inv1 } as Movement;
+    const undone = invoiceAfterRemovingItems(after, [items[0].itemId], items[0].grow) as Partial<Movement>;
+    expect(undone.amount).toBe(1000);
+    expect(undone.actualAmount).toBe(1000);
+  });
+
+  it('com a paga e a prevista no mês, prefere a prevista', () => {
+    const paid = invoice({ id: 'paga', status: 'REALIZADA' });
+    const open = invoice({ id: 'aberta' });
+    const { updates } = buy([paid, open], 10);
+    expect(Object.keys(updates)).toEqual(['aberta']);
+  });
+
   it('a fatura criada pela compra some junto', () => {
     const { items, added } = buy([], 50);
     expect(items[0].grow).toBe(50);

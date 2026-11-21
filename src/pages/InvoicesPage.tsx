@@ -562,7 +562,15 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
 
       if (hasBreakdownUpdates) {
         const allocated = mergedBreakdown.reduce((sum, it) => sum + it.amount, 0);
+        // Itens trazidos das cópias não podem sumir do total: a fatura mantida cobre pelo menos o que tem detalhado
+        const grownBy = Math.max(0, Math.round((allocated - keep.amount) * 100) / 100);
         updateMovement(keep.id, {
+          ...(grownBy > 0
+            ? {
+                amount: Math.round((keep.amount + grownBy) * 100) / 100,
+                ...(keep.status === 'REALIZADA' ? { actualAmount: Math.round(((keep.actualAmount ?? keep.amount) + grownBy) * 100) / 100 } : {}),
+              }
+            : {}),
           invoiceBreakdown: mergedBreakdown,
           unanalyzedAmount: Math.max(0, keep.amount - allocated),
           category: allocated >= keep.amount ? 'Fatura de Cartão' : keep.category,

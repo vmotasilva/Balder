@@ -188,19 +188,23 @@ export function addCardPurchaseToInvoices(
       finalAmount: purchase.total,
       purchaseDate: purchase.purchaseDate || todayIso(),
     };
-    const target = movements.find(
+    // A fatura do mês recebe a compra mesmo marcada como paga (a data de pagamento pode ser futura): criar outra
+    // fatura com o mesmo vencimento duplicaria o período. Entre várias, prefere a ainda prevista.
+    const sameMonth = movements.filter(
       (inv) =>
         inv.type === 'CARTAO' &&
-        inv.status === 'PREVISTA' &&
         sameBank(inv.bank, purchase.institution) &&
         inv.dueDate.startsWith(dueDate.substring(0, 7))
     );
+    const target = sameMonth.find((inv) => inv.status === 'PREVISTA') ?? sameMonth.find((inv) => inv.status === 'REALIZADA');
     let grow = amount;
     if (target) {
       const free = target.unanalyzedAmount ?? 0;
       grow = Math.max(0, round(amount - free));
       ops.updateMovement(target.id, {
         amount: round(target.amount + grow),
+        // Fatura paga: o valor pago acompanha o que entrou, senão o saldo ignoraria a compra
+        ...(target.status === 'REALIZADA' && grow > 0 ? { actualAmount: round((target.actualAmount ?? target.amount) + grow) } : {}),
         invoiceBreakdown: [...(target.invoiceBreakdown || []), item],
         unanalyzedAmount: Math.max(0, round(free - amount)),
       });
@@ -235,6 +239,9 @@ export function invoiceAfterRemovingItems(invoice: Movement, itemIds: string[], 
   const unanalyzed = Math.max(0, round(amount - breakdown.reduce((acc, i) => acc + i.amount, 0)));
   return {
     amount,
+    ...(invoice.status === 'REALIZADA' && invoice.actualAmount !== undefined && grow > 0
+      ? { actualAmount: Math.max(0, round(invoice.actualAmount - grow)) }
+      : {}),
     invoiceBreakdown: breakdown,
     unanalyzedAmount: unanalyzed,
     category: unanalyzed > 0.01 ? 'Não Analisada' : 'Fatura de Cartão',
