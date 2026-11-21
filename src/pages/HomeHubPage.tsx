@@ -12,6 +12,8 @@ import {
   Target,
   Wallet,
   CreditCard,
+  CalendarPlus,
+  X,
 } from 'lucide-react';
 import { useFinancial } from '../context/FinancialContext';
 import { useAuth } from '../context/AuthContext';
@@ -32,7 +34,7 @@ import type { TabId } from '../components/Sidebar';
 import { periodRangeLabel, trackingPeriodRange, TRACKING_PERIOD_LABELS } from '../utils/periodSpending';
 import type { TrackingPeriod } from '../utils/periodSpending';
 import { useForecastEntryActions } from '../hooks/useForecastEntryActions';
-import type { ForecastEntry } from '../utils/forecastWindow';
+import { buildForecastWindow, type ForecastEntry } from '../utils/forecastWindow';
 import { displayName } from '../utils/displayName';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { PeriodMovementsModal, isMovementIncome, movementDate, movementValue } from '../components/PeriodMovementsModal';
@@ -56,6 +58,7 @@ const greeting = () => {
 };
 
 const PERIODS: TrackingPeriod[] = ['SEMANA', 'QUINZENA', 'MES'];
+const MAX_FORECAST_DATES = 2;
 
 /** Linha da lista de tarefas: um lançamento ou um grupo (natureza ou mapeamento) que abre o próximo nível. */
 type TaskRow =
@@ -122,9 +125,42 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   const [showInvoices, setShowInvoices] = useState(false);
 
   const period: TrackingPeriod = viewPreferences.trackingPeriod || 'MES';
-  const labels = TRACKING_PERIOD_LABELS[period];
   const today = new Date();
   const todayIso = isoOf(today);
+
+  // Datas fixas da previsão (até 2, escolhidas pela pessoa); as que já passaram saem sozinhas
+  const savedDates = viewPreferences.forecastDates;
+  const forecastDates = useMemo(
+    () => [...new Set((savedDates || []).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && d >= todayIso))].sort().slice(0, MAX_FORECAST_DATES),
+    [savedDates, todayIso]
+  );
+  const untilDate = viewPreferences.trackingUntil && forecastDates.includes(viewPreferences.trackingUntil) ? viewPreferences.trackingUntil : null;
+  const [addingDate, setAddingDate] = useState(false);
+  const labels = untilDate
+    ? (() => {
+        const until = `até ${shortDate(untilDate)}`;
+        return { name: `Até ${shortDate(untilDate)}`, this: until, that: until, end: until };
+      })()
+    : TRACKING_PERIOD_LABELS[period];
+  const checkpointStart = activeCheckpoint?.startDate ?? '0000-01-01';
+  const customWindow = useMemo(
+    () =>
+      untilDate
+        ? buildForecastWindow({ movements, natures, startingBalance: availableBalance, startDate: checkpointStart, today: new Date(), endDate: untilDate, natureDetailModes })
+        : null,
+    [untilDate, movements, natures, availableBalance, checkpointStart, natureDetailModes]
+  );
+
+  const addForecastDate = (value: string) => {
+    setAddingDate(false);
+    if (!value || value < todayIso || forecastDates.length >= MAX_FORECAST_DATES) return;
+    setViewPreferences({ forecastDates: [...new Set([...forecastDates, value])].sort(), trackingUntil: value });
+  };
+  const removeForecastDate = (value: string) =>
+    setViewPreferences({
+      forecastDates: forecastDates.filter((d) => d !== value),
+      trackingUntil: viewPreferences.trackingUntil === value ? '' : viewPreferences.trackingUntil,
+    });
   const firstName = displayName(user?.name, viewPreferences);
 
   const onboardingDone = (() => {
@@ -141,7 +177,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   const needsSetup = inSetup && !finishedSetup;
 
   // Janela do período preferido (a mesma usada nas previsões: semana até domingo, quinzena, mês)
-  const periodWindow = forecasts[period === 'MES' ? 'MES' : period];
+  const periodWindow = customWindow ?? forecasts[period];
 
   // ── Tarefas: vencidos primeiro, depois o que vence no período ──
   const tasks = useMemo(
@@ -225,7 +261,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
   const [showPeriodMovements, setShowPeriodMovements] = useState(false);
   const [showForecast, setShowForecast] = useState(false);
   const [showBalance, setShowBalance] = useState(false);
-  const periodRange = trackingPeriodRange(period);
+  const periodRange = untilDate ? { from: todayIso, to: untilDate } : trackingPeriodRange(period);
   const periodMovements = useMemo(
     () =>
       movements.filter((m) => {
@@ -434,7 +470,8 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           isOpen={showForecast}
           onClose={() => setShowForecast(false)}
           period={period}
-          onPeriodChange={(p) => p !== 'DIAS_30' && setViewPreferences({ trackingPeriod: p })}
+          onPeriodChange={(p) => p !== 'DIAS_30' && setViewPreferences({ trackingPeriod: p, trackingUntil: '' })}
+          customWindow={customWindow ? { window: customWindow, label: labels.name } : undefined}
         />
         <div className="home-stat">
           <span>Próximo recebimento</span>
@@ -453,7 +490,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
         isOpen={showPeriodMovements}
         onClose={() => setShowPeriodMovements(false)}
         title={`Movimentações ${labels.this}`}
-        subtitle={periodRangeLabel(period, periodRange)}
+        subtitle={periodRangeLabel(untilDate ? 'SEMANA' : period, periodRange)}
         movements={periodMovements}
         expectedEntries={periodWindow.entries}
         onNavigate={onNavigate}
@@ -466,12 +503,38 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
             <button
               key={p}
               type="button"
-              className={p === period ? 'is-active' : ''}
-              onClick={() => setViewPreferences({ trackingPeriod: p })}
+              className={!untilDate && p === period ? 'is-active' : ''}
+              onClick={() => setViewPreferences({ trackingPeriod: p, trackingUntil: '' })}
             >
               {TRACKING_PERIOD_LABELS[p].name}
             </button>
           ))}
+          {forecastDates.map((d) => (
+            <span key={d} className={`home-period-date ${d === untilDate ? 'is-active' : ''}`}>
+              <button type="button" onClick={() => setViewPreferences({ trackingUntil: d })} title={`Previsão de hoje até ${shortDate(d)}`}>
+                Até {shortDate(d)}
+              </button>
+              <button type="button" className="home-period-date-remove" onClick={() => removeForecastDate(d)} aria-label={`Remover data ${shortDate(d)}`} title="Remover data">
+                <X size={11} />
+              </button>
+            </span>
+          ))}
+          {forecastDates.length < MAX_FORECAST_DATES &&
+            (addingDate ? (
+              <input
+                type="date"
+                className="home-period-date-input"
+                min={todayIso}
+                autoFocus
+                aria-label="Previsão até a data"
+                onChange={(e) => addForecastDate(e.target.value)}
+                onBlur={() => setAddingDate(false)}
+              />
+            ) : (
+              <button type="button" className="home-period-add" onClick={() => setAddingDate(true)} title="Previsão até uma data fixa">
+                <CalendarPlus size={13} /> Data
+              </button>
+            ))}
         </div>
         <button type="button" className="home-period-icon" onClick={() => setShowGoals(true)} aria-label="Metas" title="Metas">
           <Target size={16} />
@@ -491,7 +554,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
           }}
         />
       </Modal>
-      <Modal isOpen={showInvoices} onClose={() => setShowInvoices(false)} title={`Faturas em aberto · ${TRACKING_PERIOD_LABELS[period].name}`} maxWidth="640px">
+      <Modal isOpen={showInvoices} onClose={() => setShowInvoices(false)} title={`Faturas em aberto · ${labels.name}`} maxWidth="640px">
         <InvoicesOverview range={periodRange} />
       </Modal>
       <Modal isOpen={showSalary} onClose={() => setShowSalary(false)} title="Salário" maxWidth="640px">

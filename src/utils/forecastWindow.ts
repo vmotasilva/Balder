@@ -110,13 +110,19 @@ export function buildForecastWindow(params: {
   startDate?: string; // início do marco ativo (itens das naturezas antes dele são ignorados)
   today?: Date;
   period?: ForecastPeriod;
+  /** Data fixa (YYYY-MM-DD) escolhida pela pessoa: no lugar do fim do período. Antes de hoje, vale hoje. */
+  endDate?: string;
   /** Exibição padrão de cada natureza ('MAPEAMENTOS' = Resumo); o mapeamento pode ter a sua. */
   natureDetailModes?: Record<string, 'ITENS' | 'MAPEAMENTOS'>;
 }): ForecastWindow {
   const { movements, natures, startingBalance, startDate = '0000-01-01', period = 'DIAS_30', natureDetailModes = {} } = params;
   const today = params.today ? new Date(params.today) : new Date();
   today.setHours(0, 0, 0, 0);
-  const end = forecastPeriodEnd(period, today);
+  let end = forecastPeriodEnd(period, today);
+  if (params.endDate) {
+    const custom = new Date(`${params.endDate}T00:00:00`);
+    if (!Number.isNaN(custom.getTime())) end = custom < today ? new Date(today) : custom;
+  }
   const days = Math.round((end.getTime() - today.getTime()) / 86400000) + 1;
   const fromDate = isoOf(today);
   const toDate = isoOf(end);

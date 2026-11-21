@@ -50,3 +50,25 @@ describe('gasto lançado na semana baixa o vencimento do resumo', () => {
     expect(weeks([spend({ title: 'Restaurante' })])).toEqual(weeks([]));
   });
 });
+
+describe('previsão até uma data fixa', () => {
+  const bill = (id: string, dueDate: string): Movement =>
+    ({ id, type: 'PAGAR', status: 'PREVISTA', title: id, amount: 50, dueDate, bank: '', category: 'Contas' } as unknown as Movement);
+  const today = new Date(2026, 10, 21);
+  const run = (endDate?: string) =>
+    buildForecastWindow({ movements: [bill('a', '2026-11-25'), bill('b', '2026-12-10')], natures: [], startingBalance: 500, today, period: 'MES', endDate });
+
+  it('usa a data no lugar do fim do período', () => {
+    const w = run('2026-12-15');
+    expect(w.toDate).toBe('2026-12-15');
+    expect(w.entries.map((e) => e.id)).toEqual(['a', 'b']);
+    expect(w.projectedBalance).toBe(400);
+  });
+  it('corta o que vence depois da data', () => {
+    const w = run('2026-11-30');
+    expect(w.entries.map((e) => e.id)).toEqual(['a']);
+  });
+  it('data no passado vale hoje', () => {
+    expect(run('2026-01-01').toDate).toBe('2026-11-21');
+  });
+});

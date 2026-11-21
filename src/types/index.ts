@@ -523,6 +523,8 @@ export interface ViewPreferences {
   homeScreen?: 'INICIO' | 'PAINEL';            // tela aberta ao entrar
   experienceMode?: 'GUIADO' | 'MANUAL';        // a Forseti conduz e sugere, ou a pessoa configura tudo
   trackingPeriod?: 'SEMANA' | 'QUINZENA' | 'MES'; // período dos resumos do Início
+  forecastDates?: string[];                    // até 2 datas fixas (YYYY-MM-DD) para a previsão "até a data" do Início
+  trackingUntil?: string;                      // data fixa em uso no Início (uma de forecastDates); vazio = período padrão
   nickname?: string;                           // como a pessoa quer ser chamada
 }
 

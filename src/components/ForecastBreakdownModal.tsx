@@ -8,6 +8,7 @@ import {
   type ForecastEntry,
   type ForecastEntrySource,
   type ForecastPeriod,
+  type ForecastWindow,
 } from '../utils/forecastWindow';
 
 const PERIOD_STORAGE_KEY = 'balder_forecast_period';
@@ -124,12 +125,14 @@ interface ForecastBreakdownModalProps {
   onClose: () => void;
   period: ForecastPeriod;
   onPeriodChange: (p: ForecastPeriod) => void;
+  /** Previsão até uma data fixa: no lugar da janela do período, com o rótulo dela no título. */
+  customWindow?: { window: ForecastWindow; label: string };
 }
 
 /** O que compõe o saldo previsto do período: saldo em caixa + entradas − saídas, item a item. */
-export const ForecastBreakdownModal: React.FC<ForecastBreakdownModalProps> = ({ isOpen, onClose, period, onPeriodChange }) => {
+export const ForecastBreakdownModal: React.FC<ForecastBreakdownModalProps> = ({ isOpen, onClose, period, onPeriodChange, customWindow }) => {
   const { forecasts } = useFinancial();
-  const w = forecasts[period];
+  const w = customWindow ? customWindow.window : forecasts[period];
   const overdue = w.entries.filter((e) => e.overdue);
   const upcoming = w.entries.filter((e) => !e.overdue);
   const incoming = upcoming.filter((e) => e.kind === 'ENTRADA');
@@ -140,12 +143,12 @@ export const ForecastBreakdownModal: React.FC<ForecastBreakdownModalProps> = ({ 
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={`${forecastPeriodLabel(period)}: saldo previsto`}
+      title={`${customWindow ? customWindow.label : forecastPeriodLabel(period)}: saldo previsto`}
       subtitle={`De hoje (${ddmm(w.fromDate)}) até ${ddmm(w.toDate)}`}
       maxWidth="640px"
     >
       <div className="forecast-breakdown">
-        <ForecastPeriodPills value={period} onChange={onPeriodChange} />
+        <ForecastPeriodPills value={customWindow ? ('' as ForecastPeriod) : period} onChange={onPeriodChange} />
 
         <div className="forecast-summary">
           <div className="forecast-summary-row">
