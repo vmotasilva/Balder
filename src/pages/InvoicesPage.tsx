@@ -1,4 +1,5 @@
 import { userNatures } from '../utils/baseNatures';
+import { buildXlsx, downloadBlob, type XlsxCell } from '../utils/xlsxExport';
 import React, { useState, useMemo, useEffect } from 'react';
 import { parseMoney } from '../utils/parseDecimal';
 import {
@@ -17,6 +18,7 @@ import {
   Calendar,
   Check,
   Upload,
+  Download,
   Copy,
   ArrowLeft,
   MoreVertical,
@@ -254,6 +256,36 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
   // Helper para formatar moeda
   const fmtBRL = (val: number) =>
     val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  // Exporta os itens da fatura para .xlsx (conferência com o extrato do banco)
+  const exportInvoiceItems = (m: Movement) => {
+    const brDate = (iso?: string) => (iso ? iso.split('-').reverse().join('/') : '');
+    const items = [...(m.invoiceBreakdown || [])]
+      .map((it) => ({ ...it, purchaseDate: displayPurchaseDate(m, it, bankTermsOf(m)) }))
+      .sort((a, b) => (a.purchaseDate || '9999-99-99').localeCompare(b.purchaseDate || '9999-99-99'));
+    const rows: XlsxCell[][] = [
+      ['Data da compra', 'Descrição', 'Natureza', 'Parcela', 'Valor nesta fatura (R$)', 'Valor final da compra (R$)', 'IOF estornado (R$)'],
+      ...items.map((it) => {
+        const inst = it.installments || 1;
+        return [
+          brDate(it.purchaseDate),
+          it.description,
+          it.natureName,
+          inst > 1 ? `${it.currentInstallment ?? 1}/${inst}` : 'À vista',
+          it.amount,
+          it.finalAmount ?? it.amount * inst,
+          it.iofRefund || null,
+        ] as XlsxCell[];
+      }),
+    ];
+    const sum = items.reduce((s, it) => s + it.amount, 0);
+    rows.push([], ['', 'Total dos itens', '', '', Math.round(sum * 100) / 100]);
+    if (Math.abs(m.amount - sum) > 0.005) {
+      rows.push(['', 'Valor da fatura', '', '', m.amount], ['', 'Diferença (não detalhada)', '', '', Math.round((m.amount - sum) * 100) / 100]);
+    }
+    const slug = `${m.title}-${m.dueDate}`.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '');
+    downloadBlob(buildXlsx(rows, 'Itens da fatura', [14, 44, 22, 10, 22, 24, 18]), `fatura-${slug}.xlsx`);
+  };
 
   // Detecção e Agrupamento de Faturas Duplicadas (mesmo banco e mês de vencimento)
   const duplicateInvoiceGroups = useMemo(() => {
@@ -1279,6 +1311,17 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                                 }}
                               >
                                 <Upload size={14} /> Importar extrato
+                              </button>
+                              <button
+                                type="button"
+                                role="menuitem"
+                                disabled={!(m.invoiceBreakdown && m.invoiceBreakdown.length)}
+                                onClick={() => {
+                                  setInvoiceMenuId(null);
+                                  exportInvoiceItems(m);
+                                }}
+                              >
+                                <Download size={14} /> Exportar itens (Excel)
                               </button>
                               <button
                                 type="button"
