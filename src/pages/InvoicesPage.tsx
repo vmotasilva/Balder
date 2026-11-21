@@ -1,5 +1,6 @@
 import { userNatures } from '../utils/baseNatures';
 import { buildXlsx, downloadBlob, type XlsxCell } from '../utils/xlsxExport';
+import { buildPdfTable } from '../utils/pdfExport';
 import React, { useState, useMemo, useEffect } from 'react';
 import { parseMoney } from '../utils/parseDecimal';
 import {
@@ -19,6 +20,7 @@ import {
   Check,
   Upload,
   Download,
+  FileText,
   Copy,
   ArrowLeft,
   MoreVertical,
@@ -256,6 +258,37 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
   // Helper para formatar moeda
   const fmtBRL = (val: number) =>
     val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  // Exporta as compras da fatura em PDF
+  const exportInvoicePdf = (m: Movement) => {
+    const brDate = (iso?: string) => (iso ? iso.split('-').reverse().join('/') : '');
+    const items = [...(m.invoiceBreakdown || [])]
+      .map((it) => ({ ...it, purchaseDate: displayPurchaseDate(m, it, bankTermsOf(m)) }))
+      .sort((a, b) => (a.purchaseDate || '9999-99-99').localeCompare(b.purchaseDate || '9999-99-99'));
+    const sum = Math.round(items.reduce((s, it) => s + it.amount, 0) * 100) / 100;
+    const footerRows = [['', 'Total dos itens', '', '', fmtBRL(sum)]];
+    if (Math.abs(m.amount - sum) > 0.005) {
+      footerRows.push(['', 'Valor da fatura', '', '', fmtBRL(m.amount)], ['', 'Diferença (não detalhada)', '', '', fmtBRL(m.amount - sum)]);
+    }
+    const blob = buildPdfTable({
+      title: m.title,
+      subtitle: [`Vencimento: ${brDate(m.dueDate)}`, `Valor da fatura: ${fmtBRL(m.amount)}`],
+      columns: [
+        { header: 'Data', width: 52 },
+        { header: 'Descrição', width: 215 },
+        { header: 'Natureza', width: 110 },
+        { header: 'Parcela', width: 46 },
+        { header: 'Valor (R$)', width: 100, align: 'right' },
+      ],
+      rows: items.map((it) => {
+        const inst = it.installments || 1;
+        return [brDate(it.purchaseDate), it.description, it.natureName, inst > 1 ? `${it.currentInstallment ?? 1}/${inst}` : 'À vista', fmtBRL(it.amount)];
+      }),
+      footerRows,
+    });
+    const slug = `${m.title}-${m.dueDate}`.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '');
+    downloadBlob(blob, `fatura-${slug}.pdf`);
+  };
 
   // Exporta os itens da fatura para .xlsx (conferência com o extrato do banco)
   const exportInvoiceItems = (m: Movement) => {
@@ -1322,6 +1355,17 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                                 }}
                               >
                                 <Download size={14} /> Exportar itens (Excel)
+                              </button>
+                              <button
+                                type="button"
+                                role="menuitem"
+                                disabled={!(m.invoiceBreakdown && m.invoiceBreakdown.length)}
+                                onClick={() => {
+                                  setInvoiceMenuId(null);
+                                  exportInvoicePdf(m);
+                                }}
+                              >
+                                <FileText size={14} /> Exportar compras (PDF)
                               </button>
                               <button
                                 type="button"
