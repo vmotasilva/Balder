@@ -1,6 +1,7 @@
 import { userNatures } from '../utils/baseNatures';
 import { buildXlsx, downloadBlob, type XlsxCell } from '../utils/xlsxExport';
 import { buildPdfTable } from '../utils/pdfExport';
+import { readXlsxRows, excelSerialToIso } from '../utils/xlsxImport';
 import React, { useState, useMemo, useEffect } from 'react';
 import { parseMoney } from '../utils/parseDecimal';
 import {
@@ -21,6 +22,7 @@ import {
   Upload,
   Download,
   FileText,
+  FileSpreadsheet,
   Copy,
   ArrowLeft,
   MoreVertical,
@@ -297,7 +299,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
       .map((it) => ({ ...it, purchaseDate: displayPurchaseDate(m, it, bankTermsOf(m)) }))
       .sort((a, b) => (a.purchaseDate || '9999-99-99').localeCompare(b.purchaseDate || '9999-99-99'));
     const rows: XlsxCell[][] = [
-      ['Data da compra', 'Descrição', 'Natureza', 'Parcela', 'Valor nesta fatura (R$)', 'Valor final da compra (R$)', 'IOF estornado (R$)'],
+      ['Data da compra', 'Descrição', 'Natureza', 'Parcela', 'Valor nesta fatura (R$)', 'Valor final da compra (R$)', 'IOF estornado (R$)', 'ID (não alterar)'],
       ...items.map((it) => {
         const inst = it.installments || 1;
         return [
@@ -308,6 +310,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
           it.amount,
           it.finalAmount ?? it.amount * inst,
           it.iofRefund || null,
+          it.id,
         ] as XlsxCell[];
       }),
     ];
@@ -317,8 +320,151 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
       rows.push(['', 'Valor da fatura', '', '', m.amount], ['', 'Diferença (não detalhada)', '', '', Math.round((m.amount - sum) * 100) / 100]);
     }
     const slug = `${m.title}-${m.dueDate}`.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '');
-    downloadBlob(buildXlsx(rows, 'Itens da fatura', [14, 44, 22, 10, 22, 24, 18]), `fatura-${slug}.xlsx`);
+    downloadBlob(buildXlsx(rows, 'Itens da fatura', [14, 44, 22, 10, 22, 24, 18, 40]), `fatura-${slug}.xlsx`);
   };
+
+  // Atualização em massa: lê o Excel (exportado e editado), casa pelas linhas com ID e mostra o que muda antes de aplicar
+  const importInvoiceItems = (m: Movement) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const rows = await readXlsxRows(file);
+        const norm = (s: unknown) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+        const hIdx = rows.findIndex((r) => r.some((c) => norm(c).startsWith('id')));
+        if (hIdx < 0) throw new Error('Não achei a coluna "ID". Use uma planilha exportada por "Exportar itens (Excel)".');
+        const header = rows[hIdx].map(norm);
+        const col = (pred: (h: string) => boolean) => header.findIndex(pred);
+        const cId = col((h) => h.startsWith('id'));
+        const cDate = col((h) => h.startsWith('data'));
+        const cDesc = col((h) => h.startsWith('descri'));
+        const cNat = col((h) => h.startsWith('natureza'));
+        const cAmt = col((h) => h.startsWith('valor nesta'));
+        const cFinal = col((h) => h.startsWith('valor final'));
+
+        const current = m.invoiceBreakdown || [];
+        const byId = new Map(current.map((it) => [it.id, it]));
+        const updates = new Map<string, InvoiceNatureItemBreakdown>();
+        const changes: string[] = [];
+        const problems: string[] = [];
+        let unknown = 0;
+
+        const readDate = (v: XlsxCell): string | undefined | null => {
+          if (v === null || v === undefined || v === '') return undefined; // vazio: não mexe
+          if (typeof v === 'number') return excelSerialToIso(v);
+          const s = String(v).trim();
+          const br = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+          if (br) return `${br[3]}-${br[2].padStart(2, '0')}-${br[1].padStart(2, '0')}`;
+          if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+          return null; // inválida
+        };
+        const readMoney = (v: XlsxCell): number | undefined | null => {
+          if (v === null || v === undefined || v === '') return undefined;
+          const n = typeof v === 'number' ? v : parseMoney(String(v));
+          return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
+        };
+
+        rows.slice(hIdx + 1).forEach((r, i) => {
+          const id = String(r[cId] ?? '').trim();
+          if (!id) return; // linhas de total/em branco
+          const item = byId.get(id);
+          const line = hIdx + i + 2;
+          if (!item) {
+            unknown++;
+            return;
+          }
+          const next: InvoiceNatureItemBreakdown = { ...item };
+          const diffs: string[] = [];
+
+          if (cDesc >= 0) {
+            const d = String(r[cDesc] ?? '').trim();
+            if (d && d !== item.description) {
+              next.description = d;
+              diffs.push(`descrição "${item.description}" → "${d}"`);
+            }
+          }
+          if (cNat >= 0) {
+            const n = String(r[cNat] ?? '').trim();
+            if (n && norm(n) !== norm(item.natureName)) {
+              if (norm(n).startsWith('outros')) {
+                next.natureId = 'OUTROS';
+                next.natureName = 'Outros';
+                next.isAnalyzed = true;
+                diffs.push(`natureza ${item.natureName} → Outros`);
+              } else {
+                const nat = natures.find((x) => norm(x.name) === norm(n));
+                if (nat) {
+                  next.natureId = nat.id;
+                  next.natureName = nat.name;
+                  next.isAnalyzed = true;
+                  diffs.push(`natureza ${item.natureName} → ${nat.name}`);
+                } else problems.push(`Linha ${line}: natureza "${n}" não existe (mantida "${item.natureName}")`);
+              }
+            }
+          }
+          if (cDate >= 0) {
+            const d = readDate(r[cDate]);
+            if (d === null) problems.push(`Linha ${line}: data inválida (mantida a atual)`);
+            else if (d && d !== item.purchaseDate && d !== displayPurchaseDate(m, item, bankTermsOf(m))) {
+              next.purchaseDate = d;
+              diffs.push(`data ${brDateOf(displayPurchaseDate(m, item, bankTermsOf(m)))} → ${brDateOf(d)}`);
+            }
+          }
+          if (cAmt >= 0) {
+            const a = readMoney(r[cAmt]);
+            if (a === null) problems.push(`Linha ${line}: valor inválido (mantido o atual)`);
+            else if (a !== undefined && Math.abs(a - item.amount) > 0.004) {
+              next.amount = a;
+              diffs.push(`valor ${fmtBRL(item.amount)} → ${fmtBRL(a)}`);
+            }
+          }
+          if (cFinal >= 0) {
+            const f = readMoney(r[cFinal]);
+            const cur = item.finalAmount ?? item.amount * (item.installments || 1);
+            if (f === null) problems.push(`Linha ${line}: valor final inválido (mantido o atual)`);
+            else if (f !== undefined && Math.abs(f - cur) > 0.004) {
+              next.finalAmount = f;
+              diffs.push(`valor final ${fmtBRL(cur)} → ${fmtBRL(f)}`);
+            }
+          }
+          if (diffs.length) {
+            updates.set(id, next);
+            changes.push(`• ${item.description}: ${diffs.join('; ')}`);
+          }
+        });
+
+        if (!updates.size) {
+          alert(`Nenhuma alteração encontrada nos itens desta fatura.${problems.length ? `\n\nAvisos:\n${problems.slice(0, 8).join('\n')}` : ''}`);
+          return;
+        }
+        const preview = changes.slice(0, 12).join('\n') + (changes.length > 12 ? `\n… e mais ${changes.length - 12} item(ns)` : '');
+        const extra =
+          (problems.length ? `\n\nAvisos (campos ignorados):\n${problems.slice(0, 6).join('\n')}` : '') +
+          (unknown ? `\n\n${unknown} linha(s) com ID que não pertence a esta fatura foram ignoradas.` : '');
+        confirmAction({
+          title: 'Atualizar itens pela planilha',
+          message: `${updates.size} item(ns) serão atualizados na fatura "${m.title}":\n\n${preview}${extra}`,
+          confirmLabel: 'Aplicar alterações',
+          onConfirm: () => {
+            const merged = current.map((it) => updates.get(it.id) ?? it);
+            const allocated = merged.reduce((s, it) => s + it.amount, 0);
+            updateMovement(m.id, {
+              invoiceBreakdown: merged,
+              unanalyzedAmount: Math.max(0, Math.round((m.amount - allocated) * 100) / 100),
+            });
+          },
+        });
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Não consegui ler a planilha.');
+      }
+    };
+    input.click();
+  };
+
+  const brDateOf = (iso?: string) => (iso ? iso.split('-').reverse().join('/') : '—');
 
   // Detecção e Agrupamento de Faturas Duplicadas (mesmo banco e mês de vencimento)
   const duplicateInvoiceGroups = useMemo(() => {
@@ -1366,6 +1512,17 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                                 }}
                               >
                                 <FileText size={14} /> Exportar compras (PDF)
+                              </button>
+                              <button
+                                type="button"
+                                role="menuitem"
+                                disabled={!(m.invoiceBreakdown && m.invoiceBreakdown.length)}
+                                onClick={() => {
+                                  setInvoiceMenuId(null);
+                                  importInvoiceItems(m);
+                                }}
+                              >
+                                <FileSpreadsheet size={14} /> Atualizar itens (Excel)
                               </button>
                               <button
                                 type="button"
