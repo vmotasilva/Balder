@@ -2,12 +2,14 @@ import type { BankAccount, ExpenseNature, FinancialCheckpoint, Movement } from '
 import { isCashInHand } from './cashInHand';
 import { buildForecastWindow, FORECAST_PERIODS, type ForecastPeriod, type ForecastWindow } from './forecastWindow';
 import { movementCompetenceDate } from './projectionMath';
+import { todayIso } from './cardPurchase';
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
 /**
  * Saldo em caixa hoje. Com marco ativo: saldo inicial + entradas realizadas − saídas realizadas desde o início dele.
  * Sem marco: soma das contas correntes e carteiras.
+ * Só conta o que já aconteceu: realizadas com data futura (ex.: fatura que vence mais adiante) ficam de fora.
  */
 export function computeAvailableBalance(params: {
   movements: Movement[];
@@ -17,7 +19,11 @@ export function computeAvailableBalance(params: {
   const { movements, accounts, activeCheckpoint } = params;
   if (activeCheckpoint) {
     const startDate = activeCheckpoint.startDate;
-    const realized = movements.filter((m) => movementCompetenceDate(m) >= startDate && m.status === 'REALIZADA');
+    const today = todayIso();
+    const realized = movements.filter((m) => {
+      const date = movementCompetenceDate(m);
+      return m.status === 'REALIZADA' && date >= startDate && date <= today;
+    });
     const income = realized.filter((m) => m.type === 'RECEBER').reduce((s, m) => s + m.amount, 0);
     const expense = realized.filter((m) => m.type !== 'RECEBER').reduce((s, m) => s + m.amount, 0);
     return round2(activeCheckpoint.initialBalance + income - expense);
@@ -35,8 +41,9 @@ export function computeCashInHand(params: {
   const { movements, accounts, activeCheckpoint, checkpointCashInHand } = params;
   if (activeCheckpoint) {
     const startDate = activeCheckpoint.startDate;
+    const today = todayIso();
     const flows = movements
-      .filter((m) => m.status === 'REALIZADA' && isCashInHand(m.bank) && movementCompetenceDate(m) >= startDate)
+      .filter((m) => m.status === 'REALIZADA' && isCashInHand(m.bank) && movementCompetenceDate(m) >= startDate && movementCompetenceDate(m) <= today)
       .reduce((acc, m) => acc + (m.type === 'RECEBER' ? m.amount : -m.amount), 0);
     return round2((checkpointCashInHand[activeCheckpoint.id] || 0) + flows);
   }

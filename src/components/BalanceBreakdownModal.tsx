@@ -4,6 +4,7 @@ import { DecimalInput } from './DecimalInput';
 import { Modal } from './Modal';
 import { useFinancial } from '../context/FinancialContext';
 import { movementCompetenceDate } from '../utils/projectionMath';
+import { todayIso } from '../utils/cardPurchase';
 
 interface BalanceBreakdownModalProps {
   isOpen: boolean;
@@ -51,8 +52,9 @@ export const BalanceBreakdownModal: React.FC<BalanceBreakdownModalProps> = ({ is
 
   const { opening, rows, net } = useMemo(() => {
     const from = checkpointStart && checkpointStart > periodFrom ? checkpointStart : periodFrom;
+    const today = todayIso();
     const list = movements
-      .filter((m) => m.status === 'REALIZADA' && movementCompetenceDate(m) >= from)
+      .filter((m) => m.status === 'REALIZADA' && movementCompetenceDate(m) >= from && movementCompetenceDate(m) <= today)
       .map((m) => ({ m, date: movementCompetenceDate(m), signed: m.type === 'RECEBER' ? m.amount : -m.amount }))
       .sort((a, b) => a.date.localeCompare(b.date) || a.m.title.localeCompare(b.m.title));
     const total = round2(list.reduce((acc, r) => acc + r.signed, 0));
