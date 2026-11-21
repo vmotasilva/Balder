@@ -1,6 +1,7 @@
 import { userNatures } from '../utils/baseNatures';
 import { buildXlsx, downloadBlob, type XlsxCell } from '../utils/xlsxExport';
 import { buildPdfTable } from '../utils/pdfExport';
+import { planInstallmentRepair } from '../utils/installmentRepair';
 import { readXlsxRows, excelSerialToIso } from '../utils/xlsxImport';
 import React, { useState, useMemo, useEffect } from 'react';
 import { parseMoney } from '../utils/parseDecimal';
@@ -494,6 +495,29 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
     return duplicateInvoiceGroups.reduce((acc, g) => acc + (g.invoices.length - 1), 0);
   }, [duplicateInvoiceGroups]);
 
+  // Parcelas fora de ordem (repetidas, renumeradas para 1/N por conciliações antigas...)
+  const installmentRepairPlan = useMemo(() => planInstallmentRepair(movements), [movements]);
+
+  const handleRepairInstallments = () => {
+    const plan = installmentRepairPlan;
+    if (!plan.lines.length) return;
+    const preview = plan.lines.slice(0, 14).join('\n') + (plan.lines.length > 14 ? `\n… e mais ${plan.lines.length - 14} ajuste(s)` : '');
+    const removable = plan.invoices.filter((p) => p.remove).length;
+    confirmAction({
+      title: 'Corrigir parcelas das faturas',
+      message:
+        `${plan.lines.length} ajuste(s) em ${plan.invoices.length} fatura(s). O valor de cada fatura não muda; o "Não Analisada" é recalculado.\n\n${preview}` +
+        (removable ? `\n\n${removable} fatura(s) prevista(s) só tinham parcelas indevidas e serão excluídas.` : ''),
+      confirmLabel: 'Corrigir parcelas',
+      onConfirm: () => {
+        for (const p of plan.invoices) {
+          if (p.remove) deleteMovement(p.movement.id);
+          else updateMovement(p.movement.id, { invoiceBreakdown: p.items, unanalyzedAmount: p.unanalyzedAmount });
+        }
+      },
+    });
+  };
+
   // Consolidar e Limpar Duplicatas em 1 Clique
   const handleConsolidateDuplicates = () => {
     if (duplicateInvoiceGroups.length === 0) return;
@@ -869,6 +893,27 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
           </h1>
         </div>
         <div className="page-header-actions" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {installmentRepairPlan.lines.length > 0 && (
+            <button
+              className="btn btn-secondary"
+              onClick={handleRepairInstallments}
+              id="btn-repair-installments-top"
+              title="Há compras parceladas com parcela repetida ou fora de ordem. Clique para revisar e corrigir."
+              style={{
+                background: 'rgba(245, 158, 11, 0.18)',
+                borderColor: 'rgba(245, 158, 11, 0.45)',
+                color: '#FCD34D',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontWeight: 600,
+              }}
+            >
+              <AlertTriangle size={16} />
+              <span>Corrigir parcelas ({installmentRepairPlan.lines.length})</span>
+            </button>
+          )}
+
           {totalDuplicatesCount > 0 && (
             <button
               className="btn btn-secondary"
