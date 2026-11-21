@@ -613,29 +613,23 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
     }));
   };
 
-  const handleBreakdownMappingItemChange = (
-    bankId: string,
-    rowId: string,
-    combinedValue: string // formato: `${mappingId}:::${itemId}`
-  ) => {
+  const handleBreakdownMappingChange = (bankId: string, rowId: string, mappingId: string) => {
     setBreakdownsByBank((prev) => ({
       ...prev,
       [bankId]: (prev[bankId] || []).map((r) => {
         if (r.id !== rowId) return r;
-        if (!combinedValue) {
+        if (!mappingId) {
           return { ...r, mappingId: undefined, mappingItemId: undefined };
         }
-        const [mappingId, mappingItemId] = combinedValue.split(':::');
         const nat = natures.find((n) => n.id === r.natureId);
         const map = nat?.mappings.find((m) => m.id === mappingId);
-        const item = map?.items.find((it) => it.id === mappingItemId);
 
         return {
           ...r,
           mappingId,
-          mappingItemId,
-          description: r.description || item?.description || '',
-          amountInput: r.amountInput || (item?.totalValue ? String(item.totalValue) : ''),
+          // Trocar de mapeamento invalida o item que pertencia ao anterior
+          mappingItemId: r.mappingId === mappingId ? r.mappingItemId : undefined,
+          description: r.description || map?.name || '',
         };
       }),
     }));
@@ -674,31 +668,16 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
   };
 
   // Helper para obter itens de mapeamento para uma natureza
-  const getMappingItemsForNature = (natId: string) => {
+  // O alvo da associação é o mapeamento; os itens da memória de cálculo são só palavras-chave.
+  const getMappingsForNature = (natId: string) => {
     const nat = natures.find((n) => n.id === natId);
     if (!nat) return [];
-    const list: Array<{
-      id: string;
-      mappingId: string;
-      mappingName: string;
-      mappingIcon?: string;
-      description: string;
-      totalValue: number;
-    }> = [];
-
-    (nat.mappings || []).forEach((m) => {
-      (m.items || []).forEach((it) => {
-        list.push({
-          id: it.id,
-          mappingId: m.id,
-          mappingName: m.name,
-          mappingIcon: m.icon || '📋',
-          description: it.description,
-          totalValue: it.totalValue,
-        });
-      });
-    });
-    return list;
+    return (nat.mappings || []).map((m) => ({
+      id: m.id,
+      name: m.name,
+      icon: m.icon || '📋',
+      totalValue: (m.items || []).reduce((s, it) => s + (it.totalValue || 0), 0),
+    }));
   };
 
   // Conclusão e Gravação do Checkpoint
@@ -1838,8 +1817,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                       </div>
                     ) : (
                       rows.map((row) => {
-                        const availableMappingItems = row.natureId && row.natureId !== 'OUTROS' ? getMappingItemsForNature(row.natureId) : [];
-                        const combinedMappingValue = row.mappingId && row.mappingItemId ? `${row.mappingId}:::${row.mappingItemId}` : '';
+                        const availableMappings = row.natureId && row.natureId !== 'OUTROS' ? getMappingsForNature(row.natureId) : [];
 
                         return (
                           <div
@@ -1855,7 +1833,7 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                             }}
                           >
                             {/* Linha 1: Seletor de Natureza e Item de Mapeamento */}
-                            <div style={{ display: 'grid', gridTemplateColumns: availableMappingItems.length > 0 ? '1fr 1.2fr auto' : '1fr auto', gap: '6px', alignItems: 'center' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: availableMappings.length > 0 ? '1fr 1.2fr auto' : '1fr auto', gap: '6px', alignItems: 'center' }}>
                               {/* Seletor de Natureza */}
                               <select
                                 className="form-input"
@@ -1872,18 +1850,18 @@ export const CheckpointSetupModal: React.FC<CheckpointSetupModalProps> = ({
                                 <option value="OUTROS">📦 Outros (Sem Natureza Específica)</option>
                               </select>
 
-                              {/* Seletor de Item de Mapeamento (se a natureza possuir itens cadastrados) */}
-                              {availableMappingItems.length > 0 && (
+                              {/* Seletor de Mapeamento (se a natureza possuir mapeamentos cadastrados) */}
+                              {availableMappings.length > 0 && (
                                 <select
                                   className="form-input"
                                   style={{ fontSize: '0.78rem', padding: '4px 6px' }}
-                                  value={combinedMappingValue}
-                                  onChange={(e) => handleBreakdownMappingItemChange(b.id, row.id, e.target.value)}
+                                  value={row.mappingId || ''}
+                                  onChange={(e) => handleBreakdownMappingChange(b.id, row.id, e.target.value)}
                                 >
-                                  <option value="">(Geral da Natureza — Sem dar baixa em item específico)</option>
-                                  {availableMappingItems.map((item) => (
-                                    <option key={`${item.mappingId}:::${item.id}`} value={`${item.mappingId}:::${item.id}`}>
-                                      {item.mappingIcon || '📋'} {item.description} ({item.totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
+                                  <option value="">(Geral da Natureza — Sem mapeamento específico)</option>
+                                  {availableMappings.map((m) => (
+                                    <option key={m.id} value={m.id}>
+                                      {m.icon} {m.name} ({m.totalValue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
                                     </option>
                                   ))}
                                 </select>

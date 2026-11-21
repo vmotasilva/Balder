@@ -258,29 +258,11 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
   const isOverAllocated = totalAllocated > actualAmountNum;
 
   // Helper para itens de mapeamento de uma natureza
-  const getMappingItemsForNature = (natId: string) => {
+  // O alvo da associação é o mapeamento; os itens da memória de cálculo são só palavras-chave.
+  const getMappingsForNature = (natId: string) => {
     const nat = natures.find((n) => n.id === natId);
     if (!nat) return [];
-    const list: Array<{
-      id: string;
-      mappingId: string;
-      mappingName: string;
-      description: string;
-      totalValue: number;
-    }> = [];
-
-    (nat.mappings || []).forEach((m) => {
-      (m.items || []).forEach((it) => {
-        list.push({
-          id: it.id,
-          mappingId: m.id,
-          mappingName: m.name,
-          description: it.description,
-          totalValue: it.totalValue,
-        });
-      });
-    });
-    return list;
+    return (nat.mappings || []).map((m) => ({ id: m.id, name: m.name, icon: m.icon, itemCount: (m.items || []).length }));
   };
 
   // Manipuladores do detalhamento de fatura
@@ -396,26 +378,22 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
     );
   };
 
-  const handleBreakdownMappingItemChange = (rowId: string, combinedVal: string) => {
+  const handleBreakdownMappingChange = (rowId: string, mappingId: string) => {
     setBreakdownRows((prev) =>
       prev.map((r) => {
         if (r.id !== rowId) return r;
-        if (!combinedVal) return { ...r, mappingId: undefined, mappingItemId: undefined };
+        if (!mappingId) return { ...r, mappingId: undefined, mappingItemId: undefined };
 
-        const [mappingId, mappingItemId] = combinedVal.split(':::');
         const nat = natures.find((n) => n.id === r.natureId);
         const map = nat?.mappings.find((m) => m.id === mappingId);
-        const item = map?.items.find((it) => it.id === mappingItemId);
-        const itemVal = item?.totalValue || 0;
-        const inst = r.installments || 1;
+        // Trocar de mapeamento invalida o item que pertencia ao anterior
+        const keepItem = r.mappingId === mappingId ? r.mappingItemId : undefined;
 
         return {
           ...r,
           mappingId,
-          mappingItemId,
-          description: r.description || item?.description || '',
-          amountInput: r.amountInput || (itemVal > 0 ? String(itemVal) : ''),
-          finalAmountInput: r.finalAmountInput || (itemVal > 0 ? String(Math.round(itemVal * inst * 100) / 100) : ''),
+          mappingItemId: keepItem,
+          description: r.description || map?.name || '',
         };
       })
     );
@@ -1235,8 +1213,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
                 </div>
               ) : (
                 breakdownRows.map((row) => {
-                  const availableMappingItems = row.natureId && row.natureId !== 'OUTROS' ? getMappingItemsForNature(row.natureId) : [];
-                  const combinedMappingValue = row.mappingId && row.mappingItemId ? `${row.mappingId}:::${row.mappingItemId}` : '';
+                  const availableMappings = row.natureId && row.natureId !== 'OUTROS' ? getMappingsForNature(row.natureId) : [];
                   const rowInst = row.installments || 1;
                   const rowAmtNum = parseBRL(row.amountInput);
 
@@ -1277,18 +1254,18 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
                           <option value="OUTROS">📦 Outros</option>
                         </select>
 
-                        {/* Item de Mapeamento (se natureza selecionada) */}
+                        {/* Mapeamento (se natureza selecionada) */}
                         <select
                           className="form-input"
                           style={{ width: '125px', fontSize: '0.73rem', padding: '3px 6px' }}
-                          value={combinedMappingValue}
-                          onChange={(e) => handleBreakdownMappingItemChange(row.id, e.target.value)}
-                          disabled={availableMappingItems.length === 0}
+                          value={row.mappingId || ''}
+                          onChange={(e) => handleBreakdownMappingChange(row.id, e.target.value)}
+                          disabled={availableMappings.length === 0}
                         >
-                          <option value="">{availableMappingItems.length > 0 ? 'Item do Teto...' : 'Sem teto fixo'}</option>
-                          {availableMappingItems.map((it) => (
-                            <option key={it.id} value={`${it.mappingId}:::${it.id}`}>
-                              {it.description}
+                          <option value="">{availableMappings.length > 0 ? 'Mapeamento...' : 'Sem mapeamento'}</option>
+                          {availableMappings.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.name}
                             </option>
                           ))}
                         </select>

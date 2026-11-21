@@ -133,43 +133,64 @@ export function matchItemToLearnedRecord(itemName: string, natures?: ExpenseNatu
   // 1. Prioridade Máxima: Pesquisa direta nos itens e palavras-chave dos Mapeamentos do Usuário
   const activeNatures = (natures && natures.length > 0) ? natures : getActiveNaturesFromStorage();
   if (activeNatures && activeNatures.length > 0) {
+    // O destino é o MAPEAMENTO: os itens/palavras-chave só servem de pista.
+    // Cada item que casa soma pontos ao seu mapeamento; vence o mapeamento com mais evidência.
+    const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+    let best: { score: number; bestItemScore: number; record: LearnedItemRecord } | null = null;
+
     for (const nat of activeNatures) {
       for (const map of (nat.mappings || [])) {
-        for (const item of (map.items || [])) {
-          const itemDescNorm = item.description.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        let mapScore = 0;
+        let bestItemScore = 0;
+        let bestItem: { id: string; keyword: string } | null = null;
 
-          // A) Correspondência exata ou inclusão da descrição do item
-          if (lowerNorm.includes(itemDescNorm) || itemDescNorm.includes(lowerNorm)) {
-            return {
-              keyword: itemDescNorm,
-              mappingItemId: item.id,
-              targetMappingId: map.id,
-              natureId: nat.id,
-            };
+        for (const item of (map.items || [])) {
+          const itemDescNorm = norm(item.description);
+          let itemScore = 0;
+          let itemKeyword = itemDescNorm;
+
+          // A) Descrição do item (pista mais forte)
+          if (itemDescNorm && (lowerNorm.includes(itemDescNorm) || itemDescNorm.includes(lowerNorm))) {
+            itemScore = 3;
           }
 
-          // B) Correspondência com palavras-chave cadastradas no item
-          if (item.keywords && item.keywords.length > 0) {
+          // B) Palavras-chave cadastradas no item
+          if (itemScore === 0 && item.keywords && item.keywords.length > 0) {
             for (const kw of item.keywords) {
-              const kwNorm = kw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-              if (
-                kwNorm &&
-                (lowerNorm.includes(kwNorm) ||
-                  kwNorm.includes(lowerNorm) ||
-                  tokens.some((tok) => kwNorm.includes(tok) || tok.includes(kwNorm)))
-              ) {
-                return {
-                  keyword: kwNorm,
-                  mappingItemId: item.id,
-                  targetMappingId: map.id,
-                  natureId: nat.id,
-                };
+              const kwNorm = norm(kw);
+              if (!kwNorm) continue;
+              if (lowerNorm.includes(kwNorm) || kwNorm.includes(lowerNorm)) {
+                itemScore = 2;
+                itemKeyword = kwNorm;
+                break;
+              }
+              if (itemScore === 0 && tokens.some((tok) => kwNorm.includes(tok) || tok.includes(kwNorm))) {
+                itemScore = 1;
+                itemKeyword = kwNorm;
               }
             }
           }
+
+          if (itemScore > 0) {
+            mapScore += itemScore;
+            if (itemScore > bestItemScore) {
+              bestItemScore = itemScore;
+              bestItem = { id: item.id, keyword: itemKeyword };
+            }
+          }
+        }
+
+        if (bestItem && (!best || mapScore > best.score || (mapScore === best.score && bestItemScore > best.bestItemScore))) {
+          best = {
+            score: mapScore,
+            bestItemScore,
+            record: { keyword: bestItem.keyword, mappingItemId: bestItem.id, targetMappingId: map.id, natureId: nat.id },
+          };
         }
       }
     }
+
+    if (best) return best.record;
   }
 
   // 2. Busca no dicionário aprendido / padrão global
