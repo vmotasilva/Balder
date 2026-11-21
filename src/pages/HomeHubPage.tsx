@@ -102,6 +102,7 @@ export const HomeHubPage: React.FC<HomeHubPageProps> = ({ onNavigate, onOpenFors
     activeCheckpoint,
     movements,
     natures,
+    natureDetailModes,
     forecasts,
     availableBalance,
     accountBalance,
