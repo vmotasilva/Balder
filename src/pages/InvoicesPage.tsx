@@ -471,17 +471,16 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
   const duplicateInvoiceGroups = useMemo(() => {
     const groups: Record<string, Movement[]> = {};
     cardMovements.forEach((m) => {
-      if (m.status === 'PREVISTA') {
-        const bankKey = (m.bank || 'cartao').trim().toLowerCase();
-        const monthKey = m.dueDate.substring(0, 7);
-        const groupKey = `${bankKey}_${monthKey}`;
-        if (!groups[groupKey]) groups[groupKey] = [];
-        groups[groupKey].push(m);
-      }
+      const bankKey = (m.bank || 'cartao').trim().toLowerCase();
+      const monthKey = m.dueDate.substring(0, 7);
+      const groupKey = `${bankKey}_${monthKey}`;
+      if (!groups[groupKey]) groups[groupKey] = [];
+      groups[groupKey].push(m);
     });
 
+    // Duplicada = há uma fatura ainda prevista ao lado de outra do mesmo banco e mês (inclusive uma já paga)
     return Object.entries(groups)
-      .filter(([_, list]) => list.length > 1)
+      .filter(([_, list]) => list.length > 1 && list.some((m) => m.status === 'PREVISTA'))
       .map(([key, list]) => ({
         key,
         bank: list[0].bank || 'Cartão',
@@ -532,6 +531,8 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
       // 2. Quem tem UUID persistido no Supabase
       // 3. Primeira da lista
       const sorted = [...group.invoices].sort((a, b) => {
+        // Fatura já paga nunca é a descartada: a cópia prevista é que entra nela
+        if ((a.status === 'REALIZADA') !== (b.status === 'REALIZADA')) return a.status === 'REALIZADA' ? -1 : 1;
         const aBreakdown = (a.invoiceBreakdown || []).length;
         const bBreakdown = (b.invoiceBreakdown || []).length;
         if (bBreakdown !== aBreakdown) return bBreakdown - aBreakdown;
