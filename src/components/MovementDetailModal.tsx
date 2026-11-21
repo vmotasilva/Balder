@@ -50,6 +50,8 @@ interface ModalBreakdownRow {
   currentInstallment?: number; // Parcela atual (ex: 1)
   amountInput: string;    // Valor nesta fatura (R$)
   finalAmountInput: string; // Valor final total da compra (R$)
+  purchaseDate?: string;  // Data da compra (YYYY-MM-DD): preservada ao salvar a conciliação
+  iofRefund?: number;     // Estorno de IOF já abatido: preservado ao salvar
 }
 
 const parseBRL = (val: string): number => parseMoney(val);
@@ -199,6 +201,8 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
               currentInstallment: item.currentInstallment || 1,
               amountInput: String(item.amount),
               finalAmountInput: String(Math.round(finalAmt * 100) / 100),
+              purchaseDate: item.purchaseDate,
+              iofRefund: item.iofRefund,
             };
           })
         );
@@ -500,6 +504,8 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
         currentInstallment: item.currentInstallment || 1,
         amountInput: String(item.amount),
         finalAmountInput: String(Math.round(finalAmt * 100) / 100),
+        purchaseDate: item.purchaseDate,
+        iofRefund: item.iofRefund,
       };
     });
 
@@ -567,6 +573,8 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
             installments: instCount,
             currentInstallment: 1,
             finalAmount: finalTotal,
+            ...(r.purchaseDate ? { purchaseDate: r.purchaseDate } : {}),
+            ...(r.iofRefund ? { iofRefund: r.iofRefund } : {}),
           };
         });
 
@@ -631,6 +639,7 @@ export const MovementDetailModal: React.FC<MovementDetailModalProps> = ({
               installments: instCount,
               currentInstallment: p,
               finalAmount: finalTotal,
+              ...(r.purchaseDate ? { purchaseDate: r.purchaseDate } : {}),
             };
 
             if (targetInvoice) {
