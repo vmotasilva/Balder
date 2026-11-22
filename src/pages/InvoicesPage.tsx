@@ -782,13 +782,15 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
     const removedItem = currentBreakdown.find((i) => i.id === itemId);
     const updatedBreakdown = currentBreakdown.filter((i) => i.id !== itemId);
     const totalAllocated = updatedBreakdown.reduce((acc, i) => acc + i.amount, 0);
-    // Fatura já paga não muda de valor: o que foi pago continua valendo e a diferença fica em "Não Analisada"
-    const newAmount =
-      m.status === 'REALIZADA' || !removedItem ? m.amount : Math.max(0, Math.round((m.amount - removedItem.amount) * 100) / 100);
+    // O valor do item sai do total, inclusive em fatura paga (o valor pago acompanha)
+    const newAmount = !removedItem ? m.amount : Math.max(0, Math.round((m.amount - removedItem.amount) * 100) / 100);
     const unanalyzed = Math.max(0, Math.round((newAmount - totalAllocated) * 100) / 100);
 
     updateMovement(m.id, {
       amount: newAmount,
+      ...(m.status === 'REALIZADA' && removedItem
+        ? { actualAmount: Math.max(0, Math.round(((m.actualAmount ?? m.amount) - removedItem.amount) * 100) / 100) }
+        : {}),
       invoiceBreakdown: updatedBreakdown,
       unanalyzedAmount: unanalyzed,
       category: unanalyzed > 0.01 ? 'Não Analisada' : 'Fatura de Cartão',
