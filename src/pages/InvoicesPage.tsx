@@ -587,7 +587,12 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
   // Ajusta o valor da fatura para a soma dos itens (tira o que sobrou em "Não Analisada", ex.: de um item já removido)
   const handleShrinkInvoiceToItems = (m: Movement) => {
     const total = Math.round((m.invoiceBreakdown || []).reduce((acc, i) => acc + i.amount, 0) * 100) / 100;
-    updateMovement(m.id, { amount: total, unanalyzedAmount: 0, category: 'Fatura de Cartão' });
+    updateMovement(m.id, {
+      amount: total,
+      ...(m.status === 'REALIZADA' ? { actualAmount: total } : {}),
+      unanalyzedAmount: 0,
+      category: 'Fatura de Cartão',
+    });
   };
 
   // Classificar restante como Outros diretamente
@@ -1658,7 +1663,7 @@ export const InvoicesPage: React.FC<{ newInvoiceSignal?: number }> = ({ newInvoi
                         Classificar restante ({fmtBRL(unallocated)}) como Outros
                       </button>
                     )}
-                    {unallocated > 0.01 && breakdown.length > 0 && !isPaid && (
+                    {Math.abs(m.amount - totalAllocated) > 0.01 && breakdown.length > 0 && (
                       <button
                         style={{
                           display: 'block',
